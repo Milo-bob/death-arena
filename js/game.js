@@ -243,6 +243,7 @@ const G = {
     this.deadAge = 0;
     Sfx.play('death');
     this.settleRun(0);
+    hostMsg({ type: 'gameOver', score: Math.floor(this.time) });
   },
 
   // Lauf abrechnen (Tod und Sieg): Bestzeit, Statistik, Meilensteine, Cores. bonus = zusätzliche Cores (Sieg)
@@ -846,5 +847,8 @@ function loop(now) {
   requestAnimationFrame(loop);
 }
 
-loadAssets(() => { G.mode = 'start'; });
+// Nachrichten an die Host-Seite (holiday-games.com), wenn das Spiel eingebettet ist
+const hostMsg = (msg) => { try { if (window.parent !== window) window.parent.postMessage(msg, '*'); } catch (e) { /* egal */ } };
+
+loadAssets(() => { G.mode = 'start'; hostMsg({ type: 'ready' }); });
 requestAnimationFrame(loop);

@@ -324,7 +324,7 @@ function drawModeSelectScreen(ctx) {
   const d = descs[MODE_ITEMS[G.modeSel]];
   uiText(ctx, d[0], STAGE_W / 2, 238, { size: T.body, color: P.ice, align: 'center' });
   uiText(ctx, d[1], STAGE_W / 2, 252, { size: T.body, color: P.grey, align: 'center' });
-  uiText(ctx, 'W/S OR MOUSE = SELECT    SPACE OR CLICK = OK    ESC = BACK', STAGE_W / 2, 346, { size: T.small, color: P.grey, align: 'center' });
+  uiText(ctx, 'W/S OR MOUSE = SELECT    SPACE OR CLICK = OK    BACKSPACE = BACK', STAGE_W / 2, 346, { size: T.small, color: P.grey, align: 'center' });
 }
 
 // Endlos-Modus vor dem Start: Zeitpunkt des finalen Bosses wählen
@@ -339,7 +339,7 @@ function drawInfSetupScreen(ctx) {
   const rows = ['FINAL BOSS: ' + (m === null ? 'NEVER (ENDLESS)' : 'AFTER ' + m + ' MIN'), 'MAP: ' + mapName, 'START', 'BACK'];
   rows.forEach((r, i) => drawMenuRow(ctx, 116 + i * 30, r, G.infSel === i, { w: 300, hit: () => { G.infSel = i; }, lr: i < 2 }));
   uiText(ctx, 'CORES x' + CFG.infinite.coreFactor + '    OWN BEST TIME: ' + (Save.data.bestInf > 0 ? formatTime(Save.data.bestInf) : '-'), STAGE_W / 2, 250, { size: T.body, color: P.yellow, align: 'center' });
-  uiText(ctx, 'W/S = SELECT    A/D = CHANGE    SPACE = OK    ESC = BACK', STAGE_W / 2, 346, { size: T.small, color: P.grey, align: 'center' });
+  uiText(ctx, 'W/S = SELECT    A/D = CHANGE    SPACE = OK    BACKSPACE = BACK', STAGE_W / 2, 346, { size: T.small, color: P.grey, align: 'center' });
 }
 
 // Kartenauswahl nach PLAY: drei Karten nebeneinander, gesperrte zeigen, was zum Freischalten fehlt
@@ -365,7 +365,7 @@ function drawMapSelectScreen(ctx) {
       uiText(ctx, 'ON ' + CFG.maps[i - 1].name, x + w / 2, yy + 200, { size: T.small, color: P.grey, align: 'center' });
     }
   });
-  uiText(ctx, 'A/D OR MOUSE = SELECT    SPACE OR CLICK = START    ESC = BACK', STAGE_W / 2, 330, { size: T.small, color: P.grey, align: 'center' });
+  uiText(ctx, 'A/D OR MOUSE = SELECT    SPACE OR CLICK = START    BACKSPACE = BACK', STAGE_W / 2, 330, { size: T.small, color: P.grey, align: 'center' });
 }
 
 function drawUpgradesScreen(ctx) {
@@ -444,7 +444,7 @@ function drawUpgradesScreen(ctx) {
     uiText(ctx, lines[0], x + 10, 327, { size: T.small, color: P.ice });
     uiText(ctx, lines[1], x + 10, 339, { size: T.small, color: P.grey });
   }
-  uiText(ctx, 'W/S = SELECT    A/D = TAB    SPACE = BUY    ESC = BACK', STAGE_W / 2, 352, { size: T.small, color: P.grey, align: 'center' });
+  uiText(ctx, 'W/S = SELECT    A/D = TAB    SPACE = BUY    BACKSPACE = BACK', STAGE_W / 2, 352, { size: T.small, color: P.grey, align: 'center' });
 }
 
 // Zwei Zeilen Erklaerung zu einem Eintrag im Upgrade-Menue: was ist es, welche Zahlen stecken dahinter
@@ -720,7 +720,7 @@ function drawInventoryScreen(ctx) {
       uiText(ctx, 'LEVEL UP!', px + pw - 14, iy + 12, { size: T.h2, color: P.yellow, align: 'right', glow: P.yellow });
     }
   }
-  uiText(ctx, 'W/S = SELECT    SPACE = CHANGE ITEM    U = LEVEL UP    ESC = BACK', STAGE_W / 2, 352, { size: T.small, color: P.grey, align: 'center' });
+  uiText(ctx, 'W/S = SELECT    SPACE = CHANGE ITEM    U = LEVEL UP    BACKSPACE = BACK', STAGE_W / 2, 352, { size: T.small, color: P.grey, align: 'center' });
   if (G.invPick) drawInvPick(ctx);
 }
 
@@ -751,7 +751,7 @@ function drawInvPick(ctx) {
       uiBar(ctx, x + w - 10 - 64, y + 25, 64, 5, Save.gearFrac(id), Save.gearFrac(id) >= 1 ? P.yellow : col);
     }
   });
-  uiText(ctx, 'W/S = SELECT    SPACE = EQUIP    U = LEVEL UP    ESC = BACK', STAGE_W / 2, y0 + rows * GAP + 8, { size: T.small, color: P.grey, align: 'center' });
+  uiText(ctx, 'W/S = SELECT    SPACE = EQUIP    U = LEVEL UP    BACKSPACE = BACK', STAGE_W / 2, y0 + rows * GAP + 8, { size: T.small, color: P.grey, align: 'center' });
 }
 
 // ---------- Cosmetics-Menue: oben die Kategorien, links die Items, rechts eine Live-Vorschau ----------
@@ -808,7 +808,7 @@ function drawCosmeticsScreen(ctx) {
     const msg = eq ? 'EQUIPPED' : owned ? '[SPACE] EQUIP' : lock ? 'SURVIVE ' + it.needInf + ' MIN IN ENDLESS TO UNLOCK' : '[SPACE] BUY  -  ' + it.cost + ' CORES';
     uiText(ctx, msg, px + pw / 2, py + ph - 14, { size: T.body, color: eq ? P.cyan : owned ? P.cyan : lock ? P.red : afford ? P.yellow : P.red, align: 'center' });
   } else uiText(ctx, 'BACK TO MAIN MENU', px + pw / 2, py + ph / 2, { size: T.h2, color: P.greyMid, align: 'center' });
-  uiText(ctx, 'A/D = CATEGORY    W/S = SELECT    SPACE = BUY / EQUIP    ESC = BACK', STAGE_W / 2, 352, { size: T.small, color: P.grey, align: 'center' });
+  uiText(ctx, 'A/D = CATEGORY    W/S = SELECT    SPACE = BUY / EQUIP    BACKSPACE = BACK', STAGE_W / 2, 352, { size: T.small, color: P.grey, align: 'center' });
 }
 
 // Live-Vorschau eines Cosmetics im Kasten (x, y, w, h in Buehnenpixeln). Benutzt dieselben Zeichenfunktionen wie das Spiel (Cos.*) in einem
@@ -923,7 +923,7 @@ function drawBindsScreen(ctx) {
     const waiting = sel && G.bindWait;
     uiText(ctx, waiting ? 'PRESS A KEY ...' : Input.codeLabel(Input.code(r.id)), x + w - 10, y + 16, { size: T.body, color: waiting ? P.yellow : P.cyan, align: 'right' });
   });
-  uiText(ctx, G.bindWait ? 'PRESS A NEW KEY    ESC = CANCEL' : 'W/S = SELECT    SPACE = CHANGE    ESC = BACK', STAGE_W / 2, 348, { size: T.small, color: P.grey, align: 'center' });
+  uiText(ctx, G.bindWait ? 'PRESS A NEW KEY    BACKSPACE = CANCEL' : 'W/S = SELECT    SPACE = CHANGE    BACKSPACE = BACK', STAGE_W / 2, 348, { size: T.small, color: P.grey, align: 'center' });
 }
 
 function drawPauseScreen(ctx) {
@@ -945,7 +945,7 @@ function drawPauseScreen(ctx) {
   };
   PAUSE_ITEMS.forEach((id, i) => drawMenuRow(ctx, 104 + i * 32, rows[id], G.pauseSel === i, { w: 260, hit: () => { G.pauseSel = i; G.pauseConfirm = false; }, lr: id === 'music' || id === 'sfx' }));
   if (!Tutorial.active) drawPauseEvos(ctx);
-  uiText(ctx, 'W/S = SELECT    SPACE = OK    A/D = VOLUME    ESC = RESUME', STAGE_W / 2, 346, { size: T.small, color: P.grey, align: 'center' });
+  uiText(ctx, 'W/S = SELECT    SPACE = OK    A/D = VOLUME    P = RESUME', STAGE_W / 2, 346, { size: T.small, color: P.grey, align: 'center' });
 }
 
 // Evolutionen im Pausenmenue: eine Karte je Waffenslot. Aktiv = Name der Evolution, sonst das beste Rezept der ausgerüsteten Waffe mit Stand des Partners
@@ -1005,7 +1005,7 @@ function drawSwapScreen(ctx) {
     uiText(ctx, lines[0], x + 10, 327, { size: T.small, color: P.ice });
     uiText(ctx, lines[1], x + 10, 339, { size: T.small, color: P.grey });
   }
-  uiText(ctx, 'W/S = SELECT    SPACE = EQUIP    ESC = BACK', STAGE_W / 2, 352, { size: T.small, color: P.grey, align: 'center' });
+  uiText(ctx, 'W/S = SELECT    SPACE = EQUIP    BACKSPACE = BACK', STAGE_W / 2, 352, { size: T.small, color: P.grey, align: 'center' });
 }
 
 function drawSettingsScreen(ctx) {
@@ -1035,7 +1035,7 @@ function drawSettingsScreen(ctx) {
     uiText(ctx, I ? 'BEST ' + (I.best > 0 ? formatTime(I.best) : '-') + '   RUNS ' + I.runs : 'EMPTY', x + 8, y + 25, { size: T.small, color: I ? P.ice : P.greyMid });
     if (I) uiText(ctx, 'CORES ' + I.souls + (I.wins ? '   WINS ' + I.wins : ''), x + 8, y + 35, { size: T.small, color: P.yellow });
   }
-  uiText(ctx, 'W/S = SELECT    A/D = CHANGE    SPACE = OK    ESC = BACK', STAGE_W / 2, 348, { size: T.small, color: P.grey, align: 'center' });
+  uiText(ctx, 'W/S = SELECT    A/D = CHANGE    SPACE = OK    BACKSPACE = BACK', STAGE_W / 2, 348, { size: T.small, color: P.grey, align: 'center' });
 }
 
 // Controls panel: explains every action in general terms and always shows the CURRENT keys (they can be rebound in Settings > Keybinds)
@@ -1083,7 +1083,7 @@ function drawKeysScreen(ctx) {
   row(R, 118, ['ability_strong'], 'STRONG SLOT', 'Long cooldown, game-changing effect.', P.cyan);
 
   panel(R, 158, W, 112, 'GOOD TO KNOW', P.yellow);
-  const tips = ['Beat a boss to pick a new ability (1 of 3).', 'Passive abilities need no key.', 'ESC or P pauses the game.', 'Menus: W/S A/D or arrows, SPACE = OK.', 'Rebind keys: Settings > Keybinds.', 'Standing still too long drains health.'];
+  const tips = ['Beat a boss to pick a new ability (1 of 3).', 'Passive abilities need no key.', 'P pauses the game.', 'Menus: W/S A/D or arrows, SPACE = OK.', 'Rebind keys: Settings > Keybinds.', 'Standing still too long drains health.'];
   tips.forEach((t, i) => uiText(ctx, t, R + 8, 180 + i * 14, { size: T.small, color: P.grey }));
 
   uiText(ctx, 'SURVIVE.', STAGE_W / 2, 292, { size: T.h2, color: P.red, align: 'center', glow: P.red });
@@ -1201,7 +1201,7 @@ function drawPickScreen(ctx) {
   ctx.fillStyle = 'rgba(5,6,15,0.78)'; ctx.fillRect(0, 0, STAGE_W, STAGE_H);
   const evo = k.kind === 'evo';
   uiText(ctx, evo ? 'EVOLUTION' : 'NEW ABILITY', STAGE_W / 2, 50, { size: T.h1 || T.h2, color: evo ? P.yellow : P.cyan, align: 'center' });
-  uiText(ctx, evo ? 'ONE PER WEAPON SLOT - [ESC] SKIPS (OFFERED AGAIN AFTER THE NEXT BOSS)' : k.tier ? 'SLOT: ' + k.tier.label : 'COLLECT ONE - SWAP LATER IN THE PAUSE MENU', STAGE_W / 2, 70, { size: T.small, color: P.yellow, align: 'center' });
+  uiText(ctx, evo ? 'ONE PER WEAPON SLOT - [BACKSPACE] SKIPS (OFFERED AGAIN AFTER THE NEXT BOSS)' : k.tier ? 'SLOT: ' + k.tier.label : 'COLLECT ONE - SWAP LATER IN THE PAUSE MENU', STAGE_W / 2, 70, { size: T.small, color: P.yellow, align: 'center' });
   const n = k.ids.length, w = 140, gap = 10, x0 = STAGE_W / 2 - (n * w + (n - 1) * gap) / 2, y = 95, h = 190;
   k.ids.forEach((id, i) => {
     let A = CFG.loadout.abilities[id];

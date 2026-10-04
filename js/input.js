@@ -60,6 +60,8 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'Space' || e.code.startsWith('Arrow') || e.code === 'Tab') e.preventDefault();
   const c = normCode(e.code);
   if (!Input.keys[c]) Input.pressedNow[c] = true;
+  // Backspace = "Zurück" wie Escape (Escape beendet im Browser den Vollbildmodus)
+  if (c === 'Backspace') { e.preventDefault(); Input.pressedNow.Escape = true; }
   Input.keys[c] = true;
 });
 window.addEventListener('keyup', (e) => { Input.keys[normCode(e.code)] = false; });
