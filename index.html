@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>DeathArena</title>
+        <style>
+            @font-face {
+                font-family: "Pixelify Sans";
+                src: url("assets/fonts/PixelifySans.ttf");
+            }
+            html, body {
+                margin: 0;
+                height: 100%;
+                overflow: hidden;
+                background: #111;
+            }
+            body {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            /* Das Spiel skaliert mit dem Fenster und behält das Seitenverhältnis 4:3 */
+            canvas {
+                width: min(100vw, calc(100vh * 4 / 3));
+                height: min(100vh, calc(100vw * 3 / 4));
+                background: #000;
+                image-rendering: pixelated;
+            }
+        </style>
+    </head>
+    <body>
+        <canvas id="gameCanvas"></canvas>
+
+        <script src="js/style.js"></script>
+        <script src="js/config.js"></script>
+        <script src="js/art_manifest.js"></script>
+        <script src="js/util.js"></script>
+        <script src="js/assets.js"></script>
+        <script src="js/save.js"></script>
+        <script src="js/cosmetics.js"></script>
+        <script src="js/input.js"></script>
+        <script src="js/sfx.js"></script>
+        <script src="js/music.js"></script>
+        <script src="js/weapons.js"></script>
+        <script src="js/arsenal.js"></script>
+        <script src="js/juice.js"></script>
+        <script src="js/player.js"></script>
+        <script src="js/enemies.js"></script>
+        <script src="js/bosses.js"></script>
+        <script src="js/mapspecial.js"></script>
+        <script src="js/meteors.js"></script>
+        <script src="js/obstacles.js"></script>
+        <script src="js/tutorial.js"></script>
+        <script src="js/patterns.js"></script>
+        <script src="js/director.js"></script>
+        <script src="js/deathtexts.js"></script>
+        <script src="js/ui.js"></script>
+        <script src="js/game.js"></script>
+    </body>
+</html>
