@@ -80,6 +80,7 @@ function drawHud(ctx) {
   }
 
   Tutorial.draw(ctx);
+  Xp.drawHud(ctx);
   drawHotbar(ctx, p);
 }
 
@@ -89,12 +90,12 @@ function drawHud(ctx) {
 const SLOT = 22, SLOT_GAP = 3, HOTBAR_Y = 329, ORB = { cx: 240, cy: 340, r: 17 };
 
 // Zeichnet ein Sprite mittig bei (cx, cy) in Canvas-Bühnenkoordinaten (y nach unten), auf die Breite targetW
-function drawIcon(ctx, name, cx, cy, targetW, alpha) {
+function drawIcon(ctx, name, cx, cy, targetW, alpha, gray) {
   const im = IMG[name];
   if (!im || !im.ok) return;
   const k = targetW / (im.w / im.res);
   const ox = cx + (im.rcx - im.w / 2) / im.res * k, oy = cy + (im.rcy - im.h / 2) / im.res * k;     // Drehpunkt so legen, dass die Bildmitte bei (cx, cy) liegt
-  drawSprite(ctx, name, ox - STAGE_W / 2, STAGE_H / 2 - oy, 90, 100 * k, { alpha });
+  drawSprite(ctx, name, ox - STAGE_W / 2, STAGE_H / 2 - oy, 90, 100 * k, { alpha, gray });
 }
 
 // o: icon, iconW, key, color (Rahmen), ready (0..1, 1 = einsatzbereit), selected, active, left (Sekunden Abklingzeit), count (Zahl rechts oben), charge (0..1 von unten, gelb)
@@ -120,8 +121,8 @@ function drawSlot(ctx, x, y, o) {
 }
 
 // Ultimate-Kugel: füllt sich von unten, bereit = leuchtet türkis und pulsiert
-function drawUltOrb(ctx, frac, ready) {
-  const P = STYLE.pal, { cx, cy, r } = ORB;
+function drawUltOrb(ctx, frac, ready, o) {
+  const P = STYLE.pal, { cx, cy, r } = o || ORB, mini = !!o;
   const liquid = ready ? P.teal : P.purpleDark, edge = ready ? P.teal : P.purple;
   ctx.save();
   // Kugel Pixel für Pixel: Hintergrund, Flüssigkeit unter der Wellenlinie, helle Wellenkante
@@ -140,8 +141,9 @@ function drawUltOrb(ctx, frac, ready) {
   ctx.fillStyle = edge;
   if (ready && Math.floor(G.realTime * 5) % 2 === 0) { ctx.globalAlpha = 0.35; pxRing(ctx, cx, cy, r + 3, 1); ctx.globalAlpha = 1; }      // pulsierender harter Rand statt Leuchten
   pxRing(ctx, cx, cy, r, 2);
-  ctx.globalAlpha = 0.35; pxRing(ctx, cx, cy, r - 4, 1);
+  if (!mini) { ctx.globalAlpha = 0.35; pxRing(ctx, cx, cy, r - 4, 1); }
   ctx.restore();
+  if (mini) return;
   // Taste V als kleines Schild am unteren Rand
   uiPanel(ctx, cx - 7, cy + r - 5, 14, 11, { color: ready ? P.teal : P.greyMid, fill: P.void, alpha: 1, notch: 2 });
   uiText(ctx, Input.label('ultimate'), cx, cy + r + 4, { size: STYLE.type.small, align: 'center', color: ready ? P.teal : P.grey });
@@ -168,7 +170,13 @@ function drawHotbar(ctx, p) {
   else drawSlot(ctx, slotX(2), HOTBAR_Y, { icon: 'beamLoad2', iconW: 14, key: Input.label('beam'), color: P.yellow, ready: beamBusy ? clamp(1 - b.clock / CFG.beam.maxClock, 0, 1) : 1, active: b.state === 'load', charge: b.state === 'load' ? b.clock / CFG.beam.maxClock : 0 });
 
   // Mitte: Ultimate
-  drawUltOrb(ctx, G.ultCharge / (CFG.ult.readyAt + 1), G.ultCharge > CFG.ult.readyAt);
+  const ultReady = G.ultCharge > CFG.ult.readyAt;
+  drawUltOrb(ctx, G.ultCharge / (CFG.ult.readyAt + 1), ultReady);
+  if (ultReady) {                                             // kleine Kugel: Fortschritt des nächsten Ultimates, Zahl = bereite Ultimates
+    const mo = { cx: ORB.cx, cy: ORB.cy - ORB.r - 11, r: 7 }, full = 1 + G.ultStock >= CFG.ult.maxStack;
+    drawUltOrb(ctx, full ? 1 : G.ultNext, full, mo);
+    uiText(ctx, 'x' + (1 + G.ultStock), mo.cx + mo.r + 4, mo.cy + 3, { size: STYLE.type.small, align: 'left', color: P.teal });
+  }
 
   // rechts: Ability-Slots (leer, bis man nach einem Boss eine gewählt hat)
   CFG.loadout.tiers.forEach((tier, i) => {
@@ -178,8 +186,15 @@ function drawHotbar(ctx, p) {
     drawSlot(ctx, x, HOTBAR_Y, { icon: st.icon, iconW: st.iconW, key: passive ? '' : key, color: P.cyan, ready: st.active ? 1 : st.frac, active: st.active, left: st.left });
   });
 
-  // aktive Drop-Buffs mit Restzeit: oben links
-  let by = 4;
+  // Held-Artefakt: vierter Slot rechts (nur Helden nach Vanguard, nicht im Tutorial)
+  const art = Hero.artifact();
+  if (art) {
+    const cd = p.cds[art.id] || 0, total = CFG[art.id].cooldown, on = art.id === 'fortress' && p.fortressT > 0;
+    drawSlot(ctx, cx + r + 6 + CFG.loadout.tiers.length * (SLOT + SLOT_GAP), HOTBAR_Y, { icon: art.icon, iconW: 18, key: Input.label('artifact'), color: P.yellow, ready: on ? 1 : 1 - cd / total, active: on, left: cd });
+  }
+
+  // aktive Drop-Buffs mit Restzeit: oben links (unter dem XP-Balken und der Levelanzeige)
+  let by = Xp.on ? 20 : 4;
   for (const [k, left] of Object.entries(p.buffs)) {
     if (left <= 0) continue;
     const B = CFG.drops.types[k];
@@ -192,7 +207,7 @@ function drawHotbar(ctx, p) {
 }
 
 function deathScreenFor(t) {
-  if (t > 665.9 && t < 666.1) return 'deathSecret1';              // Geheimscreen: genau bei 666 s sterben
+  if (Math.abs(t - DEATH_SECRET_AT) < 0.1) return 'deathSecret1';              // Geheimscreen: genau zu dieser Sekunde sterben (config.js)
   let name = 'death1';
   for (const [from, img] of DEATH_SCREENS) if (t > from) name = img;
   return name;
@@ -283,8 +298,8 @@ function drawStartScreen(ctx) {
   ctx.restore();
   uiText(ctx, 'DEATHARENA', STAGE_W / 2, 98 + Math.sin(t * 1.5) * 1.2, { size: T.title, color: P.red, align: 'center', glow: P.red });
   uiText(ctx, 'ONE WAY TICKET TO HELL', STAGE_W / 2, 124, { size: T.h2, color: P.yellow, align: 'center' });
-  const labels = { play: 'PLAY', inventory: 'INVENTORY', cosmetics: 'COSMETICS', upgrades: 'UPGRADES', settings: 'SETTINGS' };
-  MENU_ITEMS.forEach((id, i) => {
+  const labels = { play: 'PLAY', inventory: 'INVENTORY', cosmetics: 'COSMETICS', upgrades: 'UPGRADES', settings: 'SETTINGS', stats: 'STATISTICS' };
+  menuItems().forEach((id, i) => {
     const y = 136 + i * 26;
     drawMenuRow(ctx, y, labels[id], G.menuSel === i, { hit: () => { G.menuSel = i; } });
     if ((id === 'play' && !Save.data.tutorialDone) || (id === 'inventory' && gearReady())) {          // Hinweis: der erste Start ist das Tutorial / eine Waffe ist bereit fuers Level-up
@@ -324,7 +339,7 @@ function drawModeSelectScreen(ctx) {
   const d = descs[MODE_ITEMS[G.modeSel]];
   uiText(ctx, d[0], STAGE_W / 2, 238, { size: T.body, color: P.ice, align: 'center' });
   uiText(ctx, d[1], STAGE_W / 2, 252, { size: T.body, color: P.grey, align: 'center' });
-  uiText(ctx, 'W/S OR MOUSE = SELECT    SPACE OR CLICK = OK    BACKSPACE = BACK', STAGE_W / 2, 346, { size: T.small, color: P.grey, align: 'center' });
+  uiText(ctx, 'W/S OR MOUSE = SELECT    SPACE OR CLICK = OK    ESC = BACK', STAGE_W / 2, 346, { size: T.small, color: P.grey, align: 'center' });
 }
 
 // Endlos-Modus vor dem Start: Zeitpunkt des finalen Bosses wählen
@@ -339,7 +354,7 @@ function drawInfSetupScreen(ctx) {
   const rows = ['FINAL BOSS: ' + (m === null ? 'NEVER (ENDLESS)' : 'AFTER ' + m + ' MIN'), 'MAP: ' + mapName, 'START', 'BACK'];
   rows.forEach((r, i) => drawMenuRow(ctx, 116 + i * 30, r, G.infSel === i, { w: 300, hit: () => { G.infSel = i; }, lr: i < 2 }));
   uiText(ctx, 'CORES x' + CFG.infinite.coreFactor + '    OWN BEST TIME: ' + (Save.data.bestInf > 0 ? formatTime(Save.data.bestInf) : '-'), STAGE_W / 2, 250, { size: T.body, color: P.yellow, align: 'center' });
-  uiText(ctx, 'W/S = SELECT    A/D = CHANGE    SPACE = OK    BACKSPACE = BACK', STAGE_W / 2, 346, { size: T.small, color: P.grey, align: 'center' });
+  uiText(ctx, 'W/S = SELECT    A/D = CHANGE    SPACE = OK    ESC = BACK', STAGE_W / 2, 346, { size: T.small, color: P.grey, align: 'center' });
 }
 
 // Kartenauswahl nach PLAY: drei Karten nebeneinander, gesperrte zeigen, was zum Freischalten fehlt
@@ -358,14 +373,17 @@ function drawMapSelectScreen(ctx) {
     uiText(ctx, 'DIFFICULTY', x + 10, yy + 134, { size: T.small, color: P.grey });
     for (let k = 0; k < 3; k++) { ctx.fillStyle = k < M.level ? col : P.greyDark; ctx.fillRect(x + 78 + k * 16, yy + 127, 12, 8); }
     uiText(ctx, 'CORES x' + M.diff.cores, x + 10, yy + 150, { size: T.small, color: open ? P.yellow : P.grey });
-    if (open) uiText(ctx, 'BEST ' + (Save.mapBestTime(i) > 0 ? formatTime(Save.mapBestTime(i)) : '-'), x + 10, yy + 165, { size: T.small, color: P.ice });
-    else {
+    if (open) {
+      uiText(ctx, 'BEST ' + (Save.mapBestTime(i) > 0 ? formatTime(Save.mapBestTime(i)) : '-'), x + 10, yy + 165, { size: T.small, color: P.ice });
+      uiText(ctx, 'HAZARDS', x + 10, yy + 181, { size: T.small, color: P.grey });
+      (M.hazards && M.hazards.length ? M.hazards : ['NONE']).forEach((hz, k) => uiText(ctx, hz, x + 10, yy + 193 + k * 11, { size: T.small, color: M.hazards ? P.orange : P.greyMid }));
+    } else {
       uiText(ctx, 'LOCKED', x + w / 2, yy + 172, { size: T.h2, color: P.red, align: 'center' });
       uiText(ctx, 'REACH ' + formatTime(Save.mapNeed(i)), x + w / 2, yy + 188, { size: T.small, color: P.grey, align: 'center' });
       uiText(ctx, 'ON ' + CFG.maps[i - 1].name, x + w / 2, yy + 200, { size: T.small, color: P.grey, align: 'center' });
     }
   });
-  uiText(ctx, 'A/D OR MOUSE = SELECT    SPACE OR CLICK = START    BACKSPACE = BACK', STAGE_W / 2, 330, { size: T.small, color: P.grey, align: 'center' });
+  uiText(ctx, 'A/D OR MOUSE = SELECT    SPACE OR CLICK = START    ESC = BACK', STAGE_W / 2, 330, { size: T.small, color: P.grey, align: 'center' });
 }
 
 function drawUpgradesScreen(ctx) {
@@ -374,7 +392,7 @@ function drawUpgradesScreen(ctx) {
   uiText(ctx, 'UPGRADES', STAGE_W / 2, 40, { size: T.h1, color: P.yellow, align: 'center' });
   uiText(ctx, 'CORES: ' + Save.data.souls, STAGE_W / 2, 58, { size: T.h2, color: P.yellow, align: 'center' });
   // Reiter
-  const tw = 110;
+  const tw = Math.min(110, 460 / UPGRADE_TABS.length);
   UPGRADE_TABS.forEach((t, i) => {
     const tx = STAGE_W / 2 - (UPGRADE_TABS.length * tw) / 2 + i * tw, on = G.upgradeTab === i;
     UIHit.add(tx + 2, 66, tw - 4, 18, () => { if (G.upgradeTab !== i) { G.upgradeTab = i; G.upgradeSel = 0; } }, { noConfirm: true });
@@ -415,6 +433,19 @@ function drawUpgradesScreen(ctx) {
         drawGearBar(ctx, r.id, x + w - 130, y + 6, 120);
         uiText(ctx, maxed ? 'MAX LEVEL' : 'LEVEL UP ' + Save.gearPrice(r.id) + ' CORES', x + w - 10, y + 27, { size: T.small, color: maxed ? P.cyan : up ? P.yellow : P.red, align: 'right' });
       } else uiText(ctx, A.unlock + ' CORES', x + w - 10, y + 27, { size: T.small, color: afford ? P.yellow : P.red, align: 'right' });
+    } else if (r.kind === 'hero') {
+      const Hc = CFG.heroes[r.id], owned = Save.heroOwned(r.id), open = Save.heroOpen(r.id), sel2 = Save.heroSelected() === r.id, afford = Save.data.souls >= Hc.cost;
+      const hm = Hc.milestone && CFG.milestones.find((q) => q.id === Hc.milestone);
+      drawIcon(ctx, Cos.sprite(Hc.sprite, 'skin'), x + 20, y + H / 2, 22, owned || open ? 1 : 0.4);        // Modell mit dem ausgeruesteten Skin
+      uiText(ctx, Hc.name, x + 40, y + 14, { size: T.h2, color: owned || open ? nameCol : P.greyMid });
+      uiText(ctx, Hc.modText, x + 40, y + 27, { size: T.small, color: owned ? P.cyan : P.grey });
+      let top, topCol, bot = Hc.artifact ? Input.label('artifact') + ': ' + Hc.artifact.name : 'NO ARTIFACT';
+      if (sel2) { top = 'SELECTED'; topCol = P.cyan; }
+      else if (owned) { top = 'SELECT [SPACE]'; topCol = P.ice; }
+      else if (!open) { top = 'LOCKED'; topCol = P.red; bot = Math.floor(Save.statValue(hm.stat)) + ' / ' + hm.need; }
+      else { top = Hc.cost + ' CORES'; topCol = afford ? P.yellow : P.red; }
+      uiText(ctx, top, x + w - 10, y + 14, { size: T.small, color: topCol, align: 'right' });
+      uiText(ctx, bot, x + w - 10, y + 27, { size: T.small, color: !owned && !open ? P.grey : P.yellow, align: 'right' });
     } else if (r.kind === 'milestone') {
       const m = CFG.milestones.find((q) => q.id === r.id), done = Save.milestoneDone(m.id);
       const fmt = (stat, v) => stat === 'best' || stat === 'bestInf' ? formatTime(v) : String(Math.floor(v));
@@ -444,7 +475,7 @@ function drawUpgradesScreen(ctx) {
     uiText(ctx, lines[0], x + 10, 327, { size: T.small, color: P.ice });
     uiText(ctx, lines[1], x + 10, 339, { size: T.small, color: P.grey });
   }
-  uiText(ctx, 'W/S = SELECT    A/D = TAB    SPACE = BUY    BACKSPACE = BACK', STAGE_W / 2, 352, { size: T.small, color: P.grey, align: 'center' });
+  uiText(ctx, 'W/S = SELECT    A/D = TAB    SPACE = BUY    ESC = BACK', STAGE_W / 2, 352, { size: T.small, color: P.grey, align: 'center' });
 }
 
 // Zwei Zeilen Erklaerung zu einem Eintrag im Upgrade-Menue: was ist es, welche Zahlen stecken dahinter
@@ -457,9 +488,14 @@ function upgradeDetail(r) {
     const A = CFG.loadout.abilities[r.id];
     return [A.desc, abilityFacts(r.id)];
   }
+  if (r.kind === 'hero') {
+    const Hc = CFG.heroes[r.id], hm = Hc.milestone && CFG.milestones.find((q) => q.id === Hc.milestone);
+    const l1 = Save.heroOwned(r.id) ? Hc.blurb : !Save.heroOpen(r.id) ? 'UNLOCK: ' + hm.name + '  (' + Math.floor(Save.statValue(hm.stat)) + '/' + hm.need + '), THEN ' + Hc.cost + ' CORES' : 'MILESTONE DONE. BUY FOR ' + Hc.cost + ' CORES. ' + Hc.blurb;
+    return [l1, Hc.artifact ? 'ARTIFACT: ' + Hc.artifact.desc : 'NO ARTIFACT. SKINS WORK ON EVERY HERO.'];
+  }
   if (r.kind === 'milestone') {
     const m = CFG.milestones.find((q) => q.id === r.id);
-    return [m.name + '  ->  ' + milestoneRewardText(m), m.reward.cores ? 'PAID OUT ONCE AS CORES WHEN REACHED.' : 'A BASIC COSMETIC, UNLOCKED FOR FREE WHEN REACHED (SEE COSMETICS).'];
+    return [m.name + '  ->  ' + milestoneRewardText(m), m.reward.cores ? 'PAID OUT ONCE AS CORES WHEN REACHED.' : m.reward.hero ? 'LETS YOU BUY THIS HERO IN THE HEROES TAB (COSTS CORES TOO).' : 'A BASIC COSMETIC, UNLOCKED FOR FREE WHEN REACHED (SEE COSMETICS).'];
   }
   const I = CFG.items.catalog[r.id], slot = CFG.items.slots.find((s) => s.id === I.slot);
   const own = Save.owns(r.id) ? (Save.equipped(I.slot) === r.id ? 'EQUIPPED' : 'OWNED') : I.cost + ' CORES';
@@ -561,10 +597,8 @@ function evoRecipesOf(itemId) {
 // kleines Rezept-Symbol: Rahmen in der Partnerfarbe, Partner-Icon drin; gedimmt, solange der Partner fehlt
 function drawEvoChip(ctx, cx, cy, partner, s) {
   const P = STYLE.pal, x = cx - s / 2, y = cy - s / 2;
-  ctx.save(); ctx.globalAlpha = partner.have ? 1 : 0.5;
-  uiPanel(ctx, x, y, s, s, { color: partner.color, fill: P.ink, alpha: 1, notch: 2, glow: partner.have });
-  drawIcon(ctx, partner.icon, cx, cy, Math.min(s - 4, partner.iconW), 1);
-  ctx.restore();
+  uiPanel(ctx, x, y, s, s, { color: partner.have ? partner.color : P.greyMid, fill: P.ink, alpha: 1, notch: 2, glow: partner.have });
+  drawIcon(ctx, partner.icon, cx, cy, Math.min(s - 4, partner.iconW), partner.have ? 1 : 0.8, !partner.have);
 }
 // Rezeptzeile im Inventar: [Waffe] + [Partner] = NAME, darunter Bedarf und Status
 function drawEvoRecipe(ctx, x, y, w, id) {
@@ -574,14 +608,11 @@ function drawEvoRecipe(ctx, x, y, w, id) {
   uiPanel(ctx, x + 9, y + 6, 22, 22, { color: slotColor(R.slot), fill: P.ink, alpha: 1, notch: 2 });
   drawIcon(ctx, W.icon, x + 20, y + 17, Math.min(18, W.iconW + 2), 1);
   uiText(ctx, '+', x + 36, y + 21, { size: T.h2, color: P.grey, align: 'center' });
-  ctx.save(); ctx.globalAlpha = pt.have ? 1 : 0.5;
-  uiPanel(ctx, x + 41, y + 6, 22, 22, { color: pt.color, fill: P.ink, alpha: 1, notch: 2, glow: pt.have });
-  drawIcon(ctx, pt.icon, x + 52, y + 17, Math.min(18, pt.iconW + 2), 1);
-  ctx.restore();
+  uiPanel(ctx, x + 41, y + 6, 22, 22, { color: pt.have ? pt.color : P.greyMid, fill: P.ink, alpha: 1, notch: 2, glow: pt.have });
+  drawIcon(ctx, pt.icon, x + 52, y + 17, Math.min(18, pt.iconW + 2), pt.have ? 1 : 0.8, !pt.have);
   uiText(ctx, '=', x + 69, y + 21, { size: T.h2, color: P.grey, align: 'center' });
   uiText(ctx, R.name, x + 77, y + 15, { size: T.h2, color: pt.have ? P.yellow : P.grey });
-  const status = pt.have ? 'PARTNER READY' : R.needs.ability ? 'LOCKED' : 'NOT OWNED';
-  uiText(ctx, status, x + w - 8, y + 15, { size: T.small, color: pt.have ? P.green : P.red, align: 'right' });
+  if (!pt.have) uiText(ctx, R.needs.ability ? 'LOCKED' : 'NOT OWNED', x + w - 8, y + 15, { size: T.small, color: P.red, align: 'right' });
   uiText(ctx, uiFit(ctx, W.name + ' + ' + pt.name + ' (' + pt.kind + ')', w - 85, T.small), x + 77, y + 28, { size: T.small, color: pt.color });
 }
 
@@ -720,7 +751,7 @@ function drawInventoryScreen(ctx) {
       uiText(ctx, 'LEVEL UP!', px + pw - 14, iy + 12, { size: T.h2, color: P.yellow, align: 'right', glow: P.yellow });
     }
   }
-  uiText(ctx, 'W/S = SELECT    SPACE = CHANGE ITEM    U = LEVEL UP    BACKSPACE = BACK', STAGE_W / 2, 352, { size: T.small, color: P.grey, align: 'center' });
+  uiText(ctx, 'W/S = SELECT    SPACE = CHANGE ITEM    U = LEVEL UP    ESC = BACK', STAGE_W / 2, 352, { size: T.small, color: P.grey, align: 'center' });
   if (G.invPick) drawInvPick(ctx);
 }
 
@@ -751,7 +782,7 @@ function drawInvPick(ctx) {
       uiBar(ctx, x + w - 10 - 64, y + 25, 64, 5, Save.gearFrac(id), Save.gearFrac(id) >= 1 ? P.yellow : col);
     }
   });
-  uiText(ctx, 'W/S = SELECT    SPACE = EQUIP    U = LEVEL UP    BACKSPACE = BACK', STAGE_W / 2, y0 + rows * GAP + 8, { size: T.small, color: P.grey, align: 'center' });
+  uiText(ctx, 'W/S = SELECT    SPACE = EQUIP    U = LEVEL UP    ESC = BACK', STAGE_W / 2, y0 + rows * GAP + 8, { size: T.small, color: P.grey, align: 'center' });
 }
 
 // ---------- Cosmetics-Menue: oben die Kategorien, links die Items, rechts eine Live-Vorschau ----------
@@ -808,7 +839,7 @@ function drawCosmeticsScreen(ctx) {
     const msg = eq ? 'EQUIPPED' : owned ? '[SPACE] EQUIP' : lock ? 'SURVIVE ' + it.needInf + ' MIN IN ENDLESS TO UNLOCK' : '[SPACE] BUY  -  ' + it.cost + ' CORES';
     uiText(ctx, msg, px + pw / 2, py + ph - 14, { size: T.body, color: eq ? P.cyan : owned ? P.cyan : lock ? P.red : afford ? P.yellow : P.red, align: 'center' });
   } else uiText(ctx, 'BACK TO MAIN MENU', px + pw / 2, py + ph / 2, { size: T.h2, color: P.greyMid, align: 'center' });
-  uiText(ctx, 'A/D = CATEGORY    W/S = SELECT    SPACE = BUY / EQUIP    BACKSPACE = BACK', STAGE_W / 2, 352, { size: T.small, color: P.grey, align: 'center' });
+  uiText(ctx, 'A/D = CATEGORY    W/S = SELECT    SPACE = BUY / EQUIP    ESC = BACK', STAGE_W / 2, 352, { size: T.small, color: P.grey, align: 'center' });
 }
 
 // Live-Vorschau eines Cosmetics im Kasten (x, y, w, h in Buehnenpixeln). Benutzt dieselben Zeichenfunktionen wie das Spiel (Cos.*) in einem
@@ -822,7 +853,7 @@ function drawCosmeticPreview(ctx, cat, it, x, y, w, h) {
   const pick = (c) => (cat === c ? it : Cos.cur(c));
   const skin = pick('skin'), blade = pick('blade'), trail = pick('trail'), kill = pick('kill'), aura = pick('aura'), gear = pick('gear');
   const endless = pick('endless');
-  const ship = Cos.sprite('player', 'skin', skin);
+  const ship = Cos.sprite(Hero.sprite(), 'skin', skin);
   const enemy = pick('enemy'), boss = pick('boss'), melee = Save.equipped('melee'), ranged = Save.equipped('ranged'), heavy = Save.equipped('heavy');
   const showShip = cat !== 'enemy' && cat !== 'boss';
 
@@ -923,7 +954,7 @@ function drawBindsScreen(ctx) {
     const waiting = sel && G.bindWait;
     uiText(ctx, waiting ? 'PRESS A KEY ...' : Input.codeLabel(Input.code(r.id)), x + w - 10, y + 16, { size: T.body, color: waiting ? P.yellow : P.cyan, align: 'right' });
   });
-  uiText(ctx, G.bindWait ? 'PRESS A NEW KEY    BACKSPACE = CANCEL' : 'W/S = SELECT    SPACE = CHANGE    BACKSPACE = BACK', STAGE_W / 2, 348, { size: T.small, color: P.grey, align: 'center' });
+  uiText(ctx, G.bindWait ? 'PRESS A NEW KEY    ESC = CANCEL' : 'W/S = SELECT    SPACE = CHANGE    ESC = BACK', STAGE_W / 2, 348, { size: T.small, color: P.grey, align: 'center' });
 }
 
 function drawPauseScreen(ctx) {
@@ -932,7 +963,8 @@ function drawPauseScreen(ctx) {
   uiText(ctx, 'PAUSE', STAGE_W / 2, 80, { size: T.title, color: P.cyan, align: 'center', glow: P.cyan });
   if (!Tutorial.active) {                                              // Komfort: Stand des Laufs
     const so = Math.floor(G.time * CFG.meta.perSecond + G.bosses * CFG.meta.perBoss) + G.lootCores;
-    uiText(ctx, 'TIME ' + formatTime(G.time) + '    KILLS ' + G.kills + '    BOSSES ' + G.bosses + '    CORES +' + so, STAGE_W / 2, 94, { size: T.small, color: P.grey, align: 'center' });
+    uiText(ctx, 'TIME ' + formatTime(G.time) + '    LEVEL ' + Xp.level + '    KILLS ' + G.kills + '    BOSSES ' + G.bosses + '    CORES +' + so, STAGE_W / 2, 94, { size: T.small, color: P.grey, align: 'center' });
+    Xp.drawPause(ctx);
   }
   const bars = Math.round(Save.data.musicVol * 10);
   const rows = {
@@ -945,7 +977,7 @@ function drawPauseScreen(ctx) {
   };
   PAUSE_ITEMS.forEach((id, i) => drawMenuRow(ctx, 104 + i * 32, rows[id], G.pauseSel === i, { w: 260, hit: () => { G.pauseSel = i; G.pauseConfirm = false; }, lr: id === 'music' || id === 'sfx' }));
   if (!Tutorial.active) drawPauseEvos(ctx);
-  uiText(ctx, 'W/S = SELECT    SPACE = OK    A/D = VOLUME    P = RESUME', STAGE_W / 2, 346, { size: T.small, color: P.grey, align: 'center' });
+  uiText(ctx, 'W/S = SELECT    SPACE = OK    A/D = VOLUME    ESC / P / BACKSPACE = RESUME', STAGE_W / 2, 346, { size: T.small, color: P.grey, align: 'center' });
 }
 
 // Evolutionen im Pausenmenue: eine Karte je Waffenslot. Aktiv = Name der Evolution, sonst das beste Rezept der ausgerüsteten Waffe mit Stand des Partners
@@ -1005,7 +1037,7 @@ function drawSwapScreen(ctx) {
     uiText(ctx, lines[0], x + 10, 327, { size: T.small, color: P.ice });
     uiText(ctx, lines[1], x + 10, 339, { size: T.small, color: P.grey });
   }
-  uiText(ctx, 'W/S = SELECT    SPACE = EQUIP    BACKSPACE = BACK', STAGE_W / 2, 352, { size: T.small, color: P.grey, align: 'center' });
+  uiText(ctx, 'W/S = SELECT    SPACE = EQUIP    ESC = BACK', STAGE_W / 2, 352, { size: T.small, color: P.grey, align: 'center' });
 }
 
 function drawSettingsScreen(ctx) {
@@ -1021,6 +1053,7 @@ function drawSettingsScreen(ctx) {
     slot: 'SAVE SLOT  ' + [0, 1, 2].map((i) => i === Save.slot ? '[' + (i + 1) + ']' : ' ' + (i + 1) + ' ').join(' '),
     controls: 'CONTROLS',
     binds: 'KEYBINDS',
+    transfer: 'EXPORT / IMPORT SAVE',
     resetAll: G.resetConfirm ? 'SURE? DELETE SLOT ' + (Save.slot + 1) : 'RESET SAVE FILE (SLOT ' + (Save.slot + 1) + ')',
     back: 'BACK',
   };
@@ -1028,14 +1061,14 @@ function drawSettingsScreen(ctx) {
   // die drei Spielstaende als Karten (Klick wechselt den Slot)
   const cw = 150, cg = 6, cx0 = STAGE_W / 2 - (3 * cw + 2 * cg) / 2;
   for (let i = 0; i < Save.SLOTS; i++) {
-    const x = cx0 + i * (cw + cg), y = 296, on = i === Save.slot, I = Save.slotInfo(i);
+    const x = cx0 + i * (cw + cg), y = 306, on = i === Save.slot, I = Save.slotInfo(i);
     UIHit.add(x, y, cw, 38, () => { Save.switchSlot(i); G.resetConfirm = false; }, { noConfirm: true });
     uiPanel(ctx, x, y, cw, 38, { color: on ? P.yellow : P.greyMid, fill: on ? P.voidLight : P.void, alpha: 0.92, glow: on });
     uiText(ctx, 'SLOT ' + (i + 1) + (on ? '  - ACTIVE' : ''), x + 8, y + 13, { size: T.small, color: on ? P.yellow : P.grey });
     uiText(ctx, I ? 'BEST ' + (I.best > 0 ? formatTime(I.best) : '-') + '   RUNS ' + I.runs : 'EMPTY', x + 8, y + 25, { size: T.small, color: I ? P.ice : P.greyMid });
     if (I) uiText(ctx, 'CORES ' + I.souls + (I.wins ? '   WINS ' + I.wins : ''), x + 8, y + 35, { size: T.small, color: P.yellow });
   }
-  uiText(ctx, 'W/S = SELECT    A/D = CHANGE    SPACE = OK    BACKSPACE = BACK', STAGE_W / 2, 348, { size: T.small, color: P.grey, align: 'center' });
+  uiText(ctx, 'W/S = SELECT    A/D = CHANGE    SPACE = OK    ESC = BACK', STAGE_W / 2, 354, { size: T.small, color: P.grey, align: 'center' });
 }
 
 // Controls panel: explains every action in general terms and always shows the CURRENT keys (they can be rebound in Settings > Keybinds)
@@ -1077,14 +1110,15 @@ function drawKeysScreen(ctx) {
   row(L, 208, ['beam'], 'HEAVY WEAPON', 'Tap or hold, depending on the weapon.', P.yellow);
   row(L, 236, ['ultimate'], 'ULTIMATE', 'Needs a full charge orb (fills with kills).', P.teal);
 
-  panel(R, 54, W, 100, 'ABILITIES', P.cyan);
+  panel(R, 54, W, 124, 'ABILITIES', P.cyan);
   row(R, 70, ['ability_weak'], 'WEAK SLOT', 'Short cooldown, small effect.', P.cyan);
   row(R, 94, ['ability_medium'], 'MEDIUM SLOT', 'Longer cooldown, stronger effect.', P.cyan);
   row(R, 118, ['ability_strong'], 'STRONG SLOT', 'Long cooldown, game-changing effect.', P.cyan);
+  row(R, 142, ['artifact'], 'HERO ARTIFACT', 'Only heroes after Vanguard have one.', P.yellow);
 
-  panel(R, 158, W, 112, 'GOOD TO KNOW', P.yellow);
-  const tips = ['Beat a boss to pick a new ability (1 of 3).', 'Passive abilities need no key.', 'P pauses the game.', 'Menus: W/S A/D or arrows, SPACE = OK.', 'Rebind keys: Settings > Keybinds.', 'Standing still too long drains health.'];
-  tips.forEach((t, i) => uiText(ctx, t, R + 8, 180 + i * 14, { size: T.small, color: P.grey }));
+  panel(R, 182, W, 88, 'GOOD TO KNOW', P.yellow);
+  const tips = ['Beat a boss to pick a new ability (1 of 3).', 'Passive abilities need no key.', 'ESC, P or BACKSPACE pauses the game.', 'Menus: W/S A/D or arrows, SPACE = OK.', 'Rebind keys: Settings > Keybinds.'];
+  tips.forEach((t, i) => uiText(ctx, t, R + 8, 204 + i * 14, { size: T.small, color: P.grey }));
 
   uiText(ctx, 'SURVIVE.', STAGE_W / 2, 292, { size: T.h2, color: P.red, align: 'center', glow: P.red });
   drawPrompt(ctx, 'BACK [SPACE]', 322);
@@ -1108,6 +1142,7 @@ function outlinedText(ctx, text, x, y, size, color) {
 // Belohnung eines Meilensteins als Text ("+60 CORES" / "SKIN: CRIMSON")
 function milestoneRewardText(m) {
   if (m.reward.cores) return '+' + m.reward.cores + ' CORES';
+  if (m.reward.hero) return 'HERO: ' + CFG.heroes[m.reward.hero].name;
   const [cat, id] = m.reward.cos.split(':'), C = CFG.cosmetics;
   return C.cats.find((c) => c.id === cat).label + ': ' + C.items[cat].find((i) => i.id === id).name;
 }
@@ -1187,11 +1222,39 @@ function drawDeathScreen(ctx) {
   const k = G.realTime % 7;
   const off = k < 4 ? 2 * (k / 4) : 2 - 4 * ((k - 4) / 3);
   const tint = STYLE.deathTints[name] || STYLE.pal.red;
-  uiText(ctx, 'MENU [SPACE]     RETRY [R]', STAGE_W / 2, 340 - off, { size: STYLE.type.h2, color: tint, align: 'center' });
+  uiText(ctx, 'MENU [SPACE]     RETRY [R]     DETAILS [TAB]', STAGE_W / 2, 340 - off, { size: STYLE.type.h2, color: tint, align: 'center' });
+  const sm = Stats.summary;
+  if (sm) uiText(ctx, 'KILLED BY: ' + sm.killer, STAGE_W / 2, 326, { size: STYLE.type.small, color: STYLE.pal.ice, align: 'center' });
   milestoneLines().forEach((l, i, a) => uiText(ctx, l, STAGE_W / 2, 244 - (a.length - 1 - i) * 11, { size: STYLE.type.small, color: STYLE.pal.cyan, align: 'center' }));
   uiText(ctx, '+' + G.earned + ' CORES', STAGE_W / 2, 268, { size: STYLE.type.h2, color: STYLE.pal.yellow, align: 'center' });
   if (G.newBest) uiText(ctx, 'NEW BEST TIME!', STAGE_W / 2, 288, { size: STYLE.type.h2, color: STYLE.pal.yellow, align: 'center', glow: STYLE.pal.yellow });
   outlinedText(ctx, 'Time: ' + formatTime(G.time) + '  (' + G.time.toFixed(1) + ' s)', STAGE_W / 2, 310, 22, STYLE.pal.ice);
+  if (G.deathDetails && sm) drawRunDetails(ctx, sm);
+}
+
+// Zweite Seite des Todesbildschirms (TAB): Todesursache, Schaden pro Quelle, Kills pro Waffe (Daten aus runstats.js)
+function drawRunDetails(ctx, sm) {
+  const P = STYLE.pal, T = STYLE.type;
+  ctx.fillStyle = '#05060f'; ctx.fillRect(0, 0, STAGE_W, STAGE_H);
+  uiText(ctx, 'KILLED BY: ' + sm.killer, STAGE_W / 2, 30, { size: T.h1 || T.h2, color: P.red, align: 'center' });
+  uiText(ctx, 'TIME ' + formatTime(G.time) + '   LEVEL ' + sm.level + '   BOSSES ' + G.bosses + '   KILLS ' + G.kills + '   HITS TAKEN ' + sm.hitCount + '   DAMAGE ' + Math.round(sm.taken), STAGE_W / 2, 54, { size: T.small, color: P.grey, align: 'center' });
+  const col = (x, title, rows, color, fmt) => {
+    const w = 212, top = 76, rowH = 29, max = rows.length ? rows[0][1] : 1, total = rows.reduce((s, r) => s + r[1], 0) || 1;
+    uiPanel(ctx, x, top, w, 256, { color: P.greyMid, fill: P.void, alpha: 0.95 });
+    uiText(ctx, title, x + 10, top + 14, { size: T.h2, color });
+    if (!rows.length) uiText(ctx, 'NOTHING YET', x + 10, top + 44, { size: T.small, color: P.grey });
+    rows.slice(0, 7).forEach(([name, v], i) => {
+      const y = top + 40 + i * rowH;
+      uiText(ctx, uiFit(ctx, name, 120, T.small), x + 10, y, { size: T.small, color: i === 0 ? P.ice : P.grey });
+      uiText(ctx, fmt(v, total), x + w - 10, y, { size: T.small, color: i === 0 ? P.yellow : P.grey, align: 'right' });
+      ctx.fillStyle = P.greyMid; ctx.fillRect(x + 10, y + 6, w - 20, 4);
+      ctx.fillStyle = color; ctx.fillRect(x + 10, y + 6, Math.max(2, Math.round((w - 20) * v / max)), 4);
+    });
+    if (rows.length > 7) uiText(ctx, '+' + (rows.length - 7) + ' MORE', x + 10, top + 40 + 7 * rowH, { size: T.small, color: P.grey });
+  };
+  col(18, 'DAMAGE TAKEN', sm.dmg, P.red, (v, tot) => Math.round(v) + ' (' + Math.round(100 * v / tot) + '%)');
+  col(250, 'KILLS BY WEAPON', sm.kills, P.cyan, (v) => String(v));
+  drawPrompt(ctx, 'BACK [TAB]     MENU [SPACE]     RETRY [R]', 345);
 }
 
 
@@ -1199,12 +1262,16 @@ function drawDeathScreen(ctx) {
 function drawPickScreen(ctx) {
   const P = STYLE.pal, T = STYLE.type, k = G.pick;
   ctx.fillStyle = 'rgba(5,6,15,0.78)'; ctx.fillRect(0, 0, STAGE_W, STAGE_H);
-  const evo = k.kind === 'evo';
-  uiText(ctx, evo ? 'EVOLUTION' : 'NEW ABILITY', STAGE_W / 2, 50, { size: T.h1 || T.h2, color: evo ? P.yellow : P.cyan, align: 'center' });
-  uiText(ctx, evo ? 'ONE PER WEAPON SLOT - [BACKSPACE] SKIPS (OFFERED AGAIN AFTER THE NEXT BOSS)' : k.tier ? 'SLOT: ' + k.tier.label : 'COLLECT ONE - SWAP LATER IN THE PAUSE MENU', STAGE_W / 2, 70, { size: T.small, color: P.yellow, align: 'center' });
+  const evo = k.kind === 'evo', xp = k.kind === 'xp';
+  uiText(ctx, evo ? 'EVOLUTION' : xp ? 'LEVEL UP!' : 'NEW ABILITY', STAGE_W / 2, 50, { size: T.h1 || T.h2, color: evo ? P.yellow : P.cyan, align: 'center', glow: xp ? P.cyan : undefined });
+  uiText(ctx, evo ? 'ONE PER WEAPON SLOT - [ESC] SKIPS (OFFERED AGAIN AFTER THE NEXT BOSS)' : xp ? 'LEVEL ' + k.level + ' - PICK ONE UPGRADE, IT LASTS FOR THIS RUN' : k.tier ? 'SLOT: ' + k.tier.label : 'COLLECT ONE - SWAP LATER IN THE PAUSE MENU', STAGE_W / 2, 70, { size: T.small, color: P.yellow, align: 'center' });
   const n = k.ids.length, w = 140, gap = 10, x0 = STAGE_W / 2 - (n * w + (n - 1) * gap) / 2, y = 95, h = 190;
   k.ids.forEach((id, i) => {
-    let A = CFG.loadout.abilities[id];
+    let A = xp ? null : CFG.loadout.abilities[id];
+    if (xp) {                                                       // Level-up-Karte: Perk mit Wirkung je Stapel und Stand (x/max)
+      const PK = CFG.xp.perks[id], have = Xp.stacks(id);
+      A = { icon: PK.icon, iconW: PK.iconW, name: PK.name, desc: PK.desc, effect: Xp.effectText(id), xp: true, foot: 'OWNED ' + have + '/' + PK.max + '  >  ' + (have + 1) + '/' + PK.max };
+    }
     if (evo) {                                                      // Evolutionskarte: Symbol der Waffe, gleiche Karte wie bei Abilities
       const R = CFG.evolutions.list[id], I = CFG.items.catalog[R.weapon], N = R.needs.ability ? CFG.loadout.abilities[R.needs.ability].name : CFG.items.catalog[R.needs.implant].name;
       A = { icon: I.icon, iconW: I.iconW, name: R.name, desc: R.desc, evo: true, foot: I.name + ' + ' + N };
@@ -1222,6 +1289,8 @@ function drawPickScreen(ctx) {
       else line = line ? line + ' ' + wd : wd;
     }
     uiText(ctx, line, x + w / 2, ly, { size: T.small, color: P.grey, align: 'center' });
+    if (A.effect) uiWrap(ctx, A.effect, x + 8, ly + 18, w - 16, 11, { size: T.small, color: P.cyan });       // Level-up: was ein Stapel bringt
+    if (A.xp) { uiText(ctx, '[' + (i + 1) + ']  ' + A.foot, x + w / 2, yy + h - 8, { size: T.small, color: P.yellow, align: 'center' }); return; }
     if (A.evo) { uiText(ctx, A.foot, x + w / 2, yy + h - 14, { size: T.small, color: P.yellow, align: 'center' }); return; }
     const tl = CFG.loadout.tiers.find((t) => t.id === A.tier);
     uiText(ctx, tl.label + ' SLOT', x + w / 2, yy + h - 22, { size: T.small, color: ({ weak: P.cyan, medium: P.yellow, strong: P.orange })[A.tier], align: 'center' });

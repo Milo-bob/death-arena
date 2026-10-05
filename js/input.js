@@ -9,7 +9,8 @@ const Input = {
   rightClicked: false,
 
   down(code) { return !!this.keys[code]; },
-  pressed(code) { return !!this.pressedNow[code]; },
+  // Backspace zaehlt wie Escape (Pause und Zurueck): im Vollbild im iframe (Holiday Games) kommt Escape nicht zuverlaessig an. Beim Belegen einer Taste bleibt Backspace eine normale Taste.
+  pressed(code) { return !!this.pressedNow[code] || (code === 'Escape' && !!this.pressedNow.Backspace && !(typeof G !== 'undefined' && G.bindWait)); },
   // Belegbare Aktionen: Standardtasten. Eigene Belegung steht in Save.data.binds (nur die geaenderten).
   actions: [
     { id: 'up', label: 'UP', def: 'KeyW' },
@@ -24,6 +25,7 @@ const Input = {
     { id: 'ability_medium', label: 'ABILITY MEDIUM', def: 'KeyQ' },
     { id: 'ability_strong', label: 'ABILITY STRONG', def: 'KeyR' },
     { id: 'ultimate', label: 'ULTIMATE', def: 'KeyV' },
+    { id: 'artifact', label: 'HERO ARTIFACT', def: 'KeyF' },
   ],
   code(action) { return (Save.data.binds && Save.data.binds[action]) || this.actions.find((a) => a.id === action).def; },
   actDown(action) { return this.down(this.code(action)); },
@@ -57,11 +59,9 @@ const Input = {
 
 const normCode = (c) => (c === 'ShiftRight' ? 'ShiftLeft' : c);     // beide Shift-Tasten zaehlen gleich
 window.addEventListener('keydown', (e) => {
-  if (e.code === 'Space' || e.code.startsWith('Arrow') || e.code === 'Tab') e.preventDefault();
+  if (e.code === 'Space' || e.code.startsWith('Arrow') || e.code === 'Tab' || e.code === 'Backspace' || (/^F[1-4]$/.test(e.code) && Save.data.dev)) e.preventDefault();       // F1-F4 sind im Dev-Modus Cheat-Tasten (game.js devKeys)
   const c = normCode(e.code);
   if (!Input.keys[c]) Input.pressedNow[c] = true;
-  // Backspace = "Zurück" wie Escape (Escape beendet im Browser den Vollbildmodus)
-  if (c === 'Backspace') { e.preventDefault(); Input.pressedNow.Escape = true; }
   Input.keys[c] = true;
 });
 window.addEventListener('keyup', (e) => { Input.keys[normCode(e.code)] = false; });
@@ -69,4 +69,17 @@ window.addEventListener('blur', () => { Input.keys = {}; });
 window.addEventListener('mousedown', (e) => { Input.setMouse(e); if (e.button === 2) Input.rightClicked = true; else Input.clicked = true; });
 window.addEventListener('mousemove', (e) => { Input.setMouse(e); Input.mouse.moved = true; });
 window.addEventListener('contextmenu', (e) => e.preventDefault());
+
+// Eingebettet (iframe, z. B. auf der Holiday-Games-Seite) bekommt das Spiel Tasten nur, wenn es den Fokus hat.
+// Auf Tablets reicht ein Touch oft nicht, deshalb Fokus bei jedem Touch/Klick und beim Laden holen.
+const grabFocus = () => {
+  try {
+    window.focus();
+    const a = document.activeElement;
+    if (document.body && !(a && /^(INPUT|TEXTAREA|BUTTON)$/.test(a.tagName))) document.body.focus();       // Dialog-Elemente (SaveTransfer) behalten ihren Fokus
+  } catch (e) {}
+};
+if (document.body) { document.body.tabIndex = -1; document.body.style.outline = 'none'; }
+['pointerdown', 'touchstart', 'mousedown', 'click'].forEach((ev) => window.addEventListener(ev, grabFocus, { passive: true }));
+window.addEventListener('load', grabFocus);
 window.addEventListener('wheel', (e) => { Input.wheel = e.deltaY > 0 ? 1 : -1; });

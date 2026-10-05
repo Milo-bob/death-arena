@@ -16,6 +16,7 @@
 //   [9]  Drops          powerup (Heilung) | drops (Buffs)
 //   [10] Bosse          boss
 //   [11] Welt           map, camera, spawnPoints
+//   [9b] XP im Lauf     xp (Level-ups, Perks)
 //   [12] Spielende      finalBoss (Ende per Boss), ending (Belohnung), DEATH_SCREENS
 // ============================================================================================
 
@@ -61,8 +62,11 @@ const CFG = {
     readyAt: 75,              // ab dieser Ladung ist das Ultimate bereit (Tempo-Boost)
     cost: 40,
     boostHeal: 20,            // Heilung beim ERSTEN Erreichen der Ladung pro Lauf (Original: 35 bei jedem Mal, war die Heal-Meta)
-    chargeFactor: 0.75,       // Kills laden das Ultimate nur drei viertel so schnell wie im Original
-    usableInBossFight: false, // im Original wird das Ultimate im Bosskampf sofort gelöscht
+    maxStack: 5,              // so viele Ultimates lassen sich insgesamt speichern (große + kleine Kugel)
+    stackRates: [1, 0.5, 0.42, 0.37],   // Ladetempo des 1., 2., 3., 4. Ultimates (der Sprung 1 -> 2 ist am größten, danach kleine Schritte)
+    stackTail: 0.9,           // ab dem 5. Ultimate: Tempo des Vorgängers x diesen Faktor
+    chargeFactor: 0.75,      // Kills laden das Ultimate nur drei viertel so schnell wie im Original
+    usableInBossFight: true,  // im Original wurde das Ultimate im Bosskampf sofort gelöscht; Schaden an Bossen: CFG.boss.ultDamage
   },
 
   // Bloodburst: Notfallangriff bei Beinahe-Tod (automatisch) oder per Kill-Kombo
@@ -500,8 +504,8 @@ const CFG = {
   // Kosten einer Stufe = cost * (aktuelle Stufe + 1). Absichtlich langsam (viel Grind).
   // Neues Upgrade: hier mit `tab` eintragen + Wirkung per Save.bonus(id) an der passenden Stelle.
   meta: {
-    perSecond: 0.1,           // Seelen pro Sekunde Spielzeit
-    perBoss: 15,              // Seelen pro besiegtem Boss
+    perSecond: 0.24,          // Seelen pro Sekunde Spielzeit (ein Lauf ist jetzt ca. 840 s statt 2000 s lang, deshalb 2.4x so viel pro Sekunde)
+    perBoss: 25,              // Seelen pro besiegtem Boss (6 Bosse pro Lauf statt bis zu 13)
     upgrades: {
       health:   { tab: 'stats', name: 'HEALTH',            max: 10, cost: 50, step: 10,   desc: (v) => '+' + v + ' max health', info: 'More maximum health (base 100), the health bar adapts.' },
       speed:    { tab: 'stats', name: 'SPEED',        max: 10, cost: 30, step: 0.02, desc: (v) => '+' + Math.round(v * 100) + '% move speed', info: 'You move faster permanently.' },
@@ -541,13 +545,17 @@ const CFG = {
     { id: 'runs10',   name: 'PLAY 10 RUNS',     stat: 'runs',   need: 10,   reward: { cores: 60 } },
     { id: 'boss8',    name: 'DEFEAT 8 BOSSES',      stat: 'bosses', need: 8,    reward: { cos: 'boss:void' } },
     { id: 'kill1500', name: 'DEFEAT 1500 ENEMIES',  stat: 'kills',  need: 1500, reward: { cos: 'kill:pink' } },
-    { id: 'time900',  name: 'SURVIVE 15 MINUTES', stat: 'best',   need: 900,  reward: { cos: 'skin:frost' } },
+    { id: 'time840',  name: 'REACH THE FINAL BOSS', stat: 'best', need: 840,  reward: { cos: 'skin:frost' } },       // = CFG.finalBoss.at
     { id: 'runs30',   name: 'PLAY 30 RUNS',     stat: 'runs',   need: 30,   reward: { cores: 150 } },
     { id: 'boss15',   name: 'DEFEAT 15 BOSSES',     stat: 'bosses', need: 15,   reward: { cos: 'boss:ruby' } },
     { id: 'kill4000', name: 'DEFEAT 4000 ENEMIES',  stat: 'kills',  need: 4000, reward: { cos: 'kill:toxic' } },
-    { id: 'time1500', name: 'SURVIVE 25 MINUTES', stat: 'best',   need: 1500, reward: { cos: 'skin:solar' } },
+    { id: 'win1',     name: 'DEFEAT DEATH',       cat: 'best', stat: 'wins', need: 1, reward: { cos: 'skin:solar' } },       // Sieg über den finalen Boss
     { id: 'boss25',   name: 'DEFEAT 25 BOSSES',     stat: 'bosses', need: 25,   reward: { cos: 'boss:gilded' } },
     { id: 'tutorial', name: 'COMPLETE THE TUTORIAL', cat: 'tutorial', stat: 'tutorial', need: 1, reward: { cores: 20 } },
+    // Helden-Meilensteine (cat 'heroes'): schalten den Kauf des Helden frei (CFG.heroes, Upgrades > HEROES), zusaetzlich kostet der Held Cores
+    { id: 'hero_bulwark', name: 'DEFEAT 18 BOSSES',            cat: 'heroes', stat: 'bosses', need: 18,  reward: { hero: 'bulwark' } },
+    { id: 'hero_specter', name: 'SURVIVE 10 MINUTES IN A RUN', cat: 'heroes', stat: 'best',   need: 600, reward: { hero: 'specter' } },
+    { id: 'hero_archon',  name: 'DEFEAT DEATH 2 TIMES',        cat: 'heroes', stat: 'wins',   need: 2,   reward: { hero: 'archon' } },
     // Endlos-Modus (cat 'endless' = eigene Kategorie im Meilenstein-Reiter): bestInf = beste Endlos-Zeit, infKills/infBosses = Summe über alle Endlos-Läufe
     { id: 'inf600',   name: 'SURVIVE 10 MIN IN ENDLESS',  cat: 'endless', stat: 'bestInf',   need: 600,  reward: { cores: 100 } },
     { id: 'inf1200',  name: 'SURVIVE 20 MIN IN ENDLESS',  cat: 'endless', stat: 'bestInf',   need: 1200, reward: { cores: 200 } },
@@ -732,7 +740,12 @@ const CFG = {
     firstAt: 135,
     respawnMin: 100, respawnMax: 150,
     ultDamage: 15,
-    radius: 18,
+    radius: 20,
+    // Breach Gate (Rework): erscheint mit Animation (arrive s, in der Zeit unverwundbar), spuckt dann in Schüben Gegner aus:
+    // alle pulseEvery s (unter pulseFastBelow Lebensanteil: pulseFast s) kündigt der Kern den Schub telegraph s vorher an,
+    // dann kommen burstBase Gegner (+1 je burstEvery Spielsekunden, max burstMax). Bei mehr als enemyCap Gegnern in der Welt fällt der Schub aus.
+    arrive: 1.4, pulseEvery: 3.0, pulseFast: 2.2, pulseFastBelow: 0.5, telegraph: 0.7,
+    burstBase: 3, burstEvery: 300, burstMax: 5, enemyCap: 45,
     rewardUlt: 5, rewardHeal: 25, timeoutHeal: 10,
     miniChance: 85,           // % für Kreis/Dreieck-Miniboss (sonst Quadrat/Raute)
   },
@@ -879,6 +892,35 @@ const CFG = {
   // ==========================================================================================
   //  [10] BOSSE
   // ==========================================================================================
+  // ==========================================================================================
+  //  [9b] XP IM LAUF (js/xp.js)
+  // ==========================================================================================
+  // Besiegte Gegner lassen XP-Kugeln fallen (fliegen zum Spieler, wenn er nah genug ist, ältere kommen von selbst). Genug XP = Level-up: das Spiel pausiert und man
+  // wählt 1 von 3 Perks (gelten nur für diesen Lauf, stapelbar bis max). Nach einem Boss wird ein aufgeschobenes Level-up angeboten. Im Tutorial gibt es keine XP.
+  // need = base + step x aktuelles Level. value = XP pro Gegner (nach Typ, sonst normal; HEAVY-Typen heavy, Tank tank, Minibosse mini, Splitter-Kleine splitlet, Minions/Wiederbelebte 0), boss = XP pro besiegtem Boss.
+  // orb: range = Sog-Radius (mal Aufsammelreichweite), speed/accel/maxSpeed = Flugtempo pro Bild, life = nach so vielen Sekunden fliegt die Kugel von selbst zum Spieler, cap = höchstens so viele Kugeln (Rest verschmilzt).
+  // perks: je Perk name/desc/icon, max = Stapel, die Wirkung steht je Stapel in den Feldern (siehe Xp.val und die Haken in player.js/enemies.js/game.js).
+  xp: {
+    base: 12, step: 5, offerDelay: 0.35,
+    value: { normal: 1, heavy: 2, tank: 4, mini: 8, splitlet: 0.25, boss: 25 },
+    orb: { range: 70, delay: 0.25, speed: 4, accel: 0.5, maxSpeed: 13, life: 25, cap: 140, grab: 4 },
+    perks: {
+      power:    { name: 'POWER SURGE',      desc: 'Hits sometimes land twice and bosses take more damage.', icon: 'damageIcon',  iconW: 20, max: 5, chance: 0.06, boss: 0.08 },
+      rapid:    { name: 'QUICK HANDS',      desc: 'All weapons attack faster.',                              icon: 'buffRapid',   iconW: 20, max: 5, per: 0.06 },
+      speed:    { name: 'SWIFT',            desc: 'You move faster.',                                        icon: 'buffHaste',   iconW: 20, max: 5, per: 0.04 },
+      health:   { name: 'VITALITY',         desc: 'More maximum health, healed right away.',                 icon: 'phoenixIcon', iconW: 20, max: 5, hp: 12 },
+      regen:    { name: 'NANITES',          desc: 'You slowly regenerate health.',                           icon: 'regenIcon',   iconW: 20, max: 4, per: 0.35 },
+      armor:    { name: 'PLATING',          desc: 'You take less damage.',                                   icon: 'armorIcon',   iconW: 20, max: 5, per: 0.04 },
+      magnet:   { name: 'ATTRACTOR',        desc: 'Pick up XP, healing and drops from further away.',        icon: 'buffMagnet',  iconW: 20, max: 4, per: 0.25 },
+      charge:   { name: 'CAPACITOR',        desc: 'Kills charge your ultimate faster.',                      icon: 'buffCharge',  iconW: 20, max: 4, per: 0.08 },
+      cooldown: { name: 'HEAT SINKS',       desc: 'Abilities and heavy weapons recharge faster.',            icon: 'buffCoolant', iconW: 20, max: 4, per: 0.08 },
+      luck:     { name: 'FORTUNE',          desc: 'Enemies drop buffs more often.',                          icon: 'luckyIcon',   iconW: 20, max: 4, per: 0.1 },
+      leech:    { name: 'LIFESTEAL',        desc: 'Every kill heals a little extra.',                        icon: 'vampireIcon', iconW: 20, max: 4, per: 0.12 },
+      recovery: { name: 'REFLEXES',         desc: 'Longer invulnerability after a hit.',                     icon: 'buffGuard',   iconW: 20, max: 4, per: 0.03 },
+      tune:     { name: 'WEAPON TUNING',    desc: 'All weapons get one boss upgrade right now.',             icon: 'sword',       iconW: 18, max: 3 },
+    },
+  },
+
   boss: {
     steps: 120,
     // Stärke aller Bosse (nicht im Tutorial): hp = Leben mal, fire = Abstände zwischen Schüssen/Ringen/Beschwörungen mal (kleiner = häufiger),
@@ -908,9 +950,10 @@ const CFG = {
     reaper: { speed: 2.7, radius: 26, hpBase: 170, hpPerStage: 0, hitStun: 0.05, shootEvery: 1.1, drawSize: 420,
               ringFirst: 4, ringEvery: 5.5, ringCount: 12, summonFirst: 6, summonEvery: 11, summonCount: 3, maxMinions: 6, triangleChance: 0.3, rageBelow: 0.4, rageEvery: 8, rageCount: 4,
               shrinkFirst: 20, shrinkEvery: 18, shrinkStep: 0.12, minScale: 0.6, shrinkSpeed: 0.05 },
-    // Reihenfolge der Bosskämpfe: der n-te Kampf eines Laufs nimmt order[n % Länge], danach beginnt die Liste von vorn.
-    // Wann ein Kampf startet, bleibt wie im Original (alle 120 s: 120, 240, 360, 480, ...), nur der Boss-Typ kommt aus dieser Liste.
-    order: ['octagon', 'octagon', 'kite', 'summoner', 'turret', 'twin', 'arena'],
+    // Reihenfolge der Bosskämpfe: jeder Boss kommt pro Lauf genau einmal (Standardmodus), danach erscheint direkt der finale Boss (CFG.finalBoss.at).
+    // Wann ein Kampf startet: alle `steps` Sekunden (120, 240, ..., 720). Nur der Endlos-Modus läuft die Liste immer wieder von vorn durch (order[n % Länge]).
+    // Wird die Liste länger oder kürzer, CFG.finalBoss.at auf steps x (Anzahl Bosse + 1) anpassen.
+    order: ['octagon', 'kite', 'summoner', 'turret', 'twin', 'arena'],
     // Kartenspezifische Bosse (nur Ember Foundry und Toxic Core, die Liste steht je Karte in CFG.maps als bossOrder). sprite/hue/drawSize = Aussehen (vorhandene Sprites umgefärbt).
     // Forge Warden: langsam, Bolzen + "Schlackenregen" (rainCount rote Einschlagkreise um den Spieler alle rainEvery s, wie die Einschläge des Laser-Turms).
     forge: { name: 'FORGE WARDEN', sprite: 'octagon', hue: 15, drawSize: 360, speed: 2.1, radius: 26, hpBase: 44, hpPerStage: 6, hitStun: 0.3, shootEvery: 1.4,
@@ -935,7 +978,7 @@ const CFG = {
     mortar: { speed: 5.5, radius: 8 },
     anim: 3.5,                // Länge der Spawn-Animation
     timeout: 90,              // so lange muss man überleben, wenn man den Boss nicht besiegt
-    ultDamage: 20,
+    ultDamage: 10,            // Schaden des Ultimates (und Bloodbursts) an einem Boss, einmal pro Einsatz (Boss-Leben vor Kartenfaktor: Oktagon ca. 22)
     killHeal: 50, killUlt: 10,
   },
 
@@ -966,7 +1009,9 @@ const CFG = {
   // Finaler Boss: Ab Spielzeit `at` erscheint der Tod selbst (Boss 'reaper', Werte unter boss.reaper). Das Spiel endet NICHT nach einer festen Zeit,
   // sondern erst, wenn man ihn besiegt (dann läuft die Ending-Sequenz, siehe G.win). Die Zeit steht pro Lauf in G.finalAt: der geplante Endlos-Modus
   // soll sie vor dem Spielbeginn wählbar machen (oder null = kein finaler Boss).
-  finalBoss: { at: 2000 },
+  // Standardmodus: 6 Bosse (alle 120 s: 120 ... 720), der finale Boss folgt direkt danach bei steps x (6 + 1) = 840 s (14:00) Spielzeit. Die Uhr steht in Bosskämpfen,
+  // ein Lauf dauert real also etwas länger (Bosskämpfe + Endkampf, ca. 15-16 Minuten auf der Spieluhr inkl. Endboss).
+  finalBoss: { at: 840 },
   // Endlos-Modus (Hauptmenü > INFINITE MODE): unendliche Karte ohne Wände (CFG.map.infinite wird pro Lauf gesetzt), Spawnpunkte und Barrikaden folgen dem Spieler.
   // Vor dem Start wählbar: wann der finale Boss kommt (finalMinutes, null = nie, endlos). Cores nur zu coreFactor, die Bestzeit wird getrennt geführt (Save.data.bestInf).
   // Karten (Auswahl nach PLAY): Boden (Bild in img_new), Rahmenfarbe, Größe (halbe Breite/Höhe), Schwierigkeit (diff) und Freischaltung.
@@ -975,13 +1020,28 @@ const CFG = {
   maps: [
     { id: 'void', name: 'NEON VOID', desc: 'The classic arena.', ground: 'ground', frame: STYLE.pal.cyan, half: [520, 390], diff: { speed: 1, spawn: 1, damage: 1, bossHp: 1, cores: 1, hits: 1, rate: 1, allRate: 1, capMul: 1, boss: { hp: 1, fire: 1, speed: 1, dmg: 1 } }, level: 1 },
     { id: 'foundry', name: 'EMBER FOUNDRY', desc: 'Hotter, faster, meaner.', ground: 'ground2', frame: STYLE.pal.orange, half: [520, 390], diff: { speed: 1.08, spawn: 0.9, damage: 1.15, bossHp: 1.15, cores: 1.25, hits: 1.5, rate: 0.8125, allRate: 0.7, capMul: 1.4, boss: { hp: 1.6, fire: 0.8, speed: 1.1, dmg: 1.25 } }, level: 2, unlockFrac: 0.5,
-      // Kartenspezifisch (nur Karte 2 und 3): bossOrder ersetzt CFG.boss.order (gleiche Länge, einzelne Kämpfe sind durch Karten-Bosse ersetzt, die Dauer bleibt),
+      // Kartenspezifisch (nur Karte 2 und 3): bossOrder ersetzt CFG.boss.order (gleiche Länge, zwei Kämpfe sind durch Karten-Bosse ersetzt, die Dauer bleibt),
       // foes = zusätzliche Gegner-Varianten (CFG.variants), trim = Wartezeiten der normalen Gegner mal Faktor (größer = weniger davon, Schlüssel: c/t/r/s = Kreis/Dreieck/Raute/Quadrat, sonst Typname aus extraSpawn)
-      bossOrder: ['octagon', 'forge', 'kite', 'summoner', 'colossus', 'twin', 'arena'],
+      bossOrder: ['octagon', 'forge', 'summoner', 'colossus', 'twin', 'arena'],       // Forge Warden ersetzt Kite, Slag Colossus ersetzt Laser-Turm
+      // Umgebungsmechanik (js/mapenv.js, nur auf dieser Karte, im Bosskampf ruht sie): hazards = Anzeige in der Kartenauswahl.
+      // vents (Lava-Schlote): idle = Sekunden Ruhe (min/max, pro Welle waveFaster kürzer, höchstens bis minIdleFactor), warn = Vorwarnung, erupt = Ausbruch,
+      //   radius, dmg = Schadensfaktor am Spieler (ein Treffer pro Ausbruch), enemyHits = Treffer für Gegner im Radius, minGap = Mindestabstand zueinander.
+      // belts (Schlackenbänder): len x width, push = Schub in Einheiten pro Bild (Spieler und Gegner), flip = Sekunden bis zur Richtungsumkehr (min/max), flipWarn = Stillstand davor.
+      hazards: ['LAVA VENTS', 'SLAG BELTS'],
+      env: {
+        vents: { count: 5, radius: 32, idle: [5, 9], warn: 1.4, erupt: 1.0, dmg: 1.3, enemyHits: 2, minGap: 90, waveFaster: 0.08, minIdleFactor: 0.5 },
+        belts: { count: 2, len: 150, width: 28, push: 1.7, flip: [10, 16], flipWarn: 1.0, minGap: 70 },
+      },
       foes: [{ v: 'cinder', from: 60, min: 11, max: 15, maxAlive: 8 }, { v: 'welder', from: 150, min: 20, max: 28, maxAlive: 3 }, { v: 'smelter', from: 240, min: 28, max: 38, maxAlive: 2 }],
       trim: { c: 1.35, t: 1.25, bomber: 1.6, sniper: 1.4 } },
     { id: 'toxic', name: 'TOXIC CORE', desc: 'Tight arena, no mistakes.', ground: 'ground3', frame: STYLE.pal.green, half: [440, 330], diff: { speed: 1.15, spawn: 0.8, damage: 1.3, bossHp: 1.3, cores: 1.6, hits: 2, rate: 0.69, allRate: 0.55, capMul: 1.8, boss: { hp: 2, fire: 0.68, speed: 1.15, dmg: 1.45 } }, level: 3, unlockFrac: 0.5,
-      bossOrder: ['octagon', 'plague', 'kite', 'spore', 'turret', 'twin', 'arena'],
+      bossOrder: ['octagon', 'plague', 'spore', 'turret', 'twin', 'arena'],           // Plague Drone ersetzt Kite, Spore Mother ersetzt den Beschwörer
+      // Umgebungsmechanik (js/mapenv.js): pools (Säurepfützen): radius = Bereich (min/max), slow = Tempofaktor für den Spieler, enemySlow = für Gegner, dps = Leben pro Sekunde
+      // für den Spieler (nicht mit Schildblase/Unverwundbarkeit), burp = Sekunden bis eine Pfütze eine Giftwolke ausstößt (min/max, Vorwarnung burpWarn, Wolke siehe CFG.cloud).
+      hazards: ['ACID POOLS', 'TOXIC BURSTS'],
+      env: {
+        pools: { count: 4, radius: [26, 38], slow: 0.7, enemySlow: 0.75, dps: 0.6, burp: [9, 15], burpWarn: 1.2, minGap: 70 },
+      },
       foes: [{ v: 'spore', from: 60, min: 11, max: 15, maxAlive: 8 }, { v: 'blighter', from: 170, min: 22, max: 30, maxAlive: 2 }, { v: 'hazmat', from: 300, min: 45, max: 60, maxAlive: 1 }],
       trim: { c: 1.35, s: 1.3, splitter: 1.5, leech: 1.4, tank: 1.5 } },
   ],
@@ -989,11 +1049,42 @@ const CFG = {
   ending: { firstWinCores: 500, winCores: 100, victoryDelay: 2.2 },       // Belohnung zusätzlich zu den Cores der Spielzeit: beim ersten Sieg / bei jedem weiteren; victoryDelay = Sekunden Siegphase nach dem finalen Boss
 };
 
+// ---- Helden (Upgrades > HEROES, js/heroes.js) ----
+// Vanguard (der bisherige Spieler) ist von Anfang an da. Die anderen drei braucht man den Meilenstein `milestone` (CFG.milestones, cat 'heroes') UND `cost` Cores.
+// mod = Run-Modifier, gilt in jedem Lauf ausser im Tutorial: hp (+Leben), speed / atk (Angriffstempo) / ult (Ultimate-Ladung aus Kills) / dmgTaken (Schaden an dich) = Faktoren, startUlt (+Anfangsladung).
+// artifact = Gegenstand auf eigener Taste (Input 'artifact', Standard F), jedes Artefakt hat Abklingzeit + Zahlen unten (fortress / rift / chrono).
+// Die Helden nutzen die Spielerpalette, deshalb wirken alle Skins bei jedem Helden gleich (nur die Form unterscheidet sich).
+CFG.heroes = {
+  order: ['vanguard', 'bulwark', 'specter', 'archon'],
+  vanguard: { name: 'VANGUARD', sprite: 'player', cost: 0, modText: 'NO MODIFIER', blurb: 'THE ORIGINAL. NO STRENGTHS, NO WEAKNESSES.', mod: {} },
+  bulwark: {
+    name: 'BULWARK', sprite: 'heroBulwark', cost: 350, milestone: 'hero_bulwark', modText: '+60 HP  -12% SPEED', blurb: 'ARMORED RING. SLOW, BUT HARD TO KILL.',
+    mod: { hp: 60, speed: 0.88 },
+    artifact: { id: 'fortress', name: 'FORTRESS SLAM', icon: 'fortressIcon', desc: 'SHOCKWAVE THAT KNOCKS BACK AND STUNS, THEN 60% LESS DAMAGE FOR 3S' },
+  },
+  specter: {
+    name: 'SPECTER', sprite: 'heroSpecter', cost: 600, milestone: 'hero_specter', modText: '+20% SPEED  +12% ATTACK  -35 HP', blurb: 'COMET FRAME. FAST AND DEADLY, BUT FRAGILE.',
+    mod: { hp: -35, speed: 1.2, atk: 1.12 },
+    artifact: { id: 'rift', name: 'RIFT STEP', icon: 'riftIcon', desc: 'WARP FORWARD THROUGH ENEMIES AND HIT EVERYTHING ON THE WAY' },
+  },
+  archon: {
+    name: 'ARCHON', sprite: 'heroArchon', cost: 1000, milestone: 'hero_archon', modText: '+50% ULT CHARGE  +30 START  +15% DMG TAKEN', blurb: 'SUN CROWN. ULTIMATES CONSTANTLY, PAYS FOR IT.',
+    mod: { ult: 1.5, startUlt: 30, dmgTaken: 1.15 },
+    artifact: { id: 'chrono', name: 'CHRONO LOCK', icon: 'chronoIcon', desc: 'FREEZES EVERY ENEMY ON SCREEN FOR 2.5S (BOSSES IGNORE IT)' },
+  },
+};
+CFG.fortress = { cooldown: 26, duration: 3, reduce: 0.6 };                                              // Bulwark: Schadensminderung nach dem Schlag (Druckwelle = CFG.pulse)
+CFG.rift = { cooldown: 7, distance: 130, width: 14, hits: 2, bossDmg: 2, protect: 0.4 };                // Specter: Sprungweite, Breite der Schneise, Treffer pro Gegner, Schaden an Bossen, Unverwundbarkeit danach
+CFG.chrono = { cooldown: 42, radius: 900, stun: 2.5, duration: 0.7 };                                   // Archon: Betaeubung aller Gegner (duration = Dauer der Ring-Animation)
+
 // Death-Screens: [ab Sekunde, Bildname]
-// Absichtlich gestreckt: der "OK I admit"-Screen (death7) kommt erst nach 1000 s, danach nur noch Spott bis zum finalen Boss (CFG.finalBoss).
+// Die Zeiten sind für einen 2000-s-Lauf geschrieben und werden unten auf CFG.finalBoss.at umgerechnet (der "OK I admit"-Screen death7 kommt so bei der halben Strecke,
+// danach nur noch Spott bis zum finalen Boss).
 // Neuer Screen = Bild in tools/gen_art.js (DEATH_NAMES), Tönung in style.js (deathTints), Text in deathtexts.js (DEATH_LINES) und hier eintragen.
 const DEATH_SCREENS = [
   [0, 'death1'], [60, 'death8'], [120, 'death2'], [180, 'death9'], [240, 'death3'], [300, 'death10'], [360, 'death4'], [420, 'death11'],
   [480, 'death5'], [540, 'death12'], [600, 'death6'], [660, 'death13'], [780, 'death14'], [900, 'death15'], [1000, 'death7'],
   [1120, 'death16'], [1250, 'death17'], [1400, 'death18'], [1550, 'death19'], [1800, 'deathSecret2'],
 ];
+for (const s of DEATH_SCREENS) s[0] = Math.round(s[0] * CFG.finalBoss.at / 2000);       // auf die tatsächliche Lauflänge skalieren
+const DEATH_SECRET_AT = 666;                                                            // Geheimscreen (Teufelszahl, ein kleiner Joke): genau in Sekunde 666 sterben. Bleibt fest, auch wenn sich die Lauflänge ändert (muss unter CFG.finalBoss.at liegen)

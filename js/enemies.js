@@ -25,7 +25,7 @@ function blockedByPlayerGear(x, y, r) {
 
 // Schadensfaktor gegen Bosse (Artefakt Schadensboost)
 function damageBoost() {
-  return (Save.equipped('artifact') === 'damage' ? 1 + CFG.items.damage.boss * Save.gearMul('damage') : 1) + Save.bonus('power') + (G.player && G.player.buffs.power > 0 ? CFG.drops.types.power.boss : 0);
+  return (Save.equipped('artifact') === 'damage' ? 1 + CFG.items.damage.boss * Save.gearMul('damage') : 1) + Save.bonus('power') + Xp.val('power', 'boss') + (G.player && G.player.buffs.power > 0 ? CFG.drops.types.power.boss : 0);
 }
 
 function touchesShield(x, y, r) {
@@ -135,6 +135,11 @@ class Enemy {
     this.dir = dirTo(this.x, this.y, tg.x, tg.y);
     if (lost && Math.hypot(tg.x - this.x, tg.y - this.y) < 10) f = 0;   // dort angekommen: stehen bleiben
     const r = this.radius;
+    if (G.hazards.length) {                                                // Umgebung (mapenv.js): Schlackenband schiebt, Säurepfütze bremst
+      const [bx, by] = MapEnv.pushAt(this.x, this.y, r), fr = framesOf(dt);
+      this.x += bx * fr; this.y += by * fr;
+      f *= MapEnv.slowAt(this.x, this.y, r, false);
+    }
     const onShield = touchesShield(this.x, this.y, r);
 
     // Aktion mit Vorwarnung (lokales Event) und Bewegungsmuster (siehe patterns.js)
@@ -150,14 +155,14 @@ class Enemy {
       if (onShield) step -= CFG.enemy[this.type].push || 2;
       if (pat.move !== undefined) { const face = this.dir; this.dir = pat.move; moveForward(this, step * f); this.dir = face; }     // Laufrichtung getrennt von der Blickrichtung (Dreieck)
       else moveForward(this, step * f);
-      if (pat.touch && touchesPlayer(this.x, this.y, r)) p.hit('touch');
+      if (pat.touch && touchesPlayer(this.x, this.y, r)) p.hit('touch', 1, Stats.enemyName(this));
     } else if (CHASERS.includes(this.type)) {
       const C = e[this.type];
       let step = this.stun <= 0 || this.type === 'tank' ? C.speed : 0;       // der Tank wird nie betäubt
       if (this.mini && this.type === 'circle' && !onShield) step += C.miniExtraSpeed;
       if (onShield) step -= C.push;
       moveForward(this, step * f);
-      if (TOUCHERS.includes(this.type) && touchesPlayer(this.x, this.y, r)) p.hit('touch');
+      if (TOUCHERS.includes(this.type) && touchesPlayer(this.x, this.y, r)) p.hit('touch', 1, Stats.enemyName(this));
     } else if (this.type === 'triangle') {
       if (this.dashFrames > 0) {
         moveForward(this, e.triangle.dashSpeed * f);
@@ -169,7 +174,7 @@ class Enemy {
       let step = this.stun <= 0 ? e.guard.speed : 0;
       if (onShield) step -= e.guard.push;
       moveForward(this, step * f);
-      if (touchesPlayer(this.x, this.y, r)) p.hit('touch');
+      if (touchesPlayer(this.x, this.y, r)) p.hit('touch', 1, Stats.enemyName(this));
     } else if (this.type === 'square' || this.type === 'rhombus') {
       const c = e[this.type];
       if (!this.halted) {
@@ -212,14 +217,14 @@ class Enemy {
     if (this.type === 'triangle') {
       this.shootT += V && V.every ? V.every : e.triangle.shootEvery;
       Sfx.play('enemyShot');
-      for (let i = 0; i < fan; i++) G.shots.push(new EnemyBolt(this.x, this.y, aim + off(i)));
+      for (let i = 0; i < fan; i++) G.shots.push(Object.assign(new EnemyBolt(this.x, this.y, aim + off(i)), { src: Stats.enemyName(this) }));
     } else if (this.type === 'square') {
       this.shootT += V && V.every ? V.every : e.square.missileEvery;
       Sfx.play('missile');
-      for (let i = 0; i < fan; i++) G.shots.push(new Missile(this.x, this.y, aim + off(i)));
+      for (let i = 0; i < fan; i++) G.shots.push(Object.assign(new Missile(this.x, this.y, aim + off(i)), { src: Stats.enemyName(this) }));
     } else if (this.type === 'rhombus') {
       this.shootT += e.rhombus.waveEvery;
-      G.blasts.push(new Blast('wave', this.x, this.y));
+      G.blasts.push(new Blast('wave', this.x, this.y, false, Stats.enemyName(this)));
       if (V && V.drop) dropCloud(this.x, this.y);                  // Blighter: Giftwolke unter sich
     }
   }
@@ -227,8 +232,9 @@ class Enemy {
   // stun = false: Dauerschaden (Feuer) betaeubt nicht. Artefakt Schadensboost: mit etwas Chance doppelter Schaden
   // src = Art des Angriffs (der Tank nimmt je nach Art unterschiedlich viel Schaden, siehe CFG.enemy.tank.dmg)
   takeHit(stun = true, src = null) {
-    const dc = (Save.equipped('artifact') === 'damage' ? CFG.items.damage.chance * Save.gearMul('damage') : 0) + Save.bonus('power') + (G.player.buffs.power > 0 ? CFG.drops.types.power.chance : 0);       // Chance auf doppelten Treffer (Implant + Meta-Upgrade Power)
+    const dc = (Save.equipped('artifact') === 'damage' ? CFG.items.damage.chance * Save.gearMul('damage') : 0) + Save.bonus('power') + Xp.val('power', 'chance') + (G.player.buffs.power > 0 ? CFG.drops.types.power.chance : 0);       // Chance auf doppelten Treffer (Implant + Meta-Upgrade Power)
     let n = Math.random() < dc ? 2 : 1;
+    this.killSrc = src;                                     // Run-Statistik: womit wurde zuletzt getroffen
     if (this.type === 'tank') {
       const T = CFG.enemy.tank;
       if (this.hitCd > 0) return;
@@ -257,18 +263,20 @@ class Enemy {
     this.alive = false;
     Sfx.play(this.mini || HEAVY.includes(this.type) ? 'killBig' : 'kill');
     Cos.killSparks(this.x, this.y, this.mini ? STYLE.pal.yellow : STYLE.pal.orange, this.mini ? 10 : HEAVY.includes(this.type) ? 6 : 4);
-    G.player.heal(CFG.enemy.killHeal + (Save.equipped('artifact') === 'vampire' ? CFG.items.vampire.heal * Save.gearMul('vampire') : 0) + (G.player.buffs.vampire > 0 ? CFG.drops.types.vampire.heal : 0));
+    G.player.heal(CFG.enemy.killHeal + Xp.val('leech') + (Save.equipped('artifact') === 'vampire' ? CFG.items.vampire.heal * Save.gearMul('vampire') : 0) + (G.player.buffs.vampire > 0 ? CFG.drops.types.vampire.heal : 0));
     G.addUlt((HEAVY.includes(this.type) ? 2 : 1) * (G.bloodMoon ? CFG.bloodMoon.ultFactor : 1));
     G.addCombo();
     G.kills++;
+    Stats.kill(this.killSrc);
+    Xp.drop(this);
     if (!this.splitlet && !this.minion) noteFallen(this);
     if (this.type === 'splitter') Patterns.splitlet(this, CFG.enemy.splitter.splitCount);
     const D = G.director;
     if (!this.raised && !this.splitlet && CORPSE_TYPES.includes(this.type) && D.corpses.length < 12 && G.enemies.some((n) => n.alive && n.type === 'necro')) D.corpses.push({ x: this.x, y: this.y, type: this.type, t: CFG.patterns.necro.corpseLife });
-    if (!this.splitlet && Math.random() < (this.mini ? CFG.drops.miniChance : G.bloodMoon ? CFG.bloodMoon.dropChance : G.flood ? CFG.flood.dropChance : CFG.drops.chance) * (Save.equipped('artifact') === 'lucky' ? 1 + (CFG.items.lucky.mult - 1) * Save.gearMul('lucky') : 1) * (1 + Save.bonus('luck'))) G.drops.push(new Drop(this.x, this.y));
-    if (this.type === 'rhombus') G.blasts.push(new Blast('wave', this.x, this.y));
+    if (!this.splitlet && Math.random() < (this.mini ? CFG.drops.miniChance : G.bloodMoon ? CFG.bloodMoon.dropChance : G.flood ? CFG.flood.dropChance : CFG.drops.chance) * (Save.equipped('artifact') === 'lucky' ? 1 + (CFG.items.lucky.mult - 1) * Save.gearMul('lucky') : 1) * (1 + Save.bonus('luck') + Xp.val('luck'))) G.drops.push(new Drop(this.x, this.y));
+    if (this.type === 'rhombus') G.blasts.push(new Blast('wave', this.x, this.y, false, Stats.enemyName(this)));
     if (this.V && !this.splitlet && !G.clearing) {                      // kartenspezifische Variante: Besonderheit beim Tod (Cinder: Funkenexplosion, Spore: Giftwolke)
-      if (this.V.death === 'ember') G.blasts.push(new Blast('ember', this.x, this.y));
+      if (this.V.death === 'ember') G.blasts.push(new Blast('ember', this.x, this.y, false, Stats.enemyName(this)));
       else if (this.V.death === 'cloud') dropCloud(this.x, this.y);
     }
     const fx = this.hitFx;                                  // Todesanimation passend zur Treffer-Anzeige
@@ -362,6 +370,7 @@ class EnemyBolt {
     this.speed = speed;
     this.frames = frames;
     this.ghost = 0;
+    this.src = 'TRIANGLE';          // Name der Quelle fuer die Run-Statistik (wird vom Schuetzen ueberschrieben)
   }
   update(dt) {
     if (G.clearing || G.bossFight) { this.alive = false; return; }
@@ -371,7 +380,7 @@ class EnemyBolt {
     this.frames -= f;
     const r = CFG.enemy.bolt.radius;
     if (hitObstacle(this.x, this.y, r, CFG.obstacles.dmg.bolt)) this.alive = false;               // Deckung
-    else if (touchesPlayer(this.x, this.y, r)) { G.player.hit('shoot'); this.alive = false; }
+    else if (touchesPlayer(this.x, this.y, r)) { G.player.hit('shoot', 1, this.src); this.alive = false; }
     else if (blockedByPlayerGear(this.x, this.y, r) || this.frames <= 0) this.alive = false;
   }
   draw(ctx) { drawSprite(ctx, 'enemyShot', this.x, this.y, this.dir, 150, { alpha: 1 - this.ghost / 100 }); }
@@ -384,6 +393,7 @@ class Missile {
     this.alive = true;
     this.frames = CFG.enemy.missile.frames;
     this.ghost = 0;
+    this.src = 'SQUARE';
   }
   update(dt) {
     if (G.clearing || G.bossFight) { this.alive = false; return; }
@@ -395,7 +405,7 @@ class Missile {
     this.frames -= f;
     const r = CFG.enemy.missile.radius;
     if (hitObstacle(this.x, this.y, r, CFG.obstacles.dmg.missile)) this.alive = false;            // Deckung
-    else if (touchesPlayer(this.x, this.y, r)) { G.player.hit('shoot'); this.alive = false; }
+    else if (touchesPlayer(this.x, this.y, r)) { G.player.hit('shoot', 1, this.src); this.alive = false; }
     else if (blockedByPlayerGear(this.x, this.y, r) || this.frames <= 0) this.alive = false;
   }
   draw(ctx) { drawSprite(ctx, 'missile', this.x, this.y, this.dir, 175, { alpha: 1 - this.ghost / 100 }); }
@@ -420,8 +430,9 @@ const BLAST_STAGES = {
 };
 
 class Blast {
-  constructor(kind, x, y, silent = false) {       // silent: der Erzeuger spielt seinen eigenen Klang (Meteorit)
+  constructor(kind, x, y, silent = false, src = null) {       // silent: der Erzeuger spielt seinen eigenen Klang (Meteorit); src: Name der Quelle fuer die Run-Statistik
     this.kind = kind;
+    this.src = src || ({ wave: 'RHOMBUS', ember: 'CINDER', boom: 'KITE MORTAR' })[kind] || 'EXPLOSION';
     this.x = x; this.y = y;
     this.dir = 0;
     this.alive = true;
@@ -457,7 +468,7 @@ class Blast {
       if (touchesShield(this.x, this.y, st.r)) step -= CFG.enemy.wave.push;
       moveForward(this, step * framesOf(dt));
     }
-    if (touchesPlayer(this.x, this.y, st.r)) G.player.hit(this.damageKind);
+    if (touchesPlayer(this.x, this.y, st.r)) G.player.hit(this.damageKind, 1, this.src);
   }
   draw(ctx) {
     const i = this.stage();
@@ -478,7 +489,7 @@ class Mine {
     if (this.age > C.life) { this.alive = false; return; }
     if ((this.age >= C.arm && touchesPlayer(this.x, this.y, C.triggerR)) || weaponHit(this.x, this.y, 8)) this.explode();
   }
-  explode() { this.alive = false; G.blasts.push(new Blast('bomb', this.x, this.y)); }
+  explode() { this.alive = false; G.blasts.push(new Blast('bomb', this.x, this.y, false, 'MINE')); }
   draw(ctx) {
     const P = STYLE.pal, C = CFG.patterns.miner, armed = this.age >= C.arm, cx = STAGE_W / 2 + this.x, cy = STAGE_H / 2 - this.y;
     ctx.save();
@@ -491,16 +502,25 @@ class Mine {
   }
 }
 
-// ---------- Spawner (zerstörbares Objekt, das Gegner ausspuckt) ----------
+// ---------- Spawner = "Breach Gate" (zerstörbares Tor, das Gegner in Schüben ausspuckt) ----------
+// Ablauf: Auftauchen (unverwundbar) -> alle paar Sekunden Schub (Kern leuchtet, Ring zieht sich zusammen, dann kommen die Gegner)
+// -> zerstören: Heilung + Ultimate + Miniboss; sonst bricht das Tor nach lifetime Sekunden zusammen (kleine Heilung).
+// Zahlen in CFG.spawner, Sprite 'spawner' (tools/gen_art.js), Kern/Ringe/Lebensleiste werden hier aus Pixeln gezeichnet.
 class Spawner {
   constructor(x, y) {
     this.x = x; this.y = y;
     this.alive = true;
-    this.hp = randInt(CFG.spawner.hpMin, CFG.spawner.hpMax);
+    this.maxHp = this.hp = randInt(CFG.spawner.hpMin, CFG.spawner.hpMax);
     this.age = 0;
     this.hitCd = 0;
-    this.spawnT = 1.5;
+    this.pulseT = CFG.spawner.arrive + 1.2;        // Zeit bis zum ersten Schub
+    this.warn = 0;                                 // > 0: Schub angekündigt, Restzeit
+    G.notice('BREACH OPENED!', STYLE.pal.red);
+    Sfx.play('warn');
+    Juice.sparks(x, y, STYLE.pal.red, 14, 3);
   }
+  get arriving() { return this.age < CFG.spawner.arrive; }
+  burstSize() { const s = CFG.spawner; return Math.min(s.burstMax, s.burstBase + Math.floor(G.time / s.burstEvery)); }
   update(dt) {
     if (G.bossFight) { this.alive = false; return; }     // im Bosskampf verschwinden Spawner ohne Belohnung
     this.age += dt;
@@ -508,7 +528,9 @@ class Spawner {
     const s = CFG.spawner;
     const r = s.radius;
 
-    if (this.hitCd <= 0 && weaponHit(this.x, this.y, r)) { this.hp -= 1; this.hitCd = s.hitCooldown; }
+    if (this.arriving) { this.hp = this.maxHp; return; }      // noch nicht angreifbar
+
+    if (this.hitCd <= 0 && weaponHit(this.x, this.y, r)) { this.hp -= 1; this.hitCd = s.hitCooldown; Juice.sparks(this.x, this.y, STYLE.pal.red, 3, 2.5); Sfx.play('crateHit'); }
     for (const a of G.attacks) {
       if (a.alive && (a.kind === 'ult') && a.hitsCircle(this.x, this.y, r)) this.hp -= s.ultDamage * framesOf(dt);
     }
@@ -516,27 +538,72 @@ class Spawner {
       G.addUlt(s.rewardUlt);
       G.powerups.push(new PowerUp(this.x, this.y, s.rewardHeal));
       if (!G.clearing) spawnMiniboss(this.x, this.y);
+      Juice.sparks(this.x, this.y, STYLE.pal.red, 26, 5); Juice.sparks(this.x, this.y, STYLE.pal.yellow, 10, 3); Juice.shake(3);
+      Sfx.play('crateBreak');
       this.alive = false;
       return;
     }
-    if (this.age > s.lifetime) {
+    if (this.age > s.arrive + s.lifetime) {
       G.powerups.push(new PowerUp(this.x, this.y, s.timeoutHeal));
+      Juice.sparks(this.x, this.y, STYLE.pal.grey, 14, 2);
       this.alive = false;
       return;
     }
 
-    this.spawnT -= dt;
-    if (this.spawnT <= 0) {
-      this.spawnT += 1;
-      if (Math.random() * 100 < 95) {
-        G.enemies.push(new Enemy(randInt(1, 2) === 1 ? 'circle' : 'triangle', this.x, this.y, false));
-      } else {
-        G.enemies.push(new Enemy(randInt(1, 3) < 3 ? 'square' : 'rhombus', this.x, this.y, false));
-      }
+    if (this.warn > 0) {                                         // Schub angekündigt: nach telegraph s kommen die Gegner
+      this.warn -= dt;
+      if (this.warn <= 0) this.burst();
+    } else {
+      this.pulseT -= dt;
+      if (this.pulseT <= 0) { this.warn = s.telegraph; Sfx.play('tick'); }
     }
   }
+  burst() {
+    const s = CFG.spawner;
+    this.pulseT = this.hp < this.maxHp * s.pulseFastBelow ? s.pulseFast : s.pulseEvery;
+    if (G.enemies.length >= s.enemyCap) return;
+    const n = this.burstSize(), a0 = rand(0, 360);
+    for (let i = 0; i < n; i++) {
+      const roll = Math.random() * 100, type = roll < 90 ? (randInt(1, 2) === 1 ? 'circle' : 'triangle') : (randInt(1, 3) < 3 ? 'square' : 'rhombus');
+      const a = (a0 + i * 360 / n) * DEG;
+      G.enemies.push(new Enemy(type, this.x + Math.cos(a) * 24, this.y + Math.sin(a) * 24, false));
+    }
+    Juice.sparks(this.x, this.y, STYLE.pal.orange, 8, 3);
+    Juice.shake(1);
+    Sfx.play('wave');
+  }
   draw(ctx) {
-    drawSprite(ctx, this.hitCd > 0 ? 'spawnerHit' : 'spawner', this.x, this.y, 0, 500);
+    const P = STYLE.pal, cx = STAGE_W / 2 + this.x, cy = STAGE_H / 2 - this.y, S = CFG.spawner, t = G.realTime;
+    const k = this.arriving ? clamp(this.age / S.arrive, 0, 1) : 1;               // Auftauchen: wächst und wird sichtbar
+    const left = S.arrive + S.lifetime - this.age, dying = !this.arriving && left < 8;
+    const shake = dying && Math.floor(t * 20) % 2 === 0 ? PIXEL : 0;              // kurz vorm Zusammenbruch zittert das Tor
+    ctx.save();
+    // Bodenschein + langsam drehender Außenring
+    ctx.globalAlpha = 0.35 * k; ctx.fillStyle = P.redDark; pxGlow(ctx, cx, cy, 34);
+    ctx.globalAlpha = k; ctx.fillStyle = dying ? P.yellow : P.redMid; pxRing(ctx, cx, cy, 27, 1, 8, t * 0.12);
+    if (this.arriving) {                                                          // Auftauchen: Ring zieht sich zum Tor zusammen
+      ctx.globalAlpha = 1 - k; ctx.fillStyle = P.red; pxRing(ctx, cx, cy, 46 - 26 * k, 2);
+    } else {                                                                      // Restzeit-Bogen (leert sich im Uhrzeigersinn)
+      ctx.globalAlpha = 0.9; ctx.fillStyle = dying ? (Math.floor(t * 6) % 2 ? P.yellow : P.red) : P.red;
+      pxArc(ctx, cx, cy, 31, -Math.PI / 2, -Math.PI / 2 + 2 * Math.PI * clamp(left / S.lifetime, 0, 1), 1);
+    }
+    ctx.restore();
+    drawSprite(ctx, this.hitCd > 0 ? 'spawnerHit' : 'spawner', this.x + shake, this.y, 0, 200 * k, { alpha: k });
+    if (this.arriving) return;
+    ctx.save();
+    // Kern in der Fassung: pulsiert, vor einem Schub schnell und hell, Ring zieht sich zusammen
+    const w = this.warn > 0 ? 1 - this.warn / S.telegraph : 0, pulse = 0.5 + 0.5 * Math.sin(t * (this.warn > 0 ? 24 : 4));
+    ctx.fillStyle = w > 0.7 ? P.white : this.warn > 0 ? P.yellow : P.redHi;
+    pxDisc(ctx, cx + shake, cy, 2 + 2 * pulse + 2 * w);
+    ctx.fillStyle = P.white; pxFill(ctx, cx + shake - 1, cy - 1, 1);
+    if (this.warn > 0) { ctx.globalAlpha = 0.55 + 0.45 * w; ctx.fillStyle = P.orange; pxRing(ctx, cx, cy, 40 - 22 * w, 2, 12, t * 0.4); }
+    // Lebensleiste über dem Tor
+    const bw = 30, bx = cx - bw / 2, by = cy - 30, f = clamp(this.hp / this.maxHp, 0, 1);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = P.ink; ctx.fillRect(bx - 2, by - 2, bw + 4, 8);
+    ctx.fillStyle = P.redDark; ctx.fillRect(bx, by, bw, 4);
+    ctx.fillStyle = this.hitCd > 0 ? P.ice : P.red; ctx.fillRect(bx, by, Math.round(bw * f / PIXEL) * PIXEL, 4);
+    ctx.restore();
   }
 }
 
@@ -548,7 +615,7 @@ function spawnMiniboss(x, y) {
 }
 
 // Aufsammelreichweite (Meta-Upgrade Magnet + Magnet-Buff) und Sog des Magnet-Buffs: Pickups in der Naehe wandern zum Spieler
-function pickupRange() { return 1 + Save.bonus('magnet') + (G.player.buffs.magnet > 0 ? CFG.drops.types.magnet.range : 0); }
+function pickupRange() { return 1 + Save.bonus('magnet') + Xp.val('magnet') + (G.player.buffs.magnet > 0 ? CFG.drops.types.magnet.range : 0); }
 function magnetPull(o, dt) {
   const p = G.player, M = CFG.drops.types.magnet;
   if (p.buffs.magnet <= 0) return;

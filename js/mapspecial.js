@@ -15,7 +15,7 @@ class ToxicCloud {
     const C = CFG.cloud;
     this.age += dt;
     if (this.age >= C.warn + this.life) { this.alive = false; return; }
-    if (this.age >= C.warn && circlesOverlap(this.x, this.y, C.radius, G.player.x, G.player.y, G.player.radius)) G.player.hit('touch', C.dmg * (this.boss ? bossPower().dmg : 1));
+    if (this.age >= C.warn && circlesOverlap(this.x, this.y, C.radius, G.player.x, G.player.y, G.player.radius)) G.player.hit('touch', C.dmg * (this.boss ? bossPower().dmg : 1), 'TOXIC CLOUD');
   }
   draw(ctx) {
     const C = CFG.cloud, P = STYLE.pal, cx = STAGE_W / 2 + this.x, cy = STAGE_H / 2 - this.y;

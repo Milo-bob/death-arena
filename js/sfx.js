@@ -136,6 +136,12 @@ const SFX = {
   meteorWarn: { gap: 0, fn: (s) => { s.tone('square', 1000, 1000, 0.05, 0.05); } },
   // arg = Fallzeit: pfeifender Ton, der sich nach unten bewegt
   meteorFall: { gap: 40, fn: (s, t) => { s.tone('sine', 1800, 260, t || 0.7, 0.07); s.noise('bandpass', 2500, 500, t || 0.7, 0.05); } },
+  xpGet:      { gap: 40, fn: (s) => { s.tone('sine', 900, 1400, 0.05, 0.05); } },                                                                                   // XP-Kugel eingesammelt
+  levelUp:    { gap: 200, big: true, fn: (s) => { s.tone('triangle', 500, 500, 0.1, 0.16); s.tone('triangle', 750, 750, 0.1, 0.16, 0.09); s.tone('triangle', 1000, 1000, 0.2, 0.16, 0.18); } },   // Level-up
+  ventWarn:   { gap: 300, fn: (s) => { s.tone('sine', 80, 150, 0.6, 0.1); s.noise('lowpass', 500, 1000, 0.6, 0.07); } },                                  // Lava-Schlot kündigt Ausbruch an
+  ventBlast:  { gap: 150, big: true, fn: (s) => { s.noise('lowpass', 2000, 200, 0.55, 0.28); s.tone('sawtooth', 170, 40, 0.5, 0.16); } },                // Ausbruch
+  acidBurp:   { gap: 200, fn: (s) => { s.tone('sine', 180, 520, 0.16, 0.1); s.tone('sine', 240, 680, 0.14, 0.09, 0.1); s.noise('bandpass', 700, 1400, 0.12, 0.06); } },   // Säurepfütze blubbert
+  beltFlip:   { gap: 400, fn: (s) => { s.tone('square', 240, 120, 0.14, 0.05); s.tone('square', 360, 180, 0.14, 0.04, 0.12); } },                       // Schlackenband kehrt um
   meteorHit:  { gap: 40, big: true, fn: (s) => { s.noise('lowpass', 2800, 90, 0.7, 0.45); s.tone('sine', 130, 28, 0.6, 0.6); s.noise('highpass', 1500, 800, 0.1, 0.12); } },
 };
 

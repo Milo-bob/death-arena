@@ -124,13 +124,13 @@ class Boss {
         this.summon();
       } else if (kind === 'mortar') {
         this.shootT += C.mortarEvery * fast;
-        G.bossShots.push(new Mortar(this.x, this.y, this.dir));
+        G.bossShots.push(Object.assign(new Mortar(this.x, this.y, this.dir), { src: Stats.bossName(this) }));
       } else if (kind === 'fan') {                                  // Plague Drone: Dreierfächer
         this.shootT += C.shootEvery * fast;
-        for (const off of [-C.fanSpread, 0, C.fanSpread]) G.bossShots.push(new BossBolt(this.x, this.y, this.dir + off));
+        for (const off of [-C.fanSpread, 0, C.fanSpread]) G.bossShots.push(Object.assign(new BossBolt(this.x, this.y, this.dir + off), { src: Stats.bossName(this) }));
       } else {
         this.shootT += (C.shootEvery || C.boltEvery) * fast;
-        G.bossShots.push(new BossBolt(this.x, this.y, this.dir));
+        G.bossShots.push(Object.assign(new BossBolt(this.x, this.y, this.dir), { src: Stats.bossName(this) }));
       }
     }
 
@@ -139,7 +139,7 @@ class Boss {
     this.updateCounters(dt, p, tg);
 
     // Berührung = Schaden am Spieler
-    if (touchesPlayer(this.x, this.y, this.radius)) p.hit(this.shootKind === 'mortar' ? 'higher' : 'touch', bossPower().dmg);
+    if (touchesPlayer(this.x, this.y, this.radius)) p.hit(this.shootKind === 'mortar' ? 'higher' : 'touch', bossPower().dmg, Stats.bossName(this));
 
     if (this.hitCd <= 0) this.takeDamage();
     if (this.hp < 1) this.defeat();
@@ -152,7 +152,7 @@ class Boss {
     if (this.ringT <= 0) {
       this.ringT = C.ringEvery * fast;
       const gap = 360 / C.ringCount;
-      for (let i = 0; i < C.ringCount; i++) G.bossShots.push(new BossBolt(this.x, this.y, this.ringOff + gap * i, 0.7));
+      for (let i = 0; i < C.ringCount; i++) G.bossShots.push(Object.assign(new BossBolt(this.x, this.y, this.ringOff + gap * i, 0.7), { src: Stats.bossName(this) }));
       this.ringOff += gap / 2;
       Sfx.play('missile'); Juice.shake(1.5);
     }
@@ -169,7 +169,7 @@ class Boss {
       if (this.spT <= 0) {
         this.spT += C.rainEvery * fast;
         const n = C.rainCount + (this.phase2 ? 2 : 0);
-        for (let i = 0; i < n; i++) { const [sx, sy] = near(i > 0); G.bossShots.push(new TurretStrike(...clampToMap(sx, sy, 20))); }
+        for (let i = 0; i < n; i++) { const [sx, sy] = near(i > 0); G.bossShots.push(new TurretStrike(...clampToMap(sx, sy, 20), Stats.bossName(this))); }
         Sfx.play('missile'); Juice.shake(1);
       }
     } else if (this.type === 'spore') {                             // Giftwolken um den Spieler + Sporen als Minions
@@ -209,7 +209,7 @@ class Boss {
       if (ch.t <= 0) { ch.phase = 'dash'; ch.t = C.dashTime; Sfx.play('blast'); }
     } else if (ch.t <= 0) {
       ch.phase = 'walk'; ch.t = C.chargeEvery * fast;
-      G.blasts.push(new Blast('bomb', this.x, this.y)); Juice.shake(3);       // Einschlag am Ende des Anlaufs
+      G.blasts.push(new Blast('bomb', this.x, this.y, false, Stats.bossName(this))); Juice.shake(3);       // Einschlag am Ende des Anlaufs
     }
     return true;
   }
@@ -238,7 +238,7 @@ class Boss {
       const n = Math.min(C.maxStrikes, 1 + Math.floor(L.n / C.strikeStep));
       for (let i = 0; i < n; i++) {
         const [sx, sy] = i === 0 ? [tg.x, tg.y] : [tg.x + rand(-C.strikeSpread, C.strikeSpread), tg.y + rand(-C.strikeSpread, C.strikeSpread)];
-        G.bossShots.push(new TurretStrike(...clampToMap(sx, sy, 20)));
+        G.bossShots.push(new TurretStrike(...clampToMap(sx, sy, 20), Stats.bossName(this)));
       }
     }
     if (L.phase === 'rest') {
@@ -254,7 +254,7 @@ class Boss {
       L.ang += C.spin * L.sign * dt;
       for (let i = 0; i < L.count; i++) {
         const a = L.ang + (360 / L.count) * i;
-        if (segHitsCircle(this.x, this.y, this.x + fwdX(a) * C.len, this.y + fwdY(a) * C.len, C.width, p.x, p.y, p.radius)) p.hit('touch', bossPower().dmg);
+        if (segHitsCircle(this.x, this.y, this.x + fwdX(a) * C.len, this.y + fwdY(a) * C.len, C.width, p.x, p.y, p.radius)) p.hit('touch', bossPower().dmg, Stats.bossName(this));
       }
       if (L.t <= 0) { L.phase = 'rest'; L.t = C.rest; L.n++; }
     }
@@ -285,8 +285,8 @@ class Boss {
         }
         if (a.t <= -K.pullTime) cn.act = null;
       } else if (a.t <= 0) {                                      // Schockwelle trifft
-        if (dReal < K.shockRadius + 8) p.hit('touch', bossPower().dmg);           // Schaden nach der echten Position
-        G.blasts.push(new Blast('bomb', this.x, this.y));
+        if (dReal < K.shockRadius + 8) p.hit('touch', bossPower().dmg, Stats.bossName(this));           // Schaden nach der echten Position
+        G.blasts.push(new Blast('bomb', this.x, this.y, false, Stats.bossName(this)));
         cn.act = null;
       }
       return;
@@ -385,6 +385,7 @@ class Boss {
     Juice.hitStop(0.12); Juice.shake(5); Juice.zoomPulse(1.06, 0.5); Juice.flash(STYLE.pal.white, 0.3, 0.15);
     Juice.sparks(this.x, this.y, STYLE.pal.yellow, 24, 5);
     if (!this.killedByBurst) G.addUlt(CFG.boss.killUlt);
+    if (this.type !== 'reaper') Xp.bossDefeated();
     G.powerups.push(new PowerUp(this.x, this.y, CFG.boss.killHeal));
     if (this.type === 'reaper') { G.bosses++; G.startVictory(); }   // finaler Boss: Sieg, kein Upgrade
     else if (!Tutorial.active) G.later(0.25, () => Loadout.weaponUp(G.time));      // im Tutorial kein Upgrade und keine Ability-Wahl
@@ -468,6 +469,7 @@ class BossBolt {
     this.alive = true;
     this.frames = CFG.boss.bolt.frames;
     this.ghost = 0;
+    this.src = 'BOSS';              // Name der Quelle fuer die Run-Statistik (der Boss ueberschreibt ihn)
   }
   update(dt) {
     if (G.clearing || !G.bossFight) { this.alive = false; return; }
@@ -478,7 +480,7 @@ class BossBolt {
     this.ghost += 2 * f;
     this.frames -= f;
     const r = CFG.boss.bolt.radius;
-    if (touchesPlayer(this.x, this.y, r)) { G.player.hit('shoot', bossPower().dmg); this.alive = false; }
+    if (touchesPlayer(this.x, this.y, r)) { G.player.hit('shoot', bossPower().dmg, this.src); this.alive = false; }
     else if (blockedByPlayerGear(this.x, this.y, r) || this.frames <= 0) this.alive = false;
   }
   draw(ctx) { drawSprite(ctx, 'enemyShot', this.x, this.y, this.dir, 175, { alpha: 1 - this.ghost / 100 }); }
@@ -489,6 +491,7 @@ class Mortar {
   constructor(x, y, dir) {
     this.x = x; this.y = y; this.dir = dir;
     this.alive = true;
+    this.src = 'MORTAR';
   }
   update(dt) {
     if (!G.bossFight) { this.alive = false; return; }
@@ -497,7 +500,7 @@ class Mortar {
     moveForward(this, CFG.boss.mortar.speed * framesOf(dt));
     const r = CFG.boss.mortar.radius;
     if (touchesPlayer(this.x, this.y, r) || blockedByPlayerGear(this.x, this.y, r)) {
-      G.blasts.push(new Blast('boom', this.x, this.y));
+      G.blasts.push(new Blast('boom', this.x, this.y, false, this.src));
       this.alive = false;
     }
   }
@@ -506,12 +509,12 @@ class Mortar {
 
 // Einschlag des Laser-Turms: roter Ring zeigt die Stelle (waechst zusammen), dann explodiert sie
 class TurretStrike {
-  constructor(x, y) { this.x = x; this.y = y; this.alive = true; this.age = 0; }
+  constructor(x, y, src = 'BOSS STRIKE') { this.x = x; this.y = y; this.alive = true; this.age = 0; this.src = src; }
   update(dt) {
     if (!G.bossFight) { this.alive = false; return; }
     this.age += dt;
     if (this.age >= CFG.boss.turret.strikeDelay) {
-      G.blasts.push(new Blast('bomb', this.x, this.y));
+      G.blasts.push(new Blast('bomb', this.x, this.y, false, this.src));
       this.alive = false;
     }
   }

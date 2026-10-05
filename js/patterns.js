@@ -210,7 +210,7 @@ const Patterns = {
       if (e.fuse === null && Math.hypot(tg.x - e.x, tg.y - e.y) < C.triggerDist) e.fuse = C.fuse;
       if (e.fuse === null) return { mul: 1 };
       e.fuse -= dt;
-      if (e.fuse <= 0) { e.alive = false; G.blasts.push(new Blast('bomb', e.x, e.y)); return { mul: 0 }; }
+      if (e.fuse <= 0) { e.alive = false; G.blasts.push(new Blast('bomb', e.x, e.y, false, Stats.enemyName(e))); return { mul: 0 }; }
       return { mul: C.fuseSpeed };
     },
     // Sniper: hält großen Abstand, zielt mit Laserlinie (folgt dem Spieler, bis kurz vor dem Schuss), schießt dann einen schnellen Bolzen
@@ -246,7 +246,7 @@ const Patterns = {
           const a = rand(0, 360); e.x += fwdX(a) * 30; e.y += fwdY(a) * 30;
         } else {
           e.x = p.x + Math.cos(e.phase) * 9; e.y = p.y + Math.sin(e.phase) * 9;
-          if (!G.god && !p.invincible) p.hp -= C.drain * dt;
+          if (!G.god && !p.invincible) { p.hp -= C.drain * dt; Stats.dealt('BLOODSUCKER', C.drain * dt, false); }
           return { step: 0, touch: false };
         }
       }
@@ -333,14 +333,14 @@ const Patterns = {
 
   // ---------- Aktionen der lokalen Events (laufen nach der Vorwarnung) ----------
   acts: {
-    volley(e) { const d = dirTo(e.x, e.y, G.player.target.x, G.player.target.y); for (const off of [-14, 0, 14]) G.shots.push(new EnemyBolt(e.x, e.y, d + off)); },
-    barrage(e) { const d = dirTo(e.x, e.y, G.player.target.x, G.player.target.y); for (const off of [-16, 16]) G.shots.push(new Missile(e.x, e.y, d + off)); },
-    chain(e) { G.blasts.push(new Blast('wave', e.x, e.y)); },
+    volley(e) { const d = dirTo(e.x, e.y, G.player.target.x, G.player.target.y); for (const off of [-14, 0, 14]) G.shots.push(Object.assign(new EnemyBolt(e.x, e.y, d + off), { src: Stats.enemyName(e) })); },
+    barrage(e) { const d = dirTo(e.x, e.y, G.player.target.x, G.player.target.y); for (const off of [-16, 16]) G.shots.push(Object.assign(new Missile(e.x, e.y, d + off), { src: Stats.enemyName(e) })); },
+    chain(e) { G.blasts.push(new Blast('wave', e.x, e.y, false, Stats.enemyName(e))); },
     switch(e) { e.armor = e.armor === 'plate' ? 'mirror' : 'plate'; e.blockFlash = 0.4; },
     amplify(e) { e.amp = CFG.patterns.support.ampTime; },
     ignite(e) { if (e.fuse === null) e.fuse = CFG.patterns.bomber.fuse; },
     divide(e) { Patterns.splitlet(e, 1); },
-    snipe(e) { const C = CFG.patterns.sniper; G.shots.push(new EnemyBolt(e.x, e.y, e.aimDir === null ? e.dir : e.aimDir, C.boltSpeed, C.boltFrames)); },
+    snipe(e) { const C = CFG.patterns.sniper; G.shots.push(Object.assign(new EnemyBolt(e.x, e.y, e.aimDir === null ? e.dir : e.aimDir, C.boltSpeed, C.boltFrames), { src: Stats.enemyName(e) })); },
     minefield(e) { const n = CFG.patterns.miner.count; for (let i = 0; i < n; i++) { const a = e.phase * 57 + (360 / n) * i; G.shots.push(new Mine(e.x + fwdX(a) * 28, e.y + fwdY(a) * 28)); } },
     raise(e, a) {
       const list = G.director.corpses;
@@ -353,7 +353,7 @@ const Patterns = {
       G.enemies.push(m);
     },
     tp(e) { const d = Patterns.tpDest(e); e.x = d[0]; e.y = d[1]; e.stun = 0.25; },
-    stomp(e) { G.blasts.push(new Blast('bomb', e.x, e.y)); },
+    stomp(e) { G.blasts.push(new Blast('bomb', e.x, e.y, false, Stats.enemyName(e))); },
   },
 
   // Lokales Event: alle freien Gegner dieses Typs gleichzeitig

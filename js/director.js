@@ -388,6 +388,7 @@ class Director {
   updateBosses() {
     if (G.bossFight || G.finalStarted) return;
     if (G.finalAt !== null && G.time >= G.finalAt) { G.finalStarted = true; G.startBossFight('reaper'); return; }       // das Spiel endet nur über diesen Boss
+    if (!G.infinite && G.bossCount >= (G.map.bossOrder || CFG.boss.order).length) return;       // Standardmodus: jeder Boss genau einmal, danach kommt direkt der finale Boss (Endlos-Modus loopt)
     const steps = CFG.boss.steps;
     if (G.time > steps * G.bossStageOctagon - 0.1) {
       if (G.time > 239.9) G.bossStageOctagon++;

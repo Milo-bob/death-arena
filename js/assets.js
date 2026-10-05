@@ -14,6 +14,7 @@ function imageList() {
     'thrustersIcon', 'scannerIcon', 'barrierIcon', 'capacitorIcon', 'overclockIcon', 'aegisIcon',
     'surgeIcon', 'decoyIcon', 'bombardIcon', 'bounceIcon', 'thornsIcon', 'vampireIcon', 'luckyIcon',
     'deathSecret1', 'deathSecret2', 'deathSecret3', 'deathSecret4',
+    'heroBulwark', 'heroSpecter', 'heroArchon', 'fortressIcon', 'riftIcon', 'chronoIcon',
     'player', 'sword', 'bubble', 'shot', 'dash1', 'dash2',
     'beamLoad1', 'beamLoad2', 'beam1', 'beam2',
     'ult1', 'ult2', 'ult3', 'ult4', 'ultFlash', 'blood1', 'blood2', 'blood3',
@@ -78,8 +79,21 @@ function drawSprite(ctx, name, x, y, dir = 90, size = 100, opts) {
     if (opts.brightness) filter += 'brightness(' + opts.brightness + ') ';
     if (filter) ctx.filter = filter;
   }
-  ctx.drawImage(im.img, -im.rcx / im.res, -im.rcy / im.res, im.w / im.res, im.h / im.res);
+  ctx.drawImage(opts && opts.gray ? grayImage(im) : im.img, -im.rcx / im.res, -im.rcy / im.res, im.w / im.res, im.h / im.res);
   ctx.restore();
+}
+
+// Graustufen-Kopie eines Bildes (einmal berechnet und gemerkt); ohne Canvas-Unterstützung das Original
+function grayImage(im) {
+  if (im.gray) return im.gray;
+  try {
+    const c = document.createElement('canvas'); c.width = im.img.naturalWidth || im.img.width; c.height = im.img.naturalHeight || im.img.height;
+    const g = c.getContext('2d'); g.drawImage(im.img, 0, 0);
+    const d = g.getImageData(0, 0, c.width, c.height), p = d.data;
+    for (let i = 0; i < p.length; i += 4) { const l = Math.round(p[i] * 0.3 + p[i + 1] * 0.59 + p[i + 2] * 0.11); p[i] = p[i + 1] = p[i + 2] = l; }
+    g.putImageData(d, 0, 0);
+    return (im.gray = c);
+  } catch (e) { return (im.gray = im.img); }
 }
 
 // Musik (js/music.js): genau eine Spur läuft, je nach Spielzustand. Pause hält an und läuft an derselben Stelle weiter.

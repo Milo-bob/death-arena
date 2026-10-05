@@ -6,7 +6,7 @@ class Player {
     this.y = 0;
     this.dir = 0;              // Blickrichtung (Scratch: PlayerLooking)
     this.moveDir = 0;          // gewünschte Richtung aus den WASD-Tasten (Scratch: PlayerDirection)
-    this.hp = CFG.player.maxHp + Save.bonus('health');
+    this.hp = this.maxHp;
     this.hitCd = 0;            // Schutzzeit nach einem Treffer
     this.flash = 0;            // Farbblitz nach einem Treffer
     this.invincibleT = CFG.player.startInvincible;
@@ -18,7 +18,8 @@ class Player {
     this.pulseCd = 0;          // Abklingzeit der Druckwelle
     this.bloodCd = 0;
     this.slots = Object.assign({}, CFG.loadout.start);   // gewählte Ability je Gruppe (weak/medium/strong) oder null
-    this.cds = { blink: 0, frost: 0, surge: 0, decoy: 0, bombard: 0, shockstep: 0, adrenaline: 0, drone: 0, overcharge: 0, storm: 0, berserk: 0, hack: 0, necromancy: 0, stims: 0 };
+    this.cds = { blink: 0, frost: 0, surge: 0, decoy: 0, bombard: 0, shockstep: 0, adrenaline: 0, drone: 0, overcharge: 0, storm: 0, berserk: 0, hack: 0, necromancy: 0, stims: 0, fortress: 0, rift: 0, chrono: 0 };   // fortress/rift/chrono = Helden-Artefakte (CFG.heroes)
+    this.fortressT = 0;        // Bulwark: Restzeit der Schadensminderung nach Fortress Slam
     this.sinceHit = 99;        // Sekunden seit dem letzten Treffer (Nano Regen)
     this.aegisCd = 0;          // Aegis-Protokoll (passiv): Pause bis zum naechsten Schutz
     this.owned = [];           // gesammelte Abilities dieses Laufs (IDs), im Pausenmenue gegen die Slots tauschbar
@@ -48,9 +49,9 @@ class Player {
   }
 
   // Abklingzeiten laufen schneller ab: Meta-Upgrade und Coolant-Buff
-  get cdRate() { return (1 + Save.bonus('cooldown')) * (this.buffs.coolant > 0 ? CFG.drops.types.coolant.rate : 1); }
+  get cdRate() { return (1 + Save.bonus('cooldown') + Xp.val('cooldown')) * (this.buffs.coolant > 0 ? CFG.drops.types.coolant.rate : 1); }
   // Angriffstempo durch den Raserei-Drop: Schwert dreht schneller (siehe SwordSwing), Schuss feuert schneller
-  get hasteFactor() { return (this.buffs.rapid > 0 ? 1 / CFG.drops.types.rapid.mult : 1) * (this.has('overclock') ? 1 + (CFG.passives.overclock.rate - 1) * Save.gearMul('overclock') : 1) * (1 + Save.bonus('attackSpeed')); }
+  get hasteFactor() { return (this.buffs.rapid > 0 ? 1 / CFG.drops.types.rapid.mult : 1) * (this.has('overclock') ? 1 + (CFG.passives.overclock.rate - 1) * Save.gearMul('overclock') : 1) * (1 + Save.bonus('attackSpeed') + Xp.val('rapid')) * Hero.mods().atk; }
   evo(id) { return this.evolved[CFG.evolutions.list[id].slot] === id; }       // Evolution dieses Laufs aktiv?
   has(id) { return this.slots.weak === id || this.slots.medium === id || this.slots.strong === id; }       // Ability (auch passive) ausgewaehlt?
 
@@ -59,7 +60,7 @@ class Player {
   get target() { return this.blinkT > 0 && this.blinkFrom ? this.blinkFrom : this.decoyT > 0 && this.decoy ? this.decoy : this; }
   get hasField() { return this.slots.strong === 'field'; }
   get radius() { return CFG.player.hitRadius; }
-  get maxHp() { return CFG.player.maxHp + Save.bonus('health'); }      // Meta-Upgrade Leben
+  get maxHp() { return Math.max(20, CFG.player.maxHp + Save.bonus('health') + Xp.val('health', 'hp') + Hero.mods().hp); }      // Meta-Upgrade Leben + Perk Vitality
   get hpPct() { return this.hp * 100 / this.maxHp; }                    // Leben in Prozent (Basis 100): Balken, Schadensfaktor und Warnrand rechnen damit
 
   // 0 = gesperrt, 1 = frei, 2 = nur drehen (Beam lädt/feuert)
@@ -118,7 +119,7 @@ class Player {
   }
 
   // kind: 'touch' | 'shoot' | 'higher'
-  hit(kind, mul = 1) {          // mul: zusätzlicher Schadensfaktor (Bosse: CFG.boss.power.dmg)
+  hit(kind, mul = 1, src = null) {          // mul: zusätzlicher Schadensfaktor (Bosse: CFG.boss.power.dmg); src: Name der Quelle fuer die Run-Statistik
     if (G.god || this.hitCd > 0 || this.invincible || this.shield) return false;     // die Schildblase blockt alle Treffer
     let amount;
     if (kind === 'higher') {
@@ -130,8 +131,8 @@ class Player {
       if (Save.equipped('artifact') === 'armor') amount *= 1 - CFG.items.armor.reduce * Save.gearMul('armor');
       G.addText('dmg' + base, this.x, this.y);
     }
-    amount *= G.diff.damage * mul;                          // Karten-Schwierigkeit, Boss-Stärke
-    amount *= Math.max(0.2, 1 - Save.bonus('resist') - Save.bonus('tough') - (this.has('barrier') ? CFG.passives.barrier.reduce * Save.gearMul('barrier') : 0));     // Meta-Upgrade Abwehr + Meilenstein Schadensabwehr
+    amount *= G.diff.damage * mul * Hero.mods().dmgTaken * (this.fortressT > 0 ? 1 - CFG.fortress.reduce : 1);                          // Karten-Schwierigkeit, Boss-Stärke
+    amount *= Math.max(0.2, 1 - Save.bonus('resist') - Save.bonus('tough') - Xp.val('armor') - (this.has('barrier') ? CFG.passives.barrier.reduce * Save.gearMul('barrier') : 0));     // Meta-Upgrade Abwehr + Meilenstein Schadensabwehr
     if (Save.equipped('artifact') === 'thorns') this.thornBurst();
     if (this.has('aegis') && this.aegisCd <= 0 && this.hp - amount < CFG.passives.aegis.hp) {    // Aegis-Protokoll: Notschutz
       this.invincibleT = Math.max(this.invincibleT, CFG.passives.aegis.protect * Save.gearMul('aegis'));
@@ -139,9 +140,10 @@ class Player {
       G.trigger('AEGIS PROTOCOL!', STYLE.pal.cyan, { flash: 0.3, radius: 90, rings: 2, life: CFG.passives.aegis.protect, hold: true });
     }
     this.hp -= amount;
+    Stats.dealt(src, amount);
     Sfx.play('hurt');
     this.sinceHit = 0;
-    this.hitCd = CFG.player.hitCooldown + Save.bonus('recovery');
+    this.hitCd = CFG.player.hitCooldown + Save.bonus('recovery') + Xp.val('recovery');
     this.flash = 0.25;
     G.resetCombo();
     Juice.sparks(this.x, this.y, STYLE.pal.red, 5);
@@ -161,6 +163,7 @@ class Player {
     this.decoyT = Math.max(0, this.decoyT - dt);
     this.levelFlash = Math.max(0, (this.levelFlash || 0) - dt);
     this.invincibleT = Math.max(0, this.invincibleT - dt);
+    this.fortressT = Math.max(0, this.fortressT - dt);
     this.attackCd = Math.max(0, this.attackCd - dt);
     const cdDt = dt * this.cdRate;          // Meta-Upgrade: Abklingzeiten laufen schneller ab
     this.dashCd = Math.max(0, this.dashCd - cdDt * Save.gearMul('dash'));          // Ability-Stufe: Abklingzeit laeuft schneller ab
@@ -172,7 +175,9 @@ class Player {
 
     this.selectWeapon();
     this.useAbilities(dt);
+    this.useArtifact();
     this.move(f);
+    if (this.dashLeft <= 0) { const [bx, by] = MapEnv.pushAt(this.x, this.y, this.radius); this.x += bx * f; this.y += by * f; }       // Schlackenband schiebt (nicht im Dash)
     if (this.dashLeft > 0 || this.surgeT > 0) Juice.ghost(this);   // Nachbilder bei Dash und Boost
     this.useWeapon(dt, f);
     this.updateUltimate();
@@ -197,7 +202,7 @@ class Player {
       [this.x, this.y] = clampToMap(this.x, this.y, 12);
     }
     if (this.buffs.regen > 0 && this.hp > 0) this.hp = Math.min(this.maxHp, this.hp + CFG.drops.types.regen.hps * dt);       // Repair-Buff
-    const regen = (Save.equipped('artifact') === 'regen' ? CFG.items.regen.perSecond * Save.gearMul('regen') : 0) + Save.bonus('regen') + (this.has('nano') ? CFG.nano.perSecond * Save.gearMul('nano') * (this.sinceHit >= CFG.nano.calmAfter ? CFG.nano.calmMul : 1) : 0);
+    const regen = (Save.equipped('artifact') === 'regen' ? CFG.items.regen.perSecond * Save.gearMul('regen') : 0) + Save.bonus('regen') + Xp.val('regen') + (this.has('nano') ? CFG.nano.perSecond * Save.gearMul('nano') * (this.sinceHit >= CFG.nano.calmAfter ? CFG.nano.calmMul : 1) : 0);
     if (regen > 0 && this.hp > 0) this.hp = Math.min(this.maxHp, this.hp + regen * dt);
     if (this.hp < 0.1) {
       if (Save.equipped('artifact') === 'phoenix' && !this.phoenixUsed) {       // Artefakt Extra-Leben: einmal pro Lauf zurueck
@@ -244,8 +249,9 @@ class Player {
         if (this.buffs.haste > 0) speed *= CFG.drops.types.haste.mult;
         if (this.surgeT > 0) speed *= CFG.surge.mult;
         if (this.has('thrusters')) speed *= 1 + CFG.passives.thrusters.speed * Save.gearMul('thrusters');
-        speed *= 1 + Save.bonus('speed');
+        speed *= (1 + Save.bonus('speed') + Xp.val('speed')) * Hero.mods().speed;
         if (this.curseT > 0) speed *= CFG.patterns.support.kinds.curse.slow;
+        speed *= MapEnv.slowAt(this.x, this.y, this.radius, true);          // Säurepfütze bremst
         moveForward(this, speed * f);
       }
     }
@@ -307,6 +313,43 @@ class Player {
     const dur = CFG.drops.types[kind].dur * CFG.stims.durMul * (1 + Save.bonus('buffTime'));
     if (kind === 'guard') { this.invincibleT = Math.max(this.invincibleT, dur); this.buffs.guard = dur; } else this.buffs[kind] = dur;
     this.levelFlash = 0.25;
+  }
+
+  // Held-Artefakt (Taste Input 'artifact'): Fortress Slam (Bulwark), Rift Step (Specter), Chrono Lock (Archon); Abklingzeiten in this.cds
+  useArtifact() {
+    const A = Hero.artifact();
+    if (!A || !Input.actPressed('artifact')) return;
+    if (A.id === 'fortress') this.tryCast('fortress', () => {
+      G.attacks.push(new Pulse(this)); this.fortressT = CFG.fortress.duration; Juice.shake(2.5); Juice.zoomPulse(0.97, 0.3);
+      G.trigger('FORTRESS SLAM!', STYLE.pal.orange, { flash: 0.15, radius: 90, rings: 2, life: CFG.fortress.duration, hold: true });
+    });
+    else if (A.id === 'rift') this.tryRift();
+    else if (A.id === 'chrono') this.tryCast('chrono', () => {
+      G.attacks.push(new StunWave(this, CFG.chrono)); Juice.zoomPulse(1.04, 0.4);
+      G.trigger('CHRONO LOCK!', STYLE.pal.ice, { flash: 0.25, radius: 120, rings: 3 });
+    });
+  }
+
+  // Rift Step: springt in Blickrichtung und trifft alles auf der Strecke (Gegner C.hits mal, Bosse C.bossDmg)
+  tryRift() {
+    const C = CFG.rift;
+    if (this.cds.rift > 0 || this.canMove === 0) return;
+    const x0 = this.x, y0 = this.y;
+    this.x += fwdX(this.dir) * C.distance; this.y += fwdY(this.dir) * C.distance;
+    if (G.bossLock) { this.x = clamp(this.x, G.cam.x - 235, G.cam.x + 235); this.y = clamp(this.y, G.cam.y - 175, G.cam.y + 175); }
+    else if (!CFG.map.infinite) [this.x, this.y] = clampToMap(this.x, this.y, 12);
+    pushOutOfObstacles(this, this.radius);
+    for (const e of G.enemies) {
+      if (!e.alive || !segHitsCircle(x0, y0, this.x, this.y, C.width, e.x, e.y, e.radius)) continue;
+      for (let i = 0; i < C.hits && e.alive; i++) e.takeHit(i === 0, 'rift');
+    }
+    for (const b of G.bossList()) if (segHitsCircle(x0, y0, this.x, this.y, C.width, b.x, b.y, b.radius)) { b.hp -= C.bossDmg * damageBoost(); b.bar = 0; }
+    for (const o of G.obstacles) if (o.alive && segHitsCircle(x0, y0, this.x, this.y, C.width, o.x, o.y, o.r)) o.hurt(1);
+    G.attacks.push(new RiftTrail(x0, y0, this.x, this.y), new BlinkFlash(x0, y0), new BlinkFlash(this.x, this.y));
+    this.invincibleT = Math.max(this.invincibleT, C.protect);
+    Juice.sparks(this.x, this.y, STYLE.pal.ice, 8, 3); Juice.zoomPulse(CFG.juice.dashZoom, 0.25);
+    Sfx.play('blink');
+    this.cds.rift = C.cooldown;
   }
 
   // Neural Hack: die naechsten Gegner (keine Bosse) laufen zu dir ueber
@@ -655,7 +698,11 @@ class Player {
     }
     if (Input.actPressed('ultimate') && G.ultCharge > CFG.ult.readyAt && !(this.ult && this.ult.alive)) {
       if (G.bossFight && !CFG.ult.usableInBossFight) return;
-      G.ultCharge -= CFG.ult.cost;
+      if (G.ultStock > 0) G.ultStock--;                         // gespeichertes Ultimate verbrauchen, große Kugel bleibt voll
+      else {                                                    // letztes Ultimate: große Kugel übernimmt den Stand der kleinen (mindestens der übliche Rest)
+        G.ultCharge = Math.max(G.ultCharge - CFG.ult.cost, Math.min(G.ultNext * CFG.ult.readyAt, CFG.ult.readyAt));
+        G.ultNext = 0;
+      }
       this.ult = new Ultimate(this);
       Sfx.play('ultimate');
       G.attacks.push(this.ult);
@@ -691,7 +738,7 @@ class Player {
       this.afkTick -= dt;
       if (this.afkTick <= 0) {
         this.afkTick = 1;
-        if (!G.god && !(G.victory > 0)) this.hp -= CFG.player.afkDamage;
+        if (!G.god && !(G.victory > 0)) { this.hp -= CFG.player.afkDamage; Stats.dealt('STANDING STILL', CFG.player.afkDamage); }
         this.flash = 0.25;
         G.addText('dmg1', this.x, this.y);
         G.resetCombo();
@@ -704,7 +751,7 @@ class Player {
     const brightness = this.levelFlash > 0 ? 1.5 : 0;
     if (this.decoyT > 0 && this.decoy) {                    // Koeder: durchsichtiges Trugbild, blinkt kurz vor dem Ende
       const blink = this.decoyT < 1 && Math.floor(this.decoyT * 8) % 2 === 0;
-      drawSprite(ctx, 'player', this.decoy.x, this.decoy.y, this.decoy.dir, CFG.player.size, { hue: 90, alpha: blink ? 0.2 : 0.55 });
+      drawSprite(ctx, Hero.sprite(), this.decoy.x, this.decoy.y, this.decoy.dir, CFG.player.size, { hue: 90, alpha: blink ? 0.2 : 0.55 });
     }
     if (this.hasField) {                                    // Kraftfeld: dezenter Ring um den Spieler
       const P = STYLE.pal, cx = STAGE_W / 2 + this.x, cy = STAGE_H / 2 - this.y, R = CFG.field.radius;

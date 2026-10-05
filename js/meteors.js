@@ -23,7 +23,7 @@ class Meteor {
   impact() {
     const C = CFG.meteors;
     this.landed = true;
-    G.blasts.push(new Blast('bomb', this.x, this.y, true));
+    G.blasts.push(new Blast('bomb', this.x, this.y, true, 'METEOR'));
     Sfx.play('meteorHit');
     Juice.sparks(this.x, this.y, STYLE.pal.orange, 14, 5);
     if (dist2(this.x, this.y, G.player.x, G.player.y) < 220 * 220) { Juice.shake(4); Juice.flash(STYLE.pal.orange, 0.2, 0.12); }

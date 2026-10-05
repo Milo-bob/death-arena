@@ -62,6 +62,14 @@ const Loadout = {
     G.player.levelFlash = 0.25;
     G.bosses++;
     G.later(0.6, () => { if (!G.offerEvolution()) G.offerAbility(); });      // erst Evolution (falls ein Rezept passt), danach Ability-Wahl für den nächsten leeren Slot
+    this.upgradeStats(time);
+  },
+
+  // Perk "Weapon Tuning" (XP-Level-up): derselbe Stufenschritt wie nach einem Boss, aber ohne Meldung, Boss-Zähler und Auswahl. time = 0: keine zeitgebundenen Klingen-Sprünge.
+  tune() { this.upgradeStats(0); },
+
+  // Die eigentliche Verbesserung aller Waffenwerte um einen Schritt
+  upgradeStats(time) {
     this.applyUps();                           // Peitsche, Katana, Hammer, Schrotflinte, Bumerang, Molotov und die starken Waffen
     const s = this.sword;
     s.size += 0.05;

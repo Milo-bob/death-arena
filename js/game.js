@@ -47,13 +47,15 @@ function drawGround(ctx) {
 }
 
 const MENU_ITEMS = ['play', 'inventory', 'cosmetics', 'upgrades', 'settings'];
+const menuItems = () => (Save.data.dev ? MENU_ITEMS.concat(['stats']) : MENU_ITEMS);       // der Statistik-Bildschirm gehoert zum Dev-Modus
 const MODE_ITEMS = ['regular', 'infinite', 'tutorial', 'back'];        // Auswahl nach PLAY
-const MENU_MUSIC_MODES = ['start', 'modeselect', 'infsetup', 'mapselect', 'keys', 'binds', 'inventory', 'cosmetics', 'upgrades', 'settings'];       // hier läuft die Menümusik (Tasten-Menü aus der Pause heraus nicht)
+const MENU_MUSIC_MODES = ['start', 'stats', 'modeselect', 'infsetup', 'mapselect', 'keys', 'binds', 'inventory', 'cosmetics', 'upgrades', 'settings'];       // hier läuft die Menümusik (Tasten-Menü aus der Pause heraus nicht)
 // Upgrade-Menü: drei Reiter. Jede Zeile ist { kind: 'up' | 'ability', id }
 const UPGRADE_TABS = [
   { id: 'stats', label: 'STATS' },
   { id: 'weapons', label: 'ITEMS' },
   { id: 'abilities', label: 'ABILITIES' },
+  { id: 'heroes', label: 'HEROES' },
   { id: 'milestones', label: 'MILESTONES' },
 ];
 // Reihenfolge im Upgrade-Menue: immer nach Gruppen sortiert, innerhalb einer Gruppe nach Preis bzw. Ziel.
@@ -66,7 +68,7 @@ const STAT_GROUPS = [
   { label: 'LOOT', ids: ['souls', 'coreDrop', 'luck', 'magnet', 'buffTime'] },
 ];
 const ABILITY_GROUPS = [{ id: 'weak', label: 'WEAK ABILITIES' }, { id: 'medium', label: 'MEDIUM ABILITIES' }, { id: 'strong', label: 'STRONG ABILITIES' }];
-const MILESTONE_GROUPS = [{ id: 'best', label: 'SURVIVAL TIME' }, { id: 'bosses', label: 'BOSSES' }, { id: 'kills', label: 'ENEMIES' }, { id: 'runs', label: 'RUNS' }, { id: 'endless', label: 'ENDLESS MODE' }, { id: 'tutorial', label: 'TUTORIAL' }];
+const MILESTONE_GROUPS = [{ id: 'best', label: 'SURVIVAL TIME' }, { id: 'bosses', label: 'BOSSES' }, { id: 'kills', label: 'ENEMIES' }, { id: 'runs', label: 'RUNS' }, { id: 'endless', label: 'ENDLESS MODE' }, { id: 'tutorial', label: 'TUTORIAL' }, { id: 'heroes', label: 'HERO UNLOCKS' }];
 
 // Gruppe einer Zeile: { idx (Reihenfolge, fuer Farbe), label }
 function upgradeGroup(r) {
@@ -78,6 +80,7 @@ function upgradeGroup(r) {
     const i = ABILITY_GROUPS.findIndex((g) => g.id === CFG.loadout.abilities[r.id].tier);
     return { idx: i, label: ABILITY_GROUPS[i].label };
   }
+  if (r.kind === 'hero') return { idx: CFG.heroes.order.indexOf(r.id), label: 'HEROES' };
   if (r.kind === 'milestone') {
     const i = MILESTONE_GROUPS.findIndex((g) => g.id === (CFG.milestones.find((m) => m.id === r.id).cat || CFG.milestones.find((m) => m.id === r.id).stat));
     return { idx: i, label: MILESTONE_GROUPS[i].label };
@@ -95,6 +98,8 @@ function upgradeRows(tab) {
     rows = CFG.milestones.map((m) => ({ kind: 'milestone', id: m.id }));
     const need = (r) => CFG.milestones.find((m) => m.id === r.id).need;
     rows.sort((a, b) => upgradeGroup(a).idx - upgradeGroup(b).idx || String(CFG.milestones.find((m) => m.id === a.id).stat).localeCompare(CFG.milestones.find((m) => m.id === b.id).stat) || need(a) - need(b));
+  } else if (tab === 'heroes') {
+    rows = CFG.heroes.order.map((id) => ({ kind: 'hero', id }));
   } else if (tab === 'weapons') {
     rows = Object.keys(CFG.items.catalog).map((id) => ({ kind: 'item', id }));
     rows.sort((a, b) => upgradeGroup(a).idx - upgradeGroup(b).idx || CFG.items.catalog[a.id].cost - CFG.items.catalog[b.id].cost);
@@ -105,7 +110,7 @@ function upgradeRows(tab) {
   }
   return rows;
 }
-const SETTINGS_ITEMS = ['music', 'sfx', 'fx', 'fullscreen', 'slot', 'controls', 'binds', 'resetAll', 'back'];
+const SETTINGS_ITEMS = ['music', 'sfx', 'fx', 'fullscreen', 'slot', 'controls', 'binds', 'transfer', 'resetAll', 'back'];
 const PAUSE_ITEMS = ['resume', 'abilities', 'music', 'sfx', 'binds', 'quit'];
 
 const G = {
@@ -139,6 +144,8 @@ const G = {
   diff: CFG.maps[0].diff, // Schwierigkeitsfaktoren der Karte
   finalStarted: false,    // der finale Boss ist schon erschienen
   victory: 0,             // > 0: finaler Boss besiegt, Restzeit bis zur Ending-Sequenz (Spieler unverwundbar)
+  xpOrbs: [],             // XP-Kugeln am Boden (js/xp.js)
+  hazards: [],            // Umgebungsmechanik der Karte (js/mapenv.js: Lava-Schlote, Schlackenbänder, Säurepfützen)
   bossCount: 0,           // wie viele Bosskämpfe in diesem Lauf schon gestartet wurden (für CFG.boss.order)
   arenaScale: 1,          // Arena-Boss: aktuelle Kartengröße (Faktor), arenaTarget = Ziel
   arenaTarget: 1,
@@ -151,6 +158,8 @@ const G = {
   bossStageKite: 3,
 
   ultCharge: 0,
+  ultStock: 0,           // zusätzlich gespeicherte, volle Ultimates (neben der großen Kugel)
+  ultNext: 0,            // Fortschritt 0..1 der kleinen Kugel (nächstes gestapeltes Ultimate)
   combo: 0,
   comboPrev: 0,
   comboTimer: 0,
@@ -198,6 +207,8 @@ const G = {
     Save.data.seenKeys = true; Save.write();
     this.newBest = false;
     this.bosses = 0; this.kills = 0; this.earned = 0; this.newMilestones = [];
+    Stats.reset(); this.deathDetails = false; this.cheated = !!this.god;       // Cheat-Laeufe werden nicht protokolliert
+    Xp.reset(); this.xpOrbs = [];                                              // XP und Perks beginnen jeden Lauf von vorn
     this.time = 0;
     this.deadAge = 0;
     this.lootCores = 0; this.fallen = []; this.attacks = []; this.enemies = []; this.shots = []; this.blasts = []; this.meteors = []; this.obstacles = [];
@@ -212,7 +223,7 @@ const G = {
     this.bossFight = false; this.bossTimer = 0;
     this.cam = { x: 0, y: 0 };
     this.bossStageOctagon = 1; this.bossStageKite = 3;
-    this.ultCharge = Save.bonus('startUlt'); this.combo = 0; this.comboPrev = 0; this.comboTimer = 0;
+    this.ultCharge = Save.bonus('startUlt'); this.ultStock = 0; this.ultNext = 0; this.combo = 0; this.comboPrev = 0; this.comboTimer = 0;
     this.clearing = false;
     this.flood = false;
     this.bloodMoon = false; this.bloodMoonLeft = 0;
@@ -223,7 +234,9 @@ const G = {
     this.player = new Player();
     Juice.reset();
     this.director = new Director();
+    MapEnv.init();                                          // Gefahren der gewählten Karte aufstellen (Karte 2 und 3)
     if (withTutorial) Tutorial.start(); else Tutorial.active = false;
+    this.player.hp = this.player.maxHp; this.ultCharge += Hero.mods().startUlt;          // Held-Modifier (im Tutorial neutral, deshalb erst nach dem Tutorial-Flag)
   },
 
   // Finaler Boss besiegt: kurze Siegphase (CFG.ending.victoryDelay) bis zur Ending-Sequenz. In dieser Zeit ist der Spieler unverwundbar,
@@ -243,6 +256,8 @@ const G = {
     this.deadAge = 0;
     Sfx.play('death');
     this.settleRun(0);
+    Stats.finish(this.time, this.bosses, this.map.id, this.infinite);       // Todesursache + Zusammenfassung (Save.write passiert unten in settleRun schon, daher hier nochmal)
+    Save.write();
     hostMsg({ type: 'gameOver', score: Math.floor(this.time) });
   },
 
@@ -263,6 +278,8 @@ const G = {
     const first = !Save.data.wins;
     Save.data.wins = (Save.data.wins || 0) + 1;
     this.settleRun(first ? CFG.ending.firstWinCores : CFG.ending.winCores);
+    Stats.finish(this.time, this.bosses, this.map.id, this.infinite, true);       // Sieg ins Protokoll
+    Save.write();
   },
 
   // Nach einem Boss: passt ein Evolutions-Rezept (CFG.evolutions), wird es zur Wahl angeboten (ESC = ueberspringen, kommt beim naechsten Boss wieder).
@@ -296,16 +313,18 @@ const G = {
 
   // Hauptmenü: W/S oder Pfeile wählen, Leertaste/Enter bestätigt
   updateMenu() {
-    const n = MENU_ITEMS.length;
+    const items = menuItems(), n = items.length;
+    if (this.menuSel >= n) this.menuSel = 0;
     if (Input.pressed('ArrowUp') || Input.pressed('KeyW')) this.menuSel = (this.menuSel + n - 1) % n;
     if (Input.pressed('ArrowDown') || Input.pressed('KeyS')) this.menuSel = (this.menuSel + 1) % n;
     if (!(Input.pressed('Space') || Input.pressed('Enter'))) return;
-    const item = MENU_ITEMS[this.menuSel];
+    const item = items[this.menuSel];
     if (item === 'play') { this.mode = 'modeselect'; this.modeSel = Save.data.tutorialDone ? Math.max(0, MODE_ITEMS.indexOf(Save.data.lastMode)) : 2; }        // merkt sich den zuletzt gewaehlten Modus        // vor dem ersten Mal ist das Tutorial vorgewählt
     else if (item === 'inventory') { this.mode = 'inventory'; this.invSel = 0; this.invPick = null; }
     else if (item === 'cosmetics') { this.mode = 'cosmetics'; this.cosTab = 0; this.cosSel = Math.max(0, Cos.items('skin').findIndex((q) => q.id === Save.cosEquipped('skin'))); }
     else if (item === 'upgrades') { this.mode = 'upgrades'; this.upgradeSel = 0; this.upgradeTab = 0; }
     else if (item === 'settings') { this.mode = 'settings'; this.settingsSel = 0; }
+    else if (item === 'stats') { this.mode = 'stats'; StatsScreen.open(); }
   },
 
   // Modus-Auswahl nach PLAY: Regular (-> Kartenwahl), Infinite (-> Endlos-Setup mit Karte), Tutorial (startet direkt), ESC zurück
@@ -382,6 +401,7 @@ const G = {
       if (r.kind === 'up') Sfx.play(Save.buy(r.id) ? 'buy' : 'deny');
       else if (r.kind === 'ability') Sfx.play((Save.isUnlocked(r.id) ? Save.gearUp(r.id) : Save.unlock(r.id)) ? 'buy' : 'deny');        // gesperrt: freischalten, sonst Stufe kaufen
       else if (r.kind === 'milestone') { /* nur Anzeige */ }
+      else if (r.kind === 'hero') Sfx.play((Save.heroOwned(r.id) ? Save.heroSelect(r.id) : Save.heroBuy(r.id)) ? 'buy' : 'deny');        // gehoert dir: waehlen, sonst kaufen (Meilenstein + Cores)
       else if (!Save.owns(r.id)) Sfx.play(Save.buyItem(r.id) ? 'buy' : 'deny');        // Item: erst kaufen, dann mit Leertaste aus-/ablegen
       else Save.equipItem(r.id);
     }
@@ -453,7 +473,7 @@ const G = {
     else if (item === 'binds' && ok) { this.mode = 'binds'; this.bindSel = 0; this.bindWait = false; this.bindsBack = 'pause'; }
     else if (item === 'quit' && ok) {
       if (!this.pauseConfirm) this.pauseConfirm = true;          // erst nochmal bestaetigen
-      else { this.mode = 'play'; this.die(); }                   // Aufgeben zaehlt als Tod (Seelen, Statistik)
+      else { this.mode = 'play'; Stats.lastSrc = 'GAVE UP'; this.die(); }                   // Aufgeben zaehlt als Tod (Seelen, Statistik)
     }
   },
 
@@ -489,6 +509,7 @@ const G = {
     else if (item === 'slot' && (dir || ok)) Save.switchSlot((Save.slot + (dir || 1) + Save.SLOTS) % Save.SLOTS);
     else if (item === 'controls' && ok) this.mode = 'keys';
     else if (item === 'binds' && ok) { this.mode = 'binds'; this.bindSel = 0; this.bindWait = false; this.bindsBack = 'settings'; }
+    else if (item === 'transfer' && ok) SaveTransfer.open();
     else if (item === 'resetAll' && ok) {
       if (!this.resetConfirm) this.resetConfirm = true;           // erst nochmal bestaetigen
       else { Save.resetAll(); this.resetConfirm = false; }
@@ -506,6 +527,10 @@ const G = {
     if (Input.pressed('ArrowRight') || Input.pressed('KeyD')) k.sel = (k.sel + 1) % n;
     let confirm = Input.pressed('Space') || Input.pressed('Enter') || Input.clicked;
     for (let i = 0; i < n; i++) if (Input.pressed('Digit' + (i + 1))) { k.sel = i; confirm = true; }     // Ziffer wählt direkt
+    if (k.kind === 'xp') {                                            // Level-up: ein Perk (kein Überspringen, kurze Sperre gegen versehentliches Bestätigen)
+      if (k.age > 0.45 && confirm) { Xp.choose(k.ids[k.sel]); this.pick = null; this.mode = 'play'; }
+      return;
+    }
     if (k.kind === 'evo') {
       if (k.age > 0.6 && (confirm || Input.pressed('Escape'))) {
         const R = CFG.evolutions.list[k.ids[k.sel]];
@@ -557,7 +582,30 @@ const G = {
   get bossLock() { return this.bossFight && CFG.map.infinite; },
 
   addText(name, x, y) { this.texts.push(new FloatingText(name, x, y)); },
-  addUlt(n) { this.ultCharge += n * CFG.ult.chargeFactor * (1 + Save.bonus('ult') + (this.player && this.player.has('capacitor') ? CFG.passives.capacitor.ult * Save.gearMul('capacitor') : 0)); },
+  // Ladung kommt zuerst in die große Kugel; ist sie voll, füllt der Überschuss die kleine Kugel (gestapeltes Ultimate), jedes weitere lädt langsamer
+  addUlt(n) {
+    const U = CFG.ult, full = U.readyAt + 1;
+    let pts = n * U.chargeFactor * Hero.mods().ult * (1 + Save.bonus('ult') + Xp.val('charge') + (this.player && this.player.has('capacitor') ? CFG.passives.capacitor.ult * Save.gearMul('capacitor') : 0));
+    if (this.ultCharge < full) {
+      const need = full - this.ultCharge;
+      if (pts < need) { this.ultCharge += pts; return; }
+      pts -= need; this.ultCharge = full;
+    }
+    let count = 1 + this.ultStock;                              // so viele Ultimates sind schon bereit
+    if (count >= U.maxStack) return;
+    this.ultNext += pts * this.ultStackRate(count) / full;
+    while (this.ultNext >= 1 && count < U.maxStack) {
+      const carry = (this.ultNext - 1) * this.ultStackRate(count + 1) / this.ultStackRate(count);
+      this.ultStock++; count++; this.ultNext = carry;
+      Sfx.play('ultReady');
+    }
+    if (count >= U.maxStack) this.ultNext = 0;
+  },
+  // Lade-Tempo des (count+1)-ten Ultimates: 1. Stapel stark gebremst, danach nur noch kleine Schritte
+  ultStackRate(count) {
+    const r = CFG.ult.stackRates;
+    return count < r.length ? r[count] : r[r.length - 1] * Math.pow(CFG.ult.stackTail, count - r.length + 1);
+  },
   addCombo() { this.combo++; },
   resetCombo() { this.combo = 0; this.comboPrev = 0; },
   later(seconds, fn) { this.events.push({ t: seconds, fn }); },
@@ -579,12 +627,14 @@ const G = {
 
   startBossFight(type) {
     this.bossFight = true;
+    Stats.bossStart(type);
     Sfx.play('bossIntro');
     this.intro = new BossIntro(type);
     this.bossTimer = 0;
   },
 
-  endBossFight() {
+  endBossFight(result = 'win') {       // result fuers Protokoll: 'win' | 'timeout'
+    Stats.bossEnd(result);
     this.bossFight = false;
     this.boss = null;
     this.arenaScale = 1; this.arenaTarget = 1;
@@ -619,6 +669,15 @@ const G = {
     else if (nav.some((k) => Input.pressed(k))) Sfx.play('tick');
   },
 
+  // Dev-Modus (Save.data.dev, freigeschaltet mit tools/dev-save.deatharena): F1 alle Karten, F2 unsterblich, F3 +60 s, F4 +500 Cores.
+  // Laeufe mit F2/F3 gelten als Cheat-Lauf (G.cheated) und kommen nicht ins Statistik-Protokoll.
+  devKeys() {
+    if (Input.pressed('F1')) { Save.data.devUnlockAll = !Save.data.devUnlockAll; Save.write(); Sfx.play('select'); }
+    if (Input.pressed('F2')) { this.god = !this.god; if (this.god) this.cheated = true; Sfx.play('select'); }
+    if (Input.pressed('F3') && this.mode === 'play' && !this.bossFight && !Tutorial.active) { this.time += 60; this.cheated = true; Sfx.play('select'); }
+    if (Input.pressed('F4')) { Save.data.souls += 500; Save.write(); Sfx.play('select'); }
+  },
+
   update(dt) {
     this.realTime += dt;
     if (canvas.style) canvas.style.cursor = this.mode === 'play' ? 'none' : '';       // Komfort: im Spiel kein Mauszeiger
@@ -627,8 +686,11 @@ const G = {
     if (MENU_MUSIC_MODES.includes(this.mode) && !(this.mode === 'binds' && this.bindsBack === 'pause')) playMusic('menu');
     else if (this.mode === 'dead') playMusic('dead');
     else if (this.mode === 'ending') playMusic(this.endAge < ENDING_SPLIT ? 'dead' : 'menu');
+    if (Save.data.dev) this.devKeys();
     if (this.mode === 'start') {
       this.updateMenu();
+    } else if (this.mode === 'stats') {
+      StatsScreen.update();
     } else if (this.mode === 'modeselect') {
       this.updateModeSelect();
     } else if (this.mode === 'cosmetics') {
@@ -655,6 +717,7 @@ const G = {
       }
     } else if (this.mode === 'dead') {
       this.deadAge += dt;
+      if (this.deadAge > 0.6 && Input.pressed('Tab')) { this.deathDetails = !this.deathDetails; Sfx.play('select'); }
       if (this.deadAge > 1 && Input.pressed('Space')) this.mode = 'start';      // nach dem Tod zurück ins Menü (hier wird später Build/Leveln ausgebaut)
       else if (this.deadAge > 1 && Input.pressed('KeyR')) { Sfx.play('select'); this.begin(false, this.infinite); }      // Komfort: sofort noch ein Lauf, gleicher Modus und gleiche Karte
     } else if (this.mode === 'pick') {
@@ -691,6 +754,7 @@ const G = {
     if (!this.bossFight && !Tutorial.active) this.time += dt;
     Loadout.updateByTime(this.time);
     if (!Tutorial.active && !(this.victory > 0)) { this.director.update(dt); this.director.updateBosses(); }       // im Tutorial führt Tutorial.update die Szenarien
+    MapEnv.update(dt);
 
     if (this.intro) {
       this.intro.update(dt);
@@ -700,15 +764,17 @@ const G = {
       if (!Tutorial.active) this.bossTimer += dt;                      // im Tutorial gibt es kein Zeitlimit
       if (this.bossTimer > CFG.boss.timeout && this.boss.type !== 'reaper') {      // der finale Boss hat kein Zeitlimit
         this.later(0.25, () => Loadout.weaponUp(this.time));
-        this.endBossFight();
+        this.endBossFight('timeout');
       } else {
         this.boss.update(dt);
       }
     }
 
-    for (const list of [this.enemies, this.obstacles, this.shots, this.blasts, this.meteors, this.bossShots, this.spawners, this.powerups, this.drops, this.texts]) {
+    for (const list of [this.enemies, this.obstacles, this.shots, this.blasts, this.meteors, this.bossShots, this.spawners, this.powerups, this.drops, this.xpOrbs, this.texts]) {
       for (const e of list) e.update(dt);
     }
+    this.xpOrbs = this.xpOrbs.filter((e) => e.alive);
+    Xp.update(dt);
     this.enemies = this.enemies.filter((e) => e.alive);
     this.shots = this.shots.filter((e) => e.alive);
     this.blasts = this.blasts.filter((e) => e.alive);
@@ -748,6 +814,8 @@ const G = {
       uiText(ctx, 'LOADING ...', 20, 30, { size: STYLE.type.h2, color: STYLE.pal.cyan });
     } else if (this.mode === 'start') {
       drawStartScreen(ctx);
+    } else if (this.mode === 'stats') {
+      StatsScreen.draw(ctx);
     } else if (this.mode === 'modeselect') {
       drawModeSelectScreen(ctx);
     } else if (this.mode === 'cosmetics') {
@@ -792,12 +860,14 @@ const G = {
     ctx.save();
     ctx.translate(-this.cam.x, this.cam.y);
     if (!CFG.map.infinite) for (const [x, y] of this.spawnPointList()) drawSprite(ctx, 'spawnPoint', x, y, 90, 200, { alpha: 0.8 });      // im Endlos-Modus sind die Spawnpunkte unsichtbar
+    MapEnv.draw(ctx);
     for (const e of this.meteors) e.drawGround(ctx);
     Tutorial.drawWorld(ctx);
     for (const e of this.obstacles) e.draw(ctx);
     for (const e of this.spawners) e.draw(ctx);
     for (const e of this.powerups) e.draw(ctx);
     for (const e of this.drops) e.draw(ctx);
+    for (const e of this.xpOrbs) e.draw(ctx);
     Patterns.drawCorpses(ctx);
     for (const e of this.enemies) e.draw(ctx);
     for (const b of this.bossList()) b.draw(ctx);
@@ -817,6 +887,7 @@ const G = {
     ctx.restore();                          // Ende von Juice.begin
     if (this.bloodMoon) drawBloodMoonTint(ctx);
     drawHud(ctx);
+    if (Save.data.dev) uiText(ctx, 'DEV' + (this.god ? '  GOD' : '') + (this.cheated ? '  (RUN NOT LOGGED)' : ''), 6, 10, { size: STYLE.type.small, color: STYLE.pal.yellow });
   },
 };
 

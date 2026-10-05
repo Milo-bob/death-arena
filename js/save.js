@@ -9,8 +9,14 @@ const Save = {
     items: JSON.parse(JSON.stringify(CFG.items.start)),     // Inventar: besessene und ausgeruestete Items
     gear: {},       // Stufe und XP je Item/Ability
     cosmetics: { owned: {}, equipped: {} },      // gekaufte Cosmetics ("kategorie:id") und ausgeruestete je Kategorie
+    hero: 'vanguard', heroes: {},               // gewaehlter Held und gekaufte Helden (CFG.heroes)
     stats: { bosses: 0, kills: 0 }, milestones: {}, msPaid: {},
+    dev: false,                                  // Dev-Modus (Cheat-Tasten + Statistik-Bildschirm), wird mit der Dev-Save-Datei freigeschaltet (tools/dev-save.deatharena)
+    deathLog: [], bossLog: [],                   // Protokoll fuer das Balancing (siehe runstats.js), gilt fuer alle Slots
+    imported: { deaths: [], bosses: [] },        // importierte Spieldaten anderer Spieler
     binds: {} },     // eigene Tastenbelegung (siehe Input.actions)
+  // Geraetedaten, die bei Slot-Wechsel, Reset und Import bleiben (kein Teil eines einzelnen Spielstands)
+  KEEP: ['musicVol', 'sfxVol', 'fx', 'binds', 'dev', 'deathLog', 'bossLog', 'imported'],
 
   // Abilities: frei, wenn Preis 0 oder gekauft
   isUnlocked(id) { return CFG.loadout.abilities[id].unlock === 0 || !!(this.data.unlocked && this.data.unlocked[id]); },
@@ -31,7 +37,7 @@ const Save = {
   },
 
   // ---- Meilensteine ----
-  statValue(stat) { return stat === 'tutorial' ? (this.data.tutorialDone ? 1 : 0) : stat === 'best' ? this.data.best : stat === 'bestInf' ? this.data.bestInf || 0 : stat === 'runs' ? this.data.runs : (this.data.stats[stat] || 0); },
+  statValue(stat) { return stat === 'wins' ? (this.data.wins || 0) : stat === 'tutorial' ? (this.data.tutorialDone ? 1 : 0) : stat === 'best' ? this.data.best : stat === 'bestInf' ? this.data.bestInf || 0 : stat === 'runs' ? this.data.runs : (this.data.stats[stat] || 0); },
   milestoneDone(id) { return !!this.data.milestones[id]; },
   // Prueft alle Meilensteine, gibt die neu erreichten zurueck
   checkMilestones() {
@@ -119,16 +125,33 @@ const Save = {
     return true;
   },
 
+  // ---- Helden (siehe CFG.heroes und js/heroes.js): Meilenstein erreicht + Cores bezahlt = Held gehoert dir ----
+  heroOwned(id) { return id === 'vanguard' || !!(this.data.heroes && this.data.heroes[id]); },
+  heroSelected() { const id = this.data.hero; return CFG.heroes[id] && this.heroOwned(id) ? id : 'vanguard'; },
+  heroOpen(id) { const H = CFG.heroes[id]; return !H.milestone || this.milestoneDone(H.milestone); },          // Meilenstein geschafft?
+  heroSelect(id) { if (!CFG.heroes[id] || !this.heroOwned(id)) return false; this.data.hero = id; this.write(); return true; },
+  // Kaufen (Meilenstein + Cores) und gleich auswaehlen
+  heroBuy(id) {
+    const H = CFG.heroes[id];
+    if (!H || this.heroOwned(id) || !this.heroOpen(id) || this.data.souls < H.cost) return false;
+    this.data.souls -= H.cost;
+    if (!this.data.heroes) this.data.heroes = {};
+    this.data.heroes[id] = true;
+    this.data.hero = id;
+    this.write();
+    return true;
+  },
+
   // Alle Kaeufe loeschen und von vorne anfangen (Seelen, Upgrades, Abilities, Items). Bestzeit, Statistik und Meilensteine bleiben.
   // Alles im aktiven Slot zurück auf Anfang (Bestzeiten, Statistik, Meilensteine, Käufe, Karten, Tutorial). Nur Lautstärken, Effekte und Tastenbelegung bleiben.
   resetAll() {
-    const keep = { musicVol: this.data.musicVol, sfxVol: this.data.sfxVol, fx: this.data.fx, binds: this.data.binds };
+    const keep = {}; for (const k of this.KEEP) keep[k] = this.data[k];
     this.data = JSON.parse(this.DEFAULTS);
     for (const k of Object.keys(keep)) if (keep[k] !== undefined) this.data[k] = keep[k];
     this.write();
   },
   resetPurchases() {
-    this.data.souls = 0; this.data.upgrades = {}; this.data.unlocked = {}; this.data.gear = {}; this.data.cosmetics = { owned: {}, equipped: {} };
+    this.data.souls = 0; this.data.upgrades = {}; this.data.unlocked = {}; this.data.gear = {}; this.data.cosmetics = { owned: {}, equipped: {} }; this.data.heroes = {}; this.data.hero = 'vanguard';
     this.data.items = JSON.parse(JSON.stringify(CFG.items.start));
     this.write();
   },
@@ -184,7 +207,7 @@ const Save = {
   switchSlot(i) {
     if (i === this.slot || i < 0 || i >= this.SLOTS) return false;
     this.write();
-    const keep = { musicVol: this.data.musicVol, sfxVol: this.data.sfxVol, fx: this.data.fx, binds: this.data.binds };
+    const keep = {}; for (const k of this.KEEP) keep[k] = this.data[k];
     this.slot = i;
     this.data = JSON.parse(this.DEFAULTS);
     try { const raw = localStorage.getItem(this.keyFor(i)); if (raw) Object.assign(this.data, JSON.parse(raw)); } catch (e) { /* leer */ }
@@ -193,10 +216,36 @@ const Save = {
     this.write();
     return true;
   },
+  // ---- Übertragen: aktiver Slot als Code ("DA1:<base64>:<Prüfsumme>") oder Datei ----
+  exportCode() {
+    this.write();
+    const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(this.data))));
+    return 'DA1:' + b64 + ':' + this.checksum(b64);
+  },
+  checksum(s) { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h.toString(36); },
+  // Code/Dateiinhalt prüfen und in den aktiven Slot übernehmen. Gibt { ok, error } zurück. Lautstärken, Effekte und Tastenbelegung dieses Geräts bleiben.
+  importCode(text) {
+    try {
+      const m = /DA1:([A-Za-z0-9+/=]+):([0-9a-z]+)/.exec(String(text).replace(/\s+/g, ''));
+      if (!m) return { ok: false, error: 'NOT A DEATHARENA SAVE CODE' };
+      if (this.checksum(m[1]) !== m[2]) return { ok: false, error: 'CODE IS DAMAGED OR INCOMPLETE' };
+      const src = JSON.parse(decodeURIComponent(escape(atob(m[1]))));
+      if (!src || typeof src !== 'object' || Array.isArray(src)) return { ok: false, error: 'SAVE DATA IS INVALID' };
+      const next = JSON.parse(this.DEFAULTS);
+      for (const k of Object.keys(next)) if (src[k] !== undefined && typeof src[k] === typeof next[k]) next[k] = src[k];       // nur bekannte Felder mit passendem Typ
+      for (const k of this.KEEP) if (this.data[k] !== undefined) next[k] = this.data[k];
+      next.dev = src.dev === true || this.data.dev === true;           // die Dev-Save-Datei schaltet den Dev-Modus frei (und er bleibt danach an)
+      this.data = next;
+      this.migrate();
+      this.write();
+      return { ok: true };
+    } catch (e) { return { ok: false, error: 'CODE COULD NOT BE READ' }; }
+  },
+
   // Lauf zu Ende: gibt true zurück, wenn es eine neue Bestzeit ist
   // ---- Karten ----
   mapNeed(i) { return CFG.maps[i].unlockFrac ? CFG.maps[i].unlockFrac * CFG.finalBoss.at : 0; },        // Sekunden auf der vorherigen Karte
-  mapUnlocked(i) { return i === 0 || (this.data.mapBest[CFG.maps[i - 1].id] || 0) >= this.mapNeed(i); },
+  mapUnlocked(i) { return i === 0 || (this.data.dev && this.data.devUnlockAll) || (this.data.mapBest[CFG.maps[i - 1].id] || 0) >= this.mapNeed(i); },
   mapBestTime(i) { return this.data.mapBest[CFG.maps[i].id] || 0; },
 
   finishRun(time, bosses, kills, infinite = false, mapId = null) {

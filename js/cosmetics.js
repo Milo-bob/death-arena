@@ -32,7 +32,7 @@ const Cos = {
     const it = previewItem || this.cur(cat);
     return it && it.filter ? this.tinted(base, it.filter) : base;
   },
-  player() { return this.sprite('player', 'skin'); },
+  player() { return this.sprite(Hero.sprite(), 'skin'); },        // Sprite des gewaehlten Helden mit Skin-Farbe (Skins gelten fuer alle Helden)
   blade(base) { return this.sprite(base, 'blade'); },
 
   // ---------------------------------------------------------------------------------------------
