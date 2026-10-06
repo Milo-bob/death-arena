@@ -74,6 +74,13 @@ function drawHud(ctx) {
     uiBar(ctx, STAGE_W / 2 - 40, evY + 4, 80, 5, G.meteorLeft / CFG.meteors.duration, STYLE.pal.orange);
     evY += 18;
   }
+  if (MapEnv.blz && MapEnv.blz.state !== 'idle' && !G.bossFight) {                 // Blizzard: Vorwarnung mit Pfeil, dann Restzeit
+    const B = MapEnv.blz, w = MapEnv.windVec(), warn = B.state === 'warn';
+    uiText(ctx, warn ? 'BLIZZARD - WIND ' + ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(B.ang / 45) % 8] : 'BLIZZARD', STAGE_W / 2, evY, { size: STYLE.type.small, color: STYLE.pal.ice, align: 'center' });
+    uiBar(ctx, STAGE_W / 2 - 40, evY + 4, 80, 5, warn ? 1 - B.t / G.map.env.blizzard.warn : B.t / G.map.env.blizzard.dur, STYLE.pal.ice);
+    if (warn) { ctx.save(); ctx.fillStyle = STYLE.pal.ice; ctx.globalAlpha = 0.6 + 0.4 * Math.sin(G.realTime * 10); for (let i = 0; i < 3; i++) pxLine(ctx, STAGE_W / 2 + w[0] * (60 + i * 10) - w[0] * 8, evY + 30 - w[1] * (20 + i * 6), STAGE_W / 2 + w[0] * (60 + i * 10) + w[0] * 8, evY + 30 - w[1] * (20 + i * 6) - w[1] * 0, 2); ctx.restore(); }
+    evY += 18;
+  }
   if (G.collapse && !G.bossFight) {
     uiText(ctx, G.collapseWarn ? 'ARENA UNSTABLE' : 'ARENA COLLAPSE', STAGE_W / 2, evY, { size: STYLE.type.small, color: STYLE.pal.red, align: 'center' });
     uiBar(ctx, STAGE_W / 2 - 40, evY + 4, 80, 5, G.collapseLeft / CFG.collapse.duration, STYLE.pal.red);
@@ -81,6 +88,7 @@ function drawHud(ctx) {
 
   Tutorial.draw(ctx);
   Xp.drawHud(ctx);
+  MsFx.draw(ctx);                                                // Meilenstein-Fanfare (js/milestonefx.js)
   drawHotbar(ctx, p);
 }
 
@@ -259,11 +267,11 @@ const UIHit = {
 
 // Menüzeile: gewählte Zeile hat cyanen Rahmen, Glühen und Pfeil. opts.hit = Auswahl per Maus (siehe UIHit), opts.lr = Regler
 function drawMenuRow(ctx, y, text, sel, opts = {}) {
-  const P = STYLE.pal, T = STYLE.type, w = opts.w || 190, x = STAGE_W / 2 - w / 2;
-  if (opts.hit) UIHit.add(x, y, w, 24, opts.hit, { lr: opts.lr });
-  uiPanel(ctx, x, y, w, 24, { color: sel ? P.cyan : P.greyMid, fill: P.void, alpha: 0.9, glow: sel });
-  uiText(ctx, text, STAGE_W / 2, y + 17, { size: T.h2, color: sel ? P.ice : P.grey, align: 'center' });
-  if (sel) uiText(ctx, '>', x + 10, y + 17, { size: T.h2, color: P.cyan });
+  const P = STYLE.pal, T = STYLE.type, w = opts.w || 190, h = opts.h || 24, x = STAGE_W / 2 - w / 2, ty = y + Math.round(h / 2) + 5;
+  if (opts.hit) UIHit.add(x, y, w, h, opts.hit, { lr: opts.lr });
+  uiPanel(ctx, x, y, w, h, { color: sel ? P.cyan : P.greyMid, fill: P.void, alpha: 0.9, glow: sel });
+  uiText(ctx, text, STAGE_W / 2, ty, { size: T.h2, color: sel ? P.ice : P.grey, align: 'center' });
+  if (sel) uiText(ctx, '>', x + 10, ty, { size: T.h2, color: P.cyan });
 }
 
 // Glühende Funken, die im Hauptmenü aufsteigen (reine Formel aus Zeit und Nummer, kein Zustand nötig)
@@ -298,20 +306,27 @@ function drawStartScreen(ctx) {
   ctx.restore();
   uiText(ctx, 'DEATHARENA', STAGE_W / 2, 98 + Math.sin(t * 1.5) * 1.2, { size: T.title, color: P.red, align: 'center', glow: P.red });
   uiText(ctx, 'ONE WAY TICKET TO HELL', STAGE_W / 2, 124, { size: T.h2, color: P.yellow, align: 'center' });
-  const labels = { play: 'PLAY', inventory: 'INVENTORY', cosmetics: 'COSMETICS', upgrades: 'UPGRADES', settings: 'SETTINGS', stats: 'STATISTICS' };
+  const labels = { play: 'PLAY', inventory: 'INVENTORY', cosmetics: 'COSMETICS', upgrades: 'UPGRADES', achievements: 'ACHIEVEMENTS', settings: 'SETTINGS', stats: 'STATISTICS' };
   menuItems().forEach((id, i) => {
-    const y = 136 + i * 26;
-    drawMenuRow(ctx, y, labels[id], G.menuSel === i, { hit: () => { G.menuSel = i; } });
-    if ((id === 'play' && !Save.data.tutorialDone) || (id === 'inventory' && gearReady())) {          // Hinweis: der erste Start ist das Tutorial / eine Waffe ist bereit fuers Level-up
+    if (id === 'stats') {                                                                // Dev-Statistik: kleiner Knopf unten links in der Ecke, per Pfeil nach dem letzten Punkt erreichbar
+      const sel = G.menuSel === i;
+      UIHit.add(8, 334, 74, 18, () => { G.menuSel = i; });
+      uiPanel(ctx, 8, 334, 74, 18, { color: sel ? P.cyan : P.greyMid, fill: P.void, alpha: 0.85, glow: sel });
+      uiText(ctx, 'STATISTICS', 45, 346, { size: T.small, color: sel ? P.ice : P.grey, align: 'center' });
+      return;
+    }
+    const y = 134 + i * 28;
+    drawMenuRow(ctx, y, labels[id], G.menuSel === i, { h: 22, hit: () => { G.menuSel = i; } });
+    if ((id === 'play' && !Save.data.tutorialDone) || (id === 'inventory' && gearReady()) || (id === 'achievements' && Ach.unseen() > 0)) {          // Hinweis: der erste Start ist das Tutorial / eine Waffe ist bereit fuers Level-up / neue Achievements
       ctx.save(); ctx.globalAlpha = 0.6 + 0.4 * Math.sin(t * 6);
-      uiText(ctx, id === 'inventory' ? '! LEVEL UP' : 'START HERE', STAGE_W / 2 + 100, y + 17, { size: T.small, color: P.yellow });
+      uiText(ctx, id === 'inventory' ? '! LEVEL UP' : id === 'achievements' ? '! NEW' : 'START HERE', STAGE_W / 2 + 104, y + 15, { size: T.small, color: P.yellow });
       ctx.restore();
     }
   });
   const best = Save.data.best > 0 ? formatTime(Save.data.best) : '-', L = Save.data.last;
-  uiText(ctx, 'BEST ' + best + '    RUNS ' + Save.data.runs + (Save.data.wins ? '    WINS ' + Save.data.wins : '') + '    CORES ' + Save.data.souls, STAGE_W / 2, 306, { size: T.body, color: P.ice, align: 'center' });
-  if (L) uiText(ctx, 'LAST RUN ' + formatTime(L.time) + '  -  ' + L.bosses + ' BOSSES  -  ' + L.kills + ' KILLS' + (L.infinite ? '  (INFINITE)' : ''), STAGE_W / 2, 319, { size: T.small, color: P.grey, align: 'center' });
-  uiText(ctx, 'W/S OR MOUSE = SELECT    SPACE OR CLICK = OK', STAGE_W / 2, 346, { size: T.small, color: P.grey, align: 'center' });
+  uiText(ctx, 'BEST ' + best + '    RUNS ' + Save.data.runs + (Save.data.wins ? '    WINS ' + Save.data.wins : '') + '    CORES ' + Save.data.souls, STAGE_W / 2, 316, { size: T.body, color: P.ice, align: 'center' });
+  if (L) uiText(ctx, 'LAST RUN ' + formatTime(L.time) + '  -  ' + L.bosses + ' BOSSES  -  ' + L.kills + ' KILLS' + (L.infinite ? '  (INFINITE)' : ''), STAGE_W / 2, 329, { size: T.small, color: P.grey, align: 'center' });
+  uiText(ctx, 'W/S OR MOUSE = SELECT    SPACE OR CLICK = OK', STAGE_W / 2, 350, { size: T.small, color: P.grey, align: 'center' });
 }
 
 // Modus-Auswahl nach PLAY: Regular / Infinite / Tutorial, darunter eine Kurzbeschreibung des gewählten Modus
@@ -359,7 +374,7 @@ function drawInfSetupScreen(ctx) {
 
 // Kartenauswahl nach PLAY: drei Karten nebeneinander, gesperrte zeigen, was zum Freischalten fehlt
 function drawMapSelectScreen(ctx) {
-  const P = STYLE.pal, T = STYLE.type, n = CFG.maps.length, w = 140, gap = 12, x0 = STAGE_W / 2 - (n * w + (n - 1) * gap) / 2, y = 70, h = 215;
+  const P = STYLE.pal, T = STYLE.type, n = CFG.maps.length, gap = n > 3 ? 6 : 12, w = Math.min(140, Math.floor((STAGE_W - 20 - (n - 1) * gap) / n)), x0 = STAGE_W / 2 - (n * w + (n - 1) * gap) / 2, y = 70, h = 215, small = w < 130;
   drawSprite(ctx, 'keysettings', 0, 0, 90, 100);
   uiText(ctx, 'CHOOSE A MAP', STAGE_W / 2, 44, { size: T.h1, color: P.yellow, align: 'center' });
   CFG.maps.forEach((M, i) => {
@@ -368,10 +383,10 @@ function drawMapSelectScreen(ctx) {
     uiPanel(ctx, x, yy, w, h, { color: sel ? col : P.greyMid, fill: P.void, alpha: 0.95, glow: sel });
     const im = IMG[M.ground];
     if (im && im.ok) { ctx.save(); ctx.globalAlpha = open ? 1 : 0.25; ctx.drawImage(im.img, 0, 0, 400, 240, x + 5, yy + 5, w - 10, 78); ctx.restore(); }
-    uiText(ctx, M.name, x + w / 2, yy + 100, { size: T.h2, color: open ? P.ice : P.grey, align: 'center' });
-    uiText(ctx, M.desc, x + w / 2, yy + 114, { size: T.small, color: P.grey, align: 'center', maxW: w - 12 });
-    uiText(ctx, 'DIFFICULTY', x + 10, yy + 134, { size: T.small, color: P.grey });
-    for (let k = 0; k < 3; k++) { ctx.fillStyle = k < M.level ? col : P.greyDark; ctx.fillRect(x + 78 + k * 16, yy + 127, 12, 8); }
+    uiText(ctx, small ? uiFit(ctx, M.name, w - 8, T.body) : M.name, x + w / 2, yy + 100, { size: small ? T.body : T.h2, color: open ? P.ice : P.grey, align: 'center' });
+    if (small) uiWrap(ctx, M.desc, x + w / 2, yy + 111, w - 10, 9, { size: T.small, color: P.grey, align: 'center' }); else uiText(ctx, M.desc, x + w / 2, yy + 114, { size: T.small, color: P.grey, align: 'center', maxW: w - 12 });
+    uiText(ctx, small ? 'LEVEL' : 'DIFFICULTY', x + 10, yy + 134, { size: T.small, color: P.grey });
+    for (let k = 0; k < 4; k++) { ctx.fillStyle = k < M.level ? col : P.greyDark; ctx.fillRect(x + w - 8 - (4 - k) * 14, yy + 127, 11, 8); }
     uiText(ctx, 'CORES x' + M.diff.cores, x + 10, yy + 150, { size: T.small, color: open ? P.yellow : P.grey });
     if (open) {
       uiText(ctx, 'BEST ' + (Save.mapBestTime(i) > 0 ? formatTime(Save.mapBestTime(i)) : '-'), x + 10, yy + 165, { size: T.small, color: P.ice });
@@ -1043,13 +1058,14 @@ function drawSwapScreen(ctx) {
 function drawSettingsScreen(ctx) {
   const P = STYLE.pal, T = STYLE.type;
   drawSprite(ctx, 'keysettings', 0, 0, 90, 100);
-  uiText(ctx, 'SETTINGS', STAGE_W / 2, 56, { size: T.h1, color: P.yellow, align: 'center' });
+  uiText(ctx, 'SETTINGS', STAGE_W / 2, 34, { size: T.h1, color: P.yellow, align: 'center' });
   const vol = Save.data.musicVol, bars = Math.round(vol * 10);
   const rows = {
     music: 'MUSIC  ' + '|'.repeat(bars) + '.'.repeat(10 - bars) + '  ' + Math.round(vol * 100) + '%',
     sfx: 'SOUND FX  ' + '|'.repeat(Math.round(Save.data.sfxVol * 10)) + '.'.repeat(10 - Math.round(Save.data.sfxVol * 10)) + '  ' + Math.round(Save.data.sfxVol * 100) + '%',
     fx: 'EFFECTS  ' + ['OFF', 'REDUCED', 'FULL'][Juice.level],
     fullscreen: 'FULLSCREEN: ' + (document.fullscreenElement ? 'ON' : 'OFF'),
+    mouseaim: 'MOUSE AIMING: ' + (Save.data.mouseAim ? 'ON' : 'OFF'),
     slot: 'SAVE SLOT  ' + [0, 1, 2].map((i) => i === Save.slot ? '[' + (i + 1) + ']' : ' ' + (i + 1) + ' ').join(' '),
     controls: 'CONTROLS',
     binds: 'KEYBINDS',
@@ -1057,18 +1073,20 @@ function drawSettingsScreen(ctx) {
     resetAll: G.resetConfirm ? 'SURE? DELETE SLOT ' + (Save.slot + 1) : 'RESET SAVE FILE (SLOT ' + (Save.slot + 1) + ')',
     back: 'BACK',
   };
-  SETTINGS_ITEMS.forEach((id, i) => drawMenuRow(ctx, 62 + i * 24, rows[id], G.settingsSel === i, { w: 300, hit: () => { G.settingsSel = i; }, lr: id === 'music' || id === 'sfx' || id === 'slot' }));
+  let gapN = 0;
+  const gap = { slot: 1, controls: 2, resetAll: 3 };                       // Gruppen: Ton/Bild | Spielstand | Tasten | Daten
+  SETTINGS_ITEMS.forEach((id, i) => { if (gap[id]) gapN = gap[id]; drawMenuRow(ctx, 46 + i * 20 + gapN * 7, rows[id], G.settingsSel === i, { w: 300, h: 18, hit: () => { G.settingsSel = i; }, lr: id === 'music' || id === 'sfx' || id === 'slot' }); });
   // die drei Spielstaende als Karten (Klick wechselt den Slot)
   const cw = 150, cg = 6, cx0 = STAGE_W / 2 - (3 * cw + 2 * cg) / 2;
   for (let i = 0; i < Save.SLOTS; i++) {
-    const x = cx0 + i * (cw + cg), y = 306, on = i === Save.slot, I = Save.slotInfo(i);
+    const x = cx0 + i * (cw + cg), y = 304, on = i === Save.slot, I = Save.slotInfo(i);
     UIHit.add(x, y, cw, 38, () => { Save.switchSlot(i); G.resetConfirm = false; }, { noConfirm: true });
     uiPanel(ctx, x, y, cw, 38, { color: on ? P.yellow : P.greyMid, fill: on ? P.voidLight : P.void, alpha: 0.92, glow: on });
     uiText(ctx, 'SLOT ' + (i + 1) + (on ? '  - ACTIVE' : ''), x + 8, y + 13, { size: T.small, color: on ? P.yellow : P.grey });
     uiText(ctx, I ? 'BEST ' + (I.best > 0 ? formatTime(I.best) : '-') + '   RUNS ' + I.runs : 'EMPTY', x + 8, y + 25, { size: T.small, color: I ? P.ice : P.greyMid });
     if (I) uiText(ctx, 'CORES ' + I.souls + (I.wins ? '   WINS ' + I.wins : ''), x + 8, y + 35, { size: T.small, color: P.yellow });
   }
-  uiText(ctx, 'W/S = SELECT    A/D = CHANGE    SPACE = OK    ESC = BACK', STAGE_W / 2, 354, { size: T.small, color: P.grey, align: 'center' });
+  uiText(ctx, 'W/S = SELECT    A/D = CHANGE    SPACE = OK    ESC = BACK', STAGE_W / 2, 352, { size: T.small, color: P.grey, align: 'center' });
 }
 
 // Controls panel: explains every action in general terms and always shows the CURRENT keys (they can be rebound in Settings > Keybinds)
@@ -1227,7 +1245,8 @@ function drawDeathScreen(ctx) {
   if (sm) uiText(ctx, 'KILLED BY: ' + sm.killer, STAGE_W / 2, 326, { size: STYLE.type.small, color: STYLE.pal.ice, align: 'center' });
   milestoneLines().forEach((l, i, a) => uiText(ctx, l, STAGE_W / 2, 244 - (a.length - 1 - i) * 11, { size: STYLE.type.small, color: STYLE.pal.cyan, align: 'center' }));
   uiText(ctx, '+' + G.earned + ' CORES', STAGE_W / 2, 268, { size: STYLE.type.h2, color: STYLE.pal.yellow, align: 'center' });
-  if (G.newBest) uiText(ctx, 'NEW BEST TIME!', STAGE_W / 2, 288, { size: STYLE.type.h2, color: STYLE.pal.yellow, align: 'center', glow: STYLE.pal.yellow });
+  if (G.starterBonus && G.starterBonus.extra > 0) uiText(ctx, 'STARTER BONUS +' + G.starterBonus.extra + '  (RUN ' + G.starterBonus.run + '/' + G.starterBonus.of + ')', STAGE_W / 2, 277, { size: STYLE.type.small, color: STYLE.pal.green, align: 'center' });
+  if (G.newBest) uiText(ctx, 'NEW BEST TIME!', STAGE_W / 2, 292, { size: STYLE.type.h2, color: STYLE.pal.yellow, align: 'center', glow: STYLE.pal.yellow });
   outlinedText(ctx, 'Time: ' + formatTime(G.time) + '  (' + G.time.toFixed(1) + ' s)', STAGE_W / 2, 310, 22, STYLE.pal.ice);
   if (G.deathDetails && sm) drawRunDetails(ctx, sm);
 }
@@ -1238,6 +1257,7 @@ function drawRunDetails(ctx, sm) {
   ctx.fillStyle = '#05060f'; ctx.fillRect(0, 0, STAGE_W, STAGE_H);
   uiText(ctx, 'KILLED BY: ' + sm.killer, STAGE_W / 2, 30, { size: T.h1 || T.h2, color: P.red, align: 'center' });
   uiText(ctx, 'TIME ' + formatTime(G.time) + '   LEVEL ' + sm.level + '   BOSSES ' + G.bosses + '   KILLS ' + G.kills + '   HITS TAKEN ' + sm.hitCount + '   DAMAGE ' + Math.round(sm.taken), STAGE_W / 2, 54, { size: T.small, color: P.grey, align: 'center' });
+  uiText(ctx, 'SAFE SPOT BLOCKED ' + (sm.savedHits || 0) + ' HITS (ABOUT ' + Math.round(sm.savedDmg || 0) + ' DAMAGE)', STAGE_W / 2, 68, { size: T.small, color: sm.savedHits ? P.green : P.grey, align: 'center' });
   const col = (x, title, rows, color, fmt) => {
     const w = 212, top = 76, rowH = 29, max = rows.length ? rows[0][1] : 1, total = rows.reduce((s, r) => s + r[1], 0) || 1;
     uiPanel(ctx, x, top, w, 256, { color: P.greyMid, fill: P.void, alpha: 0.95 });

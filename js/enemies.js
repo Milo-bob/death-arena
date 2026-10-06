@@ -117,6 +117,7 @@ class Enemy {
     if (this.hasteT > 0) { f *= CFG.patterns.support.kinds.haste.mult; this.hasteT -= dt; }
     const p = G.player;
     if (p.buffs.chrono > 0) f *= CFG.drops.types.chrono.slow;                // Chrono-Buff: Gegner laufen langsamer
+    f *= SafeSpot.slow();                                                    // Safe Spot: alle Gegner bremsen (und weichen unten zurück)
     if (p.hasField && Math.hypot(this.x - p.x, this.y - p.y) <= CFG.field.radius + this.radius) {   // Kraftfeld: langsamer + kleiner Dauerschaden
       f *= 1 - (1 - CFG.field.slow) * Save.gearMul('field');
       this.fieldDmg = (this.fieldDmg || 0) + CFG.field.dps * Save.gearMul('field') * dt;
@@ -135,7 +136,7 @@ class Enemy {
     this.dir = dirTo(this.x, this.y, tg.x, tg.y);
     if (lost && Math.hypot(tg.x - this.x, tg.y - this.y) < 10) f = 0;   // dort angekommen: stehen bleiben
     const r = this.radius;
-    if (G.hazards.length) {                                                // Umgebung (mapenv.js): Schlackenband schiebt, Säurepfütze bremst
+    if (G.hazards.length || MapEnv.gust) {                                 // Umgebung (mapenv.js): Schlackenband schiebt, Säurepfütze bremst
       const [bx, by] = MapEnv.pushAt(this.x, this.y, r), fr = framesOf(dt);
       this.x += bx * fr; this.y += by * fr;
       f *= MapEnv.slowAt(this.x, this.y, r, false);
@@ -188,9 +189,10 @@ class Enemy {
       this.trailT = (this.trailT === undefined ? this.V.trail : this.trailT) - dt;
       if (this.trailT <= 0) { this.trailT = this.V.trail; dropCloud(this.x, this.y); }
     }
+    if (this.stun <= 0 || this.type === 'tank') SafeSpot.retreat(this, dt);       // Safe Spot: Rückzug vom Spot
     [this.x, this.y] = clampToMap(this.x, this.y, this.radius);     // Gegner bleiben immer in der Arena (auch nach Rueckstoss, Sog oder Events)
 
-    const busy = this.ov || this.act;                              // Events pausieren das Schießen
+    const busy = this.ov || this.act || SafeSpot.inside;           // Events pausieren das Schießen (im Safe Spot auch)
     if (!busy) this.shootT -= dt;
     if (!busy && this.shootT <= 0 && SHOOTERS.includes(this.type)) this.attack();
     if (this.type === 'support') Patterns.supportAura(this, dt);
@@ -205,8 +207,16 @@ class Enemy {
       }
     } else if (this.stun <= 0) {
       const w = weaponHit(this.x, this.y, r);
-      if (w) this.takeHit(true, w.kind);
+      if (w) { this.takeHit(true, w.kind); if (w.kind === 'sword' && this.alive) this.bladeKnock(); }
     }
+  }
+
+  // Plasma Blade haelt Gegner ab: kurze Betaeubung und Rueckstoss vom Spieler weg (Tanks und Bosse bleiben stehen)
+  bladeKnock() {
+    if (this.type === 'tank') return;
+    const C = CFG.sword, p = G.player, dx = this.x - p.x, dy = this.y - p.y, d = Math.hypot(dx, dy) || 1;
+    this.stun = Math.min(this.stun, C.stun);
+    [this.x, this.y] = clampToMap(this.x + dx / d * Loadout.sword.knock, this.y + dy / d * Loadout.sword.knock, this.radius);
   }
 
   attack() {
@@ -217,14 +227,14 @@ class Enemy {
     if (this.type === 'triangle') {
       this.shootT += V && V.every ? V.every : e.triangle.shootEvery;
       Sfx.play('enemyShot');
-      for (let i = 0; i < fan; i++) G.shots.push(Object.assign(new EnemyBolt(this.x, this.y, aim + off(i)), { src: Stats.enemyName(this) }));
+      for (let i = 0; i < fan; i++) G.shots.push(Object.assign(new EnemyBolt(this.x, this.y, aim + off(i)), { src: Stats.enemyName(this), chill: !!(V && V.chill) }));
     } else if (this.type === 'square') {
       this.shootT += V && V.every ? V.every : e.square.missileEvery;
       Sfx.play('missile');
-      for (let i = 0; i < fan; i++) G.shots.push(Object.assign(new Missile(this.x, this.y, aim + off(i)), { src: Stats.enemyName(this) }));
+      for (let i = 0; i < fan; i++) G.shots.push(Object.assign(new Missile(this.x, this.y, aim + off(i)), { src: Stats.enemyName(this), chill: !!(V && V.chill) }));
     } else if (this.type === 'rhombus') {
       this.shootT += e.rhombus.waveEvery;
-      G.blasts.push(new Blast('wave', this.x, this.y, false, Stats.enemyName(this)));
+      G.blasts.push(Object.assign(new Blast('wave', this.x, this.y, false, Stats.enemyName(this)), { chill: !!(V && V.chill) }));
       if (V && V.drop) dropCloud(this.x, this.y);                  // Blighter: Giftwolke unter sich
     }
   }
@@ -267,6 +277,7 @@ class Enemy {
     G.addUlt((HEAVY.includes(this.type) ? 2 : 1) * (G.bloodMoon ? CFG.bloodMoon.ultFactor : 1));
     G.addCombo();
     G.kills++;
+    Ach.kill(this);
     Stats.kill(this.killSrc);
     Xp.drop(this);
     if (!this.splitlet && !this.minion) noteFallen(this);
@@ -278,6 +289,7 @@ class Enemy {
     if (this.V && !this.splitlet && !G.clearing) {                      // kartenspezifische Variante: Besonderheit beim Tod (Cinder: Funkenexplosion, Spore: Giftwolke)
       if (this.V.death === 'ember') G.blasts.push(new Blast('ember', this.x, this.y, false, Stats.enemyName(this)));
       else if (this.V.death === 'cloud') dropCloud(this.x, this.y);
+      else if (this.V.death === 'frost') G.blasts.push(Object.assign(new Blast('ember', this.x, this.y, false, Stats.enemyName(this)), { chill: true }));       // Rime: Frostring
     }
     const fx = this.hitFx;                                  // Todesanimation passend zur Treffer-Anzeige
     if (fx === 'swell') { G.blasts.push(new Pop(this.x, this.y, this.radius * 3.2, STYLE.pal.orange)); Juice.sparks(this.x, this.y, STYLE.pal.orange, 14, 5); Juice.shake(1.5); }
@@ -380,10 +392,10 @@ class EnemyBolt {
     this.frames -= f;
     const r = CFG.enemy.bolt.radius;
     if (hitObstacle(this.x, this.y, r, CFG.obstacles.dmg.bolt)) this.alive = false;               // Deckung
-    else if (touchesPlayer(this.x, this.y, r)) { G.player.hit('shoot', 1, this.src); this.alive = false; }
+    else if (touchesPlayer(this.x, this.y, r)) { G.player.hit('shoot', 1, this.src); if (this.chill) G.player.chill(CFG.chill.dur); this.alive = false; }
     else if (blockedByPlayerGear(this.x, this.y, r) || this.frames <= 0) this.alive = false;
   }
-  draw(ctx) { drawSprite(ctx, 'enemyShot', this.x, this.y, this.dir, 150, { alpha: 1 - this.ghost / 100 }); }
+  draw(ctx) { drawSprite(ctx, 'enemyShot', this.x, this.y, this.dir, 150, { alpha: 1 - this.ghost / 100, hue: this.chill ? 170 : 0 }); }
 }
 
 // Zielsuchende Rakete des Quadrats
@@ -405,10 +417,10 @@ class Missile {
     this.frames -= f;
     const r = CFG.enemy.missile.radius;
     if (hitObstacle(this.x, this.y, r, CFG.obstacles.dmg.missile)) this.alive = false;            // Deckung
-    else if (touchesPlayer(this.x, this.y, r)) { G.player.hit('shoot', 1, this.src); this.alive = false; }
+    else if (touchesPlayer(this.x, this.y, r)) { G.player.hit('shoot', 1, this.src); if (this.chill) G.player.chill(CFG.chill.dur); this.alive = false; }
     else if (blockedByPlayerGear(this.x, this.y, r) || this.frames <= 0) this.alive = false;
   }
-  draw(ctx) { drawSprite(ctx, 'missile', this.x, this.y, this.dir, 175, { alpha: 1 - this.ghost / 100 }); }
+  draw(ctx) { drawSprite(ctx, 'missile', this.x, this.y, this.dir, 175, { alpha: 1 - this.ghost / 100, hue: this.chill ? 170 : 0 }); }
 }
 
 // Kurze Druckwelle: 'wave' (Raute) oder 'boom' (Explosion des Boss-Mörsers)
@@ -468,13 +480,13 @@ class Blast {
       if (touchesShield(this.x, this.y, st.r)) step -= CFG.enemy.wave.push;
       moveForward(this, step * framesOf(dt));
     }
-    if (touchesPlayer(this.x, this.y, st.r)) G.player.hit(this.damageKind, 1, this.src);
+    if (touchesPlayer(this.x, this.y, st.r)) { G.player.hit(this.damageKind, 1, this.src); if (this.chill) G.player.chill(CFG.chill.dur); }
   }
   draw(ctx) {
     const i = this.stage();
     if (i < 0) return;
     const st = BLAST_STAGES[this.kind][i];
-    drawSprite(ctx, st.img, this.x, this.y, 90, st.size, { alpha: 1 - 0.05 * i });
+    drawSprite(ctx, st.img, this.x, this.y, 90, st.size, { alpha: 1 - 0.05 * i, hue: this.chill ? 170 : 0 });
   }
 }
 

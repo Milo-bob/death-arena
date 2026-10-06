@@ -50,7 +50,7 @@ class Obstacle {
     Juice.shake(1.5);
     G.blasts.push(new Pop(this.x, this.y, this.r * 2.4, STYLE.pal.grey));
     if (typeof Tutorial !== 'undefined' && Tutorial.active) G.powerups.push(new PowerUp(this.x, this.y, 8));         // Tutorial: immer ein kleines Heilkreuz
-    else this.dropLoot();
+    else { this.dropLoot(); Ach.add('crates'); }
   }
 
   // Beute: nach den Gewichten in CFG.obstacles.loot (nichts, Cores, kleines Heilen, schwacher Buff)

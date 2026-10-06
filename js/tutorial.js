@@ -1,14 +1,16 @@
 // Tutorial: ein kurzes Level mit Ende. Jede Möglichkeit des Spiels bekommt ein eigenes Szenario (SCENARIOS unten), ohne Zeitlimit.
+// Ablauf je Szenario: erst die grosse Textbox (Phase 'brief', das Spiel steht still, der Spieler liest nur und drueckt SPACE), dann die Aufgabe
+// (Phase 'task': nur eine kleine Anzeige oben mit Ziel und Fortschritt). Szenarien mit rebrief: true zeigen die Textbox erneut, wenn ihre erste Zeile wechselt (neue Teilaufgabe).
 // Man kommt nur weiter, wenn man die Aufgabe erledigt hat: die Texte lassen sich NICHT überspringen (nur ESC = Pause, dort "LEAVE TUTORIAL").
 // Während des Tutorials ruht der Director (keine normalen Gegner, Events, Barrikaden, Bosszeitplan), die Zeit steht, nichts wird gespeichert
 // (außer: abgeschlossen + einmalig 25 Cores). Der Spieler kann nicht sterben (Leben fällt nie unter TUT_HP_FLOOR).
-// Neues Szenario: Eintrag in SCENARIOS (name, enter(s), update(dt, s), lines(s), progress(s), done(s)). s ist der Zustand des Szenarios.
+// Neues Szenario: Eintrag in SCENARIOS (name, enter(s) beim Start der Textbox, begin(s) optional nach SPACE, update(dt, s), lines(s) = [Ziel, Erklaerung], progress(s), done(s)). s ist der Zustand des Szenarios.
 
 const TUT_HP_FLOOR = 25;
 const TUT_BONUS_CORES = 25;
 
 const Tutorial = {
-  active: false, idx: 0, phase: 'task', t: 0, s: {}, bossDown: false, firstTime: false, newMs: [],
+  active: false, idx: 0, phase: 'brief', t: 0, s: {}, bossDown: false, firstTime: false, newMs: [],
 
   start() {
     this.active = true; this.bossDown = false; this.firstTime = false; this.newMs = [];
@@ -36,13 +38,16 @@ const Tutorial = {
     G.bossFight = false; G.boss = null; G.intro = null;
   },
   enterScenario(i) {
-    this.idx = i; this.phase = 'task'; this.t = 0; this.s = {};
+    this.idx = i; this.phase = 'brief'; this.t = 0; this.s = {}; this.begun = false;
     this.clearField();
     const p = G.player;
     p.x = 0; p.y = 0; p.hp = p.maxHp; p.dashCd = 0; p.pulseCd = 0; p.shieldCd = 0;
     for (const k of Object.keys(p.cds)) p.cds[k] = 0;
     G.cam.x = 0; G.cam.y = 0; G.kills = 0;
-    SCENARIOS[i].enter(this.s);
+    const sc = SCENARIOS[i];
+    sc.enter(this.s);
+    this.l0 = sc.lines(this.s)[0];
+    if (sc.skip && sc.skip(this.s)) this.phase = 'task';                  // nichts zu tun (z. B. keine Evolution fuer diese Waffe): gleich als erledigt werten
   },
 
   update(dt) {
@@ -57,17 +62,30 @@ const Tutorial = {
       return;
     }
     const s = SCENARIOS[this.idx];
+    if (this.phase === 'brief') {                                          // Textbox: nichts passiert, bis der Spieler SPACE drueckt
+      this.t += dt;
+      if (this.t > 0.35 && (Input.pressed('Space') || Input.pressed('Enter'))) {
+        this.phase = 'task'; this.t = 0;
+        Sfx.play('select');
+        if (!this.begun) { this.begun = true; s.begin && s.begin(this.s); }
+        this.l0 = s.lines(this.s)[0];
+      }
+      return;
+    }
     s.update && s.update(dt, this.s);
     if (s.done(this.s)) {
       this.phase = 'cleared'; this.t = 0;
       Sfx.play('upgrade');
       G.trigger('TASK COMPLETE', STYLE.pal.green, { flash: 0.12, radius: 60, rings: 2 });
+      return;
     }
+    const l0 = s.lines(this.s)[0];
+    if (s.rebrief && l0 !== this.l0) { this.l0 = l0; this.phase = 'brief'; this.t = 0; Sfx.play('levelUp'); }       // neue Teilaufgabe: Textbox erneut
   },
 
   // Markierungen in der Spielwelt (Pixel-Ringe)
   drawWorld(ctx) {
-    if (!this.active || this.phase !== 'task') return;
+    if (!this.active || (this.phase !== 'task' && this.phase !== 'brief')) return;
     const s = SCENARIOS[this.idx];
     if (!s.marker) return;
     const m = s.marker(this.s);
@@ -93,23 +111,36 @@ const Tutorial = {
       drawPrompt(ctx, 'MENU [SPACE]', 232);
       return;
     }
-    const s = SCENARIOS[this.idx], w = 400, x = STAGE_W / 2 - w / 2, y = 228, h = 82;
-    const done = this.phase === 'cleared', col = done ? P.green : P.yellow;
-    uiPanel(ctx, x, y, w, h, { color: col, fill: P.void, alpha: 0.93, glow: true });
-    uiText(ctx, 'TUTORIAL ' + (this.idx + 1) + '/' + SCENARIOS.length + '  -  ' + s.name, x + 10, y + 14, { size: T.small, color: col });
-    if (done) {
-      uiText(ctx, 'TASK COMPLETE', STAGE_W / 2, y + 48, { size: T.h1, color: P.green, align: 'center', glow: P.green });
+    const s = SCENARIOS[this.idx], lines = s.lines(this.s), head = 'TUTORIAL ' + (this.idx + 1) + '/' + SCENARIOS.length + '  -  ' + s.name;
+    if (this.phase === 'brief') {                                         // grosse Textbox: Ziel und Erklaerung, Spiel steht still
+      const w = 360, h = 150, x = STAGE_W / 2 - w / 2, y = 96, pulse = 0.55 + 0.45 * Math.sin(G.realTime * 4);
+      ctx.fillStyle = 'rgba(5,6,15,0.55)'; ctx.fillRect(0, 0, STAGE_W, STAGE_H);
+      uiPanel(ctx, x, y, w, h, { color: P.yellow, fill: P.void, alpha: 0.97, glow: true });
+      uiText(ctx, head, STAGE_W / 2, y + 16, { size: T.small, color: P.yellow, align: 'center' });
+      const n = uiWrap(ctx, lines[0], STAGE_W / 2, y + 40, w - 30, 16, { size: T.h2, color: P.white, align: 'center' });
+      uiWrap(ctx, lines[1], STAGE_W / 2, y + 40 + n * 16 + 6, w - 40, 13, { size: T.body, color: P.ice, align: 'center' });
+      uiText(ctx, 'Nothing happens until you press SPACE. Read in peace.', STAGE_W / 2, y + h - 36, { size: T.small, color: P.grey, align: 'center' });
+      ctx.save(); ctx.globalAlpha = pulse;
+      uiPanel(ctx, STAGE_W / 2 - 100, y + h - 28, 200, 20, { color: P.green, fill: P.void, alpha: 1, glow: true });
+      uiText(ctx, 'PRESS SPACE TO START', STAGE_W / 2, y + h - 14, { size: T.h2, color: P.green, align: 'center' });
+      ctx.restore();
       return;
     }
-    const lines = s.lines(this.s);
-    uiText(ctx, lines[0], STAGE_W / 2, y + 34, { size: T.h2, color: P.ice, align: 'center' });
-    uiText(ctx, lines[1], STAGE_W / 2, y + 50, { size: T.body, color: P.grey, align: 'center' });
-    uiText(ctx, s.progress(this.s), STAGE_W / 2, y + 70, { size: T.small, color: P.cyan, align: 'center' });
+    const done = this.phase === 'cleared', col = done ? P.green : P.yellow, w = 260, x = STAGE_W / 2 - 40 - w / 2, y = 10;   // Aufgabe laeuft: kleine Anzeige oben, der Bildschirm bleibt frei
+    if (done) {
+      uiPanel(ctx, x, y, w, 26, { color: col, fill: P.void, alpha: 0.9, glow: true });
+      uiText(ctx, 'TASK COMPLETE', x + w / 2, y + 18, { size: T.h2, color: P.green, align: 'center', glow: P.green });
+      return;
+    }
+    uiPanel(ctx, x, y, w, 44, { color: col, fill: P.void, alpha: 0.85, glow: false });
+    uiText(ctx, (this.idx + 1) + '/' + SCENARIOS.length + '  ' + s.name, x + 8, y + 11, { size: T.small, color: P.grey });
+    uiText(ctx, lines[0], x + w / 2, y + 25, { size: T.body, color: P.ice, align: 'center' });
+    uiText(ctx, s.progress(this.s), x + w / 2, y + 38, { size: T.small, color: P.cyan, align: 'center' });
   },
 };
 
 // ---------- Hilfen für die Szenarien ----------
-const tkeys = (...ids) => ids.map((i) => Input.label(i)).join(' ');
+const tkeys = (...ids) => ids.map((i) => Input.fullLabel(i)).join(ids.length > 2 ? ' ' : ' / ');       // ausgeschriebene Tastennamen (SHIFT, SPACE ...)
 function tutSpawn(type, angle, dist) {
   const p = G.player, [x, y] = clampToMap(p.x + fwdX(angle) * dist, p.y + fwdY(angle) * dist, 20), e = new Enemy(type, x, y, false);
   G.enemies.push(e);
@@ -128,7 +159,7 @@ const SCENARIOS = [
     enter: (s) => { s.pts = [[-130, 60], [120, 70], [0, -100]]; s.i = 0; },
     update: (dt, s) => { const q = s.pts[s.i]; if (q && Math.hypot(G.player.x - q[0], G.player.y - q[1]) < 22) { s.i++; Sfx.play('select'); } },
     marker: (s) => s.pts[s.i] ? { x: s.pts[s.i][0], y: s.pts[s.i][1], r: 22 } : null,
-    lines: () => ['MOVE: ' + tkeys('up', 'left', 'down', 'right'), 'Walk into the glowing ring. You face the way you walk.'],
+    lines: () => ['MOVE: ' + tkeys('up', 'left', 'down', 'right'), Save.data.mouseAim ? 'Walk into the glowing ring. You aim with the mouse.' : 'Walk into the glowing ring. You face the way you walk. A quick tap only turns you.'],
     progress: (s) => tutCount(s.i, 3, 'RINGS'),
     done: (s) => s.i >= 3,
   },
@@ -142,6 +173,7 @@ const SCENARIOS = [
   },
   {
     name: 'RANGED ATTACK',
+    rebrief: true,
     enter: (s) => { s.stage = 0; G.player.weapon = WEAPON.SWORD; },
     update: (dt, s) => {
       if (s.stage === 0 && G.player.weapon === WEAPON.SHOT) { s.stage = 1; G.kills = 0; }
@@ -154,9 +186,10 @@ const SCENARIOS = [
   {
     name: 'ABILITY SELECTION',
     enter: (s) => {
-      const p = G.player, tier = CFG.loadout.tiers[0];
-      p.slots.weak = null;
-      G.pick = { tier, ids: ['dash', 'shockstep', 'adrenaline'], sel: 0, age: 0 };         // wie nach einem Boss: 3 Abilities zur Wahl
+      G.player.slots.weak = null;
+    },
+    begin: () => {
+      G.pick = { tier: CFG.loadout.tiers[0], ids: ['dash', 'shockstep', 'adrenaline'], sel: 0, age: 0 };         // wie nach einem Boss: 3 Abilities zur Wahl
       G.mode = 'pick';
     },
     lines: () => ['ABILITY SELECTION', 'Pick one of the three abilities. Your choice goes into the WEAK slot.'],
@@ -186,6 +219,7 @@ const SCENARIOS = [
   },
   {
     name: 'COVER',
+    rebrief: true,
     enter: (s) => {
       s.stage = 0;
       for (const [ox, oy] of [[-24, 48], [28, 52]]) { const o = new Obstacle(ox, oy); o.maxHp = o.hp = 16; o.age = 1; G.obstacles.push(o); }
@@ -241,9 +275,10 @@ const SCENARIOS = [
     enter: (s) => {
       const w = Save.equipped('melee'), id = Object.keys(CFG.evolutions.list).find((k) => CFG.evolutions.list[k].slot === 'melee' && CFG.evolutions.list[k].weapon === w);
       s.id = id; s.stage = 0;
-      if (!id) return;                                                                  // keine Evolution fuer diese Nahkampfwaffe: Szenario entfaellt
-      G.pick = { kind: 'evo', tier: null, ids: [id], sel: 0, age: 0 }; G.mode = 'pick';
     },
+    skip: (s) => !s.id,                                                                 // keine Evolution fuer diese Nahkampfwaffe: Szenario entfaellt
+    begin: (s) => { G.pick = { kind: 'evo', tier: null, ids: [s.id], sel: 0, age: 0 }; G.mode = 'pick'; },
+    rebrief: true,
     update: (dt, s) => {
       if (!s.id) return;
       const R = CFG.evolutions.list[s.id];
@@ -262,7 +297,8 @@ const SCENARIOS = [
   },
   {
     name: 'BOSS FIGHT',
-    enter: (s) => { G.startBossFight('octagon'); s.set = false; G.player.slots.medium = 'shield'; },
+    enter: (s) => { s.set = false; G.player.slots.medium = 'shield'; },
+    begin: () => G.startBossFight('octagon'),
     update: (dt, s) => { if (G.boss && !s.set) { G.boss.maxHp = G.boss.hp = 8; s.set = true; } },
     lines: (s) => s.set ? ['DEFEAT THE BOSS', 'Dodge its bolts, use ' + tkeys('ability_weak') + ' and ' + tkeys('ability_medium') + ', hit it with everything.'] : ['A BOSS APPEARS ...', 'Real bosses are much tougher. This one is a practice dummy.'],
     progress: (s) => G.boss ? 'BOSS HP ' + Math.max(0, Math.ceil(G.boss.hp)) + ' / ' + G.boss.maxHp : '',

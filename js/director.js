@@ -25,7 +25,9 @@ class Director {
   }
 
   // Wartezeit-Faktor für alle Gegner außer den vier Grundtypen (die laufen über waves()): CFG.spawnAll.rate mal Kartenfaktor
-  get spawnAllFactor() { return CFG.spawnAll.rate * G.diff.allRate * G.diff.spawn; }
+  get spawnAllFactor() { return CFG.spawnAll.rate * G.diff.allRate * G.diff.spawn * this.infRate; }
+  get infRate() { return G.infinite ? CFG.infinite.spawnRate : 1; }       // Endlos-Modus: mehr Gegner (kuerzere Wartezeiten)
+  get infCap() { return G.infinite ? CFG.infinite.capMul : 1; }
 
   // Spawn-Intervalle zur aktuellen Spielzeit (Sekunden zwischen zwei Gegnern)
   waves(time) {
@@ -43,7 +45,7 @@ class Director {
     if (w.sMin < 2.5) w.sMax = 2.5;
     w.sMin = Math.max(0, w.sMin);
     // insgesamt etwas schneller spawnen, im Blutmond noch einmal
-    const factor = W.rateFactor * G.diff.rate * (G.bloodMoon ? CFG.bloodMoon.spawnFactor : 1) * G.diff.spawn;
+    const factor = W.rateFactor * G.diff.rate * (G.bloodMoon ? CFG.bloodMoon.spawnFactor : 1) * G.diff.spawn * this.infRate;
     const trim = G.map.trim || {};                         // Kartenspezifisch: manche normale Gegner seltener (c/t/r/s), weil Karten-Gegner sie ersetzen
     for (const k of Object.keys(w)) w[k] *= factor * (trim[k[0]] || 1);
     return w;
@@ -87,7 +89,7 @@ class Director {
     const gShrink = time >= GD.shrinkFrom ? Math.floor((time - GD.shrinkFrom) / 60) + 1 : 0;
     active.g = time >= GD.from;
     const SS = CFG.supportSpawn;
-    active.p = time >= SS.from && G.enemies.filter((e) => e.alive && e.type === 'support').length < Math.ceil(SS.maxAlive * CFG.spawnAll.capMul * G.diff.capMul);
+    active.p = time >= SS.from && G.enemies.filter((e) => e.alive && e.type === 'support').length < Math.ceil(SS.maxAlive * CFG.spawnAll.capMul * G.diff.capMul * this.infCap);
     ranges.p = [SS.min, SS.max];
     ranges.g = [Math.max(GD.floor, GD.min - gShrink), Math.max(GD.floor, GD.max - gShrink)];
     const sa = this.spawnAllFactor;
@@ -122,7 +124,7 @@ class Director {
   spawnExtra(dt) {
     for (const type of Object.keys(CFG.extraSpawn)) {
       const C = CFG.extraSpawn[type];
-      if (G.time < C.from || G.enemies.filter((e) => e.alive && e.type === type).length >= Math.ceil(C.maxAlive * CFG.spawnAll.capMul * G.diff.capMul)) continue;
+      if (G.time < C.from || G.enemies.filter((e) => e.alive && e.type === type).length >= Math.ceil(C.maxAlive * CFG.spawnAll.capMul * G.diff.capMul * this.infCap)) continue;
       if (this.extraT[type] === undefined) this.extraT[type] = rand(C.min, C.max) * this.spawnAllFactor * ((G.map.trim || {})[type] || 1);
       this.extraT[type] -= dt;
       if (this.extraT[type] > 0) continue;

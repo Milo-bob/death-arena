@@ -22,11 +22,36 @@ const Cos = {
       const c = document.createElement('canvas');
       c.width = im.w; c.height = im.h;
       const g = c.getContext('2d');
-      g.filter = filter;
-      g.drawImage(im.img, 0, 0);
+      if ('filter' in g) { g.filter = filter; g.drawImage(im.img, 0, 0); }
+      else { g.drawImage(im.img, 0, 0); this.filterPixels(g, c.width, c.height, filter); }       // Safari/iPad kennt ctx.filter nicht: Filter selbst auf die Pixel rechnen
       IMG[key] = { img: c, ok: true, res: im.res, w: im.w, h: im.h, rcx: im.rcx, rcy: im.rcy };
       return key;
     } catch (e) { return base; }
+  },
+  // CSS-Filter (hue-rotate, saturate, brightness) per Pixelrechnung, gleiche Matrizen wie die CSS-Spezifikation
+  filterPixels(g, w, h, filter) {
+    const d = g.getImageData(0, 0, w, h), p = d.data, re = /(hue-rotate|saturate|brightness)\(\s*(-?[\d.]+)(deg)?\s*\)/g;
+    let m, M = [1, 0, 0, 0, 1, 0, 0, 0, 1];
+    const mul = (A, B) => [0, 1, 2].flatMap((r) => [0, 1, 2].map((c) => A[r * 3] * B[c] + A[r * 3 + 1] * B[3 + c] + A[r * 3 + 2] * B[6 + c]));
+    while ((m = re.exec(filter))) {
+      const v = parseFloat(m[2]);
+      let F;
+      if (m[1] === 'brightness') F = [v, 0, 0, 0, v, 0, 0, 0, v];
+      else if (m[1] === 'saturate') F = [0.213 + 0.787 * v, 0.715 - 0.715 * v, 0.072 - 0.072 * v, 0.213 - 0.213 * v, 0.715 + 0.285 * v, 0.072 - 0.072 * v, 0.213 - 0.213 * v, 0.715 - 0.715 * v, 0.072 + 0.928 * v];
+      else {
+        const c = Math.cos(v * Math.PI / 180), s = Math.sin(v * Math.PI / 180);
+        F = [0.213 + c * 0.787 - s * 0.213, 0.715 - c * 0.715 - s * 0.715, 0.072 - c * 0.072 + s * 0.928,
+             0.213 - c * 0.213 + s * 0.143, 0.715 + c * 0.285 + s * 0.140, 0.072 - c * 0.072 - s * 0.283,
+             0.213 - c * 0.213 - s * 0.787, 0.715 - c * 0.715 + s * 0.715, 0.072 + c * 0.928 + s * 0.072];
+      }
+      M = mul(F, M);
+    }
+    const cl = (x) => (x < 0 ? 0 : x > 255 ? 255 : x);
+    for (let i = 0; i < p.length; i += 4) {
+      const r = p[i], gg = p[i + 1], b = p[i + 2];
+      p[i] = cl(M[0] * r + M[1] * gg + M[2] * b); p[i + 1] = cl(M[3] * r + M[4] * gg + M[5] * b); p[i + 2] = cl(M[6] * r + M[7] * gg + M[8] * b);
+    }
+    g.putImageData(d, 0, 0);
   },
   sprite(base, cat, previewItem) {
     const it = previewItem || this.cur(cat);

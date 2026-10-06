@@ -128,7 +128,7 @@ const Music = {
       }
     }
     this.setVolume(Save.data.musicVol);
-    if (c.state === 'suspended') c.resume().catch(() => {});
+    if (c.state !== 'running') { try { c.resume().catch(() => {}); } catch (e) {} }
     return true;
   },
   setVolume(v) { if (this.gain) this.gain.gain.value = v * 0.6; },
@@ -169,7 +169,7 @@ const Music = {
     const c = Sfx.ctx, now = performance.now(), dt = Math.min(0.2, (now - this.lastTick) / 1000);
     this.lastTick = now;
     if (!c || !this.name) return;
-    if (c.state === 'suspended') c.resume().catch(() => {});           // vor der ersten Eingabe blockt der Browser den Ton
+    if (c.state !== 'running') { try { c.resume().catch(() => {}); } catch (e) {} }           // vor der ersten Eingabe blockt der Browser den Ton
     if (this.nextT < c.currentTime) this.nextT = c.currentTime + 0.05;       // nach Lücken (Tab-Wechsel) neu ansetzen
     // Zustände weich nachführen: Gefahr steigt schnell, fällt langsam; der Boss blendet über ca. 7 s aus
     this.danger += clamp(this.dangerT - this.danger, -0.2 * dt, 0.6 * dt);

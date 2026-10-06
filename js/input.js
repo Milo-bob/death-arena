@@ -28,10 +28,16 @@ const Input = {
     { id: 'artifact', label: 'HERO ARTIFACT', def: 'KeyF' },
   ],
   code(action) { return (Save.data.binds && Save.data.binds[action]) || this.actions.find((a) => a.id === action).def; },
-  actDown(action) { return this.down(this.code(action)); },
+  mouseHeld: false,                                      // linke Maustaste gehalten
+  actDown(action) { return this.down(this.code(action)) || (action === 'attack' && this.mouseHeld && !!Save.data.mouseAim); },
   actPressed(action) { return this.pressed(this.code(action)); },
   // Kurzer Tastentext fuer Anzeigen (HUD, Menue)
   label(action) { return this.codeLabel(this.code(action)); },
+  // Ausgeschriebener Tastenname (fuer das Tutorial: "SHIFT" statt "SH")
+  fullLabel(action) {
+    const c = this.code(action), map = { Space: 'SPACE', ShiftLeft: 'SHIFT', ShiftRight: 'SHIFT', ControlLeft: 'CONTROL', ControlRight: 'CONTROL', AltLeft: 'ALT', AltRight: 'ALT', Tab: 'TAB', ArrowUp: 'UP ARROW', ArrowDown: 'DOWN ARROW', ArrowLeft: 'LEFT ARROW', ArrowRight: 'RIGHT ARROW', Backquote: 'BACKTICK (`)', Enter: 'ENTER', Backspace: 'BACKSPACE', Minus: 'MINUS', Equal: 'EQUALS', Comma: 'COMMA', Period: 'PERIOD', Slash: 'SLASH', Semicolon: 'SEMICOLON', Quote: 'QUOTE', BracketLeft: 'LEFT BRACKET', BracketRight: 'RIGHT BRACKET', Backslash: 'BACKSLASH' };
+    return map[c] || (/^Numpad/.test(c) ? 'NUMPAD ' + c.replace(/^Numpad/, '') : this.codeLabel(c));
+  },
   codeLabel(c) {
     const map = { Space: 'SPC', ShiftLeft: 'SH', ControlLeft: 'CTRL', AltLeft: 'ALT', Tab: 'TAB', ArrowUp: 'UP', ArrowDown: 'DN', ArrowLeft: 'LT', ArrowRight: 'RT', Backquote: '`', Enter: 'ENT' };
     if (map[c]) return map[c];
@@ -65,8 +71,19 @@ window.addEventListener('keydown', (e) => {
   Input.keys[c] = true;
 });
 window.addEventListener('keyup', (e) => { Input.keys[normCode(e.code)] = false; });
-window.addEventListener('blur', () => { Input.keys = {}; });
-window.addEventListener('mousedown', (e) => { Input.setMouse(e); if (e.button === 2) Input.rightClicked = true; else Input.clicked = true; });
+const releaseAll = () => { Input.keys = {}; Input.mouseHeld = false; };
+window.addEventListener('blur', releaseAll);
+window.addEventListener('pagehide', releaseAll);
+window.addEventListener('contextmenu', releaseAll);
+document.addEventListener('visibilitychange', () => { if (document.hidden) releaseAll(); });
+// Verlorene keyup-Ereignisse (z. B. Shift zusammen mit anderer Taste losgelassen): Modifier-Flags jedes Ereignisses abgleichen
+const syncMods = (e) => { if (e.shiftKey === false) Input.keys.ShiftLeft = false; if (e.ctrlKey === false) { Input.keys.ControlLeft = false; Input.keys.ControlRight = false; } if (e.altKey === false) { Input.keys.AltLeft = false; Input.keys.AltRight = false; } };
+window.addEventListener('keydown', syncMods, true);
+window.addEventListener('keyup', syncMods, true);
+window.addEventListener('mousedown', syncMods, true);
+window.addEventListener('mousemove', syncMods, true);
+window.addEventListener('mousedown', (e) => { Input.setMouse(e); if (e.button === 2) Input.rightClicked = true; else { Input.clicked = true; Input.mouseHeld = true; } });
+window.addEventListener('mouseup', (e) => { if (e.button !== 2) Input.mouseHeld = false; });
 window.addEventListener('mousemove', (e) => { Input.setMouse(e); Input.mouse.moved = true; });
 window.addEventListener('contextmenu', (e) => e.preventDefault());
 

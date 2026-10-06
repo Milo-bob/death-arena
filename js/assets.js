@@ -7,7 +7,7 @@ const IMG = {};
 
 function imageList() {
   const names = [
-    'startscreen', 'keysettings', 'ground', 'ground2', 'ground3', 'pulseIcon', 'blinkIcon', 'lanceIcon', 'impulseIcon', 'frostIcon', 'fieldIcon',
+    'startscreen', 'keysettings', 'ground', 'ground2', 'ground3', 'ground4', 'pulseIcon', 'blinkIcon', 'lanceIcon', 'impulseIcon', 'frostIcon', 'fieldIcon',
     'beamIcon', 'grenadeIcon', 'fireIcon', 'armorIcon', 'regenIcon', 'phoenixIcon', 'damageIcon',
     'whipIcon', 'katanaIcon', 'hammerIcon', 'shotgunIcon', 'boomerangIcon', 'molotovIcon', 'chainIcon', 'blackholeIcon',
     'shockstepIcon', 'adrenalineIcon', 'droneIcon', 'overchargeIcon', 'stormIcon', 'berserkIcon', 'nanoIcon', 'buffHaste', 'buffRapid', 'buffGuard', 'buffCharge', 'buffPower', 'buffMagnet', 'buffRegen', 'buffVampire', 'buffChrono', 'buffCoolant', 'buffNova', 'rocketIcon', 'bladesIcon', 'hackIcon', 'necroIcon', 'stimIcon',
@@ -72,14 +72,15 @@ function drawSprite(ctx, name, x, y, dir = 90, size = 100, opts) {
   ctx.rotate((dir - 90) * DEG);
   const s = size / 100;
   ctx.scale(s, s);
+  let src = im.img;
   if (opts) {
     if (opts.alpha !== undefined) ctx.globalAlpha = clamp(opts.alpha, 0, 1);
     let filter = '';
     if (opts.hue) filter += 'hue-rotate(' + opts.hue + 'deg) ';
     if (opts.brightness) filter += 'brightness(' + opts.brightness + ') ';
-    if (filter) ctx.filter = filter;
+    if (filter) { if ('filter' in ctx) ctx.filter = filter; else src = IMG[Cos.tinted(name, filter.trim())].img; }       // Safari kennt ctx.filter nicht
   }
-  ctx.drawImage(opts && opts.gray ? grayImage(im) : im.img, -im.rcx / im.res, -im.rcy / im.res, im.w / im.res, im.h / im.res);
+  ctx.drawImage(opts && opts.gray ? grayImage(im) : src, -im.rcx / im.res, -im.rcy / im.res, im.w / im.res, im.h / im.res);
   ctx.restore();
 }
 

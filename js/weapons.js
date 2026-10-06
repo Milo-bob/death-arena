@@ -29,7 +29,7 @@ const Loadout = {
 
   reset() {
     this.resetUps();
-    this.sword = { speed: CFG.sword.baseSpeed, size: CFG.sword.baseSize, number: CFG.sword.baseNumber };
+    this.sword = { speed: CFG.sword.baseSpeed, size: CFG.sword.baseSize, number: CFG.sword.baseNumber, knock: CFG.sword.knock };
     this.shot = { speed: CFG.shot.baseSpeed, size: CFG.shot.baseSize, cooldown: CFG.shot.baseCooldown, lvl: 0 };
     this.shield = { duration: CFG.shield.duration, cooldown: CFG.shield.cooldown };
     this.dash = { lvl: 1, cooldown: CFG.dash.baseCooldown };
@@ -52,7 +52,6 @@ const Loadout = {
     const bs = CFG.beam.beamSizes;
     this.beamSize = time > 300 ? bs[2] : time > 120 ? bs[1] : bs[0];
     if (this.sword.size > CFG.sword.maxSize) this.sword.size = CFG.sword.maxSize;
-    if (this.sword.speed > 10 && this.sword.number === 4) this.sword.speed = 10;
   },
 
   // Nach jedem besiegten Boss
@@ -72,10 +71,11 @@ const Loadout = {
   upgradeStats(time) {
     this.applyUps();                           // Peitsche, Katana, Hammer, Schrotflinte, Bumerang, Molotov und die starken Waffen
     const s = this.sword;
-    s.size += 0.05;
+    s.size += CFG.sword.upSize;
     s.speed += 1;
-    if (time > 239.9 && time < 250) { s.number = 3; s.size = 1; s.speed = 11.25; }
-    if (time > 479.9 && time < 500) { s.number = 4; s.size = 0.85; s.speed = 7; }
+    s.knock = Math.min(CFG.sword.maxKnock, s.knock + CFG.sword.upKnock);
+    if (time > 239.9 && time < 250) s.number = 3;          // mehr Klingen, aber Tempo und Groesse werden nie kleiner (das Original bremste hier auf 11.25 und schrumpfte)
+    if (time > 479.9 && time < 500) s.number = 4;
 
     const p = this.shot;
     p.speed = Math.min(CFG.shot.maxSpeed, p.speed + 1);
@@ -129,7 +129,7 @@ class SwordSwing {
       Cos.swordTick(Juice.particles, Cos.cur('blade'), this.player.x, this.player.y, this.dir, this.sizePct, dt);
       return;
     }
-    let step = this.degPerSec * this.player.hasteFactor * dt;
+    let step = this.degPerSec * this.player.hasteFor('sword') * dt;
     if (!this.hold) step = Math.min(step, this.sweepLeft);   // losgelassen: die laufende Umdrehung endet genau auf 360 Grad (kein Ueberdrehen)
     this.dir += step;                          // dreht im Uhrzeigersinn
     this.sweepLeft -= step;
@@ -538,6 +538,7 @@ class Ultimate {
     if (this.phase === 'grow') {
       this.growthFrames += framesOf(dt);
       const n = Math.min(40, Math.floor(this.growthFrames));
+      this.growN = n;
       // 20x +100, 10x +150, 5x +200, 5x +500 Prozent
       this.sizePct = 400 + Math.min(n, 20) * 100 + clamp(n - 20, 0, 10) * 150 + clamp(n - 30, 0, 5) * 200 + clamp(n - 35, 0, 5) * 500;
       if (n >= 40) { this.phase = 'flash'; this.flashAge = 0; }
@@ -545,6 +546,12 @@ class Ultimate {
       this.flashAge += dt;
       if (this.flashAge > 0.5) this.alive = false;
     }
+  }
+  // Deckkraft des weissen Vollbild-Blitzes: steigt am Ende des Wachsens auf 1, bleibt voll weiss und blendet dann aus. Gezeichnet wird er ganz zuletzt (game.js), nichts liegt darueber.
+  get whiteAlpha() {
+    if (this.phase === 'grow') return clamp(((this.growN || 0) - 33) / 6, 0, 1);
+    if (this.phase === 'flash') return this.flashAge < 0.3 ? 1 : clamp(1 - (this.flashAge - 0.3) / 0.2, 0, 1);
+    return 0;
   }
   hitsCircle(cx, cy, r) {
     if (this.phase === 'flash') return true;       // der Blitz deckt den ganzen Bildschirm ab
@@ -555,10 +562,7 @@ class Ultimate {
       drawSprite(ctx, 'ult' + (this.stageIndex() + 1), this.player.x, this.player.y, 90, 400);
     } else if (this.phase === 'grow') {
       drawSprite(ctx, 'ult4', this.player.x, this.player.y, 90, this.sizePct);
-    } else {
-      const a = this.flashAge < 0.25 ? 1 : this.flashAge < 0.375 ? 0.95 : 0.85;
-      drawSprite(ctx, 'ultFlash', G.cam.x, G.cam.y, 90, 100, { alpha: this.flashAge < 0.5 ? a - Math.max(0, this.flashAge - 0.375) : 0 });
-    }
+    }                                     // die Flash-Phase wird als Vollbild-Weiss am Ende von G.drawPlay gezeichnet
   }
 }
 

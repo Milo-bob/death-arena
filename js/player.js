@@ -44,6 +44,8 @@ class Player {
     this.ultHealed = false;    // Heilung beim ersten Aufladen des Ultimates schon bekommen?
     this.afk = 0;
     this.afkTick = 0;
+    this.chillT = 0;           // > 0: gekuehlt (Frost-Gegner, Karte 4): Lauftempo x CFG.chill.slow
+    this.slideX = 0; this.slideY = 0;       // Eis: Geschwindigkeit pro Bild
     this.curseT = 0;           // > 0: von einem Fluch-Unterstützer gebremst
     this.buffs = { haste: 0, rapid: 0, guard: 0, power: 0, magnet: 0, regen: 0, vampire: 0, chrono: 0, coolant: 0 };   // verbleibende Sekunden der Drop-Buffs
   }
@@ -52,10 +54,13 @@ class Player {
   get cdRate() { return (1 + Save.bonus('cooldown') + Xp.val('cooldown')) * (this.buffs.coolant > 0 ? CFG.drops.types.coolant.rate : 1); }
   // Angriffstempo durch den Raserei-Drop: Schwert dreht schneller (siehe SwordSwing), Schuss feuert schneller
   get hasteFactor() { return (this.buffs.rapid > 0 ? 1 / CFG.drops.types.rapid.mult : 1) * (this.has('overclock') ? 1 + (CFG.passives.overclock.rate - 1) * Save.gearMul('overclock') : 1) * (1 + Save.bonus('attackSpeed') + Xp.val('rapid')) * Hero.mods().atk; }
+  // Angriffstempo je Waffe: alle Tempo-Boni (Rapid-Buff, Overclock, Attack Speed, Quick Hands, Helden) wirken auf die Plasma Blade staerker als auf den Blaster (CFG.hasteScale)
+  hasteFor(kind) { const h = this.hasteFactor, k = CFG.hasteScale[kind]; return k === undefined ? h : 1 + (h - 1) * k; }
   evo(id) { return this.evolved[CFG.evolutions.list[id].slot] === id; }       // Evolution dieses Laufs aktiv?
   has(id) { return this.slots.weak === id || this.slots.medium === id || this.slots.strong === id; }       // Ability (auch passive) ausgewaehlt?
 
-  get invincible() { return G.victory > 0 || this.dashLeft > 0 || this.invincibleT > 0 || this.blinkT > 0; }
+  get invincibleBase() { return G.victory > 0 || this.dashLeft > 0 || this.invincibleT > 0 || this.blinkT > 0; }
+  get invincible() { return this.invincibleBase || SafeSpot.inside; }       // im Safe Spot ist man unverwundbar
   // Wohin Gegner zielen: auf den Spieler, bei Blink auf die Stelle, wo er verschwunden ist
   get target() { return this.blinkT > 0 && this.blinkFrom ? this.blinkFrom : this.decoyT > 0 && this.decoy ? this.decoy : this; }
   get hasField() { return this.slots.strong === 'field'; }
@@ -120,7 +125,13 @@ class Player {
 
   // kind: 'touch' | 'shoot' | 'higher'
   hit(kind, mul = 1, src = null) {          // mul: zusätzlicher Schadensfaktor (Bosse: CFG.boss.power.dmg); src: Name der Quelle fuer die Run-Statistik
-    if (G.god || this.hitCd > 0 || this.invincible || this.shield) return false;     // die Schildblase blockt alle Treffer
+    if (G.god || this.hitCd > 0 || this.invincibleBase || this.shield) return false;     // die Schildblase blockt alle Treffer
+    if (SafeSpot.inside) {                                        // Safe Spot: Treffer abgefangen, fuer die Statistik mit geschaetztem Schaden
+      const est = kind === 'higher' ? CFG.player.kiteBaseDamage + G.bossStageKite : (CFG.player.hitDamageMin + CFG.player.hitDamageMax) / 2 * this.damageFactor;
+      SafeSpot.blocked(src, est * G.diff.damage * mul);
+      this.hitCd = 0.2;                                           // kurze Pause, damit ein Dauerkontakt nicht jedes Bild zaehlt
+      return false;
+    }
     let amount;
     if (kind === 'higher') {
       amount = CFG.player.kiteBaseDamage + G.bossStageKite;
@@ -165,6 +176,7 @@ class Player {
     this.invincibleT = Math.max(0, this.invincibleT - dt);
     this.fortressT = Math.max(0, this.fortressT - dt);
     this.attackCd = Math.max(0, this.attackCd - dt);
+    this.chillT = Math.max(0, this.chillT - dt);
     const cdDt = dt * this.cdRate;          // Meta-Upgrade: Abklingzeiten laufen schneller ab
     this.dashCd = Math.max(0, this.dashCd - cdDt * Save.gearMul('dash'));          // Ability-Stufe: Abklingzeit laeuft schneller ab
     this.pulseCd = Math.max(0, this.pulseCd - cdDt * Save.gearMul('pulse'));
@@ -185,7 +197,7 @@ class Player {
     this.updateAfk(dt);
     this.gearTick(dt);
     {                                                                       // Cosmetics: Spur, Aura-Flammen, Jetpack
-      const moving = (this.canMove === 1 && this.anyMoveKey()) || this.dashLeft > 0, tr = Cos.cur('trail');
+      const moving = (this.canMove === 1 && this.anyMoveKey() && this.moveGo) || this.dashLeft > 0, tr = Cos.cur('trail');
       if (tr.shape === 'echo') { if (moving) Juice.ghost(this, 0.5); } else Cos.trailTick(Juice.particles, tr, this, dt, moving, G.realTime);
       Cos.auraTick(Juice.particles, Cos.cur('aura'), this.x, this.y, dt);
       Cos.gearTick(Juice.particles, Cos.cur('gear'), this.x, this.y, this.dir, dt, moving);
@@ -206,7 +218,7 @@ class Player {
     if (regen > 0 && this.hp > 0) this.hp = Math.min(this.maxHp, this.hp + regen * dt);
     if (this.hp < 0.1) {
       if (Save.equipped('artifact') === 'phoenix' && !this.phoenixUsed) {       // Artefakt Extra-Leben: einmal pro Lauf zurueck
-        this.phoenixUsed = true;
+        this.phoenixUsed = true; Ach.add('revive');
         this.hp = Math.min(this.maxHp, CFG.items.phoenix.hp * Save.gearMul('phoenix'));
         this.invincibleT = Math.max(this.invincibleT, CFG.items.phoenix.protect);
         Juice.hitStop(0.1); Juice.zoomPulse(1.05, 0.4);
@@ -226,6 +238,7 @@ class Player {
   }
 
   move(f) {
+    const px0 = this.x, py0 = this.y;
     const w = Input.actDown('up'), a = Input.actDown('left'), s = Input.actDown('down'), d = Input.actDown('right');
     // gleiche Reihenfolge der Bedingungen wie im Original (gegenüberliegende Tasten behalten die alte Richtung)
     if (w && !a) this.moveDir = 0;
@@ -237,30 +250,89 @@ class Player {
     if (s && a) this.moveDir = -135;
     if (s && d) this.moveDir = 135;
 
-    const can = this.canMove;
+    const can = this.canMove, P = CFG.player, anyKey = this.anyMoveKey();
+    if (Save.data.mouseAim) {                                                  // Maus-Zielen: Blickrichtung = zur Maus, Laufen unabhaengig davon in die Tastenrichtung (Tippen-zum-Drehen entfaellt)
+      this.moveGraceT = 0; this.keyHeldT = anyKey ? 1 : 0; this.moveArmed = anyKey; this.moveGo = anyKey;
+      if (can > 0 && Input.mouse.x > -900) {
+        const mx = Input.mouse.x - STAGE_W / 2 + G.cam.x, my = STAGE_H / 2 - Input.mouse.y + G.cam.y;
+        if (Math.hypot(mx - this.x, my - this.y) > 4) this.dir = dirTo(this.x, this.y, mx, my);
+      }
+      if (can === 1 && anyKey) {
+        const sp = this.moveSpeed() * f;
+        this.x += fwdX(this.moveDir) * sp; this.y += fwdY(this.moveDir) * sp;
+      }
+      this.iceStep(px0, py0, f);
+      this.moveDash(f);
+      return;
+    }
+    // Tippen = nur drehen: Ein neuer Tastendruck laesst den Spieler zuerst nur in die Richtung zeigen (sofort, in alle 8 Richtungen).
+    // Er laeuft erst los, wenn die Taste laenger als P.tapSeconds gehalten wird, er schon in diese Richtung schaut oder er gerade erst gelaufen ist.
+    // Fuer den AFK-Schaden zaehlt schon das Tippen als Bewegen (anyMoveKey).
+    this.moveGraceT = Math.max(0, (this.moveGraceT || 0) - f / 30);
+    if (!anyKey) { this.keyHeldT = 0; this.moveArmed = false; this.moveGo = false; }
+    else {
+      const first = !this.keyHeldT;
+      this.keyHeldT = (this.keyHeldT || 0) + f / 30;
+      if (!this.moveArmed && (this.keyHeldT >= P.tapSeconds || (first && (this.moveGraceT > 0 || Math.abs(angleDiff(this.moveDir, this.dir)) <= P.faceTolerance)))) this.moveArmed = true;
+      this.moveGo = this.moveArmed;
+    }
     if (can > 0) {
-      // sanft in Laufrichtung drehen (Original: 20 % des Winkelunterschieds pro Bild)
       const turn = angleDiff(this.moveDir, this.dir);
-      this.dir += turn * (1 - Math.pow(1 - CFG.player.turnSmoothing, f));
-      if (can === 1 && this.anyMoveKey()) {
-        let speed = this.boosted ? CFG.player.boostSpeed : CFG.player.speed;
-        const melee = Save.equipped('melee');
-        if (this.weapon === WEAPON.SWORD && Input.actDown('attack') && !this.shield) speed *= (CFG[melee] || CFG.sword).moveFactor;
-        if (this.buffs.haste > 0) speed *= CFG.drops.types.haste.mult;
-        if (this.surgeT > 0) speed *= CFG.surge.mult;
-        if (this.has('thrusters')) speed *= 1 + CFG.passives.thrusters.speed * Save.gearMul('thrusters');
-        speed *= (1 + Save.bonus('speed') + Xp.val('speed')) * Hero.mods().speed;
-        if (this.curseT > 0) speed *= CFG.patterns.support.kinds.curse.slow;
-        speed *= MapEnv.slowAt(this.x, this.y, this.radius, true);          // Säurepfütze bremst
-        moveForward(this, speed * f);
+      if (anyKey && !this.moveArmed) this.dir = this.moveDir;                  // Tippen: sofort ausrichten, kein Laufen
+      else {                                                                   // sanft in Laufrichtung drehen (Original: 20 % pro Bild), grosse Wenden schneller
+        const k = 1 - Math.pow(1 - (Math.abs(turn) > 90 ? P.turnSmoothingBig : P.turnSmoothing), f);
+        this.dir += Math.sign(turn) * Math.min(Math.abs(turn), Math.max(Math.abs(turn * k), P.turnMinStep * f));
+      }
+      if (can === 1 && anyKey && this.moveArmed) {
+        this.moveGraceT = P.moveGrace;
+        moveForward(this, this.moveSpeed() * f);
       }
     }
-    if (this.dashLeft > 0) {
-      const step = Math.min(this.dashLeft, f);
-      moveForward(this, CFG.dash.stepsPerFrame * step);
-      this.dashLeft -= step;
-      if (this.dashLeft <= 0) { this.dashLeft = 0; this.dashCd = Loadout.dash.cooldown; }
+    this.iceStep(px0, py0, f);
+    this.moveDash(f);
+  }
+
+  // Frost-Treffer: kuehlt den Spieler (Schild, Unverwundbarkeit und Phase schuetzen)
+  chill(sec) {
+    if (G.god || this.shield || this.invincible) return;
+    if (this.chillT <= 0) { Sfx.play('crack'); Juice.sparks(this.x, this.y, STYLE.pal.ice, 8, 3); }
+    this.chillT = Math.max(this.chillT, sec);
+  }
+  // Eis: auf einem Eisfeld folgt die Geschwindigkeit der Eingabe nur langsam (Ausrutschen), danach klingt sie schnell ab. (px0, py0) = Position vor der Bewegung dieses Bildes.
+  iceStep(px0, py0, f) {
+    const I = CFG.ice, dx = this.x - px0, dy = this.y - py0, on = MapEnv.iceAt(px0, py0, this.radius);
+    if (on) {
+      const k = 1 - Math.pow(1 - I.grip, f), vx = dx / f, vy = dy / f;
+      this.slideX += (vx - this.slideX) * k; this.slideY += (vy - this.slideY) * k;
+      this.x = px0 + this.slideX * f; this.y = py0 + this.slideY * f;
+    } else if (this.slideX || this.slideY) {
+      const d = Math.pow(I.decay, f);
+      this.slideX *= d; this.slideY *= d;
+      if (Math.abs(this.slideX) < 0.05 && Math.abs(this.slideY) < 0.05) this.slideX = this.slideY = 0;
+      this.x += this.slideX * f; this.y += this.slideY * f;
     }
+  }
+  // Lauftempo pro Bild mit allen Boni und Bremsen (gemeinsam fuer Tasten- und Maus-Steuerung)
+  moveSpeed() {
+    let speed = this.boosted ? CFG.player.boostSpeed : CFG.player.speed;
+    const melee = Save.equipped('melee');
+    if (this.weapon === WEAPON.SWORD && Input.actDown('attack') && !this.shield) speed *= (CFG[melee] || CFG.sword).moveFactor;
+    if (this.buffs.haste > 0) speed *= CFG.drops.types.haste.mult;
+    if (this.surgeT > 0) speed *= CFG.surge.mult;
+    if (this.has('thrusters')) speed *= 1 + CFG.passives.thrusters.speed * Save.gearMul('thrusters');
+    speed *= (1 + Save.bonus('speed') + Xp.val('speed')) * Hero.mods().speed;
+    if (this.curseT > 0) speed *= CFG.patterns.support.kinds.curse.slow;
+    speed *= MapEnv.slowAt(this.x, this.y, this.radius, true);          // Säurepfütze bremst
+    if (this.chillT > 0) speed *= CFG.chill.slow;                       // Frost-Treffer kuehlen
+    return speed;
+  }
+  // Dash-Bewegung. Bei Maus-Zielen geht der Dash in die gehaltene Tastenrichtung (ohne Taste zur Maus), sonst in Blickrichtung.
+  moveDash(f) {
+    if (this.dashLeft <= 0) return;
+    const step = Math.min(this.dashLeft, f), d = Save.data.mouseAim && this.dashDir !== undefined ? this.dashDir : this.dir;
+    this.x += fwdX(d) * CFG.dash.stepsPerFrame * step; this.y += fwdY(d) * CFG.dash.stepsPerFrame * step;
+    this.dashLeft -= step;
+    if (this.dashLeft <= 0) { this.dashLeft = 0; this.dashCd = Loadout.dash.cooldown; }
   }
 
   // Abilities laufen unabhängig von der Waffe. Welche Taste welche Fähigkeit auslöst, steht in CFG.loadout.slots.
@@ -391,7 +463,8 @@ class Player {
 
   tryDash() {
     if (this.dashCd <= 0 && this.dashLeft <= 0 && this.canMove > 0) {
-      G.attacks.push(new DashTrail(this.x, this.y, this.dir));
+      this.dashDir = Save.data.mouseAim && this.anyMoveKey() ? this.moveDir : this.dir;
+      G.attacks.push(new DashTrail(this.x, this.y, this.dashDir));
       Sfx.play('dash');
       Juice.zoomPulse(CFG.juice.dashZoom, 0.3);                     // kurz rauszoomen: der Dash wirkt schneller
       this.dashLeft = Math.round(2.5 + Loadout.dash.lvl);
@@ -514,15 +587,17 @@ class Player {
   // Starke Waffen ausser dem Beam: Plasmagranate (Druck = werfen) und Feuerpfad (Druck = ein/aus, wirkt dann von allein)
   useHeavyItems(dt) {
     const heavy = Save.equipped('heavy'), F = this.fire;
+    const press = () => Input.actPressed('beam') && !SafeSpot.inside;          // im Safe Spot keine starke Waffe (Feuerpfad schaltet sich ab)
+    if (SafeSpot.inside) F.on = false;
     this.grenadeCd = Math.max(0, this.grenadeCd - dt * this.cdRate * Save.gearMul('grenade'));
-    if (heavy === 'grenade' && Input.actPressed('beam') && this.grenadeCd <= 0 && this.canMove !== 0 && !this.shield && this.dashLeft <= 0) {
+    if (heavy === 'grenade' && press() && this.grenadeCd <= 0 && this.canMove !== 0 && !this.shield && this.dashLeft <= 0) {
       G.attacks.push(new PlasmaGrenade(this));
       Sfx.play('throw');
       this.grenadeCd = CFG.grenade.cooldown;
       Save.gearXp('grenade', CFG.gear.xp.heavy);
     }
     this.heavyCd = Math.max(0, this.heavyCd - dt * this.cdRate * Save.gearMul(heavy));
-    if ((heavy === 'chain' || heavy === 'blackhole') && Input.actPressed('beam') && this.heavyCd <= 0 && this.canMove !== 0 && !this.shield && this.dashLeft <= 0) {
+    if ((heavy === 'chain' || heavy === 'blackhole') && press() && this.heavyCd <= 0 && this.canMove !== 0 && !this.shield && this.dashLeft <= 0) {
       if (heavy === 'chain') {
         const bolt = new ChainLightning(this, this.evo('storm'));
         if (bolt.count > 0) { G.attacks.push(bolt); Sfx.play('chain'); this.heavyCd = CFG.chain.cooldown; Save.gearXp('chain', CFG.gear.xp.heavy); } else this.heavyCd = 0.4;     // kein Ziel: nur kurze Pause
@@ -535,7 +610,7 @@ class Player {
     }
     if (heavy !== 'firetrail') { F.on = false; return; }
     const C = CFG.fire;
-    if (Input.actPressed('beam')) { F.on = F.on ? false : F.fuel >= C.minStart; Sfx.play(F.on ? 'fire' : 'shieldOff'); }
+    if (press()) { F.on = F.on ? false : F.fuel >= C.minStart; Sfx.play(F.on ? 'fire' : 'shieldOff'); }
     if (F.on) {
       F.fuel -= dt / (C.burnTime * Save.gearMul('firetrail') * (this.evo('wildfire') ? CFG.evolutions.wildfire.fuel : 1));          // Stufe/Evolution: Brennstoff haelt laenger
       Save.gearXp('firetrail', CFG.gear.xp.perSecond * dt);
@@ -546,13 +621,13 @@ class Player {
   }
 
   useWeapon(dt, f) {
-    const space = Input.actDown('attack');
+    const space = Input.actDown('attack') && !SafeSpot.inside;          // im Safe Spot kein Angriff
     if (!space) this.swordBase = this.dir;
 
     // Beam (Taste E): laden bei gehaltener Taste, nach dem Loslassen feuern
     const b = this.beam;
-    const beamKey = Input.actDown('beam') && Save.equipped('heavy') === 'beam';     // der Beam ist eine ausruestbare starke Waffe
-    if (this.shield || this.dashLeft > 0) {
+    const beamKey = Input.actDown('beam') && Save.equipped('heavy') === 'beam' && !SafeSpot.inside;     // der Beam ist eine ausruestbare starke Waffe (im Safe Spot gesperrt)
+    if (this.shield || this.dashLeft > 0 || (SafeSpot.inside && b.state === 'load')) {
       b.state = 'none';
     } else if (beamKey) {
       if (b.state !== 'load') { b.state = 'load'; b.clock = 0; Sfx.play('beamCharge'); }
@@ -576,7 +651,7 @@ class Player {
     const slotItem = Save.equipped(this.weapon === WEAPON.SWORD ? 'melee' : 'ranged');       // was in Waffenslot 1 (Nahkampf) / 2 (Fernkampf) liegt
     this.syncBlades(space && !blocked && slotItem === 'sword');
     if (this.evo('vortex') && this.blades.length) {                                   // Evolution: drehende Klingen schicken regelmäßig einen Ring los
-      this.vortexT -= dt * this.hasteFactor;
+      this.vortexT -= dt * this.hasteFor('sword');
       if (this.vortexT <= 0) { this.vortexT = CFG.evolutions.vortex.every; G.attacks.push(new VortexRing(this)); Sfx.play('impulse'); }
     } else this.vortexT = 0.8;                                                        // kurze Anlaufzeit nach dem Start des Drehens
     if (!space || blocked || slotItem === 'sword' || this.attackCd > 0) return;
@@ -598,7 +673,7 @@ class Player {
       const aim = this.aimAssist();
       Sfx.play('shoot');
       for (const off of spread) { const s = new Shot(this.x, this.y, aim + off); s.seek = this.evo('seeker'); G.attacks.push(s); }
-      this.attackCd = Loadout.shot.cooldown * (1 - Save.bonus('shot')) / this.hasteFactor;
+      this.attackCd = Loadout.shot.cooldown * (1 - Save.bonus('shot')) / this.hasteFor('shot');
     } else if (slotItem === 'whip') {
       Sfx.play('swing');
       const wAim = this.aimAssist(CFG.whip);
@@ -640,7 +715,7 @@ class Player {
       const pr = this.evo('prism') ? CFG.evolutions.prism : null;                // Evolution: weiter, zwei Zusatzschuesse
       const offs = pr ? spread.concat([pr.angle, -pr.angle]) : spread;
       for (const off of offs) G.attacks.push(new Shot(this.x, this.y, aim + off, true, pr ? { frames: CFG.bounce.frames * pr.frames } : {}));
-      this.attackCd = Loadout.shot.cooldown * CFG.bounce.cdMul * (1 - Save.bonus('shot')) / this.hasteFactor;
+      this.attackCd = Loadout.shot.cooldown * CFG.bounce.cdMul * (1 - Save.bonus('shot')) / this.hasteFor('shot');
     }
     if (this.attackCd > 0) {                                                    // es wurde angegriffen: Waffenstufe verkuerzt die Pause, Hintergrund-XP
       this.attackCd /= Save.gearMul(slotItem);
@@ -704,6 +779,7 @@ class Player {
         G.ultNext = 0;
       }
       this.ult = new Ultimate(this);
+      Ach.add('ult');
       Sfx.play('ultimate');
       G.attacks.push(this.ult);
     }
@@ -725,6 +801,7 @@ class Player {
   startBloodburst() {
     Juice.zoomPulse(0.95, 0.6); Juice.shake(3); Juice.flash(STYLE.pal.red, 0.25, 0.2);
     this.blood = new Bloodburst(this);
+    Ach.add('bloodburst');
     Sfx.play('bloodburst');
     G.attacks.push(this.blood);
     this.bloodCd = CFG.bloodburst.cooldown * (1 - Save.bonus('blood'));
@@ -732,7 +809,7 @@ class Player {
   }
 
   updateAfk(dt) {
-    if (this.anyMoveKey()) { this.afk = 0; this.afkTick = 0; return; }
+    if (SafeSpot.inside || this.anyMoveKey()) { this.afk = 0; this.afkTick = 0; return; }
     this.afk += dt;
     if (this.afk > CFG.player.afkSeconds) {
       this.afkTick -= dt;
@@ -752,6 +829,23 @@ class Player {
     if (this.decoyT > 0 && this.decoy) {                    // Koeder: durchsichtiges Trugbild, blinkt kurz vor dem Ende
       const blink = this.decoyT < 1 && Math.floor(this.decoyT * 8) % 2 === 0;
       drawSprite(ctx, Hero.sprite(), this.decoy.x, this.decoy.y, this.decoy.dir, CFG.player.size, { hue: 90, alpha: blink ? 0.2 : 0.55 });
+    }
+    if (this.chillT > 0) {                                  // gekuehlt: blasser, gestrichelter Eisring
+      const cx = STAGE_W / 2 + this.x, cy = STAGE_H / 2 - this.y;
+      ctx.save(); ctx.globalAlpha = 0.85; ctx.fillStyle = STYLE.pal.ice; pxRing(ctx, cx, cy, 13, 1, 10, G.realTime * 0.4); ctx.restore();
+    }
+    {                                                       // aktive Buffs: je ein pulsierender Ring in der Buff-Farbe um den Spieler (damit man sieht, dass sie wirken)
+      const act = Object.keys(this.buffs).filter((k) => this.buffs[k] > 0 && CFG.drops.types[k]);
+      if (act.length) {
+        const cx = STAGE_W / 2 + this.x, cy = STAGE_H / 2 - this.y;
+        ctx.save();
+        act.forEach((k, i) => {
+          const left = this.buffs[k], R = 15 + i * 4 + Math.sin(G.realTime * 6 + i) * 1.2;
+          ctx.globalAlpha = left < 2 && Math.floor(left * 8) % 2 === 0 ? 0.15 : 0.7;          // blinkt kurz vor dem Ende
+          ctx.fillStyle = CFG.drops.types[k].color; pxRing(ctx, cx, cy, R, 1, Math.max(8, Math.round(R / 2)));
+        });
+        ctx.restore();
+      }
     }
     if (this.hasField) {                                    // Kraftfeld: dezenter Ring um den Spieler
       const P = STYLE.pal, cx = STAGE_W / 2 + this.x, cy = STAGE_H / 2 - this.y, R = CFG.field.radius;

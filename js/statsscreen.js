@@ -4,7 +4,7 @@
 // Gezeichnet wird mit Rechtecken (reines UI, keine Spielobjekte), Farben aus STYLE.pal.
 
 const StatsScreen = {
-  tab: 0, filter: 0, ownOnly: false,
+  tab: 0, filter: 0, ownOnly: false, showDev: true,       // showDev: Dev-Laeufe (mit Cheat-Tasten gespielt) mitzaehlen; Taste X blendet sie aus
   TABS: ['OVERVIEW', 'KILLERS', 'BOSSES', 'BUILDS', 'RECENT'],
   A: null, B: [], builds: [], curve: [], recent: [],
 
@@ -13,11 +13,12 @@ const StatsScreen = {
   // Daten neu auswerten (beim Oeffnen und wenn Filter oder Quelle wechseln)
   refresh() {
     const f = Stats.filterList()[this.filter].id;
-    this.A = Stats.analyze(Stats.pick('deaths', f, this.ownOnly));
-    this.B = Stats.analyzeBosses(Stats.pick('bosses', f, this.ownOnly));
+    this.A = Stats.analyze(Stats.pick('deaths', f, this.ownOnly, this.showDev));
+    this.B = Stats.analyzeBosses(Stats.pick('bosses', f, this.ownOnly, this.showDev));
     this.builds = Stats.analyzeBuilds(this.A.runs);
-    this.recent = Stats.pick('deaths', f, true).slice(-12).reverse();
-    this.own = Stats.pick('deaths', f, true).length;
+    this.recent = Stats.pick('deaths', f, true, this.showDev).slice(-12).reverse();
+    this.own = Stats.pick('deaths', f, true, this.showDev).length;
+    this.devRuns = Stats.pick('deaths', f, this.ownOnly, true).filter((e) => e.dv).length;       // Dev-Laeufe im Filter (auch wenn ausgeblendet)
     this.endless = f === 'inf';
     this.xmax = Math.max(this.endless ? 600 : CFG.finalBoss.at + CFG.boss.steps / 2, Math.ceil((this.A.best + 1) / CFG.boss.steps) * CFG.boss.steps);       // Standardmodus: die Zeitachse reicht bis kurz nach dem finalen Boss
     this.bw = Math.max(1, Math.ceil(this.xmax / 40 / 30)) * 30;                       // Balkenbreite in Sekunden (hoechstens 40 Balken)
@@ -38,6 +39,7 @@ const StatsScreen = {
     if (U) { this.filter = (this.filter + nf - 1) % nf; this.refresh(); }
     if (D) { this.filter = (this.filter + 1) % nf; this.refresh(); }
     if (Input.pressed('Tab')) { this.ownOnly = !this.ownOnly; this.refresh(); }
+    if (Input.pressed('KeyX')) { this.showDev = !this.showDev; this.refresh(); }
     if (Input.pressed('Escape')) G.mode = 'start';
   },
 
@@ -76,25 +78,30 @@ const StatsScreen = {
       uiText(ctx, name, x + tw / 2, 44, { size: T.small, color: on ? P.ice : P.grey, align: 'center' });
     });
     // Kartenfilter
-    const fl = Stats.filterList(), fw = 88, fg = 4, fx0 = STAGE_W / 2 - (fl.length * fw + (fl.length - 1) * fg) / 2;
+    const fl = Stats.filterList(), fg = 4, fw = Math.min(88, Math.floor((STAGE_W - 16) / fl.length) - fg), fx0 = STAGE_W / 2 - (fl.length * fw + (fl.length - 1) * fg) / 2;
     fl.forEach((f, i) => {
       const x = fx0 + i * (fw + fg), on = i === this.filter;
       UIHit.add(x, 52, fw, 14, () => { if (this.filter !== i) { this.filter = i; this.refresh(); } }, { noConfirm: true });
       uiPanel(ctx, x, 52, fw, 14, { color: on ? P.yellow : P.greyMid, fill: on ? P.voidLight : P.void, alpha: 0.95 });
       uiText(ctx, uiFit(ctx, f.label, fw - 6, T.small), x + fw / 2, 62, { size: T.small, color: on ? P.yellow : P.grey, align: 'center' });
     });
+    // Schalter oben rechts: Dev-Laeufe anzeigen/ausblenden
+    const dx = STAGE_W - 128, dy = 8, dOn = this.showDev;
+    UIHit.add(dx, dy, 120, 16, () => { this.showDev = !this.showDev; this.refresh(); }, { noConfirm: true });
+    uiPanel(ctx, dx, dy, 120, 16, { color: dOn ? P.green : P.orange, fill: P.void, alpha: 0.95 });
+    uiText(ctx, 'DEV RUNS: ' + (dOn ? 'SHOWN' : 'HIDDEN') + (this.devRuns ? ' (' + this.devRuns + ')' : ''), dx + 60, dy + 12, { size: T.small, color: dOn ? P.green : P.orange, align: 'center' });
     const imp = A.n - Math.min(A.n, this.own);
     uiText(ctx, A.n + ' RUNS' + (this.ownOnly ? ' (OWN DATA ONLY)' : ' (' + this.own + ' OWN, ' + Math.max(0, imp) + ' IMPORTED)') + (A.gaveUp ? '   ' + A.gaveUp + ' GAVE UP (NOT COUNTED)' : '') + (A.n > 0 && A.n < 10 ? '   FEW RUNS - ROUGH NUMBERS' : ''), STAGE_W / 2, 79, { size: T.small, color: A.n < 10 ? P.orange : P.grey, align: 'center' });
 
     if (!A.n && !this.B.length) {
       uiPanel(ctx, 60, 120, 360, 120, { color: P.greyMid, fill: P.void, alpha: 0.92 });
       uiText(ctx, 'NO DATA YET FOR THIS FILTER', STAGE_W / 2, 160, { size: T.h2, color: P.ice, align: 'center' });
-      uiWrap(ctx, 'Every finished run is logged (not the tutorial, not runs with F2/F3 cheats). Play some runs, or merge other players\' data: Settings > EXPORT / IMPORT SAVE > PLAY DATA.', 80, 182, 320, 11, { size: T.small, color: P.grey });
+      uiWrap(ctx, 'Every finished run is logged (not the tutorial). Runs with F2/F3 cheats are marked as dev runs (X hides them). Play some runs, or merge other players\' data: Settings > EXPORT / IMPORT SAVE > PLAY DATA.', 80, 182, 320, 11, { size: T.small, color: P.grey });
     } else {
       [this.drawOverview, this.drawKillers, this.drawBosses, this.drawBuilds, this.drawRecent][this.tab].call(this, ctx);
     }
     uiText(ctx, 'BALANCE IN js/config.js: ' + this.CONFIG_NOTES[this.tab], STAGE_W / 2, 347, { size: T.small, color: P.yellow, align: 'center' });
-    uiText(ctx, 'A/D = TAB    W/S = MAP    TAB = ' + (this.ownOnly ? 'INCLUDE IMPORTED' : 'OWN ONLY') + '    ESC = BACK', STAGE_W / 2, 357, { size: T.small, color: P.grey, align: 'center' });
+    uiText(ctx, 'A/D = TAB    W/S = MAP    TAB = ' + (this.ownOnly ? 'INCLUDE IMPORTED' : 'OWN ONLY') + '    X = DEV RUNS    ESC = BACK', STAGE_W / 2, 357, { size: T.small, color: P.grey, align: 'center' });
   },
 
   // Wo man an den Zahlen dreht: alle Balance-Werte stehen in js/config.js (Regel des Projekts), je Reiter die passenden Abschnitte

@@ -46,10 +46,10 @@ function drawGround(ctx) {
   ctx.restore();
 }
 
-const MENU_ITEMS = ['play', 'inventory', 'cosmetics', 'upgrades', 'settings'];
+const MENU_ITEMS = ['play', 'inventory', 'cosmetics', 'upgrades', 'achievements', 'settings'];
 const menuItems = () => (Save.data.dev ? MENU_ITEMS.concat(['stats']) : MENU_ITEMS);       // der Statistik-Bildschirm gehoert zum Dev-Modus
 const MODE_ITEMS = ['regular', 'infinite', 'tutorial', 'back'];        // Auswahl nach PLAY
-const MENU_MUSIC_MODES = ['start', 'stats', 'modeselect', 'infsetup', 'mapselect', 'keys', 'binds', 'inventory', 'cosmetics', 'upgrades', 'settings'];       // hier läuft die Menümusik (Tasten-Menü aus der Pause heraus nicht)
+const MENU_MUSIC_MODES = ['start', 'stats', 'modeselect', 'infsetup', 'mapselect', 'keys', 'binds', 'inventory', 'cosmetics', 'upgrades', 'achievements', 'settings'];       // hier läuft die Menümusik (Tasten-Menü aus der Pause heraus nicht)
 // Upgrade-Menü: drei Reiter. Jede Zeile ist { kind: 'up' | 'ability', id }
 const UPGRADE_TABS = [
   { id: 'stats', label: 'STATS' },
@@ -110,7 +110,7 @@ function upgradeRows(tab) {
   }
   return rows;
 }
-const SETTINGS_ITEMS = ['music', 'sfx', 'fx', 'fullscreen', 'slot', 'controls', 'binds', 'transfer', 'resetAll', 'back'];
+const SETTINGS_ITEMS = ['music', 'sfx', 'fx', 'fullscreen', 'mouseaim', 'slot', 'controls', 'binds', 'transfer', 'resetAll', 'back'];
 const PAUSE_ITEMS = ['resume', 'abilities', 'music', 'sfx', 'binds', 'quit'];
 
 const G = {
@@ -207,7 +207,7 @@ const G = {
     Save.data.seenKeys = true; Save.write();
     this.newBest = false;
     this.bosses = 0; this.kills = 0; this.earned = 0; this.newMilestones = [];
-    Stats.reset(); this.deathDetails = false; this.cheated = !!this.god;       // Cheat-Laeufe werden nicht protokolliert
+    Ach.beginRun(); Stats.reset(); this.deathDetails = false; this.cheated = !!this.god;       // Cheat-Laeufe werden als Dev-Lauf markiert (Statistik kann sie ausblenden)
     Xp.reset(); this.xpOrbs = [];                                              // XP und Perks beginnen jeden Lauf von vorn
     this.time = 0;
     this.deadAge = 0;
@@ -230,11 +230,12 @@ const G = {
     this.meteorShower = false; this.meteorLeft = 0;
     this.collapse = false; this.collapseWarn = false; this.collapseLeft = 0;
     this.noticeT = 0;
+    MsFx.reset();
     Loadout.reset();
     this.player = new Player();
     Juice.reset();
     this.director = new Director();
-    MapEnv.init();                                          // Gefahren der gewählten Karte aufstellen (Karte 2 und 3)
+    MapEnv.init(); MapFx.reset(); SafeSpot.reset();                                         // Gefahren der gewählten Karte aufstellen (Karte 2 und 3)
     if (withTutorial) Tutorial.start(); else Tutorial.active = false;
     this.player.hp = this.player.maxHp; this.ultCharge += Hero.mods().startUlt;          // Held-Modifier (im Tutorial neutral, deshalb erst nach dem Tutorial-Flag)
   },
@@ -257,6 +258,7 @@ const G = {
     Sfx.play('death');
     this.settleRun(0);
     Stats.finish(this.time, this.bosses, this.map.id, this.infinite);       // Todesursache + Zusammenfassung (Save.write passiert unten in settleRun schon, daher hier nochmal)
+    Ach.runEnd(false);
     Save.write();
     hostMsg({ type: 'gameOver', score: Math.floor(this.time) });
   },
@@ -265,7 +267,15 @@ const G = {
   settleRun(bonus) {
     const res = Save.finishRun(this.time, this.bosses, this.kills, this.infinite, Tutorial.active ? null : this.map.id);
     this.newBest = res.isBest; this.newMilestones = res.got;
-    this.earned = Math.floor((this.time * CFG.meta.perSecond + this.bosses * CFG.meta.perBoss) * (1 + Save.bonus('souls') + Save.bonus('soulgain')) * (this.infinite ? CFG.infinite.coreFactor : 1) * this.diff.cores) + bonus + this.lootCores;
+    let run = Math.floor((this.time * CFG.meta.perSecond + this.bosses * CFG.meta.perBoss) * (1 + Save.bonus('souls') + Save.bonus('soulgain')) * (this.infinite ? CFG.infinite.coreFactor : 1) * this.diff.cores);
+    const S = CFG.meta.starter, n = Save.data.runs - 1;                      // Save.finishRun hat den Lauf schon mitgezaehlt: n = 0 fuer den ersten Lauf
+    this.starterBonus = null;
+    if (!Tutorial.active && n >= 0 && n < S.mult.length) {                  // Starter-Bonus der ersten Laeufe
+      const boosted = Math.max(Math.floor(run * S.mult[n]), S.min[n]);
+      this.starterBonus = { run: n + 1, of: S.mult.length, extra: boosted - run };
+      run = boosted;
+    }
+    this.earned = run + bonus + this.lootCores;
     Save.data.souls += this.earned; Save.write();
   },
 
@@ -279,6 +289,7 @@ const G = {
     Save.data.wins = (Save.data.wins || 0) + 1;
     this.settleRun(first ? CFG.ending.firstWinCores : CFG.ending.winCores);
     Stats.finish(this.time, this.bosses, this.map.id, this.infinite, true);       // Sieg ins Protokoll
+    Ach.runEnd(true);
     Save.write();
   },
 
@@ -323,6 +334,7 @@ const G = {
     else if (item === 'inventory') { this.mode = 'inventory'; this.invSel = 0; this.invPick = null; }
     else if (item === 'cosmetics') { this.mode = 'cosmetics'; this.cosTab = 0; this.cosSel = Math.max(0, Cos.items('skin').findIndex((q) => q.id === Save.cosEquipped('skin'))); }
     else if (item === 'upgrades') { this.mode = 'upgrades'; this.upgradeSel = 0; this.upgradeTab = 0; }
+    else if (item === 'achievements') { this.mode = 'achievements'; Ach.open(); }
     else if (item === 'settings') { this.mode = 'settings'; this.settingsSel = 0; }
     else if (item === 'stats') { this.mode = 'stats'; StatsScreen.open(); }
   },
@@ -506,6 +518,7 @@ const G = {
     else if (item === 'sfx' && dir) { Sfx.setVolume(Math.round((Save.data.sfxVol + dir * 0.1) * 10) / 10); Save.write(); Sfx.play('select'); }
     else if (item === 'fx' && (dir || ok)) { Save.data.fx = (Juice.level + (dir || 1) + 3) % 3; Save.write(); }       // OFF / REDUCED / FULL
     else if (item === 'fullscreen' && (ok || dir)) { try { if (document.fullscreenElement) document.exitFullscreen(); else canvas.requestFullscreen(); } catch (e) { /* Browser verbietet Vollbild */ } }
+    else if (item === 'mouseaim' && (dir || ok)) { Save.data.mouseAim = !Save.data.mouseAim; Save.write(); Sfx.play('select'); }
     else if (item === 'slot' && (dir || ok)) Save.switchSlot((Save.slot + (dir || 1) + Save.SLOTS) % Save.SLOTS);
     else if (item === 'controls' && ok) this.mode = 'keys';
     else if (item === 'binds' && ok) { this.mode = 'binds'; this.bindSel = 0; this.bindWait = false; this.bindsBack = 'settings'; }
@@ -578,7 +591,7 @@ const G = {
   // Bosskampf mit festem Bild (Kamera steht, Spieler bleibt im Bild): nur auf der unendlichen Karte nötig.
   // Auf der begrenzten Karte kann der Spieler eh nicht weglaufen, dort erscheint der Boss in der Kartenmitte.
   // Spawnpunkte der Gegner: auf der begrenzten Karte fest, auf der unendlichen Karte relativ zur Kamera (wandern mit)
-  spawnPointList() { return CFG.map.infinite ? CFG.spawnPoints.map(([x, y]) => [x + this.cam.x, y + this.cam.y]) : CFG.spawnPoints; },
+  spawnPointList() { return CFG.map.infinite ? CFG.infinite.spawnPoints.map(([x, y]) => [x + this.cam.x, y + this.cam.y]) : CFG.spawnPoints; },
   get bossLock() { return this.bossFight && CFG.map.infinite; },
 
   addText(name, x, y) { this.texts.push(new FloatingText(name, x, y)); },
@@ -670,7 +683,7 @@ const G = {
   },
 
   // Dev-Modus (Save.data.dev, freigeschaltet mit tools/dev-save.deatharena): F1 alle Karten, F2 unsterblich, F3 +60 s, F4 +500 Cores.
-  // Laeufe mit F2/F3 gelten als Cheat-Lauf (G.cheated) und kommen nicht ins Statistik-Protokoll.
+  // Laeufe mit F2/F3 gelten als Cheat-Lauf (G.cheated) und werden im Statistik-Protokoll als Dev-Lauf markiert (dv).
   devKeys() {
     if (Input.pressed('F1')) { Save.data.devUnlockAll = !Save.data.devUnlockAll; Save.write(); Sfx.play('select'); }
     if (Input.pressed('F2')) { this.god = !this.god; if (this.god) this.cheated = true; Sfx.play('select'); }
@@ -683,12 +696,15 @@ const G = {
     if (canvas.style) canvas.style.cursor = this.mode === 'play' ? 'none' : '';       // Komfort: im Spiel kein Mauszeiger
     if (this.mode !== 'play' && this.mode !== 'loading') UIHit.update();      // Maus in den Menues
     this.menuSounds();
+    Ach.tick(dt);
     if (MENU_MUSIC_MODES.includes(this.mode) && !(this.mode === 'binds' && this.bindsBack === 'pause')) playMusic('menu');
     else if (this.mode === 'dead') playMusic('dead');
     else if (this.mode === 'ending') playMusic(this.endAge < ENDING_SPLIT ? 'dead' : 'menu');
     if (Save.data.dev) this.devKeys();
     if (this.mode === 'start') {
       this.updateMenu();
+    } else if (this.mode === 'achievements') {
+      Ach.updateScreen();
     } else if (this.mode === 'stats') {
       StatsScreen.update();
     } else if (this.mode === 'modeselect') {
@@ -739,7 +755,10 @@ const G = {
 
     this.noticeT = Math.max(0, (this.noticeT || 0) - dt);
     this.flashT = Math.max(0, (this.flashT || 0) - dt);
+    if (Tutorial.active && Tutorial.phase === 'brief') { Juice.update(dt); Tutorial.update(dt); return; }       // Tutorial-Textbox: das Spiel steht still, bis SPACE gedrueckt wird
     Juice.update(dt);
+    MsFx.update(dt);
+    Ach.update(dt);
     this.player.update(dt);
     if (this.mode !== 'play') return;
     Tutorial.update(dt);
@@ -755,6 +774,8 @@ const G = {
     Loadout.updateByTime(this.time);
     if (!Tutorial.active && !(this.victory > 0)) { this.director.update(dt); this.director.updateBosses(); }       // im Tutorial führt Tutorial.update die Szenarien
     MapEnv.update(dt);
+    SafeSpot.update(dt);
+    MapFx.update(dt);
 
     if (this.intro) {
       this.intro.update(dt);
@@ -814,6 +835,8 @@ const G = {
       uiText(ctx, 'LOADING ...', 20, 30, { size: STYLE.type.h2, color: STYLE.pal.cyan });
     } else if (this.mode === 'start') {
       drawStartScreen(ctx);
+    } else if (this.mode === 'achievements') {
+      Ach.drawScreen(ctx);
     } else if (this.mode === 'stats') {
       StatsScreen.draw(ctx);
     } else if (this.mode === 'modeselect') {
@@ -850,6 +873,7 @@ const G = {
     } else if (this.mode === 'play') {
       this.drawPlay(ctx);
     }
+    Ach.drawToasts(ctx);
   },
 
   drawPlay(ctx) {
@@ -860,7 +884,9 @@ const G = {
     ctx.save();
     ctx.translate(-this.cam.x, this.cam.y);
     if (!CFG.map.infinite) for (const [x, y] of this.spawnPointList()) drawSprite(ctx, 'spawnPoint', x, y, 90, 200, { alpha: 0.8 });      // im Endlos-Modus sind die Spawnpunkte unsichtbar
+    MapFx.drawBelow(ctx);
     MapEnv.draw(ctx);
+    SafeSpot.draw(ctx);
     for (const e of this.meteors) e.drawGround(ctx);
     Tutorial.drawWorld(ctx);
     for (const e of this.obstacles) e.draw(ctx);
@@ -880,14 +906,26 @@ const G = {
     for (const a of this.attacks) if (!overlay(a)) Cos.drawAttack(ctx, a);          // Waffen mit dem ausgerüsteten Glow-Cosmetic
     this.player.draw(ctx);
     for (const a of this.attacks) if (overlay(a)) a.draw(ctx);
+    MapFx.drawAbove(ctx);
     for (const e of this.meteors) e.drawSky(ctx);
     Juice.drawWorld(ctx);
     drawWorldHud(ctx);
     ctx.restore();
     ctx.restore();                          // Ende von Juice.begin
     if (this.bloodMoon) drawBloodMoonTint(ctx);
+    MapFx.drawScreen(ctx);                  // Beleuchtung, Boss-Vignette, Blizzard (js/mapfx.js)
     drawHud(ctx);
-    if (Save.data.dev) uiText(ctx, 'DEV' + (this.god ? '  GOD' : '') + (this.cheated ? '  (RUN NOT LOGGED)' : ''), 6, 10, { size: STYLE.type.small, color: STYLE.pal.yellow });
+    if (Save.data.dev) uiText(ctx, 'DEV' + (this.god ? '  GOD' : '') + (this.cheated ? '  (DEV RUN)' : ''), 6, 10, { size: STYLE.type.small, color: STYLE.pal.yellow });
+    if (Save.data.mouseAim && this.mode === 'play' && !(Tutorial.active && Tutorial.phase === 'brief') && Input.mouse.x > -900) {      // Fadenkreuz statt Mauszeiger
+      const mx = Input.mouse.x, my = Input.mouse.y, P = STYLE.pal;
+      ctx.save(); ctx.fillStyle = P.ink; pxFill(ctx, mx - 7, my - 1, 2); pxFill(ctx, mx + 5, my - 1, 2); pxFill(ctx, mx - 1, my - 7, 2); pxFill(ctx, mx - 1, my + 5, 2);
+      ctx.fillStyle = P.cyan; pxFill(ctx, mx - 6, my, 1); pxFill(ctx, mx + 5, my, 1); pxFill(ctx, mx, my - 6, 1); pxFill(ctx, mx, my + 5, 1); pxFill(ctx, mx - 3, my, 1); pxFill(ctx, mx + 2, my, 1); pxFill(ctx, mx, my - 3, 1); pxFill(ctx, mx, my + 2, 1);
+      ctx.fillStyle = P.ice; pxFill(ctx, mx, my, 1); ctx.restore();
+    }
+    // Ultimate: der ganze Bildschirm wird weiss, nichts (auch kein HUD, Text oder Effekt) liegt darueber
+    let wa = 0;
+    for (const a of this.attacks) if (a.kind === 'ult' && a.alive) wa = Math.max(wa, a.whiteAlpha);
+    if (wa > 0) { ctx.save(); ctx.globalAlpha = wa; ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, STAGE_W, STAGE_H); ctx.restore(); }
   },
 };
 

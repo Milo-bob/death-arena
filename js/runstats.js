@@ -11,6 +11,7 @@ const STAT_ENEMY_NAMES = {
 const STAT_BOSS_NAMES = {
   octagon: 'OCTAGON', kite: 'KITE', summoner: 'SUMMONER', turret: 'LASER TURRET', twin: 'TWINS', arena: 'ARENA BOSS', reaper: 'DEATH',
   forge: 'FORGE WARDEN', colossus: 'SLAG COLOSSUS', plague: 'PLAGUE DRONE', spore: 'SPORE MOTHER',
+  frost: 'FROST SENTINEL', wraith: 'FROST WRAITH',
 };
 // Angriffsart (takeHit-Quelle) -> Anzeigename. 'grenade' ist die gemeinsame Quelle aller Flaechenschaeden (Granate, Rakete, Meteorit, Druckwelle ...)
 const STAT_WEAPON_NAMES = {
@@ -28,6 +29,8 @@ const Stats = {
     this.lastSrc = null;    // Quelle des letzten Schadens = Todesursache
     this.taken = 0;         // Gesamtschaden
     this.hitCount = 0;
+    this.savedDmg = 0;      // im Safe Spot abgefangener Schaden (geschaetzt)
+    this.savedHits = 0;     // im Safe Spot abgefangene Treffer
     this.summary = null;
     this.fight = null;      // laufender Bosskampf fuer das Protokoll (siehe bossStart/bossEnd)
   },
@@ -49,6 +52,11 @@ const Stats = {
     if (counted) { this.hits[src] = (this.hits[src] || 0) + 1; this.hitCount++; }
     this.lastSrc = src;
   },
+  // Treffer, den der Safe Spot abgefangen hat (kein Schaden am Spieler)
+  saved(src, amount) {
+    if (!this.dmg) return;
+    this.savedDmg += amount > 0 ? amount : 0; this.savedHits++;
+  },
   kill(kind) {
     if (!this.kills) return;
     const n = this.weaponName(kind);
@@ -60,10 +68,11 @@ const Stats = {
   // ---------- Protokoll (Save.data.deathLog / bossLog): Grundlage fuers Balancing, siehe statsscreen.js ----------
   // Kompakte Eintraege ohne persoenliche Daten. Tod: { i id, t Zeit, b Bosse, by Killer, map, inf, fy Boss im Kampf, k Kills, dm Schaden, h Treffer, win, w Waffen, ab Abilities }
   // Boss: { i, ty Typ, at Startzeit, d Dauer, r 'win'|'died'|'timeout', dm Schaden im Kampf, n Kampfnummer, map, inf, w, ab }
-  // Nicht protokolliert: Tutorial und Laeufe mit Dev-Cheats (G.cheated).
+  // Nicht protokolliert: Tutorial. Laeufe mit Dev-Cheats (G.cheated) werden mit dv: true markiert (Dev-Lauf) und lassen sich in der Statistik ausblenden (Taste X), standardmaessig sind sie sichtbar.
   CAP: { deaths: 300, bosses: 600, impDeaths: 2000, impBosses: 4000 },
   newId() { return Math.random().toString(36).slice(2, 10); },
-  logging() { return !Tutorial.active && !G.cheated; },
+  logging() { return !Tutorial.active; },
+  devRun() { return !!G.cheated; },
   push(list, entry, cap) { list.push(entry); if (list.length > cap) list.splice(0, list.length - cap); },
   loadout() {
     const s = (G.player && G.player.slots) || {};
@@ -76,18 +85,19 @@ const Stats = {
   bossEnd(result) {
     const f = this.fight; this.fight = null;
     if (!f || !this.logging()) return;
-    this.push(Save.data.bossLog, Object.assign({ i: this.newId(), ty: f.ty, at: f.at, d: Math.round(G.bossTimer * 10) / 10, r: result, dm: Math.round(this.taken - f.dmg0), n: G.bossCount, map: G.map.id, inf: !!G.infinite }, this.loadout()), this.CAP.bosses);
+    this.push(Save.data.bossLog, Object.assign({ i: this.newId(), ty: f.ty, at: f.at, d: Math.round(G.bossTimer * 10) / 10, r: result, dm: Math.round(this.taken - f.dmg0), n: G.bossCount, map: G.map.id, inf: !!G.infinite }, this.devRun() ? { dv: true } : {}, this.loadout()), this.CAP.bosses);
   },
 
   // Lauf zu Ende (Tod, Aufgeben oder Sieg). Gibt die Zusammenfassung zurueck und merkt sie fuer den Todesbildschirm.
   finish(time, bosses, mapId, infinite, win = false) {
     const killer = win ? 'VICTORY' : this.lastSrc || 'UNKNOWN';
-    this.summary = { killer, level: Xp.level, taken: this.taken, hitCount: this.hitCount, dmg: this.sorted(this.dmg), hits: this.hits, kills: this.sorted(this.kills) };
+    this.summary = { killer, level: Xp.level, taken: this.taken, hitCount: this.hitCount, savedDmg: this.savedDmg, savedHits: this.savedHits, dmg: this.sorted(this.dmg), hits: this.hits, kills: this.sorted(this.kills) };
     const fy = this.fight ? this.fight.ty : null;
     this.bossEnd(win ? 'win' : 'died');
     if (this.logging()) {
       const e = { i: this.newId(), t: Math.round(time), b: bosses, by: killer, map: mapId, inf: !!infinite, k: G.kills, dm: Math.round(this.taken), h: this.hitCount, lv: Xp.level, win: !!win };
       if (fy) e.fy = fy;
+      if (this.devRun()) e.dv = true;
       this.push(Save.data.deathLog, Object.assign(e, this.loadout()), this.CAP.deaths);
     }
     return this.summary;
@@ -96,9 +106,9 @@ const Stats = {
   // ---------- Auswertung ----------
   filterList() { return [{ id: 'all', label: 'ALL MAPS' }].concat(CFG.maps.map((m) => ({ id: m.id, label: m.name || m.id }))).concat([{ id: 'inf', label: 'ENDLESS' }]); },
   // Eintraege (eigene + importierte) passend zum Filter: 'all' = Standardmodus aller Karten, Karten-ID = diese Karte, 'inf' = Endlos
-  pick(kind, filter, ownOnly) {
+  pick(kind, filter, ownOnly, showDev = true) {
     const D = Save.data, own = (kind === 'deaths' ? D.deathLog : D.bossLog) || [], imp = ownOnly ? [] : ((D.imported && D.imported[kind]) || []);
-    return own.concat(imp).filter((e) => (filter === 'inf' ? e.inf : filter === 'all' ? !e.inf : !e.inf && e.map === filter));
+    return own.concat(imp).filter((e) => (showDev || !e.dv) && (filter === 'inf' ? e.inf : filter === 'all' ? !e.inf : !e.inf && e.map === filter));
   },
   pct(sorted, p) { return sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor(p * sorted.length))] : 0; },
   avg(a) { return a.length ? a.reduce((s, x) => s + x, 0) / a.length : 0; },
@@ -163,12 +173,12 @@ const Stats = {
       for (const e of Array.isArray(src.deaths) ? src.deaths : []) {
         if (!e || !str(e.i) || seen.has(e.i) || !num(e.t) || !str(e.by) || !str(e.map)) continue;
         seen.add(e.i); nd++;
-        this.push(imp.deaths, { i: e.i, t: e.t, b: num(e.b) ? e.b : 0, by: e.by, map: e.map, inf: !!e.inf, fy: str(e.fy) ? e.fy : undefined, k: num(e.k) ? e.k : 0, dm: num(e.dm) ? e.dm : 0, h: num(e.h) ? e.h : 0, lv: num(e.lv) ? e.lv : undefined, win: !!e.win, w: ids(e.w, 4) ? e.w : undefined, ab: ids(e.ab, 3) ? e.ab : undefined }, this.CAP.impDeaths);
+        this.push(imp.deaths, { i: e.i, t: e.t, b: num(e.b) ? e.b : 0, by: e.by, map: e.map, inf: !!e.inf, fy: str(e.fy) ? e.fy : undefined, k: num(e.k) ? e.k : 0, dm: num(e.dm) ? e.dm : 0, h: num(e.h) ? e.h : 0, lv: num(e.lv) ? e.lv : undefined, win: !!e.win, dv: e.dv ? true : undefined, w: ids(e.w, 4) ? e.w : undefined, ab: ids(e.ab, 3) ? e.ab : undefined }, this.CAP.impDeaths);
       }
       for (const e of Array.isArray(src.bosses) ? src.bosses : []) {
         if (!e || !str(e.i) || seen.has(e.i) || !str(e.ty) || !num(e.d) || !num(e.at) || !['win', 'died', 'timeout'].includes(e.r)) continue;
         seen.add(e.i); nb++;
-        this.push(imp.bosses, { i: e.i, ty: e.ty, at: e.at, d: e.d, r: e.r, dm: num(e.dm) ? e.dm : 0, n: num(e.n) ? e.n : 0, map: str(e.map) ? e.map : '', inf: !!e.inf, w: ids(e.w, 4) ? e.w : undefined, ab: ids(e.ab, 3) ? e.ab : undefined }, this.CAP.impBosses);
+        this.push(imp.bosses, { i: e.i, ty: e.ty, at: e.at, d: e.d, r: e.r, dm: num(e.dm) ? e.dm : 0, n: num(e.n) ? e.n : 0, map: str(e.map) ? e.map : '', inf: !!e.inf, dv: e.dv ? true : undefined, w: ids(e.w, 4) ? e.w : undefined, ab: ids(e.ab, 3) ? e.ab : undefined }, this.CAP.impBosses);
       }
       Save.write();
       return { ok: true, deaths: nd, bosses: nb };

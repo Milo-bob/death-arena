@@ -240,7 +240,7 @@ const Patterns = {
     leech(e, dt, tg) {
       const C = CFG.patterns.leech, p = G.player;
       if (e.attached) {
-        const shake = p.dashLeft > 0 || p.blinkT > 0 || p.shield || p.pulseCd > CFG.pulse.cooldown - 0.4;
+        const shake = SafeSpot.inside || p.dashLeft > 0 || p.blinkT > 0 || p.shield || p.pulseCd > CFG.pulse.cooldown - 0.4;
         if (shake) {
           e.attached = false; e.stun = C.shakeStun; e.reattachCd = C.reattach;
           const a = rand(0, 360); e.x += fwdX(a) * 30; e.y += fwdY(a) * 30;

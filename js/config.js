@@ -37,13 +37,18 @@ const CFG = {
   // ==========================================================================================
   player: {
     size: 250,                // Größe in Prozent, gleich wie der Kreis-Gegner (beide 16 px große Sprites)
-    speed: 6.2,               // Original: 5.5
-    boostSpeed: 8.2,          // Original: 7.5, gilt, wenn das Ultimate geladen ist
+    speed: 5.5,               // Original: 5.5 (war 6.2, gesenkt, weil das Schwert beim Angreifen kaum noch bremst). Muss schneller bleiben als die ersten Bosse (Oktagon 3.25, Kite 3.75; Karte 3: bis 4.3)
+    boostSpeed: 7.3,          // Original: 7.5, gilt, wenn das Ultimate geladen ist
     hitRadius: 10,            // gleich wie der Kreis-Gegner
     maxHp: 100,
     startInvincible: 0.125,
     hitCooldown: 0.35,        // so lange kann man nach einem Treffer nicht getroffen werden (war 0.75, mehr als halbiert; Upgrade Recovery im gleichen Verhältnis)
     turnSmoothing: 0.2,       // wie schnell sich der Spieler in Laufrichtung dreht
+    turnSmoothingBig: 0.4,    // ... bei Drehungen ueber 90 Grad (schnelle 180-Grad-Wende, um Gegner hinter sich zu treffen)
+    turnMinStep: 8,           // mindestens so viele Grad pro Bild, damit der Schluss der Drehung nicht ausschleicht
+    tapSeconds: 0.14,         // kurzer Tastendruck (kuerzer als das): Spieler dreht sich nur in die Richtung, ohne zu laufen. Laenger gehalten: er laeuft los
+    faceTolerance: 25,        // zeigt er schon (fast) in die Tastenrichtung, laeuft er sofort los
+    moveGrace: 0.12,          // direkt nach dem Laufen zaehlt ein neuer Druck sofort als Laufen (fluessiges Richtungswechseln)
     afkSeconds: 7.5,          // so lange stillstehen, dann Leben-Verlust
     afkDamage: 0.5,
     hitDamageMin: 8,
@@ -87,7 +92,11 @@ const CFG = {
   // ==========================================================================================
 
   // --- Nahkampf: Schwert ---
-  sword: { baseSpeed: 30, baseSize: 0.75, baseNumber: 1, maxSize: 1.125, spawnTime: 0.066, moveFactor: 0.7 },
+  // Wirkung aller Angriffstempo-Boni je Waffe (1 = voll, mehr = staerker): Schwert bekommt mehr davon als der Blaster. Andere Waffen: 1.
+  hasteScale: { sword: 1.6, shot: 0.7 },
+  // Plasma Blade: Klingen halten Gegner auf Abstand. Jeder Treffer stoesst den Gegner knock Einheiten vom Spieler weg und betaeubt ihn nur kurz (stun, normal 0.5 s),
+  // damit mehrere Klingen ihn nacheinander treffen. Jeder Boss-Schritt: Groesse +upSize, Rueckstoss +upKnock (bis maxKnock). Bosse und Tanks werden nicht geschoben.
+  sword: { baseSpeed: 30, baseSize: 0.9, baseNumber: 1, maxSize: 1.9, upSize: 0.09, spawnTime: 0.066, moveFactor: 0.92, knock: 14, upKnock: 2.5, maxKnock: 32, stun: 0.2 },
 
   // --- Nahkampf: Lanze ---
   // Stoß in Blickrichtung. Ab Spielzeit backAtTime stößt sie auch nach hinten, ab sidesAtTime auch zu den Seiten
@@ -506,25 +515,28 @@ const CFG = {
   meta: {
     perSecond: 0.24,          // Seelen pro Sekunde Spielzeit (ein Lauf ist jetzt ca. 840 s statt 2000 s lang, deshalb 2.4x so viel pro Sekunde)
     perBoss: 25,              // Seelen pro besiegtem Boss (6 Bosse pro Lauf statt bis zu 13)
+    // Starter-Bonus: in den ersten Laeufen (Lauf 1, 2, ...) werden die Lauf-Cores mit mult multipliziert und steigen mindestens auf min, damit man frueh etwas Erstes kaufen kann
+    // (Stats kosten ab ca. 25-30 Cores). Danach normal. Tutorial zaehlt nicht als Lauf. Eintraege = Anzahl der Laeufe.
+    starter: { mult: [3, 2.5, 2, 1.75, 1.5], min: [60, 50, 40, 35, 30] },
     upgrades: {
-      health:   { tab: 'stats', name: 'HEALTH',            max: 10, cost: 50, step: 10,   desc: (v) => '+' + v + ' max health', info: 'More maximum health (base 100), the health bar adapts.' },
-      speed:    { tab: 'stats', name: 'SPEED',        max: 10, cost: 30, step: 0.02, desc: (v) => '+' + Math.round(v * 100) + '% move speed', info: 'You move faster permanently.' },
-      ult:      { tab: 'stats', name: 'ULTIMATE CHARGE',  max: 10, cost: 40, step: 0.05, desc: (v) => '+' + Math.round(v * 100) + '% charge from kills', info: 'Kills charge your ultimate faster.' },
-      cooldown: { tab: 'stats', name: 'COOLDOWNS',    max: 10, cost: 50, step: 0.03, desc: (v) => '-' + Math.round(v * 100) + '% ability cooldown', info: 'Abilities, grenades and more are ready sooner.' },
-      startUlt: { tab: 'stats', name: 'STARTING CHARGE',   max: 10, cost: 25, step: 4,    desc: (v) => '+' + v + ' charge at start', info: 'You begin every run with some ultimate charge.' },
-      resist:   { tab: 'stats', name: 'DAMAGE RESISTANCE',           max: 10, cost: 60, step: 0.02, desc: (v) => '-' + Math.round(v * 100) + '% damage taken', info: 'Every hit you take hurts less.' },
-      regen:    { tab: 'stats', name: 'REGENERATION',     max: 10, cost: 70, step: 0.06, desc: (v) => '+' + v.toFixed(2) + ' health per second', info: 'You slowly heal yourself permanently (even without an implant).' },
-      blood:    { tab: 'stats', name: 'BURST RECHARGE',       max: 10, cost: 90, step: 0.06, desc: (v) => '-' + Math.round(v * 100) + '% emergency burst cooldown', info: 'The emergency burst near death is ready sooner.' },
+      health:   { tab: 'stats', name: 'HEALTH',            max: 20, cost: 50, step: 10,   desc: (v) => '+' + v + ' max health', info: 'More maximum health (base 100), the health bar adapts.' },
+      speed:    { tab: 'stats', name: 'SPEED',        max: 15, cost: 30, step: 0.02, desc: (v) => '+' + Math.round(v * 100) + '% move speed', info: 'You move faster permanently.' },
+      ult:      { tab: 'stats', name: 'ULTIMATE CHARGE',  max: 15, cost: 40, step: 0.05, desc: (v) => '+' + Math.round(v * 100) + '% charge from kills', info: 'Kills charge your ultimate faster.' },
+      cooldown: { tab: 'stats', name: 'COOLDOWNS',    max: 15, cost: 50, step: 0.03, desc: (v) => '-' + Math.round(v * 100) + '% ability cooldown', info: 'Abilities, grenades and more are ready sooner.' },
+      startUlt: { tab: 'stats', name: 'STARTING CHARGE',   max: 15, cost: 25, step: 4,    desc: (v) => '+' + v + ' charge at start', info: 'You begin every run with some ultimate charge.' },
+      resist:   { tab: 'stats', name: 'DAMAGE RESISTANCE',           max: 15, cost: 60, step: 0.05, desc: (v) => '-' + Math.round(v * 100) + '% damage taken', info: 'Every hit you take hurts less.' },
+      regen:    { tab: 'stats', name: 'REGENERATION',     max: 15, cost: 75, step: 0.25, desc: (v) => '+' + v.toFixed(2) + ' health per second', info: 'You slowly heal yourself permanently (even without an implant).' },
+      blood:    { tab: 'stats', name: 'BURST RECHARGE',       max: 15, cost: 90, step: 0.06, desc: (v) => '-' + Math.round(v * 100) + '% emergency burst cooldown', info: 'The emergency burst near death is ready sooner.' },
       // Weitere Spieler-Werte (jeder Wert, der den Spieler selbst beeinflusst, ist hier kaufbar; Waffen und Ausrüstung haben ihre eigenen Boni)
-      power:      { tab: 'stats', name: 'POWER',           max: 10, cost: 80, step: 0.04, desc: (v) => '+' + Math.round(v * 100) + '% double-hit chance and boss damage', info: 'Your attacks sometimes hit twice and bosses take more damage.' },
-      attackSpeed: { tab: 'stats', name: 'ATTACK SPEED',  max: 10, cost: 70, step: 0.04, desc: (v) => '+' + Math.round(v * 100) + '% attack speed', info: 'All your weapons fire and swing faster.' },
-      recovery:   { tab: 'stats', name: 'RECOVERY',       max: 10, cost: 70, step: 0.019, desc: (v) => '+' + v.toFixed(2) + ' s safe after a hit', info: 'After a hit you stay invulnerable a little longer.' },
-      heal:       { tab: 'stats', name: 'HEALING',        max: 10, cost: 60, step: 0.1,  desc: (v) => '+' + Math.round(v * 100) + '% healing', info: 'Every kind of healing (kills, pickups, bursts) restores more.' },
-      luck:       { tab: 'stats', name: 'LUCK',           max: 10, cost: 60, step: 0.1,  desc: (v) => '+' + Math.round(v * 100) + '% drop chance', info: 'Enemies drop buffs more often.' },
-      buffTime:   { tab: 'stats', name: 'BUFF DURATION',  max: 10, cost: 50, step: 0.1,  desc: (v) => '+' + Math.round(v * 100) + '% buff duration', info: 'Speed, rapid fire and guard buffs last longer.' },
-      magnet:     { tab: 'stats', name: 'MAGNET',         max: 10, cost: 40, step: 0.15, desc: (v) => '+' + Math.round(v * 100) + '% pickup range', info: 'You collect healing and buff drops from further away.' },
-      coreDrop: { tab: 'stats', name: 'CORE EMITTER',      max: 10, cost: 90, step: 6,    desc: (v) => 'a core drops every ' + (CFG.coreDrop.base - v) + ' s', info: 'Every few seconds you automatically collect a core during a run.' },
-      souls:    { tab: 'stats', name: 'CORE HARVESTER',    max: 10, cost: 30, step: 0.15, desc: (v) => '+' + Math.round(v * 100) + '% cores per run', info: 'Every run yields more cores (time and bosses).' },
+      power:      { tab: 'stats', name: 'POWER',           max: 15, cost: 80, step: 0.04, desc: (v) => '+' + Math.round(v * 100) + '% double-hit chance and boss damage', info: 'Your attacks sometimes hit twice and bosses take more damage.' },
+      attackSpeed: { tab: 'stats', name: 'ATTACK SPEED',  max: 15, cost: 70, step: 0.04, desc: (v) => '+' + Math.round(v * 100) + '% attack speed', info: 'All your weapons fire and swing faster.' },
+      recovery:   { tab: 'stats', name: 'RECOVERY',       max: 15, cost: 70, step: 0.019, desc: (v) => '+' + v.toFixed(2) + ' s safe after a hit', info: 'After a hit you stay invulnerable a little longer.' },
+      heal:       { tab: 'stats', name: 'HEALING',        max: 15, cost: 60, step: 0.1,  desc: (v) => '+' + Math.round(v * 100) + '% healing', info: 'Every kind of healing (kills, pickups, bursts) restores more.' },
+      luck:       { tab: 'stats', name: 'LUCK',           max: 15, cost: 60, step: 0.1,  desc: (v) => '+' + Math.round(v * 100) + '% drop chance', info: 'Enemies drop buffs more often.' },
+      buffTime:   { tab: 'stats', name: 'BUFF DURATION',  max: 15, cost: 50, step: 0.1,  desc: (v) => '+' + Math.round(v * 100) + '% buff duration', info: 'Speed, rapid fire and guard buffs last longer.' },
+      magnet:     { tab: 'stats', name: 'MAGNET',         max: 15, cost: 40, step: 0.15, desc: (v) => '+' + Math.round(v * 100) + '% pickup range', info: 'You collect healing and buff drops from further away.' },
+      coreDrop: { tab: 'stats', name: 'CORE EMITTER',      max: 15, cost: 90, step: 6,    desc: (v) => 'a core drops every ' + (CFG.coreDrop.base - v) + ' s', info: 'Every few seconds you automatically collect a core during a run.' },
+      souls:    { tab: 'stats', name: 'CORE HARVESTER',    max: 15, cost: 100, step: 0.05, desc: (v) => '+' + Math.round(v * 100) + '% souls from runs', info: 'You get more souls after every run.' },
     },
   },
 
@@ -663,7 +675,15 @@ const CFG = {
     spore:    { name: 'SPORE',    base: 'circle',   hue: 95,  size: 0.9,  hits: 1, speed: 1.1,  death: 'cloud' },
     blighter: { name: 'BLIGHTER', base: 'rhombus',  hue: 110, size: 1.1,  hits: 3, drop: 'cloud' },
     hazmat:   { name: 'HAZMAT',   base: 'tank',     hue: 100, size: 0.95, hits: 9, trail: 2.2 },
+    rime:     { name: 'RIME',      base: 'circle',   hue: 175, size: 0.95, hits: 2, speed: 1.2, death: 'frost', chill: true },
+    icicle:   { name: 'ICICLE',    base: 'triangle', hue: 190, size: 1.1,  hits: 2, fan: 3, fanSpread: 12, every: 1.9, chill: true },
+    frostbite: { name: 'FROSTBITE', base: 'rhombus', hue: 200, size: 1.1,  hits: 3, chill: true },
   },
+  // Karte 4 (Kryo-Station): rime = schneller Kreis, bei dessen Tod ein Frostring entsteht, icicle = Dreieck mit Dreierfaecher, frostbite = Raute, deren Wellen frieren.
+  // chill = Treffer (und der Frostring) kuehlen den Spieler: Tempo x CFG.chill.slow fuer CFG.chill.dur Sekunden.
+  // Kaelte (Karte 4): Treffer von Frost-Gegnern verlangsamen den Spieler. Eisfelder (CFG.maps[].env.ice): grip = wie schnell die Geschwindigkeit der Eingabe folgt (pro Bild, kleiner = rutschiger), decay = Ausrutschen nach dem Verlassen (pro Bild).
+  chill: { slow: 0.6, dur: 2.2 },
+  ice: { grip: 0.055, decay: 0.8 },
   // Giftwolke (Spore, Blighter, Hazmat und die Giftbosse): Warnring warn s, dann life s Gefahrenzone (Radius radius), Schaden dmg-fach (die Schutzzeit nach einem Treffer begrenzt die Häufigkeit)
   cloud: { radius: 30, warn: 0.7, life: 4.5, dmg: 0.5, bossLife: 6, maxActive: 14 },
 
@@ -849,6 +869,17 @@ const CFG = {
     warn: 3, minScale: 0.55, speed: 0.08,
   },
 
+  // Safe Spot (js/safespot.js): erscheint zu Beginn jedes Welt-Events (Swarm Surge, Crimson Eclipse, Meteoritenhagel, nicht die schrumpfende Arena).
+  // Im Spot: unverwundbar, kein Angriff, alle Gegner bremsen und weichen langsam zurück. Das Zeitbudget läuft nur ab, solange man im Spot steht.
+  safeSpot: {
+    radius: 34, budget: 5,          // Radius in Einheiten, Gesamtzeit im Spot pro Event (Sekunden)
+    minDist: 70, maxDist: 150,      // Abstand zum Spieler beim Erscheinen
+    enemySlow: 0.1,                 // Gegner laufen mit diesem Anteil ihres Tempos weiter (0 = stehen)
+    retreat: 1.1,                   // Rückzug aller Gegner vom Spot (Einheiten pro Bild)
+    warnAt: 1.5,                    // Restzeit, ab der der Spot blinkt
+    hintTime: 1.0,                  // so lange bleibt der Hinweis "no attacks" nach einem Angriffsversuch
+  },
+
 
   // ==========================================================================================
   //  [9] DROPS
@@ -874,17 +905,17 @@ const CFG = {
     chance: 0.04,             // normale Gegner
     miniChance: 0.6,          // Minibosse
     types: {
-      haste:   { label: 'Speed',      icon: 'buffHaste',   color: STYLE.pal.cyan,     dur: 8,  mult: 1.3, w: 20 },
-      rapid:   { label: 'Rapid Fire', icon: 'buffRapid',   color: STYLE.pal.orange,   dur: 8,  mult: 0.6, w: 20 },
-      guard:   { label: 'Guard',      icon: 'buffGuard',   color: STYLE.pal.yellow,   dur: 3,  w: 6 },
+      haste:   { label: 'Speed',      icon: 'buffHaste',   color: STYLE.pal.cyan,     dur: 10, mult: 1.5, w: 20 },
+      rapid:   { label: 'Rapid Fire', icon: 'buffRapid',   color: STYLE.pal.orange,   dur: 10, mult: 0.5, w: 20 },
+      guard:   { label: 'Guard',      icon: 'buffGuard',   color: STYLE.pal.yellow,   dur: 4,  w: 6 },
       charge:  { label: 'Charge',     icon: 'buffCharge',  color: STYLE.pal.green,    amount: 13, w: 14 },
-      power:   { label: 'Overpower',  icon: 'buffPower',   color: STYLE.pal.red,      dur: 10, chance: 0.3, boss: 0.25, w: 12 },
-      magnet:  { label: 'Magnet',     icon: 'buffMagnet',  color: STYLE.pal.purple,   dur: 10, range: 2.5, pull: 3, pullRange: 150, w: 12 },
-      regen:   { label: 'Repair',     icon: 'buffRegen',   color: STYLE.pal.teal,     dur: 6,  hps: 3, w: 12 },
-      vampire: { label: 'Leech',      icon: 'buffVampire', color: STYLE.pal.redMid,   dur: 10, heal: 1, w: 8 },
-      chrono:  { label: 'Chrono',     icon: 'buffChrono',  color: STYLE.pal.ice,      dur: 6,  slow: 0.65, w: 7 },
-      coolant: { label: 'Coolant',    icon: 'buffCoolant', color: STYLE.pal.cyanMid,  dur: 8,  rate: 2.5, w: 10 },
-      nova:    { label: 'Nova',       icon: 'buffNova',    color: STYLE.pal.white,    radius: 95, stun: 1.2, duration: 0.35, w: 6 },
+      power:   { label: 'Overpower',  icon: 'buffPower',   color: STYLE.pal.red,      dur: 12, chance: 0.5, boss: 0.4, w: 12 },
+      magnet:  { label: 'Magnet',     icon: 'buffMagnet',  color: STYLE.pal.purple,   dur: 30, range: 3, pull: 4, pullRange: 190, w: 12 },
+      regen:   { label: 'Repair',     icon: 'buffRegen',   color: STYLE.pal.teal,     dur: 8,  hps: 6, w: 12 },
+      vampire: { label: 'Leech',      icon: 'buffVampire', color: STYLE.pal.redMid,   dur: 12, heal: 3, w: 8 },
+      chrono:  { label: 'Chrono',     icon: 'buffChrono',  color: STYLE.pal.ice,      dur: 8,  slow: 0.45, w: 7 },
+      coolant: { label: 'Coolant',    icon: 'buffCoolant', color: STYLE.pal.cyanMid,  dur: 10, rate: 3, w: 10 },
+      nova:    { label: 'Nova',       icon: 'buffNova',    color: STYLE.pal.white,    radius: 150, stun: 2, duration: 0.35, w: 6 },
     },
   },
 
@@ -909,7 +940,7 @@ const CFG = {
       rapid:    { name: 'QUICK HANDS',      desc: 'All weapons attack faster.',                              icon: 'buffRapid',   iconW: 20, max: 5, per: 0.06 },
       speed:    { name: 'SWIFT',            desc: 'You move faster.',                                        icon: 'buffHaste',   iconW: 20, max: 5, per: 0.04 },
       health:   { name: 'VITALITY',         desc: 'More maximum health, healed right away.',                 icon: 'phoenixIcon', iconW: 20, max: 5, hp: 12 },
-      regen:    { name: 'NANITES',          desc: 'You slowly regenerate health.',                           icon: 'regenIcon',   iconW: 20, max: 4, per: 0.35 },
+      regen:    { name: 'NANITES',          desc: 'You slowly regenerate health.',                           icon: 'regenIcon',   iconW: 20, max: 4, per: 0.25 },
       armor:    { name: 'PLATING',          desc: 'You take less damage.',                                   icon: 'armorIcon',   iconW: 20, max: 5, per: 0.04 },
       magnet:   { name: 'ATTRACTOR',        desc: 'Pick up XP, healing and drops from further away.',        icon: 'buffMagnet',  iconW: 20, max: 4, per: 0.25 },
       charge:   { name: 'CAPACITOR',        desc: 'Kills charge your ultimate faster.',                      icon: 'buffCharge',  iconW: 20, max: 4, per: 0.08 },
@@ -966,6 +997,15 @@ const CFG = {
              cloudFirst: 3, cloudEvery: 4.5, cloudCount: 3, cloudSpread: 75, spawnFirst: 5, spawnEvery: 9, spawnCount: 2, maxMinions: 6 },
     // Plague Drone: schnell, feuert 3er-Fächer (fanSpread Grad) und zieht Giftwolken hinter sich her (alle trailEvery s).
     plague: { name: 'PLAGUE DRONE', sprite: 'kite', hue: 100, drawSize: 290, speed: 3.6, radius: 19, hpBase: 30, hpPerStage: 4.5, hitStun: 0.1, shootEvery: 1.7, fanSpread: 24, trailEvery: 1.6 },
+    // Kartenspezifische Bosse der Cryo Station (chill = alle Bolzen und die Berührung kühlen den Spieler, CFG.chill).
+    // Frost Sentinel: kommt langsam näher, steht beim Spiralfeuer still (spiralTime s lang alle spiralRate s spiralArms Bolzen, Drehung spiralTurn Grad pro Salve) und
+    // lädt alle novaEvery s einen Frostring (novaTele s Vorwarnung, dann novaCount Bolzen rundherum).
+    frost: { name: 'FROST SENTINEL', sprite: 'octagon', hue: 185, drawSize: 350, speed: 1.9, radius: 25, hpBase: 42, hpPerStage: 5.5, hitStun: 0.25, shootEvery: 2.0, chill: true,
+             spiralFirst: 4, spiralEvery: 8, spiralTime: 2.4, spiralRate: 0.16, spiralArms: 3, spiralTurn: 24, novaFirst: 7, novaEvery: 9, novaTele: 1.0, novaCount: 14 },
+    // Frost Wraith: schnell, feuert gekühlte 3er-Fächer und springt alle blinkEvery s zu einer Stelle nahe dem Spieler (blinkTele s Vorwarnring, Abstand blinkDist min/max),
+    // dort bricht beim Auftauchen ein Ring aus arrivalCount Bolzen los.
+    wraith: { name: 'FROST WRAITH', sprite: 'kite', hue: 190, drawSize: 290, speed: 2.7, radius: 19, hpBase: 34, hpPerStage: 4.8, hitStun: 0.15, shootEvery: 1.7, fanSpread: 20, chill: true,
+              blinkFirst: 4, blinkEvery: 6.5, blinkTele: 0.9, blinkDist: [70, 120], arrivalCount: 10 },
     // Konter aller Bosse (siehe Boss.updateCounters). Leben pro Boss oben: hpBase + hpPerStage x Stufe.
     // stunResist: so lange nach einer Betaeubung wirkt keine neue (Boss laeuft trotz Treffern weiter). Treffer machen weiter Schaden.
     // Schockwelle: nearTime Sekunden in nearDist -> Ring (Radius shockRadius), nach shockDelay s Schaden. Sog: farTime s weiter als farDist weg ->
@@ -1018,7 +1058,7 @@ const CFG = {
   // diff: hits = Gegner-Leben mal Faktor, rate = Spawn-Takt der Grundgegner mal (kleiner = mehr), allRate/capMul = Wartezeit/Obergrenze aller übrigen Gegner, boss = Bossstärke (hp/fire/speed/dmg, siehe CFG.boss.power). Karte 1 = alles 1 (Originalwerte, die "Härter-Runde" gilt nur ab Karte 2), speed = Gegnertempo, spawn = Spawn-Abstände (kleiner = mehr Gegner), damage = Schaden am Spieler, bossHp = Boss-Leben, cores = Belohnung.
   // Freischalten: unlockFrac x finaler-Boss-Zeit (CFG.finalBoss.at) auf der VORHERIGEN Karte erreichen (Bestzeit je Karte, nur normaler Modus), also die halbe Strecke.
   maps: [
-    { id: 'void', name: 'NEON VOID', desc: 'The classic arena.', ground: 'ground', frame: STYLE.pal.cyan, half: [520, 390], diff: { speed: 1, spawn: 1, damage: 1, bossHp: 1, cores: 1, hits: 1, rate: 1, allRate: 1, capMul: 1, boss: { hp: 1, fire: 1, speed: 1, dmg: 1 } }, level: 1 },
+    { id: 'void', fx: { kind: 'void' }, name: 'NEON VOID', desc: 'The classic arena.', ground: 'ground', frame: STYLE.pal.cyan, half: [520, 390], diff: { speed: 1, spawn: 1, damage: 1, bossHp: 1, cores: 1, hits: 1, rate: 1, allRate: 1, capMul: 1, boss: { hp: 1, fire: 1, speed: 1, dmg: 1 } }, level: 1 },
     { id: 'foundry', name: 'EMBER FOUNDRY', desc: 'Hotter, faster, meaner.', ground: 'ground2', frame: STYLE.pal.orange, half: [520, 390], diff: { speed: 1.08, spawn: 0.9, damage: 1.15, bossHp: 1.15, cores: 1.25, hits: 1.5, rate: 0.8125, allRate: 0.7, capMul: 1.4, boss: { hp: 1.6, fire: 0.8, speed: 1.1, dmg: 1.25 } }, level: 2, unlockFrac: 0.5,
       // Kartenspezifisch (nur Karte 2 und 3): bossOrder ersetzt CFG.boss.order (gleiche Länge, zwei Kämpfe sind durch Karten-Bosse ersetzt, die Dauer bleibt),
       // foes = zusätzliche Gegner-Varianten (CFG.variants), trim = Wartezeiten der normalen Gegner mal Faktor (größer = weniger davon, Schlüssel: c/t/r/s = Kreis/Dreieck/Raute/Quadrat, sonst Typname aus extraSpawn)
@@ -1033,7 +1073,8 @@ const CFG = {
         belts: { count: 2, len: 150, width: 28, push: 1.7, flip: [10, 16], flipWarn: 1.0, minGap: 70 },
       },
       foes: [{ v: 'cinder', from: 60, min: 11, max: 15, maxAlive: 8 }, { v: 'welder', from: 150, min: 20, max: 28, maxAlive: 3 }, { v: 'smelter', from: 240, min: 28, max: 38, maxAlive: 2 }],
-      trim: { c: 1.35, t: 1.25, bomber: 1.6, sniper: 1.4 } },
+      trim: { c: 1.35, t: 1.25, bomber: 1.6, sniper: 1.4 },
+      fx: { kind: 'foundry' } },
     { id: 'toxic', name: 'TOXIC CORE', desc: 'Tight arena, no mistakes.', ground: 'ground3', frame: STYLE.pal.green, half: [440, 330], diff: { speed: 1.15, spawn: 0.8, damage: 1.3, bossHp: 1.3, cores: 1.6, hits: 2, rate: 0.69, allRate: 0.55, capMul: 1.8, boss: { hp: 2, fire: 0.68, speed: 1.15, dmg: 1.45 } }, level: 3, unlockFrac: 0.5,
       bossOrder: ['octagon', 'plague', 'spore', 'turret', 'twin', 'arena'],           // Plague Drone ersetzt Kite, Spore Mother ersetzt den Beschwörer
       // Umgebungsmechanik (js/mapenv.js): pools (Säurepfützen): radius = Bereich (min/max), slow = Tempofaktor für den Spieler, enemySlow = für Gegner, dps = Leben pro Sekunde
@@ -1043,9 +1084,25 @@ const CFG = {
         pools: { count: 4, radius: [26, 38], slow: 0.7, enemySlow: 0.75, dps: 0.6, burp: [9, 15], burpWarn: 1.2, minGap: 70 },
       },
       foes: [{ v: 'spore', from: 60, min: 11, max: 15, maxAlive: 8 }, { v: 'blighter', from: 170, min: 22, max: 30, maxAlive: 2 }, { v: 'hazmat', from: 300, min: 45, max: 60, maxAlive: 1 }],
-      trim: { c: 1.35, s: 1.3, splitter: 1.5, leech: 1.4, tank: 1.5 } },
+      trim: { c: 1.35, s: 1.3, splitter: 1.5, leech: 1.4, tank: 1.5 },
+      fx: { kind: 'toxic' } },
+    { id: 'cryo', name: 'CRYO STATION', desc: 'Ice, blizzards, no grip.', ground: 'ground4', frame: STYLE.pal.ice, half: [440, 330], diff: { speed: 1.2, spawn: 0.72, damage: 1.45, bossHp: 1.45, cores: 2, hits: 2.5, rate: 0.6, allRate: 0.5, capMul: 2.1, boss: { hp: 2.4, fire: 0.6, speed: 1.2, dmg: 1.65 } }, level: 4, unlockFrac: 0.5,
+      // Kryo-Station: Eisfelder (ice: Spieler rutscht, Tempo folgt der Eingabe nur langsam), Blizzard (blizzard: first = erster Sturm nach s, every = Pause (min/max), warn = Vorwarnung mit Richtungspfeil,
+      // dur = Dauer, push = Schub in Einheiten pro Bild auf Spieler UND Gegner) und Kaelte (Treffer der Frost-Gegner bremsen den Spieler). Im Bosskampf ruhen Eis und Sturm.
+      hazards: ['ICE SHEETS', 'BLIZZARDS', 'CHILL'],
+      env: {
+        ice: { count: 4, radius: [55, 85], minGap: 60 },
+        blizzard: { first: 40, every: [30, 48], warn: 2.2, dur: 5, push: 1.15 },
+      },
+      bossOrder: ['octagon', 'kite', 'frost', 'wraith', 'twin', 'arena'],            // Frost Sentinel ersetzt den Beschwörer, Frost Wraith den Laser-Turm
+      foes: [{ v: 'rime', from: 60, min: 11, max: 15, maxAlive: 8 }, { v: 'icicle', from: 150, min: 20, max: 28, maxAlive: 3 }, { v: 'frostbite', from: 220, min: 30, max: 40, maxAlive: 2 }],
+      trim: { c: 1.35, t: 1.25, r: 1.4, sniper: 1.4, teleporter: 1.4 },
+      fx: { kind: 'cryo' } },
   ],
-  infinite: { finalMinutes: [10, 15, 20, 30, 45, 60, null], defaultSel: 3, coreFactor: 0.5 },
+  // Endlos-Modus: spawnRate = Faktor auf alle Spawn-Wartezeiten (0.6 = ca. 1.7x so viele Gegner, weil Weglaufen auf der freien Karte sonst zu leicht ist), capMul = Faktor auf die Obergrenzen
+  // der Sondertypen. spawnPoints = Punkte relativ zur Kamera, ALLE ausserhalb des Bildes (Bild = +-240 x +-180, beim Rauszoomen etwas mehr), rundherum ein Rechteckring.
+  infinite: { finalMinutes: [10, 15, 20, 30, 45, 60, null], defaultSel: 3, coreFactor: 0.5, spawnRate: 0.6, capMul: 1.3,
+    spawnPoints: [[300, 0], [300, 130], [300, 240], [150, 255], [0, 255], [-150, 255], [-300, 240], [-300, 130], [-300, 0], [-300, -130], [-300, -240], [-150, -255], [0, -255], [150, -255], [300, -240], [300, -130]] },
   ending: { firstWinCores: 500, winCores: 100, victoryDelay: 2.2 },       // Belohnung zusätzlich zu den Cores der Spielzeit: beim ersten Sieg / bei jedem weiteren; victoryDelay = Sekunden Siegphase nach dem finalen Boss
 };
 

@@ -5,7 +5,7 @@ const RETIRED_BONUS = ['sword', 'shot', 'beam', 'grenade', 'tough', 'soulgain'];
 
 const Save = {
   KEY: 'deatharena.save.v1',
-  data: { best: 0, runs: 0, musicVol: 0.5, sfxVol: 0.6, tutorialDone: false, wins: 0, last: null, bestInf: 0, infSel: CFG.infinite.defaultSel, mapSel: 0, lastMode: 'regular', mapBest: {}, seenKeys: false, souls: 0, upgrades: {}, unlocked: {},
+  data: { best: 0, runs: 0, musicVol: 0.5, sfxVol: 0.6, mouseAim: false, tutorialDone: false, wins: 0, last: null, bestInf: 0, infSel: CFG.infinite.defaultSel, mapSel: 0, lastMode: 'regular', mapBest: {}, seenKeys: false, souls: 0, upgrades: {}, unlocked: {},
     items: JSON.parse(JSON.stringify(CFG.items.start)),     // Inventar: besessene und ausgeruestete Items
     gear: {},       // Stufe und XP je Item/Ability
     cosmetics: { owned: {}, equipped: {} },      // gekaufte Cosmetics ("kategorie:id") und ausgeruestete je Kategorie
@@ -16,7 +16,7 @@ const Save = {
     imported: { deaths: [], bosses: [] },        // importierte Spieldaten anderer Spieler
     binds: {} },     // eigene Tastenbelegung (siehe Input.actions)
   // Geraetedaten, die bei Slot-Wechsel, Reset und Import bleiben (kein Teil eines einzelnen Spielstands)
-  KEEP: ['musicVol', 'sfxVol', 'fx', 'binds', 'dev', 'deathLog', 'bossLog', 'imported'],
+  KEEP: ['musicVol', 'sfxVol', 'mouseAim', 'fx', 'binds', 'deathLog', 'bossLog', 'imported'],       // 'dev' gehoert bewusst NICHT dazu: der Dev-Modus gilt nur fuer den Slot, in den die Dev-Datei importiert wurde
 
   // Abilities: frei, wenn Preis 0 oder gekauft
   isUnlocked(id) { return CFG.loadout.abilities[id].unlock === 0 || !!(this.data.unlocked && this.data.unlocked[id]); },
@@ -119,6 +119,7 @@ const Save = {
     if (!this.cosOwned(cat, id)) {
       if (this.cosLocked(it) || this.data.souls < it.cost) return false;
       this.data.souls -= it.cost; this.data.cosmetics.owned[cat + ':' + id] = true;
+      if (typeof Ach !== 'undefined') Ach.add('cosBuy', 1, true);
     }
     this.data.cosmetics.equipped[cat] = id;
     this.write();
@@ -175,7 +176,7 @@ const Save = {
   },
 
   // ---- Spielstände: bis zu 3 Slots (Slot 1 = alter Schlüssel, bestehende Spielstände bleiben erhalten), aktiver Slot in SLOT_KEY ----
-  SLOT_KEY: 'deatharena.slot', SLOTS: 3, slot: 0,
+  DEVICE_KEY: 'deatharena.device', SLOT_KEY: 'deatharena.slot', SLOTS: 3, slot: 0,
   keyFor(i) { return i === 0 ? this.KEY : this.KEY + '.slot' + (i + 1); },
   load() {
     try {
@@ -183,8 +184,13 @@ const Save = {
       this.slot = s >= 0 && s < this.SLOTS ? s : 0;
       const raw = localStorage.getItem(this.keyFor(this.slot));
       if (raw) Object.assign(this.data, JSON.parse(raw));
+      // Geraetedaten (Dev-Modus, Tasten, Lautstaerken, Protokolle) liegen getrennt von den Slots und gelten immer
+      const dev = localStorage.getItem(this.DEVICE_KEY);
+      if (dev) { const d = JSON.parse(dev); for (const k of this.KEEP) if (d[k] !== undefined) this.data[k] = d[k]; }
       this.migrate();
     } catch (e) { /* ohne Speicher weiterspielen */ }
+    // Safari/iPad raeumt Speicher sonst eher auf: dauerhaften Speicher anfragen (wird still abgelehnt, wenn nicht moeglich)
+    try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { /* ignorieren */ }
   },
   // Alte Spielstaende: die Bestzeit aus der Zeit vor den Karten gehoert zu Karte 1
   migrate() {
@@ -194,6 +200,7 @@ const Save = {
   },
   write() {
     try { localStorage.setItem(this.keyFor(this.slot), JSON.stringify(this.data)); } catch (e) { /* ignorieren */ }
+    try { const d = {}; for (const k of this.KEEP) d[k] = this.data[k]; localStorage.setItem(this.DEVICE_KEY, JSON.stringify(d)); } catch (e) { /* ignorieren */ }
   },
   // Zusammenfassung eines Slots fuer die Anzeige (null = leer)
   slotInfo(i) {
@@ -219,7 +226,10 @@ const Save = {
   // ---- Übertragen: aktiver Slot als Code ("DA1:<base64>:<Prüfsumme>") oder Datei ----
   exportCode() {
     this.write();
-    const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(this.data))));
+    const out = Object.assign({}, this.data);
+    delete out.dev;                                       // der Dev-Modus wandert nie mit einem Code mit
+    for (const k of this.KEEP) delete out[k];            // Geraetedaten (Protokolle, Dev-Modus, Tasten) gehoeren nicht in den Code: sonst wird er riesig und beim Kopieren/Senden abgeschnitten
+    const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(out))));
     return 'DA1:' + b64 + ':' + this.checksum(b64);
   },
   checksum(s) { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h.toString(36); },
@@ -234,7 +244,7 @@ const Save = {
       const next = JSON.parse(this.DEFAULTS);
       for (const k of Object.keys(next)) if (src[k] !== undefined && typeof src[k] === typeof next[k]) next[k] = src[k];       // nur bekannte Felder mit passendem Typ
       for (const k of this.KEEP) if (this.data[k] !== undefined) next[k] = this.data[k];
-      next.dev = src.dev === true || this.data.dev === true;           // die Dev-Save-Datei schaltet den Dev-Modus frei (und er bleibt danach an)
+      next.dev = src.dev === true || this.data.dev === true;           // die Dev-Save-Datei schaltet den Dev-Modus fuer diesen Slot frei (bleibt dort auch nach einem normalen Import)
       this.data = next;
       this.migrate();
       this.write();

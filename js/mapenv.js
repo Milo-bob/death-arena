@@ -195,20 +195,77 @@ class AcidPool {
   }
 }
 
+// ---------- Eisfeld (Karte 4) ----------
+// Glatte Eisflaeche: der Spieler rutscht (Player.iceStep), Gegner laufen normal. Ruht im Bosskampf (dann gedimmt und ohne Wirkung).
+class IcePatch {
+  constructor() {
+    const I = G.map.env.ice;
+    this.x = 0; this.y = 0;
+    this.r = rand(I.radius[0], I.radius[1]); this.reach = this.r; this.gap = I.minGap;
+    this.glints = [];
+    for (let i = 0; i < 7; i++) this.glints.push([rand(0, 6.28), rand(0.15, 0.85), rand(0, 1)]);
+  }
+  reset() {}
+  get idle() { return true; }
+  update() {}
+  covers(x, y, r) { return dist2(this.x, this.y, x, y) <= (this.r + r * 0.3) ** 2; }
+  draw(ctx, dim) {
+    const P = STYLE.pal, t = G.realTime, cx = STAGE_W / 2 + this.x, cy = STAGE_H / 2 - this.y, r = this.r;
+    ctx.save();
+    ctx.globalAlpha = 0.42 * dim; ctx.fillStyle = P.cyanMid; pxDisc(ctx, cx, cy, r);
+    ctx.globalAlpha = 0.3 * dim; ctx.fillStyle = P.ice; pxDisc(ctx, cx, cy, r * 0.72);
+    ctx.globalAlpha = 0.9 * dim; ctx.fillStyle = P.ice; pxRing(ctx, cx, cy, r, 1, 22, 0);
+    ctx.fillStyle = P.white;                                                       // Glanzstreifen wandern ueber das Eis
+    for (const [a, rad, ph] of this.glints) {
+      const k = (t * 0.35 + ph) % 1;
+      if (k > 0.4) continue;
+      const gx = cx + Math.cos(a) * r * rad, gy = cy + Math.sin(a) * r * rad * 0.75;
+      ctx.globalAlpha = Math.sin(k / 0.4 * Math.PI) * 0.9 * dim; pxLine(ctx, gx - 4, gy + 3, gx + 4, gy - 3, 1);
+    }
+    ctx.restore();
+  }
+}
+
 // ---------- Steuerung ----------
 const MapEnv = {
+  blz: null,                                                                       // Blizzard (Karte 4): { state: 'idle' | 'warn' | 'gust', t, ang }
+  get gust() { return !!this.blz && this.blz.state === 'gust' && this.on; },
+  windVec() { const a = this.blz ? this.blz.ang : 0; return [fwdX(a), fwdY(a)]; },
+  // Wind staerker nach dem Start und schwaecher zum Ende (0..1)
+  gustRamp() { const B = G.map.env.blizzard; return this.blz && this.blz.state === 'gust' ? clamp(Math.min(this.blz.age / 0.7, (B.dur - this.blz.age) / 0.9), 0, 1) : 0; },
+  updateBlizzard(dt) {
+    const E = G.map && G.map.env, B = this.blz;
+    if (!E || !E.blizzard || !B) return;
+    if (!this.on) { if (B.state !== 'idle') { B.state = 'idle'; B.t = rand(E.blizzard.every[0], E.blizzard.every[1]); } return; }       // im Bosskampf kein Sturm
+    B.t -= dt; B.age += dt;
+    if (B.state === 'idle' && B.t <= 0) {
+      B.state = 'warn'; B.t = E.blizzard.warn; B.age = 0; B.ang = randInt(0, 7) * 45;
+      G.notice('BLIZZARD INCOMING!', STYLE.pal.ice); Sfx.play('warn');
+    } else if (B.state === 'warn' && B.t <= 0) {
+      B.state = 'gust'; B.t = E.blizzard.dur; B.age = 0; Sfx.play('wave'); Juice.shake(1.5);
+    } else if (B.state === 'gust' && B.t <= 0) { B.state = 'idle'; B.t = rand(E.blizzard.every[0], E.blizzard.every[1]); B.age = 0; }
+  },
+  // Steht diese Stelle auf Eis? (nur wenn die Gefahren wirken)
+  iceAt(x, y, r) {
+    if (!G.hazards.length || !this.on) return false;
+    for (const h of G.hazards) if (h.covers && h.covers(x, y, r)) return true;
+    return false;
+  },
+
   // Wirken die Gefahren gerade? (Im Bosskampf, Tutorial und in der Siegphase ruhen sie.)
   get on() { return !G.bossFight && !Tutorial.active && !(G.victory > 0); },
 
   // Zu Beginn eines Laufs: Gefahren der gewählten Karte aufstellen (G.hazards)
   init() {
-    G.hazards = [];
+    G.hazards = []; this.blz = null;
     const E = G.map.env;
     if (!E || Tutorial.active) return;
+    if (E.blizzard) this.blz = { state: 'idle', t: E.blizzard.first, age: 0, ang: 0 };
     const make = (cls, n, minPlayer) => { for (let i = 0; i < n; i++) { const h = new cls(); const pos = this.spot(h, minPlayer); if (pos) { [h.x, h.y] = pos; G.hazards.push(h); } } };
     if (E.vents) make(LavaVent, E.vents.count, 90);
     if (E.belts) make(SlagBelt, E.belts.count, 70);
     if (E.pools) make(AcidPool, E.pools.count, 70);
+    if (E.ice) make(IcePatch, E.ice.count, 50);
   },
 
   // Freie Stelle: Abstand zum Spieler (minPlayer), zu anderen Gefahren (Radius + gap) und zu den Spawnpunkten. Endlos-Modus: im Ring um den Spieler. null = nichts gefunden
@@ -227,6 +284,7 @@ const MapEnv = {
   },
 
   update(dt) {
+    this.updateBlizzard(dt);
     if (!G.hazards.length) return;
     const on = this.on;
     for (const h of G.hazards) h.update(dt, on);
@@ -241,8 +299,9 @@ const MapEnv = {
   // Schub aller Bänder auf eine Figur (Einheiten pro Bild, mit framesOf(dt) malnehmen)
   pushAt(x, y, r) {
     let bx = 0, by = 0;
-    if (!G.hazards.length || !this.on) return [0, 0];
+    if (!this.on) return [0, 0];
     for (const h of G.hazards) if (h.push) { const v = h.push(x, y, r); bx += v[0]; by += v[1]; }
+    if (this.gust) { const w = this.windVec(), k = G.map.env.blizzard.push * this.gustRamp(); bx += w[0] * k; by += w[1] * k; }      // Blizzard schiebt alle in Windrichtung
     return [bx, by];
   },
 

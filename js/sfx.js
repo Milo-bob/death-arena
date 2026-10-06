@@ -60,7 +60,7 @@ const Sfx = {
   play(name, arg) {
     const def = SFX[name];
     if (!def || Save.data.sfxVol <= 0 || !this.init()) return;
-    if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
+    if (this.ctx.state !== 'running') { try { this.ctx.resume().catch(() => {}); } catch (e) {} }
     const now = performance.now();
     if (now - (this.last[name] || 0) < (def.gap === undefined ? 40 : def.gap)) return;
     if (this.voices > 24 && !def.big) return;
@@ -127,6 +127,14 @@ const SFX = {
   crateBreak: { gap: 60, fn: (s) => { s.noise('lowpass', 2500, 200, 0.28, 0.26); s.tone('triangle', 200, 60, 0.2, 0.2); } },
   bossHit:   { gap: 50, fn: (s) => s.tone('square', 180, 100, 0.08, 0.1) },
   bossDown:  { big: true, fn: (s) => { s.noise('lowpass', 3000, 80, 1.1, 0.4); s.tone('sine', 120, 25, 1, 0.55); [523, 659, 784, 1047].forEach((f, i) => s.tone('triangle', f, f, 0.3, 0.2, 0.5 + i * 0.12)); } },
+  // Meilenstein: Pauke, Fanfare (aufsteigender Dreiklang, dann gehaltener Akkord), Beckenrauschen und funkelnde Spitzen
+  milestone: { gap: 0, big: true, fn: (s) => {
+    s.tone('sine', 120, 38, 0.7, 0.4); s.noise('lowpass', 200, 3500, 0.6, 0.16);
+    [523, 659, 784, 1047].forEach((f, i) => { s.tone('sawtooth', f, f, 0.2, 0.09, 0.08 + i * 0.1); s.tone('square', f / 2, f / 2, 0.2, 0.06, 0.08 + i * 0.1); });
+    [523, 659, 784, 1047, 1319].forEach((f) => { s.tone('sawtooth', f, f * 1.003, 1.1, 0.07, 0.5); s.tone('triangle', f * 2, f * 2, 1.0, 0.05, 0.5); });
+    s.noise('highpass', 3000, 9000, 0.9, 0.07, 0.5);
+    [2093, 2637, 3136, 3951].forEach((f, i) => s.tone('sine', f, f, 0.45, 0.05, 0.62 + i * 0.08));
+  } },
   upgrade:   { big: true, fn: (s) => { [392, 523, 659, 784].forEach((f, i) => s.tone('square', f, f, 0.12, 0.1, i * 0.07)); } },
   notice:    { gap: 300, fn: (s) => { s.tone('triangle', 440, 440, 0.1, 0.14); s.tone('triangle', 660, 660, 0.18, 0.14, 0.09); } },
   event:     { big: true, fn: (s) => { s.tone('sawtooth', 220, 220, 0.25, 0.16); s.tone('sawtooth', 165, 165, 0.45, 0.16, 0.25); s.noise('lowpass', 600, 150, 0.6, 0.12); } },
@@ -146,4 +154,22 @@ const SFX = {
 };
 
 // Bei Taste oder Mausklick den Ton freischalten (Browser-Regel)
-for (const ev of ['keydown', 'mousedown']) window.addEventListener(ev, () => { if (Sfx.init() && Sfx.ctx.state === 'suspended') Sfx.ctx.resume().catch(() => {}); });
+// iPad/iPhone (Safari): Ton wird nur durch eine Beruehrung/einen Klick freigeschaltet (Tastendruck reicht oft nicht), der Context kann
+// auch auf 'interrupted' stehen, und der Stummschalter sperrt WebAudio, solange kein <audio>-Element laeuft (Sitzung "playback").
+Sfx.wake = function () {
+  if (!this.init()) return;
+  const c = this.ctx;
+  try { if (c.state !== 'running') { const p = c.resume(); if (p && p.catch) p.catch(() => {}); } } catch (e) { /* ignorieren */ }
+  try { const s = c.createBufferSource(); s.buffer = c.createBuffer(1, 1, 22050); s.connect(c.destination); s.start(0); } catch (e) { /* ignorieren */ }    // stiller Ton = iOS-Freischaltung
+  if (!this.keepAlive) {
+    try {
+      const a = document.createElement('audio');
+      a.loop = true; a.setAttribute('playsinline', ''); a.volume = 0.01;
+      a.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAABErAAABAAgAZGF0YQAAAAA=';
+      const p = a.play(); if (p && p.catch) p.catch(() => { this.keepAlive = null; });
+      this.keepAlive = a;
+    } catch (e) { /* ignorieren */ }
+  }
+};
+for (const ev of ['keydown', 'mousedown', 'pointerdown', 'pointerup', 'touchstart', 'touchend', 'click']) window.addEventListener(ev, () => Sfx.wake(), { passive: true });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && Sfx.ctx && Sfx.ctx.state !== 'running') Sfx.ctx.resume().catch(() => {}); });

@@ -36,9 +36,10 @@ class Boss {
     this.enraged = false;               // Zwilling, dessen Partner gefallen ist
     this.sprite = this.cfg.sprite || (type === 'twin' ? (role === 'mortar' ? 'kite' : 'octagon') : type === 'turret' ? 'turret' : type === 'arena' || type === 'reaper' ? 'octagon' : type);     // Karten-Bosse: sprite/hue aus der Config
     this.hue = this.cfg.hue !== undefined ? this.cfg.hue : type === 'arena' ? 40 : type === 'reaper' ? 275 : 0;
-    // Karten-Bosse (forge, colossus, spore, plague): eigene Takte
-    this.spT = type === 'forge' ? this.cfg.rainFirst : type === 'spore' ? this.cfg.cloudFirst : 0;     // Schlackenregen / Giftwolken
-    this.sp2T = type === 'spore' ? this.cfg.spawnFirst : type === 'plague' ? this.cfg.trailEvery : 0;   // Sporen rufen / Wolkenspur
+    // Karten-Bosse (forge, colossus, spore, plague, frost, wraith): eigene Takte
+    this.spT = type === 'forge' ? this.cfg.rainFirst : type === 'spore' ? this.cfg.cloudFirst : type === 'frost' ? this.cfg.spiralFirst : 0;     // Schlackenregen / Giftwolken / Spiralfeuer
+    this.sp2T = type === 'spore' ? this.cfg.spawnFirst : type === 'plague' ? this.cfg.trailEvery : type === 'frost' ? this.cfg.novaFirst : type === 'wraith' ? this.cfg.blinkFirst : 0;   // Sporen rufen / Wolkenspur / Frostring / Sprung
+    this.fx = { spiral: 0, shot: 0, ang: 0, nova: 0, blink: 0, bx: 0, by: 0 };       // Frost-Bosse: Restzeit Spiralfeuer, Salventakt, Drehwinkel, Frostring-Vorwarnung, Sprung-Vorwarnung und Ziel
     this.ch = { phase: 'walk', t: type === 'colossus' ? this.cfg.chargeFirst : 0, ang: 0 };            // Slag Colossus: walk -> tele -> dash
     if (this.cfg.name) G.notice(this.cfg.name + '!', STYLE.pal.red, STYLE.type.h1);
     // Laser-Turm: Zustand der Laser
@@ -62,7 +63,7 @@ class Boss {
   // Schussart und Berührungsschaden je Boss
   get shootKind() {
     if (this.type === 'kite' || (this.type === 'twin' && this.role === 'mortar')) return 'mortar';
-    if (this.type === 'plague') return 'fan';
+    if (this.type === 'plague' || this.type === 'wraith') return 'fan';
     return this.type === 'summoner' ? 'summon' : 'bolt';
   }
   get speedNow() {
@@ -93,7 +94,7 @@ class Boss {
 
     // Bewegung: nur wenn nicht betäubt und kein Ultimate läuft (außer das Schild berührt ihn)
     const windup = this.type === 'octagon' && this.age < this.cfg.windup;
-    const canMove = !windup && this.stun <= 0 && !(this.cn.act && this.cn.act.kind === 'shock') && (!G.clearing || touchesShield(this.x, this.y, this.radius));
+    const canMove = !windup && !(this.type === 'frost' && this.fx.spiral > 0) && this.stun <= 0 && !(this.cn.act && this.cn.act.kind === 'shock') && (!G.clearing || touchesShield(this.x, this.y, this.radius));
     if (this.type === 'summoner' || this.type === 'spore') {
       // Beschwörer (und Spore Mother): weicht zurück, wenn man nah kommt, nähert sich, wenn man weit weg ist, sonst kreist er
       this.summonFlash = Math.max(0, this.summonFlash - dt);
@@ -127,10 +128,10 @@ class Boss {
         G.bossShots.push(Object.assign(new Mortar(this.x, this.y, this.dir), { src: Stats.bossName(this) }));
       } else if (kind === 'fan') {                                  // Plague Drone: Dreierfächer
         this.shootT += C.shootEvery * fast;
-        for (const off of [-C.fanSpread, 0, C.fanSpread]) G.bossShots.push(Object.assign(new BossBolt(this.x, this.y, this.dir + off), { src: Stats.bossName(this) }));
+        for (const off of [-C.fanSpread, 0, C.fanSpread]) G.bossShots.push(Object.assign(new BossBolt(this.x, this.y, this.dir + off), { src: Stats.bossName(this), chill: !!C.chill }));
       } else {
         this.shootT += (C.shootEvery || C.boltEvery) * fast;
-        G.bossShots.push(Object.assign(new BossBolt(this.x, this.y, this.dir), { src: Stats.bossName(this) }));
+        G.bossShots.push(Object.assign(new BossBolt(this.x, this.y, this.dir), { src: Stats.bossName(this), chill: !!C.chill }));
       }
     }
 
@@ -139,7 +140,7 @@ class Boss {
     this.updateCounters(dt, p, tg);
 
     // Berührung = Schaden am Spieler
-    if (touchesPlayer(this.x, this.y, this.radius)) p.hit(this.shootKind === 'mortar' ? 'higher' : 'touch', bossPower().dmg, Stats.bossName(this));
+    if (touchesPlayer(this.x, this.y, this.radius)) { p.hit(this.shootKind === 'mortar' ? 'higher' : 'touch', bossPower().dmg, Stats.bossName(this)); if (this.cfg.chill) p.chill(CFG.chill.dur); }
 
     if (this.hitCd <= 0) this.takeDamage();
     if (this.hp < 1) this.defeat();
@@ -193,6 +194,61 @@ class Boss {
     } else if (this.type === 'plague') {                            // Wolkenspur hinter der Drohne
       this.sp2T -= dt;
       if (this.sp2T <= 0) { this.sp2T += C.trailEvery * fast; dropCloud(this.x, this.y, true); }
+    } else if (this.type === 'frost') this.updateFrost(dt, fast);
+    else if (this.type === 'wraith') this.updateWraith(dt, tg, fast);
+  }
+
+  // Gekühlter Bolzen (Frost-Bosse): Lenkung kaum, damit Ringe und Spiralen ihre Form behalten
+  frostBolt(dir, turn) { G.bossShots.push(Object.assign(new BossBolt(this.x, this.y, dir, turn), { src: Stats.bossName(this), chill: true })); }
+
+  // Frost Sentinel: Spiralfeuer (steht still, mehrere Arme drehen sich) und Frostring mit Vorwarnung
+  updateFrost(dt, fast) {
+    const C = this.cfg, F = this.fx, arms = C.spiralArms + (this.phase2 ? 1 : 0);
+    if (F.spiral > 0) {
+      F.spiral -= dt; F.shot -= dt;
+      if (F.shot <= 0) {
+        F.shot += C.spiralRate;
+        for (let i = 0; i < arms; i++) this.frostBolt(F.ang + (360 / arms) * i, 0.4);
+        F.ang += C.spiralTurn;
+        Sfx.play('enemyShot');
+      }
+    } else {
+      this.spT -= dt;
+      if (this.spT <= 0) { this.spT += C.spiralEvery * fast; F.spiral = C.spiralTime; F.shot = 0; F.ang = rand(0, 360); }
+    }
+    if (F.nova > 0) {
+      F.nova -= dt;
+      if (F.nova <= 0) {
+        const n = C.novaCount + (this.phase2 ? 4 : 0), off = rand(0, 360);
+        for (let i = 0; i < n; i++) this.frostBolt(off + (360 / n) * i, 0.3);
+        Sfx.play('missile'); Juice.shake(2); this.summonFlash = 0.4;
+      }
+    } else {
+      this.sp2T -= dt;
+      if (this.sp2T <= 0) { this.sp2T += C.novaEvery * fast; F.nova = C.novaTele; }
+    }
+  }
+
+  // Frost Wraith: markiert eine Stelle nahe dem Spieler, springt nach der Vorwarnung dorthin und feuert beim Auftauchen einen Ring
+  updateWraith(dt, tg, fast) {
+    const C = this.cfg, F = this.fx;
+    if (F.blink > 0) {
+      F.blink -= dt;
+      if (F.blink <= 0) {
+        Juice.sparks(this.x, this.y, STYLE.pal.ice, 8, 3);
+        this.x = F.bx; this.y = F.by;
+        const n = C.arrivalCount + (this.phase2 ? 4 : 0), off = rand(0, 360);
+        for (let i = 0; i < n; i++) this.frostBolt(off + (360 / n) * i, 0.3);
+        Juice.sparks(this.x, this.y, STYLE.pal.ice, 10, 4); Sfx.play('missile'); Juice.shake(1.5); this.summonFlash = 0.4;
+      }
+    } else {
+      this.sp2T -= dt;
+      if (this.sp2T <= 0) {
+        this.sp2T += C.blinkEvery * fast;
+        const a = rand(0, 360), d = rand(C.blinkDist[0], C.blinkDist[1]);
+        [F.bx, F.by] = clampToMap(tg.x + fwdX(a) * d, tg.y + fwdY(a) * d, 25);
+        F.blink = C.blinkTele;
+      }
     }
   }
 
@@ -389,6 +445,7 @@ class Boss {
     G.powerups.push(new PowerUp(this.x, this.y, CFG.boss.killHeal));
     if (this.type === 'reaper') { G.bosses++; G.startVictory(); }   // finaler Boss: Sieg, kein Upgrade
     else if (!Tutorial.active) G.later(0.25, () => Loadout.weaponUp(G.time));      // im Tutorial kein Upgrade und keine Ability-Wahl
+    Ach.bossDown(this);
     G.endBossFight();
   }
 
@@ -412,6 +469,20 @@ class Boss {
       ctx.save();
       ctx.globalAlpha = 0.35 + 0.5 * (1 - this.ch.t / C.tele); ctx.fillStyle = P.red;
       pxDashLine(ctx, cx, cy, cx + fwdX(this.ch.ang) * len, cy - fwdY(this.ch.ang) * len, 2, 4);
+      ctx.restore();
+    }
+    if (this.type === 'frost' && this.fx.nova > 0) {             // Frostring-Vorwarnung: wachsender Ring um den Boss
+      const k = 1 - this.fx.nova / this.cfg.novaTele;
+      ctx.save(); ctx.fillStyle = P.ice;
+      ctx.globalAlpha = 0.15 + 0.3 * k; pxGlow(ctx, cx, cy, this.radius * 2.2 * k);
+      ctx.globalAlpha = 0.5 + 0.4 * k; pxRing(ctx, cx, cy, this.radius * (1.2 + 1.4 * k), 2, 14, G.realTime * 0.3);
+      ctx.restore();
+    }
+    if (this.type === 'wraith' && this.fx.blink > 0) {            // Sprungziel: schrumpfender Ring
+      const k = this.fx.blink / this.cfg.blinkTele, bx = STAGE_W / 2 + this.fx.bx, by = STAGE_H / 2 - this.fx.by;
+      ctx.save(); ctx.fillStyle = P.ice;
+      ctx.globalAlpha = 0.2 + 0.3 * (1 - k); pxGlow(ctx, bx, by, 24);
+      ctx.globalAlpha = 0.9; pxRing(ctx, bx, by, 14 + 26 * k, 2, 10, G.realTime * 0.4);
       ctx.restore();
     }
     if (this.summonFlash > 0) {                                  // Aufleuchten beim Beschwören
@@ -480,10 +551,10 @@ class BossBolt {
     this.ghost += 2 * f;
     this.frames -= f;
     const r = CFG.boss.bolt.radius;
-    if (touchesPlayer(this.x, this.y, r)) { G.player.hit('shoot', bossPower().dmg, this.src); this.alive = false; }
+    if (touchesPlayer(this.x, this.y, r)) { G.player.hit('shoot', bossPower().dmg, this.src); if (this.chill) G.player.chill(CFG.chill.dur); this.alive = false; }
     else if (blockedByPlayerGear(this.x, this.y, r) || this.frames <= 0) this.alive = false;
   }
-  draw(ctx) { drawSprite(ctx, 'enemyShot', this.x, this.y, this.dir, 175, { alpha: 1 - this.ghost / 100 }); }
+  draw(ctx) { drawSprite(ctx, 'enemyShot', this.x, this.y, this.dir, 175, { alpha: 1 - this.ghost / 100, hue: this.chill ? 170 : 0 }); }
 }
 
 // Mörser des Kite: fliegt direkt auf den Spieler, bis er etwas trifft, und explodiert dann
