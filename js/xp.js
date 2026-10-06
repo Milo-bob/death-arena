@@ -64,7 +64,7 @@ const Xp = {
   },
   drop(e) {
     if (!this.on) return;
-    const v = this.valueOf(e);
+    const v = this.valueOf(e) * Hero.mods().xp;       // Held-Modifier (Harbinger: mehr XP)
     if (v > 0) this.spawn(e.x, e.y, v);
   },
   // Kugel erzeugen; bei zu vielen verschmilzt sie mit der nächsten der letzten 30

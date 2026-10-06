@@ -261,7 +261,7 @@ const CFG = {
       { id: 'kill',  label: 'KILLS', desc: 'What happens when an enemy dies: colors, rings, shards, blasts.' },
       { id: 'aura',  label: 'AURA',  desc: 'An effect that surrounds your ship all the time.' },
       { id: 'gear',  label: 'GEAR',  desc: 'Parts attached to your ship: wings, horns, a crown, a jetpack.' },
-      { id: 'enemy', label: 'FOES',  desc: 'How normal enemies look. Shield enemies keep their colors.' },
+      { id: 'enemy', label: 'FOES',  desc: 'How normal enemies look. Shield enemies and elites keep their colors, but get the effects.' },
       { id: 'boss',  label: 'BOSSES', desc: 'How bosses look: recolors, glitches, shadows, flames.' },
       { id: 'endless', label: 'ENDLESS', desc: 'Only shown in Infinite Mode: floor effects and markers for the wall-less map. Some need an Endless survival time.' },
     ],
@@ -283,6 +283,24 @@ const CFG = {
         { id: 'ember',   name: 'EMBER',       cost: 400, color: STYLE.pal.orange, filter: 'hue-rotate(120deg) brightness(1.2)', fx: 'ember' },
         { id: 'void',    name: 'STARLIT VOID', cost: 420, color: STYLE.pal.violet, filter: 'hue-rotate(-30deg) brightness(0.45)', fx: 'void' },
         { id: 'chrome',  name: 'CHROME',      cost: 450, color: STYLE.pal.white,  filter: 'grayscale(1) brightness(1.55) contrast(1.2)', fx: 'chrome' },
+        // Neu: einfache Farben (Meilensteine Cryo Station, Achievements) und zwei mit Effekt
+        { id: 'iceberg', name: 'ICEBERG',     cost: 120, color: STYLE.pal.ice,    filter: 'hue-rotate(-60deg) brightness(1.25) saturate(0.7)' },
+        { id: 'mint',    name: 'MINT',        cost: 100, color: STYLE.pal.teal,   filter: 'hue-rotate(-130deg) brightness(1.25)' },
+        { id: 'sunset',  name: 'SUNSET',      cost: 130, color: STYLE.pal.orange, filter: 'hue-rotate(75deg) brightness(1.15)' },
+        { id: 'bubblegum', name: 'BUBBLEGUM', cost: 110, color: STYLE.pal.pink,   filter: 'hue-rotate(25deg) brightness(1.3) saturate(1.4)' },
+        { id: 'midnight', name: 'MIDNIGHT',   cost: 150, color: STYLE.pal.violet, filter: 'hue-rotate(-20deg) brightness(0.6) saturate(1.4)' },
+        { id: 'lime',    name: 'ACID LIME',   cost: 140, color: STYLE.pal.green,  filter: 'hue-rotate(190deg) brightness(1.3) saturate(1.6)' },
+        { id: 'copper',  name: 'COPPER',      cost: 160, color: STYLE.pal.redMid, filter: 'hue-rotate(130deg) saturate(1.4) brightness(0.9)' },
+        { id: 'obsidian', name: 'OBSIDIAN',   cost: 240, color: STYLE.pal.greyMid, filter: 'grayscale(1) brightness(0.45) contrast(1.4)' },
+        { id: 'aurora',  name: 'AURORA',      cost: 330, color: STYLE.pal.teal,   filter: 'hue-rotate(-120deg) brightness(1.2)', fx: 'holo' },
+        { id: 'scorch',  name: 'SCORCHED',    cost: 380, color: STYLE.pal.red,    filter: 'hue-rotate(100deg) brightness(0.7)', fx: 'ember' },
+        // Neu: Meilenstein-/Achievement-Belohnungen (Cryo Station, Endless, Elite) und zwei mit Effekt
+        { id: 'royal',   name: 'ROYAL BLUE',  cost: 130, color: STYLE.pal.cyan,   filter: 'hue-rotate(-35deg) brightness(0.9) saturate(1.5)' },
+        { id: 'tangerine', name: 'TANGERINE', cost: 120, color: STYLE.pal.orange, filter: 'hue-rotate(110deg) brightness(1.25) saturate(1.3)' },
+        { id: 'sakura',  name: 'SAKURA',      cost: 120, color: STYLE.pal.pink,   filter: 'hue-rotate(35deg) brightness(1.4) saturate(0.8)' },
+        { id: 'venom',   name: 'VENOM',       cost: 200, color: STYLE.pal.green,  filter: 'hue-rotate(215deg) brightness(0.7) saturate(1.8)' },
+        { id: 'permafrost', name: 'PERMAFROST', cost: 340, color: STYLE.pal.ice,  filter: 'hue-rotate(-65deg) brightness(1.3) saturate(0.8)', fx: 'holo' },
+        { id: 'inferno2', name: 'MOLTEN CORE', cost: 390, color: STYLE.pal.orange, filter: 'hue-rotate(125deg) brightness(1.1) saturate(1.5)', fx: 'ember' },
       ],
       // fx am Glow: comet (Nachbilder), sparkle (Funkelsterne, Sternschuesse), volt (Blitze)
       blade: [
@@ -296,6 +314,14 @@ const CFG = {
         { id: 'comet',   name: 'COMET TAIL',  cost: 280, color: STYLE.pal.orange, filter: 'hue-rotate(170deg) saturate(2.2)', fx: 'comet' },
         { id: 'sparkle', name: 'STARFALL',    cost: 300, color: STYLE.pal.yellow, filter: 'hue-rotate(-145deg) saturate(2.2)', fx: 'sparkle' },
         { id: 'volt',    name: 'HIGH VOLTAGE', cost: 340, color: STYLE.pal.ice,   filter: 'hue-rotate(-20deg) brightness(1.2)', fx: 'volt' },
+        // Neu: Meilenstein-/Achievement-Belohnungen und Effekt-Varianten
+        { id: 'arctic',  name: 'ARCTIC BLUE', cost: 120, color: STYLE.pal.ice,    filter: 'hue-rotate(-25deg) brightness(1.3) saturate(1.4)' },
+        { id: 'sunset',  name: 'SUNSET',      cost: 140, color: STYLE.pal.orange, filter: 'hue-rotate(150deg) brightness(1.15) saturate(2)' },
+        { id: 'lime',    name: 'ACID LIME',   cost: 140, color: STYLE.pal.green,  filter: 'hue-rotate(-90deg) brightness(1.3) saturate(2.4)' },
+        { id: 'magenta', name: 'MAGENTA',     cost: 140, color: STYLE.pal.pink,   filter: 'hue-rotate(110deg) brightness(1.1) saturate(2.4)' },
+        { id: 'glacier', name: 'GLACIER TAIL', cost: 300, color: STYLE.pal.ice,   filter: 'hue-rotate(-25deg) brightness(1.3) saturate(1.4)', fx: 'comet' },
+        { id: 'meteor',  name: 'METEOR SHOWER', cost: 320, color: STYLE.pal.orange, filter: 'hue-rotate(170deg) saturate(2.4) brightness(1.1)', fx: 'sparkle' },
+        { id: 'tesla',   name: 'TESLA COIL',  cost: 360, color: STYLE.pal.purple, filter: 'hue-rotate(80deg) saturate(2.2) brightness(1.2)', fx: 'volt' },
       ],
       // shape am Trail: ring (steigende Blasen), plus (Sternenstaub), smoke (wachsende Rauchquadrate), echo (Nachbilder des Schiffs)
       trail: [
@@ -356,6 +382,11 @@ const CFG = {
         { id: 'static',  name: 'STATIC SHOCK', cost: 260, color: STYLE.pal.cyan,   filter: 'hue-rotate(170deg)', fx: 'static' },
         { id: 'sats',    name: 'SATELLITES',   cost: 280, color: STYLE.pal.yellow, filter: '', fx: 'orbit' },
         { id: 'outline', name: 'NEON OUTLINE', cost: 300, color: STYLE.pal.cyan,  filter: '', fx: 'outline' },
+        // Neu (Elite-Gegner behalten ihre Farbe, nur die Effekte gelten dort)
+        { id: 'glacier', name: 'GLACIER FOES', cost: 100, color: STYLE.pal.ice,   filter: 'hue-rotate(185deg) brightness(1.2) saturate(0.8)' },
+        { id: 'bubble',  name: 'BUBBLEGUM FOES', cost: 110, color: STYLE.pal.pink, filter: 'hue-rotate(335deg) brightness(1.3) saturate(1.5)' },
+        { id: 'frostbite', name: 'FROSTBITE',  cost: 240, color: STYLE.pal.cyan,   filter: 'hue-rotate(170deg)', fx: 'outline' },
+        { id: 'hex',     name: 'HEX MARKED',   cost: 300, color: STYLE.pal.purple, filter: 'hue-rotate(-90deg)', fx: 'orbit' },
       ],
       // Bosse (Farbe/Zusaetze fuer alle Bosse, fx: glitch, shadow, infernal)
       boss: [
@@ -373,6 +404,10 @@ const CFG = {
         { id: 'shadow',  name: 'SHADOW',     cost: 300, color: STYLE.pal.redMid, filter: 'brightness(0.7) contrast(1.2)', fx: 'shadow' },
         { id: 'glitch',  name: 'GLITCH BOSS', cost: 320, color: STYLE.pal.cyan,   filter: '', fx: 'glitch' },
         { id: 'infernal', name: 'INFERNAL',   cost: 360, color: STYLE.pal.orange, filter: 'hue-rotate(15deg) saturate(1.4)', fx: 'infernal' },
+        // Neu (Cryo-Bosse sind schon blau gefaerbt: diese Looks wirken dort als Aufsatz, die Effekte immer)
+        { id: 'permafrost', name: 'PERMAFROST', cost: 330, color: STYLE.pal.ice,  filter: 'hue-rotate(185deg) brightness(1.2)', fx: 'static' },
+        { id: 'cryoking', name: 'FROST KING',  cost: 380, color: STYLE.pal.cyan,   filter: 'hue-rotate(170deg) brightness(1.1)', fx: 'crown' },
+        { id: 'blizzard', name: 'BLIZZARD',    cost: 340, color: STYLE.pal.white,  filter: 'grayscale(1) brightness(1.4)', fx: 'orbit' },
       ],
       // Endlos-Modus (wirken nur im Endlos-Lauf, die Karte hat dort keine Waende). needInf = Minuten Endlos-Bestzeit, die man zum Kaufen braucht.
       // fx: beacon (Pfeil zum Startpunkt), sonar (Ping-Ringe), chrono (Siegel = 1 pro 5 Min Laufzeit), warp (Tempolinien),
@@ -569,15 +604,27 @@ const CFG = {
     { id: 'hero_bulwark', name: 'DEFEAT 18 BOSSES',            cat: 'heroes', stat: 'bosses', need: 18,  reward: { hero: 'bulwark' } },
     { id: 'hero_specter', name: 'SURVIVE 10 MINUTES IN A RUN', cat: 'heroes', stat: 'best',   need: 600, reward: { hero: 'specter' } },
     { id: 'hero_archon',  name: 'DEFEAT DEATH 2 TIMES',        cat: 'heroes', stat: 'wins',   need: 2,   reward: { hero: 'archon' } },
+    { id: 'hero_alchemist', name: 'DEFEAT 3000 ENEMIES',       cat: 'heroes', stat: 'kills',  need: 3000, reward: { hero: 'alchemist' } },
+    { id: 'hero_harbinger', name: 'DEFEAT DEATH 4 TIMES',      cat: 'heroes', stat: 'wins',   need: 4,   reward: { hero: 'harbinger' } },
+    // Karte 4 (Cryo Station, cat 'cryo'): mapbest:<id> = beste Zeit auf der Karte, mapbosses:/mapkills:<id> = Summe der Bosse/Gegner in Läufen auf dieser Karte (nur normaler Modus)
+    { id: 'cryo180',  name: 'SURVIVE 3 MIN ON CRYO STATION',     cat: 'cryo', stat: 'mapbest:cryo',   need: 180,  reward: { cos: 'skin:iceberg' } },
+    { id: 'cryo420',  name: 'SURVIVE 7 MIN ON CRYO STATION',     cat: 'cryo', stat: 'mapbest:cryo',   need: 420,  reward: { cos: 'blade:arctic' } },
+    { id: 'cryo600',  name: 'SURVIVE 10 MIN ON CRYO STATION',    cat: 'cryo', stat: 'mapbest:cryo',   need: 600,  reward: { cos: 'skin:mint' } },
+    { id: 'cryo840',  name: 'REACH THE FINAL BOSS ON CRYO',      cat: 'cryo', stat: 'mapbest:cryo',   need: 840,  reward: { cos: 'skin:aurora' } },
+    { id: 'cryoboss2', name: 'DEFEAT 2 BOSSES ON CRYO STATION',  cat: 'cryo', stat: 'mapbosses:cryo', need: 2,    reward: { cos: 'enemy:glacier' } },
+    { id: 'cryoboss6', name: 'DEFEAT 6 BOSSES ON CRYO STATION',  cat: 'cryo', stat: 'mapbosses:cryo', need: 6,    reward: { cos: 'boss:blizzard' } },
+    { id: 'cryoboss15', name: 'DEFEAT 15 BOSSES ON CRYO STATION', cat: 'cryo', stat: 'mapbosses:cryo', need: 15,  reward: { cos: 'boss:permafrost' } },
+    { id: 'cryokill200', name: 'DEFEAT 200 ENEMIES ON CRYO STATION',  cat: 'cryo', stat: 'mapkills:cryo', need: 200,  reward: { cos: 'skin:royal' } },
+    { id: 'cryokill1200', name: 'DEFEAT 1200 ENEMIES ON CRYO STATION', cat: 'cryo', stat: 'mapkills:cryo', need: 1200, reward: { cos: 'blade:glacier' } },
     // Endlos-Modus (cat 'endless' = eigene Kategorie im Meilenstein-Reiter): bestInf = beste Endlos-Zeit, infKills/infBosses = Summe über alle Endlos-Läufe
-    { id: 'inf600',   name: 'SURVIVE 10 MIN IN ENDLESS',  cat: 'endless', stat: 'bestInf',   need: 600,  reward: { cores: 100 } },
-    { id: 'inf1200',  name: 'SURVIVE 20 MIN IN ENDLESS',  cat: 'endless', stat: 'bestInf',   need: 1200, reward: { cores: 200 } },
-    { id: 'inf1800',  name: 'SURVIVE 30 MIN IN ENDLESS',  cat: 'endless', stat: 'bestInf',   need: 1800, reward: { cores: 300 } },
-    { id: 'inf3000',  name: 'SURVIVE 50 MIN IN ENDLESS',  cat: 'endless', stat: 'bestInf',   need: 3000, reward: { cores: 500 } },
+    { id: 'inf600',   name: 'SURVIVE 10 MIN IN ENDLESS',  cat: 'endless', stat: 'bestInf',   need: 600,  reward: { cos: 'skin:tangerine' } },
+    { id: 'inf1200',  name: 'SURVIVE 20 MIN IN ENDLESS',  cat: 'endless', stat: 'bestInf',   need: 1200, reward: { cos: 'blade:sunset' } },
+    { id: 'inf1800',  name: 'SURVIVE 30 MIN IN ENDLESS',  cat: 'endless', stat: 'bestInf',   need: 1800, reward: { cos: 'skin:permafrost' } },
+    { id: 'inf3000',  name: 'SURVIVE 50 MIN IN ENDLESS',  cat: 'endless', stat: 'bestInf',   need: 3000, reward: { cos: 'blade:tesla' } },
     { id: 'infboss5', name: 'DEFEAT 5 BOSSES IN ENDLESS', cat: 'endless', stat: 'infBosses', need: 5,    reward: { cores: 100 } },
-    { id: 'infboss15', name: 'DEFEAT 15 BOSSES IN ENDLESS', cat: 'endless', stat: 'infBosses', need: 15, reward: { cores: 250 } },
+    { id: 'infboss15', name: 'DEFEAT 15 BOSSES IN ENDLESS', cat: 'endless', stat: 'infBosses', need: 15, reward: { cos: 'boss:cryoking' } },
     { id: 'infkill500', name: 'DEFEAT 500 ENEMIES IN ENDLESS',  cat: 'endless', stat: 'infKills', need: 500,  reward: { cores: 100 } },
-    { id: 'infkill3000', name: 'DEFEAT 3000 ENEMIES IN ENDLESS', cat: 'endless', stat: 'infKills', need: 3000, reward: { cores: 250 } },
+    { id: 'infkill3000', name: 'DEFEAT 3000 ENEMIES IN ENDLESS', cat: 'endless', stat: 'infKills', need: 3000, reward: { cos: 'enemy:hex' } },
   ],
 
 
@@ -1142,7 +1189,7 @@ const CFG = {
 // artifact = Gegenstand auf eigener Taste (Input 'artifact', Standard F), jedes Artefakt hat Abklingzeit + Zahlen unten (fortress / rift / chrono).
 // Die Helden nutzen die Spielerpalette, deshalb wirken alle Skins bei jedem Helden gleich (nur die Form unterscheidet sich).
 CFG.heroes = {
-  order: ['vanguard', 'bulwark', 'specter', 'archon'],
+  order: ['vanguard', 'bulwark', 'specter', 'archon', 'alchemist', 'harbinger'],
   vanguard: { name: 'VANGUARD', sprite: 'player', cost: 0, modText: 'NO MODIFIER', blurb: 'THE ORIGINAL. NO STRENGTHS, NO WEAKNESSES.', mod: {} },
   bulwark: {
     name: 'BULWARK', sprite: 'heroBulwark', cost: 350, milestone: 'hero_bulwark', modText: '+60 HP  -12% SPEED', blurb: 'ARMORED RING. SLOW, BUT HARD TO KILL.',
@@ -1159,7 +1206,36 @@ CFG.heroes = {
     mod: { ult: 1.5, startUlt: 30, dmgTaken: 1.15 },
     artifact: { id: 'chrono', name: 'CHRONO LOCK', icon: 'chronoIcon', desc: 'FREEZES EVERY ENEMY ON SCREEN FOR 2.5S (BOSSES IGNORE IT)' },
   },
+  // Alchemist: keine Vorgaben bei den Werten, nur kleine Extras; der Kern ist das Artefakt (Heilung + Betaeubung + Buffs auf einen Tastendruck)
+  alchemist: {
+    name: 'ALCHEMIST', sprite: 'heroAlchemist', cost: 700, milestone: 'hero_alchemist', modText: '+15 HP  +25% DROP CHANCE', blurb: 'FLASK FRAME. BREWS HIS OWN LUCK AND HIS OWN CURES.',
+    mod: { hp: 15, luck: 1.25 },
+    artifact: { id: 'catalyst', name: 'CATALYST', icon: 'catalystIcon', desc: 'HEALS 20 HP, STUNS NEARBY ENEMIES AND BREWS SPEED, RAPID FIRE AND REPAIR' },
+  },
+  // Harbinger: Run-Modifier. Die Welt wird haerter (mehr Gegner, zaeher, schneller, einzelne Typen veraendert), dafuer gibt es einen fetten Bonus.
+  // world siehe heroes.js (HERO_WORLD_NEUTRAL). Kein Artefakt, dafuer: x2.5 Cores, x1.6 XP, +50% Drop-Chance, +10% Angriffstempo.
+  harbinger: {
+    name: 'HARBINGER', sprite: 'heroHarbinger', cost: 1500, milestone: 'hero_harbinger', modText: 'HARDER FOES  X2.5 CORES  X1.6 XP', blurb: 'HORNED FRAME. THE WORLD HUNTS YOU HARDER, THE LOOT IS HUGE.',
+    mod: {
+      atk: 1.1, dmgTaken: 1.1, cores: 2.5, xp: 1.6, luck: 1.5,
+      world: {
+        rate: 0.72, allRate: 0.75, cap: 1.3, hits: 1.2, speed: 1.08, bossHp: 1.25,              // ca. 40% mehr Grundgegner, ca. 33% mehr der uebrigen, 30% hoehere Obergrenzen
+        types: {
+          circle:   { speed: 1.15, wait: 0.85 },                // Kreise: schneller und noch mehr
+          triangle: { hits: 1.5 },                            // Dreiecke: zaeher
+          rhombus:  { speed: 1.15, wait: 0.8 },
+          square:   { hits: 1.3, wait: 0.85 },
+          guard:    { wait: 0.7 },                            // Schild-Gegner kommen oefter
+          bomber:   { speed: 1.2, wait: 0.75 },
+          sniper:   { wait: 0.8 },
+          tank:     { hits: 1.3 },
+          support:  { wait: 0.7 },
+        },
+      },
+    },
+  },
 };
+CFG.catalyst = { cooldown: 30, heal: 20, radius: 130, stun: 1.2, duration: 0.6, buffs: ['haste', 'rapid', 'regen'] };       // Alchemist: Heilung, Betaeubung im Radius, Buffs (CFG.drops.types)
 CFG.fortress = { cooldown: 26, duration: 3, reduce: 0.6 };                                              // Bulwark: Schadensminderung nach dem Schlag (Druckwelle = CFG.pulse)
 CFG.rift = { cooldown: 7, distance: 130, width: 14, hits: 2, bossDmg: 2, protect: 0.4 };                // Specter: Sprungweite, Breite der Schneise, Treffer pro Gegner, Schaden an Bossen, Unverwundbarkeit danach
 CFG.chrono = { cooldown: 42, radius: 900, stun: 2.5, duration: 0.7 };                                   // Archon: Betaeubung aller Gegner (duration = Dauer der Ring-Animation)

@@ -638,7 +638,7 @@ const Cos = {
   // ---------------------------------------------------------------------------------------------
   enemySprite(name, e) {
     const it = this.cur('enemy');
-    return it && it.filter && !(e && e.type === 'guard') ? this.tinted(name, it.filter) : name;
+    return it && it.filter && !(e && (e.type === 'guard' || e.elite)) ? this.tinted(name, it.filter) : name;       // Schild-Gegner und Elites behalten ihre Farben (Erkennbarkeit), die Effekte (fx) gelten trotzdem
   },
   // e: { x, y, radius } (Gegner oder Vorschau-Attrappe), look = Punkt, auf den die Augen schauen
   drawEnemyFx(ctx, it, e, t, look) {

@@ -68,7 +68,7 @@ const STAT_GROUPS = [
   { label: 'LOOT', ids: ['souls', 'coreDrop', 'luck', 'magnet', 'buffTime'] },
 ];
 const ABILITY_GROUPS = [{ id: 'weak', label: 'WEAK ABILITIES' }, { id: 'medium', label: 'MEDIUM ABILITIES' }, { id: 'strong', label: 'STRONG ABILITIES' }];
-const MILESTONE_GROUPS = [{ id: 'best', label: 'SURVIVAL TIME' }, { id: 'bosses', label: 'BOSSES' }, { id: 'kills', label: 'ENEMIES' }, { id: 'runs', label: 'RUNS' }, { id: 'endless', label: 'ENDLESS MODE' }, { id: 'tutorial', label: 'TUTORIAL' }, { id: 'heroes', label: 'HERO UNLOCKS' }];
+const MILESTONE_GROUPS = [{ id: 'best', label: 'SURVIVAL TIME' }, { id: 'bosses', label: 'BOSSES' }, { id: 'kills', label: 'ENEMIES' }, { id: 'runs', label: 'RUNS' }, { id: 'endless', label: 'ENDLESS MODE' }, { id: 'tutorial', label: 'TUTORIAL' }, { id: 'heroes', label: 'HERO UNLOCKS' }, { id: 'cryo', label: 'CRYO STATION' }];
 
 // Gruppe einer Zeile: { idx (Reihenfolge, fuer Farbe), label }
 function upgradeGroup(r) {
@@ -273,7 +273,7 @@ const G = {
   settleRun(bonus) {
     const res = Save.finishRun(this.time, this.bosses, this.kills, this.infinite, Tutorial.active ? null : this.map.id);
     this.newBest = res.isBest; this.newMilestones = res.got;
-    let run = Math.floor((this.time * CFG.meta.perSecond + this.bosses * CFG.meta.perBoss) * (1 + Save.bonus('souls') + Save.bonus('soulgain')) * (this.infinite ? CFG.infinite.coreFactor : 1) * this.diff.cores);
+    let run = Math.floor((this.time * CFG.meta.perSecond + this.bosses * CFG.meta.perBoss) * (1 + Save.bonus('souls') + Save.bonus('soulgain')) * (this.infinite ? CFG.infinite.coreFactor : 1) * this.diff.cores * Hero.mods().cores);
     const S = CFG.meta.starter, n = Save.data.runs - 1;                      // Save.finishRun hat den Lauf schon mitgezaehlt: n = 0 fuer den ersten Lauf
     this.starterBonus = null;
     if (!Tutorial.active && n >= 0 && n < S.mult.length) {                  // Starter-Bonus der ersten Laeufe
@@ -755,7 +755,7 @@ const G = {
     } else if (this.mode === 'pause') {
       this.updatePause();
     } else if (this.mode === 'play') {
-      if (Input.pressed('Escape') || Input.pressed('KeyP')) this.pauseGame();
+      if (Input.pressed('Escape') || Input.pressed('KeyP')) { Ach.add('pauses'); this.pauseGame(); }
       else if (Juice.hs > 0) Juice.hs -= dt;                      // Impact-Frame: die Welt steht kurz still
       else this.updatePlay(dt);
     }

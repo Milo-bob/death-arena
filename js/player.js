@@ -18,7 +18,7 @@ class Player {
     this.pulseCd = 0;          // Abklingzeit der Druckwelle
     this.bloodCd = 0;
     this.slots = Object.assign({}, CFG.loadout.start);   // gewählte Ability je Gruppe (weak/medium/strong) oder null
-    this.cds = { blink: 0, frost: 0, surge: 0, decoy: 0, bombard: 0, shockstep: 0, adrenaline: 0, drone: 0, overcharge: 0, storm: 0, berserk: 0, hack: 0, necromancy: 0, stims: 0, fortress: 0, rift: 0, chrono: 0 };   // fortress/rift/chrono = Helden-Artefakte (CFG.heroes)
+    this.cds = { blink: 0, frost: 0, surge: 0, decoy: 0, bombard: 0, shockstep: 0, adrenaline: 0, drone: 0, overcharge: 0, storm: 0, berserk: 0, hack: 0, necromancy: 0, stims: 0, fortress: 0, rift: 0, chrono: 0, catalyst: 0 };   // fortress/rift/chrono = Helden-Artefakte (CFG.heroes)
     this.fortressT = 0;        // Bulwark: Restzeit der Schadensminderung nach Fortress Slam
     this.sinceHit = 99;        // Sekunden seit dem letzten Treffer (Nano Regen)
     this.aegisCd = 0;          // Aegis-Protokoll (passiv): Pause bis zum naechsten Schutz
@@ -407,6 +407,13 @@ class Player {
     else if (A.id === 'chrono') this.tryCast('chrono', () => {
       G.attacks.push(new StunWave(this, CFG.chrono)); Juice.zoomPulse(1.04, 0.4);
       G.trigger('CHRONO LOCK!', STYLE.pal.ice, { flash: 0.25, radius: 120, rings: 3 });
+    });
+    else if (A.id === 'catalyst') this.tryCast('catalyst', () => {                         // Alchemist: Heilung + Betaeubung + Buffs
+      const C = CFG.catalyst;
+      this.heal(C.heal); G.attacks.push(new StunWave(this, C));
+      for (const k of C.buffs) { const dur = CFG.drops.types[k].dur * (1 + Save.bonus('buffTime')); this.buffs[k] = Math.max(this.buffs[k] || 0, dur); }
+      this.levelFlash = 0.25; Juice.zoomPulse(1.03, 0.3);
+      G.trigger('CATALYST!', STYLE.pal.green, { flash: 0.2, radius: 100, rings: 3 });
     });
   }
 

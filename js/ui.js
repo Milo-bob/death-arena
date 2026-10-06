@@ -469,7 +469,7 @@ function drawUpgradesScreen(ctx) {
       uiText(ctx, bot, x + w - 10, y + 27, { size: T.small, color: !owned && !open ? P.grey : P.yellow, align: 'right' });
     } else if (r.kind === 'milestone') {
       const m = CFG.milestones.find((q) => q.id === r.id), done = Save.milestoneDone(m.id);
-      const fmt = (stat, v) => stat === 'best' || stat === 'bestInf' ? formatTime(v) : String(Math.floor(v));
+      const fmt = (stat, v) => stat === 'best' || stat === 'bestInf' || String(stat).startsWith('mapbest:') ? formatTime(v) : String(Math.floor(v));
       uiText(ctx, m.name, x + 10, y + 14, { size: T.body, color: done ? P.ice : P.grey });
       uiText(ctx, 'REWARD: ' + milestoneRewardText(m), x + 10, y + 27, { size: T.small, color: done ? P.cyan : m.reward.cores ? P.yellow : P.grey });
       uiBar(ctx, x + w - 130, y + 6, 120, 6, Math.min(1, Save.statValue(m.stat) / m.need), done ? P.cyan : P.yellow);

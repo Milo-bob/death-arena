@@ -57,7 +57,7 @@ class Enemy {
     const V = this.V = variant && !mini ? CFG.variants[variant] : null;
     this.size = mini ? CFG.enemy.miniSize : (CFG.enemy[type].size || CFG.enemy.size) * (V ? V.size : 1);
     this.hitsLeft = mini ? CFG.enemy.miniHits : V && V.hits ? V.hits : CFG.enemy[type].hits ? CFG.enemy[type].hits : (type === 'square' || type === 'rhombus') ? 2 : 1;
-    if (!Tutorial.active) this.hitsLeft = Math.max(this.hitsLeft, Math.round(this.hitsLeft * CFG.enemy.hitsMul * (G.diff.hits || 1)));     // Zähigkeit (CFG.enemy.hitsMul x Kartenfaktor diff.hits, Karte 1 = unverändert)
+    if (!Tutorial.active) this.hitsLeft = Math.max(this.hitsLeft, Math.round(this.hitsLeft * CFG.enemy.hitsMul * (G.diff.hits || 1) * Hero.world().hits * Hero.type(type).hits));     // Zähigkeit (CFG.enemy.hitsMul x Kartenfaktor diff.hits, Karte 1 = unverändert)
     this.armor = type === 'guard' ? (Math.random() < 0.5 ? 'plate' : 'mirror') : null;   // Schild-Gegner: Rüstungsart
     this.blockFlash = 0;                // kurzes Aufblitzen, wenn ein Angriff abprallt
     this.hitFlash = 0;                  // kurzes Aufblitzen bei einem Treffer, der nicht tötet
@@ -116,7 +116,7 @@ class Enemy {
     if (this.minion && !G.bossFight) { this.alive = false; return; }       // Minions verschwinden mit dem Boss
     this.age += dt;
     this.hitFlash = Math.max(0, this.hitFlash - dt);
-    let f = framesOf(dt) * (this.blooded ? CFG.bloodMoon.speedFactor : 1) * G.diff.speed * (this.V && this.V.speed ? this.V.speed : 1);       // Karten-Schwierigkeit, Variante
+    let f = framesOf(dt) * (this.blooded ? CFG.bloodMoon.speedFactor : 1) * G.diff.speed * Hero.world().speed * Hero.type(this.type).speed * (this.V && this.V.speed ? this.V.speed : 1);       // Karten-Schwierigkeit, Variante
     if (this.hasteT > 0) { f *= CFG.patterns.support.kinds.haste.mult; this.hasteT -= dt; }
     const p = G.player;
     if (p.buffs.chrono > 0) f *= CFG.drops.types.chrono.slow;                // Chrono-Buff: Gegner laufen langsamer
@@ -296,7 +296,7 @@ class Enemy {
     if (this.type === 'splitter') Patterns.splitlet(this, CFG.enemy.splitter.splitCount);
     const D = G.director;
     if (!this.raised && !this.splitlet && CORPSE_TYPES.includes(this.type) && D.corpses.length < 12 && G.enemies.some((n) => n.alive && n.type === 'necro')) D.corpses.push({ x: this.x, y: this.y, type: this.type, t: CFG.patterns.necro.corpseLife });
-    if (!this.splitlet && Math.random() < (this.mini || this.elite ? CFG.drops.miniChance : G.bloodMoon ? CFG.bloodMoon.dropChance : G.flood ? CFG.flood.dropChance : CFG.drops.chance) * (Save.equipped('artifact') === 'lucky' ? 1 + (CFG.items.lucky.mult - 1) * Save.gearMul('lucky') : 1) * (1 + Save.bonus('luck') + Xp.val('luck'))) G.drops.push(new Drop(this.x, this.y));
+    if (!this.splitlet && Math.random() < (this.mini || this.elite ? CFG.drops.miniChance : G.bloodMoon ? CFG.bloodMoon.dropChance : G.flood ? CFG.flood.dropChance : CFG.drops.chance) * (Save.equipped('artifact') === 'lucky' ? 1 + (CFG.items.lucky.mult - 1) * Save.gearMul('lucky') : 1) * (1 + Save.bonus('luck') + Xp.val('luck')) * Hero.mods().luck) G.drops.push(new Drop(this.x, this.y));
     if (this.type === 'rhombus') G.blasts.push(new Blast('wave', this.x, this.y, false, Stats.enemyName(this)));
     if (this.V && !this.splitlet && !G.clearing) {                      // kartenspezifische Variante: Besonderheit beim Tod (Cinder: Funkenexplosion, Spore: Giftwolke)
       if (this.V.death === 'ember') G.blasts.push(new Blast('ember', this.x, this.y, false, Stats.enemyName(this)));
@@ -459,6 +459,7 @@ class Blast {
   constructor(kind, x, y, silent = false, src = null) {       // silent: der Erzeuger spielt seinen eigenen Klang (Meteorit); src: Name der Quelle fuer die Run-Statistik
     this.kind = kind;
     this.src = src || ({ wave: 'RHOMBUS', ember: 'CINDER', boom: 'KITE MORTAR' })[kind] || 'EXPLOSION';
+    this.mul = 1;                       // Schadensfaktor (Boss-Explosionen: bossPower().dmg, siehe bossBlast in bosses.js)
     this.x = x; this.y = y;
     this.dir = 0;
     this.alive = true;
@@ -494,7 +495,7 @@ class Blast {
       if (touchesShield(this.x, this.y, st.r)) step -= CFG.enemy.wave.push;
       moveForward(this, step * framesOf(dt));
     }
-    if (touchesPlayer(this.x, this.y, st.r)) { G.player.hit(this.damageKind, 1, this.src); if (this.chill) G.player.chill(CFG.chill.dur); }
+    if (touchesPlayer(this.x, this.y, st.r)) { G.player.hit(this.damageKind, this.mul, this.src); if (this.chill) G.player.chill(CFG.chill.dur); }
   }
   draw(ctx) {
     const i = this.stage();

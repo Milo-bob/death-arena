@@ -14,7 +14,7 @@ function imageList() {
     'thrustersIcon', 'scannerIcon', 'barrierIcon', 'capacitorIcon', 'overclockIcon', 'aegisIcon',
     'surgeIcon', 'decoyIcon', 'bombardIcon', 'bounceIcon', 'thornsIcon', 'vampireIcon', 'luckyIcon',
     'deathSecret1', 'deathSecret2', 'deathSecret3', 'deathSecret4',
-    'heroBulwark', 'heroSpecter', 'heroArchon', 'fortressIcon', 'riftIcon', 'chronoIcon',
+    'heroBulwark', 'heroSpecter', 'heroArchon', 'heroAlchemist', 'heroHarbinger', 'fortressIcon', 'riftIcon', 'chronoIcon', 'catalystIcon',
     'player', 'sword', 'bubble', 'shot', 'dash1', 'dash2',
     'beamLoad1', 'beamLoad2', 'beam1', 'beam2',
     'ult1', 'ult2', 'ult3', 'ult4', 'ultFlash', 'blood1', 'blood2', 'blood3',

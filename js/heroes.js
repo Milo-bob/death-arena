@@ -1,7 +1,12 @@
 // Helden: ausgewaehlter Held (Save.heroSelected), sein Run-Modifier und sein Artefakt (Zahlen in CFG.heroes, CFG.fortress/rift/chrono).
 // Im Tutorial gelten nur Aussehen, kein Modifier und kein Artefakt (damit die Lektionen immer gleich bleiben).
 
-const HERO_NEUTRAL = { hp: 0, speed: 1, atk: 1, ult: 1, startUlt: 0, dmgTaken: 1 };
+// cores = Faktor auf die Cores eines Laufs, xp = Faktor auf XP-Kugeln, luck = Faktor auf die Drop-Chance
+const HERO_NEUTRAL = { hp: 0, speed: 1, atk: 1, ult: 1, startUlt: 0, dmgTaken: 1, cores: 1, xp: 1, luck: 1 };
+// World = Run-Modifier, der die Gegnerwelt veraendert (Harbinger): rate / allRate = Faktor auf die Wartezeiten (kleiner = mehr Gegner), cap = Faktor auf die Obergrenzen,
+// hits / speed = Faktor auf Leben und Tempo aller Gegner, bossHp = Faktor auf Boss-Leben, types = pro Gegnertyp { hits, speed, wait } (wait = Faktor auf die Wartezeit dieses Typs)
+const HERO_WORLD_NEUTRAL = { rate: 1, allRate: 1, cap: 1, hits: 1, speed: 1, bossHp: 1, types: {} };
+const HERO_TYPE_NEUTRAL = { hits: 1, speed: 1, wait: 1 };
 
 const Hero = {
   id() { return Save.heroSelected(); },
@@ -10,6 +15,8 @@ const Hero = {
   sprite(id) { return CFG.heroes[id || this.id()].sprite; },
   live() { return !(typeof Tutorial !== 'undefined' && Tutorial.active); },
   mods() { return this.live() ? Object.assign({}, HERO_NEUTRAL, this.cfg().mod) : HERO_NEUTRAL; },
+  world() { return this.live() && this.cfg().mod.world ? Object.assign({}, HERO_WORLD_NEUTRAL, this.cfg().mod.world) : HERO_WORLD_NEUTRAL; },
+  type(t) { const W = this.world(); return W.types[t] ? Object.assign({}, HERO_TYPE_NEUTRAL, W.types[t]) : HERO_TYPE_NEUTRAL; },
   artifact() { return this.live() ? this.cfg().artifact || null : null; },
 };
 

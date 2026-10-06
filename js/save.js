@@ -37,7 +37,7 @@ const Save = {
   },
 
   // ---- Meilensteine ----
-  statValue(stat) { return stat === 'wins' ? (this.data.wins || 0) : stat === 'tutorial' ? (this.data.tutorialDone ? 1 : 0) : stat === 'best' ? this.data.best : stat === 'bestInf' ? this.data.bestInf || 0 : stat === 'runs' ? this.data.runs : (this.data.stats[stat] || 0); },
+  statValue(stat) { if (String(stat).startsWith('mapbest:')) return this.data.mapBest[stat.slice(8)] || 0; return stat === 'wins' ? (this.data.wins || 0) : stat === 'tutorial' ? (this.data.tutorialDone ? 1 : 0) : stat === 'best' ? this.data.best : stat === 'bestInf' ? this.data.bestInf || 0 : stat === 'runs' ? this.data.runs : (this.data.stats[stat] || 0); },
   milestoneDone(id) { return !!this.data.milestones[id]; },
   // Prueft alle Meilensteine, gibt die neu erreichten zurueck
   checkMilestones() {
@@ -267,6 +267,7 @@ const Save = {
     if (isBest) this.data[key] = time;
     this.data.stats.bosses += bosses;
     this.data.stats.kills += kills;
+    if (!infinite && mapId) { const S = this.data.stats; S['mapbosses:' + mapId] = (S['mapbosses:' + mapId] || 0) + bosses; S['mapkills:' + mapId] = (S['mapkills:' + mapId] || 0) + kills; }       // Karten-Meilensteine
     if (infinite) { this.data.stats.infBosses = (this.data.stats.infBosses || 0) + bosses; this.data.stats.infKills = (this.data.stats.infKills || 0) + kills; }       // Endlos-Meilensteine
     const got = this.checkMilestones();
     this.write();

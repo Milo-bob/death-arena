@@ -5,7 +5,8 @@
 // Zeitplan wie im Original: Oktagon bei 120, 240, 480, 720 ... Kite bei 360, 600, 840 ... (Spielzeit in Sekunden).
 
 // Boss-Stärke (CFG.boss.power); im Tutorial neutral, damit die Lernkämpfe leicht bleiben
-function bossPower() { return Tutorial.active ? { hp: 1, fire: 1, speed: 1, dmg: 1 } : { hp: CFG.boss.power.hp * G.diff.boss.hp, fire: CFG.boss.power.fire * G.diff.boss.fire, speed: CFG.boss.power.speed * G.diff.boss.speed, dmg: CFG.boss.power.dmg * G.diff.boss.dmg }; }
+function bossBlast(kind, x, y, src) { return Object.assign(new Blast(kind, x, y, false, src), { mul: bossPower().dmg }); }       // Boss-Explosion mit Boss-Schadensfaktor
+function bossPower() { return Tutorial.active ? { hp: 1, fire: 1, speed: 1, dmg: 1 } : { hp: CFG.boss.power.hp * G.diff.boss.hp * Hero.world().bossHp, fire: CFG.boss.power.fire * G.diff.boss.fire, speed: CFG.boss.power.speed * G.diff.boss.speed, dmg: CFG.boss.power.dmg * G.diff.boss.dmg }; }
 
 class Boss {
   constructor(type, x = 0, y = 0, role = null) {
@@ -265,7 +266,7 @@ class Boss {
       if (ch.t <= 0) { ch.phase = 'dash'; ch.t = C.dashTime; Sfx.play('blast'); }
     } else if (ch.t <= 0) {
       ch.phase = 'walk'; ch.t = C.chargeEvery * fast;
-      G.blasts.push(new Blast('bomb', this.x, this.y, false, Stats.bossName(this))); Juice.shake(3);       // Einschlag am Ende des Anlaufs
+      G.blasts.push(bossBlast('bomb', this.x, this.y, Stats.bossName(this))); Juice.shake(3);       // Einschlag am Ende des Anlaufs
     }
     return true;
   }
@@ -342,7 +343,7 @@ class Boss {
         if (a.t <= -K.pullTime) cn.act = null;
       } else if (a.t <= 0) {                                      // Schockwelle trifft
         if (dReal < K.shockRadius + 8) p.hit('touch', bossPower().dmg, Stats.bossName(this));           // Schaden nach der echten Position
-        G.blasts.push(new Blast('bomb', this.x, this.y, false, Stats.bossName(this)));
+        G.blasts.push(bossBlast('bomb', this.x, this.y, Stats.bossName(this)));
         cn.act = null;
       }
       return;
@@ -571,7 +572,7 @@ class Mortar {
     moveForward(this, CFG.boss.mortar.speed * framesOf(dt));
     const r = CFG.boss.mortar.radius;
     if (touchesPlayer(this.x, this.y, r) || blockedByPlayerGear(this.x, this.y, r)) {
-      G.blasts.push(new Blast('boom', this.x, this.y, false, this.src));
+      G.blasts.push(bossBlast('boom', this.x, this.y, this.src));
       this.alive = false;
     }
   }
@@ -585,7 +586,7 @@ class TurretStrike {
     if (!G.bossFight) { this.alive = false; return; }
     this.age += dt;
     if (this.age >= CFG.boss.turret.strikeDelay) {
-      G.blasts.push(new Blast('bomb', this.x, this.y, false, this.src));
+      G.blasts.push(bossBlast('bomb', this.x, this.y, this.src));
       this.alive = false;
     }
   }
