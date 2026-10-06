@@ -106,33 +106,50 @@ const MsFx = {
   drawTimePop(ctx) {
     const k = this.tpop;
     if (!k) return;
-    const P = STYLE.pal, T = STYLE.type, cx = STAGE_W / 2, w = 204, h = 30, lvl = Math.min(2, k.lvl);
+    const P = STYLE.pal, T = STYLE.type, cx = STAGE_W / 2, w = 212, h = 40, lvl = Math.min(2, k.lvl);
     const a = Math.min(1, k.t / 0.35, (this.TIME_TOTAL - k.t) / 0.6), y = 96 - (1 - a) * 8;
     const col = [P.yellow, P.orange, P.red][lvl];                      // der Totenkopf wird von Hinweis zu Hinweis boeser: Farbe, Hoerner, Glut, Flammen
     ctx.save();
     ctx.globalAlpha = Math.max(0, a);
     uiPanel(ctx, cx - w / 2, y, w, h, { color: col, fill: P.void, alpha: 0.9 });
-    this.drawSkull(ctx, cx - w / 2 + 22, y + h / 2 + 1, lvl, k.t);
-    uiText(ctx, k.text, cx + 20, y + h / 2 + 5, { size: T.h2, color: col, align: 'center' });
+    this.drawSkull(ctx, cx - w / 2 + 24, y + h / 2 + 2, lvl, k.t);
+    uiText(ctx, k.text, cx + 22, y + h / 2 + 5, { size: T.h2, color: col, align: 'center' });
     ctx.restore();
   },
 
-  // Pixel-Totenkopf (9 x 9 Pixel-Zellen). lvl 0: Knochenweiss | 1: orange, rote Augen, kleine Hoerner, Riss | 2: dunkel mit rotem Schein, glühende Augen, grosse Hoerner, Flammen
-  SKULL: ['..XXXXX..', '.XXXXXXX.', 'XXXXXXXXX', 'XXOOXOOXX', 'XXOOXOOXX', 'XXXXXXXXX', '.XXXXXXX.', '..XXXXX..', '..X.X.X..'],
+  // Schwierigkeits-Totenkoepfe im Stil von Minecraft Dungeons (Default / Adventure / Apocalypse): ein schlichter Schaedel, ein "muskuloeser" Schaedel (breite Brauen,
+  // Backenwuelste, schwerer Kiefer, Stacheln) und ein dreiaeugiger Mutanten-Schaedel mit riesigen Hoernern. Zeichen: X Knochen, D Schatten, H Horn/Stachel,
+  // O Augenhoehle, E leuchtendes Auge, N Nase, T Zahnluecke, . leer. Farben wie bisher: Knochenweiss, Orange, Rot.
+  SKULLS: [
+    { rows: ['...XXXXX...', '.XXXXXXXXX.', 'XXXXXXXXXXX', 'XXXXXXXXXXX', 'XXOOOXOOOXX', 'XXOOOXOOOXX', 'XXXXXNXXXXX', '.XXXXXXXXX.', '..XTXTXTX..', '..XXXXXXX..', '...XXXXX...'],
+      X: '#dfe7f2', D: '#9aa8b8', H: '#dfe7f2', E: '#dfe7f2' },
+    { rows: ['.H.XXXXXXX.H.', '.XXXXXXXXXXX.', 'XXXXXXXXXXXXX', 'XDDDXXXXXDDDX', 'XXODEXXXEDOXX', 'XXOOOXXXOOOXX', 'XDXXXXNXXXXDX', 'XDXXXXXXXXXDX', '.XXXXXXXXXXX.', '.XXTXTXTXTXX.', '..XXXXXXXXX..', '...XXXXXXX...'],
+      X: '#e6c9a0', D: '#b88a5a', H: '#ff9a2e', E: '#ff3b3b' },
+    { rows: ['HH...........HH', '.HH..XXXXX..HH.', '.HHH.XXXXX.HHH.', '..HHXXXXXXXHH..', '..HXXXXEXXXXH..', '...XXXXXXXXX...', '..XXXXXXXXXXX..', '..XXOOXXXOOXX..', '..XXOEXXXEOXX..', '..XXXXXNXXXXX..', '...XXXXXXXXX...', '...XTXTXTXTX...', '...XXXXXXXXX...', '....X.X.X.X....'],
+      X: '#c4584a', D: '#8a2c24', H: '#ffb02e', E: '#ff3b3b' },
+  ],
   drawSkull(ctx, cx, cy, lvl, t) {
-    const P = STYLE.pal, N = PIXEL, x0 = Math.round((cx - 4.5 * N) / N) * N, y0 = Math.round((cy - 4.5 * N) / N) * N;
-    const cell = (c, r, col, h = 1) => { ctx.fillStyle = col; ctx.fillRect(x0 + c * N, y0 + r * N, N, N * h); };
-    if (lvl >= 1) { ctx.save(); ctx.globalAlpha = (lvl === 2 ? 0.3 : 0.16) * (0.8 + 0.2 * Math.sin(t * 9)); ctx.fillStyle = lvl === 2 ? P.red : P.orange; pxGlow(ctx, cx, cy, lvl === 2 ? 20 : 15); ctx.restore(); }
-    if (lvl >= 1) { cell(0, -1, P.orange, lvl === 2 ? 2 : 1); cell(8, -1, P.orange, lvl === 2 ? 2 : 1); if (lvl === 2) { cell(-1, -2, P.red); cell(9, -2, P.red); } }
-    const bone = lvl === 0 ? P.ice : lvl === 1 ? '#e6c9a0' : '#c4584a';
-    this.SKULL.forEach((row, r) => { for (let c = 0; c < 9; c++) {
-      const ch = row[c]; if (ch === '.') continue;
-      cell(c, r, ch === 'O' ? (lvl === 0 ? P.ink : lvl === 1 ? P.red : (Math.sin(t * 14) > -0.4 ? P.redHi : P.red)) : bone);
-    } });
-    if (lvl >= 1) { cell(5, 1, P.ink); cell(5, 2, P.ink); cell(4, 2, P.ink); }          // Riss ueber dem rechten Auge
-    if (lvl === 2) for (let i = 0; i < 3; i++) {                                         // Flammen ueber dem Kopf
+    const P = STYLE.pal, N = PIXEL, S = this.SKULLS[lvl], rows = S.rows, w = rows[0].length, h = rows.length;
+    const x0 = Math.round((cx - w * N / 2) / N) * N, y0 = Math.round((cy - h * N / 2) / N) * N;
+    const cell = (c, r, col) => { ctx.fillStyle = col; ctx.fillRect(x0 + c * N, y0 + r * N, N, N); };
+    if (lvl >= 1) { ctx.save(); ctx.globalAlpha = (lvl === 2 ? 0.3 : 0.16) * (0.8 + 0.2 * Math.sin(t * 9)); ctx.fillStyle = lvl === 2 ? P.red : P.orange; pxGlow(ctx, cx, cy, lvl === 2 ? 22 : 16); ctx.restore(); }
+    const at = (c, r) => (r >= 0 && r < h && c >= 0 && c < w ? rows[r][c] : '.');
+    for (let r = -1; r <= h; r++) for (let c = -1; c <= w; c++) {                      // dunkler Umriss um die Form, damit der Kopf auf jedem Hintergrund lesbar bleibt
+      if (at(c, r) !== '.') continue;
+      if (at(c - 1, r) !== '.' || at(c + 1, r) !== '.' || at(c, r - 1) !== '.' || at(c, r + 1) !== '.') cell(c, r, P.ink);
+    }
+    const flick = Math.sin(t * 14) > -0.3;
+    for (let r = 0; r < h; r++) for (let c = 0; c < w; c++) {
+      const ch = rows[r][c]; if (ch === '.') continue;
+      let col = S.X;
+      if (ch === 'D') col = S.D; else if (ch === 'H') col = S.H;
+      else if (ch === 'O' || ch === 'N' || ch === 'T') col = P.ink;
+      else if (ch === 'E') col = lvl === 0 ? P.ink : (flick || !(lvl === 2 && c === 7) ? S.E : P.red);        // leuchtende Augen flackern leicht, das dritte Auge am staerksten
+      cell(c, r, col);
+    }
+    if (lvl === 2) for (let i = 0; i < 3; i++) {                                         // Flammen zwischen den Hoernern
       const f = (t * 2.2 + i * 0.37) % 1;
-      ctx.globalAlpha = 1 - f; cell(2 + i * 2, -2 - Math.round(f * 4), i === 1 ? P.yellow : P.orange); ctx.globalAlpha = 1;
+      ctx.globalAlpha = 1 - f; cell(5 + i * 2, -1 - Math.round(f * 4), i === 1 ? P.yellow : P.orange); ctx.globalAlpha = 1;
     }
   },
 
