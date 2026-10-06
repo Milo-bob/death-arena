@@ -6,8 +6,24 @@
 const MsFx = {
   queue: [], cur: null, t: 0, seen: new Set(), parts: [], checkT: 0,
   TOTAL: 4.8, IN: 0.45, OUT: 0.6,
+  // Zeit-Hinweise (schlichte Variante der Fanfare): nach 5 / 10 / 15 Minuten Spielzeit. G.time zaehlt nur die Wellen, Bosskaempfe stehen still,
+  // also zaehlen Bosse nicht mit. 15 Min. gibt es nur im Endlos-Modus (der Standardlauf endet bei CFG.finalBoss.at). Faellt ein Zeitpunkt mit einer
+  // Meilenstein-Fanfare zusammen (laeuft oder steht an), entfaellt der Zeit-Hinweis, die Botschaft ist ja schon da.
+  get TIME_MARKS() { return CFG.player.ramp.marks; }, TIME_TOTAL: 3.2, timeSeen: new Set(), tpop: null,
 
-  reset() { this.queue = []; this.cur = null; this.t = 0; this.seen = new Set(); this.parts = []; this.checkT = 0; },
+  reset() { this.queue = []; this.cur = null; this.t = 0; this.seen = new Set(); this.parts = []; this.checkT = 0; this.timeSeen = new Set(); this.tpop = null; },
+
+  checkTime() {
+    if (Tutorial.active || G.cheated || G.victory > 0) return;
+    for (const mark of this.TIME_MARKS) {
+      if (this.timeSeen.has(mark) || G.time < mark) continue;
+      this.timeSeen.add(mark);
+      this.check(0, true);                                           // Meilensteine zum selben Zeitpunkt sofort erkennen (sonst bis zu 0.5 s Verzug)
+      if (this.cur || this.queue.length) continue;                   // Meilenstein-Fanfare vorhanden: Zeit-Hinweis entfaellt
+      this.tpop = { text: (mark / 60) + ' MINUTES SURVIVED', lvl: this.TIME_MARKS.indexOf(mark), t: 0 };
+      Sfx.play('upgrade');
+    }
+  },
 
   // Stand eines Meilenstein-Wertes mitten im Lauf (gespeicherter Wert plus aktueller Lauf). null = nur am Laufende pruefbar.
   liveValue(stat) {
@@ -23,9 +39,9 @@ const MsFx = {
     }
   },
   // Zweimal pro Sekunde pruefen, ob im laufenden Lauf ein Meilenstein erreicht wurde
-  check(dt) {
+  check(dt, force) {
     this.checkT -= dt;
-    if (this.checkT > 0) return;
+    if (this.checkT > 0 && !force) return;
     this.checkT = 0.5;
     if (Tutorial.active || G.cheated || G.victory > 0) return;
     for (const m of CFG.milestones) {
@@ -53,6 +69,8 @@ const MsFx = {
 
   update(dt) {
     this.check(dt);
+    this.checkTime();
+    if (this.tpop && (this.tpop.t += dt) >= this.TIME_TOTAL) this.tpop = null;
     for (const q of this.parts) { q.t += dt; q.x += q.vx * dt; q.y += q.vy * dt; q.vy += 70 * dt; q.vx *= Math.exp(-1.2 * dt); }
     this.parts = this.parts.filter((q) => q.t < q.life);
     if (!this.cur) { if (this.queue.length) this.start(this.queue.shift()); return; }
@@ -84,10 +102,45 @@ const MsFx = {
     ctx.restore();
   },
 
+  // Schlichter Zeit-Hinweis: kleines Feld mit gelbem Rahmen, gleitet kurz ein und blendet aus (keine Fluegel, kein Blitz, kein Wackeln)
+  drawTimePop(ctx) {
+    const k = this.tpop;
+    if (!k) return;
+    const P = STYLE.pal, T = STYLE.type, cx = STAGE_W / 2, w = 204, h = 30, lvl = Math.min(2, k.lvl);
+    const a = Math.min(1, k.t / 0.35, (this.TIME_TOTAL - k.t) / 0.6), y = 96 - (1 - a) * 8;
+    const col = [P.yellow, P.orange, P.red][lvl];                      // der Totenkopf wird von Hinweis zu Hinweis boeser: Farbe, Hoerner, Glut, Flammen
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, a);
+    uiPanel(ctx, cx - w / 2, y, w, h, { color: col, fill: P.void, alpha: 0.9 });
+    this.drawSkull(ctx, cx - w / 2 + 22, y + h / 2 + 1, lvl, k.t);
+    uiText(ctx, k.text, cx + 20, y + h / 2 + 5, { size: T.h2, color: col, align: 'center' });
+    ctx.restore();
+  },
+
+  // Pixel-Totenkopf (9 x 9 Pixel-Zellen). lvl 0: Knochenweiss | 1: orange, rote Augen, kleine Hoerner, Riss | 2: dunkel mit rotem Schein, glühende Augen, grosse Hoerner, Flammen
+  SKULL: ['..XXXXX..', '.XXXXXXX.', 'XXXXXXXXX', 'XXOOXOOXX', 'XXOOXOOXX', 'XXXXXXXXX', '.XXXXXXX.', '..XXXXX..', '..X.X.X..'],
+  drawSkull(ctx, cx, cy, lvl, t) {
+    const P = STYLE.pal, N = PIXEL, x0 = Math.round((cx - 4.5 * N) / N) * N, y0 = Math.round((cy - 4.5 * N) / N) * N;
+    const cell = (c, r, col, h = 1) => { ctx.fillStyle = col; ctx.fillRect(x0 + c * N, y0 + r * N, N, N * h); };
+    if (lvl >= 1) { ctx.save(); ctx.globalAlpha = (lvl === 2 ? 0.3 : 0.16) * (0.8 + 0.2 * Math.sin(t * 9)); ctx.fillStyle = lvl === 2 ? P.red : P.orange; pxGlow(ctx, cx, cy, lvl === 2 ? 20 : 15); ctx.restore(); }
+    if (lvl >= 1) { cell(0, -1, P.orange, lvl === 2 ? 2 : 1); cell(8, -1, P.orange, lvl === 2 ? 2 : 1); if (lvl === 2) { cell(-1, -2, P.red); cell(9, -2, P.red); } }
+    const bone = lvl === 0 ? P.ice : lvl === 1 ? '#e6c9a0' : '#c4584a';
+    this.SKULL.forEach((row, r) => { for (let c = 0; c < 9; c++) {
+      const ch = row[c]; if (ch === '.') continue;
+      cell(c, r, ch === 'O' ? (lvl === 0 ? P.ink : lvl === 1 ? P.red : (Math.sin(t * 14) > -0.4 ? P.redHi : P.red)) : bone);
+    } });
+    if (lvl >= 1) { cell(5, 1, P.ink); cell(5, 2, P.ink); cell(4, 2, P.ink); }          // Riss ueber dem rechten Auge
+    if (lvl === 2) for (let i = 0; i < 3; i++) {                                         // Flammen ueber dem Kopf
+      const f = (t * 2.2 + i * 0.37) % 1;
+      ctx.globalAlpha = 1 - f; cell(2 + i * 2, -2 - Math.round(f * 4), i === 1 ? P.yellow : P.orange); ctx.globalAlpha = 1;
+    }
+  },
+
   draw(ctx) {
     for (const q of this.parts) {                                    // Funken (auch nach dem Ende des Textes noch sichtbar)
       ctx.save(); ctx.globalAlpha = Math.max(0, 1 - q.t / q.life); ctx.fillStyle = q.c; pxFill(ctx, q.x, q.y, q.s / 2); ctx.restore();
     }
+    this.drawTimePop(ctx);
     const m = this.cur;
     if (!m) return;
     const P = STYLE.pal, t = this.t, cx = STAGE_W / 2, T = STYLE.type;

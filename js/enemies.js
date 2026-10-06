@@ -43,7 +43,7 @@ function touchesPlayer(x, y, r) {
 const CHASERS = ['circle', 'bomber', 'splitter', 'leech', 'teleporter', 'tank'];
 const TOUCHERS = ['circle', 'splitter', 'teleporter', 'tank'];
 const SHOOTERS = ['triangle', 'square', 'rhombus'];
-const HEAVY = ['square', 'rhombus', 'guard', 'support', 'sniper', 'miner', 'necro', 'tank', 'teleporter'];
+const HEAVY = ['square', 'rhombus', 'guard', 'support', 'sniper', 'miner', 'necro', 'tank', 'teleporter', 'phantom', 'bastion'];
 const CORPSE_TYPES = ['circle', 'triangle', 'square', 'rhombus', 'guard', 'bomber', 'teleporter'];
 class Enemy {
   // type: 'circle' | 'triangle' | 'square' | 'rhombus'; mini = Miniboss (größer, mehr Leben)
@@ -93,6 +93,9 @@ class Enemy {
     this.shootT = type === 'triangle' ? e.triangle.shootFirst
       : type === 'square' ? e.square.missileFirst
       : type === 'rhombus' ? e.rhombus.waveFirst : 0;
+    this.dmgMul = 1;                    // Schadensfaktor dieses Gegners (Elite-Gegner machen mehr Schaden, siehe elites.js)
+    this.elite = false;
+    if (CFG.elite[type]) Elite.init(this);
   }
 
   get radius() { return CFG.enemy[this.type].radius * this.size / CFG.enemy.size; }
@@ -129,6 +132,7 @@ class Enemy {
     }
     const e = CFG.enemy;
     this.stun = Math.max(0, this.stun - dt);
+    if (this.elite) this.stun = 0;                                  // Elite-Gegner werden nie betaeubt
     this.blockFlash = Math.max(0, this.blockFlash - dt);
     this.amp = Math.max(0, this.amp - dt);
     this.hitCd = Math.max(0, this.hitCd - dt);
@@ -156,7 +160,7 @@ class Enemy {
       if (onShield) step -= CFG.enemy[this.type].push || 2;
       if (pat.move !== undefined) { const face = this.dir; this.dir = pat.move; moveForward(this, step * f); this.dir = face; }     // Laufrichtung getrennt von der Blickrichtung (Dreieck)
       else moveForward(this, step * f);
-      if (pat.touch && touchesPlayer(this.x, this.y, r)) p.hit('touch', 1, Stats.enemyName(this));
+      if (pat.touch && touchesPlayer(this.x, this.y, r)) p.hit('touch', this.dmgMul, Stats.enemyName(this));
     } else if (CHASERS.includes(this.type)) {
       const C = e[this.type];
       let step = this.stun <= 0 || this.type === 'tank' ? C.speed : 0;       // der Tank wird nie betäubt
@@ -194,7 +198,7 @@ class Enemy {
 
     const busy = this.ov || this.act || SafeSpot.inside;           // Events pausieren das Schießen (im Safe Spot auch)
     if (!busy) this.shootT -= dt;
-    if (!busy && this.shootT <= 0 && SHOOTERS.includes(this.type)) this.attack();
+    if (!busy && this.shootT <= 0 && (SHOOTERS.includes(this.type) || this.type === 'phantom')) this.attack();
     if (this.type === 'support') Patterns.supportAura(this, dt);
 
     if (this.type === 'guard') {
@@ -205,6 +209,8 @@ class Enemy {
         if (bounced.kind === 'shot') bounced.alive = false;     // der Schuss zerplatzt am Schild
         this.blockFlash = 0.15;
       }
+    } else if (this.type === 'bastion') {
+      Elite.bastionHit(this, r);                                      // Schildfront haelt Schuesse ab
     } else if (this.stun <= 0) {
       const w = weaponHit(this.x, this.y, r);
       if (w) { this.takeHit(true, w.kind); if (w.kind === 'sword' && this.alive) this.bladeKnock(); }
@@ -213,7 +219,7 @@ class Enemy {
 
   // Plasma Blade haelt Gegner ab: kurze Betaeubung und Rueckstoss vom Spieler weg (Tanks und Bosse bleiben stehen)
   bladeKnock() {
-    if (this.type === 'tank') return;
+    if (this.type === 'tank' || this.elite) return;
     const C = CFG.sword, p = G.player, dx = this.x - p.x, dy = this.y - p.y, d = Math.hypot(dx, dy) || 1;
     this.stun = Math.min(this.stun, C.stun);
     [this.x, this.y] = clampToMap(this.x + dx / d * Loadout.sword.knock, this.y + dy / d * Loadout.sword.knock, this.radius);
@@ -222,6 +228,7 @@ class Enemy {
   attack() {
     const e = CFG.enemy;
     const p = G.player;
+    if (this.type === 'phantom') { Elite.phantomFire(this); return; }
     const V = this.V, aim = dirTo(this.x, this.y, p.target.x, p.target.y), fan = V && V.fan ? V.fan : 1;       // Variante: Fächer aus mehreren Geschossen
     const off = (i) => (i - (fan - 1) / 2) * (V && V.fanSpread ? V.fanSpread : 0);
     if (this.type === 'triangle') {
@@ -249,6 +256,11 @@ class Enemy {
       const T = CFG.enemy.tank;
       if (this.hitCd > 0) return;
       this.hitCd = T.hitCd; n *= T.dmg[src] || 1; stun = false;
+    }
+    if (this.elite) {                                       // Elite-Gegner: nur alle `gate` Sekunden ein Treffer, starke Waffen zaehlen mehrfach
+      const E = CFG.elite[this.type];
+      if (this.hitCd > 0) return;
+      this.hitCd = this.mk === 2 ? E.gate2 : E.gate; n *= (E.dmgTable && E.dmgTable[src]) || 1; stun = false;
     }
     if (this.hitsLeft <= n) { this.die(); return; }
     this.hitsLeft -= n;
@@ -280,11 +292,11 @@ class Enemy {
     Ach.kill(this);
     Stats.kill(this.killSrc);
     Xp.drop(this);
-    if (!this.splitlet && !this.minion) noteFallen(this);
+    if (!this.splitlet && !this.minion && !this.elite) noteFallen(this);
     if (this.type === 'splitter') Patterns.splitlet(this, CFG.enemy.splitter.splitCount);
     const D = G.director;
     if (!this.raised && !this.splitlet && CORPSE_TYPES.includes(this.type) && D.corpses.length < 12 && G.enemies.some((n) => n.alive && n.type === 'necro')) D.corpses.push({ x: this.x, y: this.y, type: this.type, t: CFG.patterns.necro.corpseLife });
-    if (!this.splitlet && Math.random() < (this.mini ? CFG.drops.miniChance : G.bloodMoon ? CFG.bloodMoon.dropChance : G.flood ? CFG.flood.dropChance : CFG.drops.chance) * (Save.equipped('artifact') === 'lucky' ? 1 + (CFG.items.lucky.mult - 1) * Save.gearMul('lucky') : 1) * (1 + Save.bonus('luck') + Xp.val('luck'))) G.drops.push(new Drop(this.x, this.y));
+    if (!this.splitlet && Math.random() < (this.mini || this.elite ? CFG.drops.miniChance : G.bloodMoon ? CFG.bloodMoon.dropChance : G.flood ? CFG.flood.dropChance : CFG.drops.chance) * (Save.equipped('artifact') === 'lucky' ? 1 + (CFG.items.lucky.mult - 1) * Save.gearMul('lucky') : 1) * (1 + Save.bonus('luck') + Xp.val('luck'))) G.drops.push(new Drop(this.x, this.y));
     if (this.type === 'rhombus') G.blasts.push(new Blast('wave', this.x, this.y, false, Stats.enemyName(this)));
     if (this.V && !this.splitlet && !G.clearing) {                      // kartenspezifische Variante: Besonderheit beim Tod (Cinder: Funkenexplosion, Spore: Giftwolke)
       if (this.V.death === 'ember') G.blasts.push(new Blast('ember', this.x, this.y, false, Stats.enemyName(this)));
@@ -307,10 +319,12 @@ class Enemy {
   }
 
   draw(ctx) {
-    let img = this.type;
+    let img = CFG.enemy[this.type].sprite || this.type;
     if (this.halted) img += '1hp';
+    if (this.elite) img = Elite.sprite(this);                // umgefaerbte Kopie (einmal berechnet) statt Farbfilter in jedem Bild
     if (this.type === 'guard') img = this.armor === 'plate' ? 'guardPlate' : 'guardMirror';
     Patterns.drawFx(ctx, this);                              // Vorwarnung / Aura unter dem Gegner
+    if (this.elite) Elite.drawFx(ctx, this);
     const hue = (this.mini ? -27 : 0) + (this.V ? this.V.hue : 0) + (this.stun > 0 ? -18 : 0) + (this.kind ? CFG.patterns.support.kinds[this.kind].hue : 0);
     if (this.blooded) {                                      // dunkelroter Schein unter gestärkten Gegnern
       ctx.save();
@@ -392,7 +406,7 @@ class EnemyBolt {
     this.frames -= f;
     const r = CFG.enemy.bolt.radius;
     if (hitObstacle(this.x, this.y, r, CFG.obstacles.dmg.bolt)) this.alive = false;               // Deckung
-    else if (touchesPlayer(this.x, this.y, r)) { G.player.hit('shoot', 1, this.src); if (this.chill) G.player.chill(CFG.chill.dur); this.alive = false; }
+    else if (touchesPlayer(this.x, this.y, r)) { G.player.hit('shoot', this.mul || 1, this.src); if (this.chill) G.player.chill(CFG.chill.dur); this.alive = false; }
     else if (blockedByPlayerGear(this.x, this.y, r) || this.frames <= 0) this.alive = false;
   }
   draw(ctx) { drawSprite(ctx, 'enemyShot', this.x, this.y, this.dir, 150, { alpha: 1 - this.ghost / 100, hue: this.chill ? 170 : 0 }); }

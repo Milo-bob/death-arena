@@ -39,6 +39,7 @@ const ACH_LIST = [
   { id: 'redbutton', br: 'fight', name: 'THE BIG RED BUTTON',   desc: 'Use your Ultimate 10 times.',                    icon: 'ult1',         key: 'ult',       need: 10,   reward: { cores: 15 } },
   { id: 'bloodyhell', br: 'fight', name: 'BLOODY HELL',         desc: 'Set off Bloodburst.',                            icon: 'blood1',       key: 'bloodburst', need: 1,   reward: { cores: 15 } },
   { id: 'annihil',   br: 'fight', name: 'TOTAL ANNIHILATION',   desc: 'Defeat 3000 enemies in total.',                  icon: 'square',       key: 'kills',     need: 3000, reward: { cores: 60 } },
+  { id: 'elite',     br: 'fight', name: 'ELITE HUNTER',         desc: 'Defeat 5 elite enemies.',                        icon: 'tank',         key: 'elites',    need: 5,    reward: { cores: 40 } },
   { id: 'allfoes',   br: 'fight', name: "GOTTA KILL 'EM ALL",   desc: 'Defeat every kind of regular enemy.',            icon: 'necro',        key: 'types',     need: 14,   reward: { cos: 'skin:ghost' } },
 
   // ---- BOSSES ----
@@ -129,7 +130,7 @@ const Ach = {
     const c = this.data().cnt, s = c[key] || (c[key] = {});
     if (!s[item]) { s[item] = 1; this.dirty = true; }
   },
-  kill(e) { if (e && e.type) this.mark('types', e.type); },
+  kill(e) { if (e && e.elite) this.add('elites'); else if (e && e.type) this.mark('types', e.type); },       // Elite-Gegner zaehlen nicht zu "jede Art" (types)
   bossDown(b) {                                           // Boss besiegt (vor G.endBossFight): Dauer und Schaden im Kampf
     if (!this.ok() || !b || b.type === 'reaper') return;
     if (G.bossTimer > 0 && G.bossTimer < ACH_FAST_BOSS) this.add('bossFast');

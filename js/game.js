@@ -110,7 +110,12 @@ function upgradeRows(tab) {
   }
   return rows;
 }
-const SETTINGS_ITEMS = ['music', 'sfx', 'fx', 'fullscreen', 'mouseaim', 'slot', 'controls', 'binds', 'transfer', 'resetAll', 'back'];
+const SETTINGS_PAGES = [                      // Einstellungen in Seiten; Zeile 0 jeder Seite ist die Seitenwahl ('tabs', A/D wechselt), unten immer 'back'
+  { label: 'SOUND & VIDEO', items: ['music', 'sfx', 'fx', 'fullscreen'] },
+  { label: 'GAME', items: ['mouseaim', 'slot', 'controls', 'binds'] },
+  { label: 'DATA', items: ['transfer', 'resetAll'] },
+];
+const settingsList = () => ['tabs'].concat(SETTINGS_PAGES[G.settingsPage || 0].items, ['back']);
 const PAUSE_ITEMS = ['resume', 'abilities', 'music', 'sfx', 'binds', 'quit'];
 
 const G = {
@@ -193,6 +198,7 @@ const G = {
   kills: 0,               // in diesem Lauf besiegte Gegner
   newMilestones: [],      // im letzten Lauf neu erreichte Meilensteine
   earned: 0,              // Seelen, die der letzte Lauf gebracht hat
+  settingsPage: 0,        // aktuelle Seite der Einstellungen (SETTINGS_PAGES)
   settingsSel: 0,         // gewählte Zeile in den Einstellungen
   newBest: false,         // aktueller Tod war eine neue Bestzeit
   god: false,             // unsterblich (nur noch für Tests/Smoke-Test, keine Taste mehr)
@@ -214,7 +220,7 @@ const G = {
     this.lootCores = 0; this.fallen = []; this.attacks = []; this.enemies = []; this.shots = []; this.blasts = []; this.meteors = []; this.obstacles = [];
     this.spawners = []; this.powerups = []; this.drops = []; this.texts = []; this.events = [];
     this.boss = null; this.intro = null; this.bossShots = [];
-    this.arenaScale = 1; this.arenaTarget = 1; this.bossCount = 0;
+    this.arenaScale = 1; this.arenaTarget = 1; this.bossCount = 0; this.eliteUp = false;
     const mi = withTutorial || !Save.mapUnlocked(Save.data.mapSel) ? 0 : Save.data.mapSel;          // gewählte Karte (Tutorial immer Karte 1)
     this.mapIdx = mi; this.map = CFG.maps[mi]; this.diff = this.map.diff;
     CFG.map.halfW = this.map.half[0]; CFG.map.halfH = this.map.half[1];
@@ -333,9 +339,9 @@ const G = {
     if (item === 'play') { this.mode = 'modeselect'; this.modeSel = Save.data.tutorialDone ? Math.max(0, MODE_ITEMS.indexOf(Save.data.lastMode)) : 2; }        // merkt sich den zuletzt gewaehlten Modus        // vor dem ersten Mal ist das Tutorial vorgewählt
     else if (item === 'inventory') { this.mode = 'inventory'; this.invSel = 0; this.invPick = null; }
     else if (item === 'cosmetics') { this.mode = 'cosmetics'; this.cosTab = 0; this.cosSel = Math.max(0, Cos.items('skin').findIndex((q) => q.id === Save.cosEquipped('skin'))); }
-    else if (item === 'upgrades') { this.mode = 'upgrades'; this.upgradeSel = 0; this.upgradeTab = 0; }
+    else if (item === 'upgrades') { Save.data.upgradesSeen = true; Save.write(); this.mode = 'upgrades'; this.upgradeSel = 0; this.upgradeTab = 0; }
     else if (item === 'achievements') { this.mode = 'achievements'; Ach.open(); }
-    else if (item === 'settings') { this.mode = 'settings'; this.settingsSel = 0; }
+    else if (item === 'settings') { this.mode = 'settings'; this.settingsSel = 0; this.settingsPage = 0; }
     else if (item === 'stats') { this.mode = 'stats'; StatsScreen.open(); }
   },
 
@@ -508,13 +514,14 @@ const G = {
 
   // Einstellungen: Lautstärken (A/D), Effekte, Vollbild, Steuerung, Zurücksetzen, Zurück
   updateSettings() {
-    const n = SETTINGS_ITEMS.length;
+    const n = settingsList().length;
     if (Input.pressed('ArrowUp') || Input.pressed('KeyW')) this.settingsSel = (this.settingsSel + n - 1) % n;
     if (Input.pressed('ArrowDown') || Input.pressed('KeyS')) this.settingsSel = (this.settingsSel + 1) % n;
-    const item = SETTINGS_ITEMS[this.settingsSel];
+    const item = settingsList()[this.settingsSel];
     const dir = (Input.pressed('ArrowRight') || Input.pressed('KeyD') ? 1 : 0) - (Input.pressed('ArrowLeft') || Input.pressed('KeyA') ? 1 : 0);
     const ok = Input.pressed('Space') || Input.pressed('Enter');
-    if (item === 'music' && dir) { setMusicVolume(Math.round((Save.data.musicVol + dir * 0.1) * 10) / 10); Save.write(); }
+    if (item === 'tabs' && (dir || ok)) { this.settingsPage = (this.settingsPage + (dir || 1) + SETTINGS_PAGES.length) % SETTINGS_PAGES.length; this.resetConfirm = false; }
+    else if (item === 'music' && dir) { setMusicVolume(Math.round((Save.data.musicVol + dir * 0.1) * 10) / 10); Save.write(); }
     else if (item === 'sfx' && dir) { Sfx.setVolume(Math.round((Save.data.sfxVol + dir * 0.1) * 10) / 10); Save.write(); Sfx.play('select'); }
     else if (item === 'fx' && (dir || ok)) { Save.data.fx = (Juice.level + (dir || 1) + 3) % 3; Save.write(); }       // OFF / REDUCED / FULL
     else if (item === 'fullscreen' && (ok || dir)) { try { if (document.fullscreenElement) document.exitFullscreen(); else canvas.requestFullscreen(); } catch (e) { /* Browser verbietet Vollbild */ } }
@@ -595,6 +602,11 @@ const G = {
   get bossLock() { return this.bossFight && CFG.map.infinite; },
 
   addText(name, x, y) { this.texts.push(new FloatingText(name, x, y)); },
+  // Schadenszahl am Spieler: echter Schaden als Pixelzahl, ab 15 orange und groesser
+  addDamageText(amount, x, y) {
+    const n = Math.max(1, Math.round(amount)), big = n >= 15;
+    this.texts.push(new FloatingText(null, x, y, { text: '-' + n, color: big ? STYLE.pal.orange : STYLE.pal.red, size: big ? 15 : 12 }));
+  },
   // Ladung kommt zuerst in die große Kugel; ist sie voll, füllt der Überschuss die kleine Kugel (gestapeltes Ultimate), jedes weitere lädt langsamer
   addUlt(n) {
     const U = CFG.ult, full = U.readyAt + 1;
@@ -774,6 +786,7 @@ const G = {
     Loadout.updateByTime(this.time);
     if (!Tutorial.active && !(this.victory > 0)) { this.director.update(dt); this.director.updateBosses(); }       // im Tutorial führt Tutorial.update die Szenarien
     MapEnv.update(dt);
+    Elite.update();
     SafeSpot.update(dt);
     MapFx.update(dt);
 

@@ -5,15 +5,22 @@ const HP_STEPS = [94.6, 89.1, 83.6, 78.1, 72.6, 67.1, 61.6, 56.1, 50.6, 45.1, 37
 
 // Schadenszahl, die nach oben wegschwebt
 class FloatingText {
-  constructor(name, x, y) {
-    this.name = name; this.x0 = x; this.y0 = y; this.age = 0; this.alive = true;
+  constructor(name, x, y, opts) {
+    this.name = name; this.x0 = x; this.y0 = y; this.age = 0; this.alive = true; this.opts = opts || null;      // opts: { text, color, size } = Zahl statt Sprite
   }
   update(dt) {
     this.age += dt;
     if (this.age >= 1) this.alive = false;
   }
   draw(ctx) {
-    const k = this.age;
+    const k = this.age, o = this.opts;
+    if (o) {
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, (1 - k) / 0.3);
+      uiText(ctx, o.text, STAGE_W / 2 + this.x0 + 5 * k, STAGE_H / 2 - (this.y0 + 5 * k) - 10 - 8 * k, { size: o.size, color: o.color, align: 'center' });
+      ctx.restore();
+      return;
+    }
     drawSprite(ctx, this.name, this.x0 + 5 * k, this.y0 + 5 * k, 90, 250);
   }
 }
@@ -291,6 +298,12 @@ function drawEmbers(ctx) {
   ctx.restore();
 }
 
+// Kleiner pulsierender Hinweispunkt neben einer Menuezeile
+function uiHintDot(ctx, x, y, t) {
+  ctx.save(); ctx.globalAlpha = 0.6 + 0.4 * Math.sin(t * 6); ctx.fillStyle = STYLE.pal.yellow;
+  ctx.fillRect(x - 3, y - 3, 6, 6); ctx.restore();
+}
+
 // Ist eine ausgeruestete Waffe/ein Implant bereit zum Level-up (XP-Balken voll und genug Cores)?
 function gearReady() {
   return CFG.items.slots.some((S) => { const id = Save.equipped(S.id); return id && Save.gearLv(id) < Save.gearMax() && Save.gearFrac(id) >= 1 && Save.data.souls >= Save.gearPrice(id); });
@@ -317,11 +330,8 @@ function drawStartScreen(ctx) {
     }
     const y = 134 + i * 28;
     drawMenuRow(ctx, y, labels[id], G.menuSel === i, { h: 22, hit: () => { G.menuSel = i; } });
-    if ((id === 'play' && !Save.data.tutorialDone) || (id === 'inventory' && gearReady()) || (id === 'achievements' && Ach.unseen() > 0)) {          // Hinweis: der erste Start ist das Tutorial / eine Waffe ist bereit fuers Level-up / neue Achievements
-      ctx.save(); ctx.globalAlpha = 0.6 + 0.4 * Math.sin(t * 6);
-      uiText(ctx, id === 'inventory' ? '! LEVEL UP' : id === 'achievements' ? '! NEW' : 'START HERE', STAGE_W / 2 + 104, y + 15, { size: T.small, color: P.yellow });
-      ctx.restore();
-    }
+    const dot = (id === 'play' && !Save.data.tutorialDone) || (id === 'upgrades' && Save.data.tutorialDone && !Save.data.upgradesSeen);          // Hinweispunkt: erst das Tutorial, danach einmal die Upgrades (weg, sobald man dort war)
+    if (dot) uiHintDot(ctx, STAGE_W / 2 + 104, y + 11, t);
   });
   const best = Save.data.best > 0 ? formatTime(Save.data.best) : '-', L = Save.data.last;
   uiText(ctx, 'BEST ' + best + '    RUNS ' + Save.data.runs + (Save.data.wins ? '    WINS ' + Save.data.wins : '') + '    CORES ' + Save.data.souls, STAGE_W / 2, 316, { size: T.body, color: P.ice, align: 'center' });
@@ -345,11 +355,7 @@ function drawModeSelectScreen(ctx) {
   MODE_ITEMS.forEach((id, i) => {
     const y = 90 + i * 30;
     drawMenuRow(ctx, y, labels[id], G.modeSel === i, { w: 300, hit: () => { G.modeSel = i; } });
-    if (id === 'tutorial' && !Save.data.tutorialDone) {
-      ctx.save(); ctx.globalAlpha = 0.6 + 0.4 * Math.sin(t * 6);
-      uiText(ctx, 'START HERE', STAGE_W / 2 + 100, y + 17, { size: T.small, color: P.yellow });
-      ctx.restore();
-    }
+    if (id === 'tutorial' && !Save.data.tutorialDone) uiHintDot(ctx, STAGE_W / 2 + 160, y + 12, t);
   });
   const d = descs[MODE_ITEMS[G.modeSel]];
   uiText(ctx, d[0], STAGE_W / 2, 238, { size: T.body, color: P.ice, align: 'center' });
@@ -1056,13 +1062,13 @@ function drawSwapScreen(ctx) {
 }
 
 function drawSettingsScreen(ctx) {
-  const P = STYLE.pal, T = STYLE.type;
+  const P = STYLE.pal, T = STYLE.type, page = G.settingsPage || 0, list = settingsList();
   drawSprite(ctx, 'keysettings', 0, 0, 90, 100);
-  uiText(ctx, 'SETTINGS', STAGE_W / 2, 34, { size: T.h1, color: P.yellow, align: 'center' });
-  const vol = Save.data.musicVol, bars = Math.round(vol * 10);
+  uiText(ctx, 'SETTINGS', STAGE_W / 2, 44, { size: T.h1, color: P.yellow, align: 'center' });
+  const vol = Save.data.musicVol, bars = Math.round(vol * 10), sv = Math.round(Save.data.sfxVol * 10);
   const rows = {
     music: 'MUSIC  ' + '|'.repeat(bars) + '.'.repeat(10 - bars) + '  ' + Math.round(vol * 100) + '%',
-    sfx: 'SOUND FX  ' + '|'.repeat(Math.round(Save.data.sfxVol * 10)) + '.'.repeat(10 - Math.round(Save.data.sfxVol * 10)) + '  ' + Math.round(Save.data.sfxVol * 100) + '%',
+    sfx: 'SOUND FX  ' + '|'.repeat(sv) + '.'.repeat(10 - sv) + '  ' + Math.round(Save.data.sfxVol * 100) + '%',
     fx: 'EFFECTS  ' + ['OFF', 'REDUCED', 'FULL'][Juice.level],
     fullscreen: 'FULLSCREEN: ' + (document.fullscreenElement ? 'ON' : 'OFF'),
     mouseaim: 'MOUSE AIMING: ' + (Save.data.mouseAim ? 'ON' : 'OFF'),
@@ -1073,20 +1079,31 @@ function drawSettingsScreen(ctx) {
     resetAll: G.resetConfirm ? 'SURE? DELETE SLOT ' + (Save.slot + 1) : 'RESET SAVE FILE (SLOT ' + (Save.slot + 1) + ')',
     back: 'BACK',
   };
-  let gapN = 0;
-  const gap = { slot: 1, controls: 2, resetAll: 3 };                       // Gruppen: Ton/Bild | Spielstand | Tasten | Daten
-  SETTINGS_ITEMS.forEach((id, i) => { if (gap[id]) gapN = gap[id]; drawMenuRow(ctx, 46 + i * 20 + gapN * 7, rows[id], G.settingsSel === i, { w: 300, h: 18, hit: () => { G.settingsSel = i; }, lr: id === 'music' || id === 'sfx' || id === 'slot' }); });
-  // die drei Spielstaende als Karten (Klick wechselt den Slot)
-  const cw = 150, cg = 6, cx0 = STAGE_W / 2 - (3 * cw + 2 * cg) / 2;
-  for (let i = 0; i < Save.SLOTS; i++) {
-    const x = cx0 + i * (cw + cg), y = 304, on = i === Save.slot, I = Save.slotInfo(i);
-    UIHit.add(x, y, cw, 38, () => { Save.switchSlot(i); G.resetConfirm = false; }, { noConfirm: true });
-    uiPanel(ctx, x, y, cw, 38, { color: on ? P.yellow : P.greyMid, fill: on ? P.voidLight : P.void, alpha: 0.92, glow: on });
-    uiText(ctx, 'SLOT ' + (i + 1) + (on ? '  - ACTIVE' : ''), x + 8, y + 13, { size: T.small, color: on ? P.yellow : P.grey });
-    uiText(ctx, I ? 'BEST ' + (I.best > 0 ? formatTime(I.best) : '-') + '   RUNS ' + I.runs : 'EMPTY', x + 8, y + 25, { size: T.small, color: I ? P.ice : P.greyMid });
-    if (I) uiText(ctx, 'CORES ' + I.souls + (I.wins ? '   WINS ' + I.wins : ''), x + 8, y + 35, { size: T.small, color: P.yellow });
+  // Seitenwahl: drei Reiter, A/D (oder Klick) wechselt
+  const tw = 128, tg = 6, tx0 = STAGE_W / 2 - (3 * tw + 2 * tg) / 2, tabSel = G.settingsSel === 0;
+  SETTINGS_PAGES.forEach((pg, i) => {
+    const x = tx0 + i * (tw + tg), on = i === page;
+    UIHit.add(x, 56, tw, 22, () => { G.settingsPage = i; G.settingsSel = 0; G.resetConfirm = false; }, { noConfirm: true });
+    uiPanel(ctx, x, 56, tw, 22, { color: on ? (tabSel ? P.cyan : P.yellow) : P.greyMid, fill: on ? P.voidLight : P.void, alpha: 0.92, glow: on && tabSel });
+    uiText(ctx, pg.label, x + tw / 2, 71, { size: T.body, color: on ? P.ice : P.grey, align: 'center' });
+  });
+  uiText(ctx, 'A/D', tx0 - 8, 71, { size: T.small, color: tabSel ? P.cyan : P.greyMid, align: 'right' });
+  list.slice(1).forEach((id, k) => {
+    const i = k + 1, y = id === 'back' ? 276 : 96 + k * 30;
+    drawMenuRow(ctx, y, rows[id], G.settingsSel === i, { w: 300, h: 24, hit: () => { G.settingsSel = i; }, lr: id === 'music' || id === 'sfx' || id === 'slot' });
+  });
+  if (list.includes('slot')) {                                                    // die drei Spielstaende als Karten (Klick wechselt den Slot)
+    const cw = 150, cg = 6, cx0 = STAGE_W / 2 - (3 * cw + 2 * cg) / 2;
+    for (let i = 0; i < Save.SLOTS; i++) {
+      const x = cx0 + i * (cw + cg), y = 224, on = i === Save.slot, I = Save.slotInfo(i);
+      UIHit.add(x, y, cw, 38, () => { Save.switchSlot(i); G.resetConfirm = false; }, { noConfirm: true });
+      uiPanel(ctx, x, y, cw, 38, { color: on ? P.yellow : P.greyMid, fill: on ? P.voidLight : P.void, alpha: 0.92, glow: on });
+      uiText(ctx, 'SLOT ' + (i + 1) + (on ? '  - ACTIVE' : ''), x + 8, y + 13, { size: T.small, color: on ? P.yellow : P.grey });
+      uiText(ctx, I ? 'BEST ' + (I.best > 0 ? formatTime(I.best) : '-') + '   RUNS ' + I.runs : 'EMPTY', x + 8, y + 25, { size: T.small, color: I ? P.ice : P.greyMid });
+      if (I) uiText(ctx, 'CORES ' + I.souls + (I.wins ? '   WINS ' + I.wins : ''), x + 8, y + 35, { size: T.small, color: P.yellow });
+    }
   }
-  uiText(ctx, 'W/S = SELECT    A/D = CHANGE    SPACE = OK    ESC = BACK', STAGE_W / 2, 352, { size: T.small, color: P.grey, align: 'center' });
+  uiText(ctx, 'W/S = SELECT    A/D = CHANGE / PAGE    SPACE = OK    ESC = BACK', STAGE_W / 2, 352, { size: T.small, color: P.grey, align: 'center' });
 }
 
 // Controls panel: explains every action in general terms and always shows the CURRENT keys (they can be rebound in Settings > Keybinds)

@@ -123,27 +123,35 @@ class Player {
     Sfx.play('drop');
   }
 
+  // Zuschlag auf den Schadensfaktor nach Spielzeit (CFG.player.ramp): ab 5 / 10 / 15 Min. Wellenzeit machen Gegner mehr Schaden. Bosskaempfe zaehlen nicht zur Zeit, der Zuschlag bleibt aber.
+  // Gesamtfaktor = G.diff.damage (Karte) + dmgRamp() (Zeit).
+  dmgRamp() {
+    if (Tutorial.active) return 0;
+    const R = CFG.player.ramp; let m = 0;
+    R.marks.forEach((t, i) => { if (G.time >= t) m = R.add[i]; });
+    return m;
+  }
+
   // kind: 'touch' | 'shoot' | 'higher'
   hit(kind, mul = 1, src = null) {          // mul: zusätzlicher Schadensfaktor (Bosse: CFG.boss.power.dmg); src: Name der Quelle fuer die Run-Statistik
     if (G.god || this.hitCd > 0 || this.invincibleBase || this.shield) return false;     // die Schildblase blockt alle Treffer
     if (SafeSpot.inside) {                                        // Safe Spot: Treffer abgefangen, fuer die Statistik mit geschaetztem Schaden
       const est = kind === 'higher' ? CFG.player.kiteBaseDamage + G.bossStageKite : (CFG.player.hitDamageMin + CFG.player.hitDamageMax) / 2 * this.damageFactor;
-      SafeSpot.blocked(src, est * G.diff.damage * mul);
+      SafeSpot.blocked(src, est * (G.diff.damage + this.dmgRamp()) * mul);
       this.hitCd = 0.2;                                           // kurze Pause, damit ein Dauerkontakt nicht jedes Bild zaehlt
       return false;
     }
     let amount;
     if (kind === 'higher') {
       amount = CFG.player.kiteBaseDamage + G.bossStageKite;
-      G.addText('dmg20', this.x, this.y);
     } else {
       const base = randInt(CFG.player.hitDamageMin, CFG.player.hitDamageMax);
       amount = base * this.damageFactor * (G.bloodMoon ? CFG.bloodMoon.damageFactor : 1);
       if (Save.equipped('artifact') === 'armor') amount *= 1 - CFG.items.armor.reduce * Save.gearMul('armor');
-      G.addText('dmg' + base, this.x, this.y);
     }
-    amount *= G.diff.damage * mul * Hero.mods().dmgTaken * (this.fortressT > 0 ? 1 - CFG.fortress.reduce : 1);                          // Karten-Schwierigkeit, Boss-Stärke
+    amount *= (G.diff.damage + this.dmgRamp()) * mul * Hero.mods().dmgTaken * (this.fortressT > 0 ? 1 - CFG.fortress.reduce : 1);                          // Karten-Schwierigkeit, Boss-Stärke
     amount *= Math.max(0.2, 1 - Save.bonus('resist') - Save.bonus('tough') - Xp.val('armor') - (this.has('barrier') ? CFG.passives.barrier.reduce * Save.gearMul('barrier') : 0));     // Meta-Upgrade Abwehr + Meilenstein Schadensabwehr
+    G.addDamageText(amount, this.x, this.y);                      // die Zahl zeigt den echten Schaden (nach Karte, Zeit, Boss, Ruestung ...)
     if (Save.equipped('artifact') === 'thorns') this.thornBurst();
     if (this.has('aegis') && this.aegisCd <= 0 && this.hp - amount < CFG.passives.aegis.hp) {    // Aegis-Protokoll: Notschutz
       this.invincibleT = Math.max(this.invincibleT, CFG.passives.aegis.protect * Save.gearMul('aegis'));
@@ -428,7 +436,7 @@ class Player {
   tryHack() {
     const C = CFG.hack;
     if (this.cds.hack > 0 || this.canMove === 0) return;
-    const list = G.enemies.filter((e) => e.alive && !e.minion && dist2(this.x, this.y, e.x, e.y) <= C.radius * C.radius).sort((a, b) => dist2(this.x, this.y, a.x, a.y) - dist2(this.x, this.y, b.x, b.y)).slice(0, C.count);
+    const list = G.enemies.filter((e) => e.alive && !e.minion && !e.elite && dist2(this.x, this.y, e.x, e.y) <= C.radius * C.radius).sort((a, b) => dist2(this.x, this.y, a.x, a.y) - dist2(this.x, this.y, b.x, b.y)).slice(0, C.count);
     if (!list.length) { Sfx.play('deny'); return; }
     for (const e of list) { G.attacks.push(new Ally(e.type, e.x, e.y, e.hitsLeft + C.bonusHits, C.life, e.size)); e.alive = false; Juice.sparks(e.x, e.y, STYLE.pal.purple, 6, 3); }
     Sfx.play('blink'); G.trigger('NEURAL HACK!', STYLE.pal.purple, { flash: 0.1, radius: C.radius, rings: 2 });

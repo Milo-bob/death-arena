@@ -58,6 +58,7 @@ const Xp = {
     if (e.minion || e.raised) return 0;
     if (e.splitlet) return C.splitlet;
     if (e.mini) return C.mini;
+    if (e.elite) return C.elite;
     if (e.type === 'tank') return C.tank;
     return HEAVY.includes(e.type) ? C.heavy : C.normal;
   },

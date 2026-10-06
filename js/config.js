@@ -53,6 +53,7 @@ const CFG = {
     afkDamage: 0.5,
     hitDamageMin: 8,
     hitDamageMax: 10,
+    ramp: { marks: [300, 600, 900], add: [0.5, 1.0, 1.5] },        // Gegner machen ab diesen Wellen-Sekunden (5 / 10 / 15 Min.; 15 nur im Endlos-Modus) mehr Schaden: dieser Wert wird zum Karten-Schadensfaktor (diff.damage) ADDIERT, der Wert ersetzt den vorigen (nicht im Tutorial). Karte 1 ist so bei der Haelfte (7 Min.) bei 1.5 = Basiswert von Karte 2
     kiteBaseDamage: 7.5,      // Kite-Boss: fester Schaden = 7.5 + Boss-Stufe
     // [Leben größer als, Schadensfaktor] (der rote Rand hängt nicht an diesen Stufen, siehe `warn`)
     // Original: 0.65 / 0.55 / 0.5 / 0.35 / 0.15 (das Sicherheitsnetz machte fast unsterblich). Jetzt deutlich weniger Nachlass.
@@ -519,7 +520,7 @@ const CFG = {
     // (Stats kosten ab ca. 25-30 Cores). Danach normal. Tutorial zaehlt nicht als Lauf. Eintraege = Anzahl der Laeufe.
     starter: { mult: [3, 2.5, 2, 1.75, 1.5], min: [60, 50, 40, 35, 30] },
     upgrades: {
-      health:   { tab: 'stats', name: 'HEALTH',            max: 20, cost: 50, step: 10,   desc: (v) => '+' + v + ' max health', info: 'More maximum health (base 100), the health bar adapts.' },
+      health:   { tab: 'stats', name: 'HEALTH',            max: 15, cost: 50, step: 10,   desc: (v) => '+' + v + ' max health', info: 'More maximum health (base 100), the health bar adapts.' },
       speed:    { tab: 'stats', name: 'SPEED',        max: 15, cost: 30, step: 0.02, desc: (v) => '+' + Math.round(v * 100) + '% move speed', info: 'You move faster permanently.' },
       ult:      { tab: 'stats', name: 'ULTIMATE CHARGE',  max: 15, cost: 40, step: 0.05, desc: (v) => '+' + Math.round(v * 100) + '% charge from kills', info: 'Kills charge your ultimate faster.' },
       cooldown: { tab: 'stats', name: 'COOLDOWNS',    max: 15, cost: 50, step: 0.03, desc: (v) => '-' + Math.round(v * 100) + '% ability cooldown', info: 'Abilities, grenades and more are ready sooner.' },
@@ -536,7 +537,7 @@ const CFG = {
       buffTime:   { tab: 'stats', name: 'BUFF DURATION',  max: 15, cost: 50, step: 0.1,  desc: (v) => '+' + Math.round(v * 100) + '% buff duration', info: 'Speed, rapid fire and guard buffs last longer.' },
       magnet:     { tab: 'stats', name: 'MAGNET',         max: 15, cost: 40, step: 0.15, desc: (v) => '+' + Math.round(v * 100) + '% pickup range', info: 'You collect healing and buff drops from further away.' },
       coreDrop: { tab: 'stats', name: 'CORE EMITTER',      max: 15, cost: 90, step: 6,    desc: (v) => 'a core drops every ' + (CFG.coreDrop.base - v) + ' s', info: 'Every few seconds you automatically collect a core during a run.' },
-      souls:    { tab: 'stats', name: 'CORE HARVESTER',    max: 15, cost: 100, step: 0.05, desc: (v) => '+' + Math.round(v * 100) + '% souls from runs', info: 'You get more souls after every run.' },
+      souls:    { tab: 'stats', name: 'CORE HARVESTER',    max: 15, cost: 45, step: 0.05, desc: (v) => '+' + Math.round(v * 100) + '% souls from runs', info: 'You get more souls after every run.' },
     },
   },
 
@@ -622,6 +623,9 @@ const CFG = {
         mirror: { hurts: ['shot', 'impulse', 'beam'], blocks: ['sword', 'lance', 'dash'] },
       },
     },
+    // Elite-Gegner (neu, siehe CFG.elite und js/elites.js): auf allen Karten gleich, sehr stark. sprite = Grafik eines vorhandenen Typs (umgefaerbt).
+    phantom: { speed: 3.6, push: 0.5, radius: 10, size: 300, hits: 10, sprite: 'teleporter' },    // weicht Nahkampf aus, haelt Abstand, schiesst Salven
+    bastion: { speed: 1.5, push: 0.3, radius: 10, size: 420, hits: 16, sprite: 'tank' },          // Schildfront haelt Schuesse ab, Rammstoss
     // Geschosse der Gegner
     bolt: { speed: 7, frames: 30, radius: 5 },
     missile: { speed: 4, frames: 60, turn: 5, radius: 5 },
@@ -662,6 +666,32 @@ const CFG = {
     miner:      { from: 340, min: 28, max: 38, maxAlive: 1 },
     tank:       { from: 400, min: 45, max: 60, maxAlive: 1 },
     necro:      { from: 440, min: 50, max: 70, maxAlive: 1 },
+    // Elite-Gegner: ab dem Mittelspiel, fixedCap = Obergrenze gilt unabhaengig vom Kartenfaktor, up = Werte nach dem Upgrade (CFG.elite.upgradeAt)
+    phantom:    { from: 300, min: 40, max: 55, maxAlive: 1, fixedCap: true, up: { min: 30, max: 42, maxAlive: 2 } },
+    bastion:    { from: 360, min: 46, max: 62, maxAlive: 1, fixedCap: true, up: { min: 34, max: 46, maxAlive: 2 } },
+  },
+
+  // Elite-Gegner (js/elites.js): zwei Gegner, die die schnellen Endgame-Waffen umgehen (Plasma Blade mit 4 Klingen, Dreifach-Blaster). Nicht kartenspezifisch.
+  // Gemeinsam: viele Leben, hoher Schaden (dmg), werden nie betaeubt oder zurueckgestossen und nehmen nur alle `gate` Sekunden einen Treffer (schnelle Waffen verlieren
+  // ihren Vorteil). Kein Ultimate-Kill-Schutz: das Ultimate raeumt sie wie alle Gegner ab.
+  // Phantom: haelt Abstand, weicht Nahkampf-Angriffen (Schwert, Lanze) mit einem Sprung aus, schiesst Salven. Bastion: dreht langsam zum Spieler, die Schildfront
+  // fing Schuesse ab (nur von hinten/seitlich verletzbar), stoesst mit Vorwarnung zu. Starke Waffen (Beam, Granate ...) wirken ueber dmg x-fach.
+  // Upgrade (Mk II) ab upgradeAt Sekunden: alle Elite-Gegner (auch die schon da sind) werden zaeher, schneller, staerker und bekommen die Faehigkeit des anderen dazu
+  // (Phantom weicht auch Schuessen aus, Bastion: breitere Schildfront, schneller gedreht).
+  elite: {
+    upgradeAt: 630,
+    mk2: { hits: 1.4, speed: 1.15, dmg: 1.25 },
+    phantom: {
+      dmg: 1.5, gate: 0.45, gate2: 0.6, hue: 205,
+      keepDist: 135, band: 28, dodgeRange: 34, shotRange: 60, dodgeSpeed: 9, dodgeTime: 0.22, dodgeCd: 1.4, dodgeCd2: 1.1,
+      shootFirst: 1.6, shootEvery: 2.6, burst: 3, spread: 12, boltSpeed: 8, boltFrames: 34,
+    },
+    bastion: {
+      dmg: 1.7, gate: 0.7, gate2: 0.95, hue: 35,
+      arc: 70, arc2: 115, turn: 70, turn2: 120, shield: 7,
+      bashMin: 4, bashMax: 6, range: 170, tele: 0.9, go: 0.5, speed: 7,
+      dmgTable: { beam: 5, grenade: 5, bombard: 5, blackhole: 3, chain: 3, molotov: 2, fire: 2, dash: 3 },       // Schaden je Angriffsart (sonst 1)
+    },
   },
 
   // Kartenspezifische Gegner-Varianten (nur Karte 2 und 3, Spawn je Karte in CFG.maps[].foes). Eine Variante nutzt Muster, Grafik und Events ihres Basistyps `base`,
@@ -933,7 +963,7 @@ const CFG = {
   // perks: je Perk name/desc/icon, max = Stapel, die Wirkung steht je Stapel in den Feldern (siehe Xp.val und die Haken in player.js/enemies.js/game.js).
   xp: {
     base: 12, step: 5, offerDelay: 0.35,
-    value: { normal: 1, heavy: 2, tank: 4, mini: 8, splitlet: 0.25, boss: 25 },
+    value: { normal: 1, heavy: 2, tank: 4, elite: 6, mini: 8, splitlet: 0.25, boss: 25 },
     orb: { range: 70, delay: 0.25, speed: 4, accel: 0.5, maxSpeed: 13, life: 25, cap: 140, grab: 4 },
     perks: {
       power:    { name: 'POWER SURGE',      desc: 'Hits sometimes land twice and bosses take more damage.', icon: 'damageIcon',  iconW: 20, max: 5, chance: 0.06, boss: 0.08 },
@@ -1059,7 +1089,7 @@ const CFG = {
   // Freischalten: unlockFrac x finaler-Boss-Zeit (CFG.finalBoss.at) auf der VORHERIGEN Karte erreichen (Bestzeit je Karte, nur normaler Modus), also die halbe Strecke.
   maps: [
     { id: 'void', fx: { kind: 'void' }, name: 'NEON VOID', desc: 'The classic arena.', ground: 'ground', frame: STYLE.pal.cyan, half: [520, 390], diff: { speed: 1, spawn: 1, damage: 1, bossHp: 1, cores: 1, hits: 1, rate: 1, allRate: 1, capMul: 1, boss: { hp: 1, fire: 1, speed: 1, dmg: 1 } }, level: 1 },
-    { id: 'foundry', name: 'EMBER FOUNDRY', desc: 'Hotter, faster, meaner.', ground: 'ground2', frame: STYLE.pal.orange, half: [520, 390], diff: { speed: 1.08, spawn: 0.9, damage: 1.15, bossHp: 1.15, cores: 1.25, hits: 1.5, rate: 0.8125, allRate: 0.7, capMul: 1.4, boss: { hp: 1.6, fire: 0.8, speed: 1.1, dmg: 1.25 } }, level: 2, unlockFrac: 0.5,
+    { id: 'foundry', name: 'EMBER FOUNDRY', desc: 'Hotter, faster, meaner.', ground: 'ground2', frame: STYLE.pal.orange, half: [520, 390], diff: { speed: 1.08, spawn: 0.9, damage: 1.5, bossHp: 1.15, cores: 1.25, hits: 1.5, rate: 0.8125, allRate: 0.7, capMul: 1.4, boss: { hp: 1.6, fire: 0.8, speed: 1.1, dmg: 1.25 } }, level: 2, unlockFrac: 0.5,
       // Kartenspezifisch (nur Karte 2 und 3): bossOrder ersetzt CFG.boss.order (gleiche Länge, zwei Kämpfe sind durch Karten-Bosse ersetzt, die Dauer bleibt),
       // foes = zusätzliche Gegner-Varianten (CFG.variants), trim = Wartezeiten der normalen Gegner mal Faktor (größer = weniger davon, Schlüssel: c/t/r/s = Kreis/Dreieck/Raute/Quadrat, sonst Typname aus extraSpawn)
       bossOrder: ['octagon', 'forge', 'summoner', 'colossus', 'twin', 'arena'],       // Forge Warden ersetzt Kite, Slag Colossus ersetzt Laser-Turm
@@ -1075,7 +1105,7 @@ const CFG = {
       foes: [{ v: 'cinder', from: 60, min: 11, max: 15, maxAlive: 8 }, { v: 'welder', from: 150, min: 20, max: 28, maxAlive: 3 }, { v: 'smelter', from: 240, min: 28, max: 38, maxAlive: 2 }],
       trim: { c: 1.35, t: 1.25, bomber: 1.6, sniper: 1.4 },
       fx: { kind: 'foundry' } },
-    { id: 'toxic', name: 'TOXIC CORE', desc: 'Tight arena, no mistakes.', ground: 'ground3', frame: STYLE.pal.green, half: [440, 330], diff: { speed: 1.15, spawn: 0.8, damage: 1.3, bossHp: 1.3, cores: 1.6, hits: 2, rate: 0.69, allRate: 0.55, capMul: 1.8, boss: { hp: 2, fire: 0.68, speed: 1.15, dmg: 1.45 } }, level: 3, unlockFrac: 0.5,
+    { id: 'toxic', name: 'TOXIC CORE', desc: 'Tight arena, no mistakes.', ground: 'ground3', frame: STYLE.pal.green, half: [440, 330], diff: { speed: 1.15, spawn: 0.8, damage: 2, bossHp: 1.3, cores: 1.6, hits: 2, rate: 0.69, allRate: 0.55, capMul: 1.8, boss: { hp: 2, fire: 0.68, speed: 1.15, dmg: 1.45 } }, level: 3, unlockFrac: 0.5,
       bossOrder: ['octagon', 'plague', 'spore', 'turret', 'twin', 'arena'],           // Plague Drone ersetzt Kite, Spore Mother ersetzt den Beschwörer
       // Umgebungsmechanik (js/mapenv.js): pools (Säurepfützen): radius = Bereich (min/max), slow = Tempofaktor für den Spieler, enemySlow = für Gegner, dps = Leben pro Sekunde
       // für den Spieler (nicht mit Schildblase/Unverwundbarkeit), burp = Sekunden bis eine Pfütze eine Giftwolke ausstößt (min/max, Vorwarnung burpWarn, Wolke siehe CFG.cloud).
@@ -1086,7 +1116,7 @@ const CFG = {
       foes: [{ v: 'spore', from: 60, min: 11, max: 15, maxAlive: 8 }, { v: 'blighter', from: 170, min: 22, max: 30, maxAlive: 2 }, { v: 'hazmat', from: 300, min: 45, max: 60, maxAlive: 1 }],
       trim: { c: 1.35, s: 1.3, splitter: 1.5, leech: 1.4, tank: 1.5 },
       fx: { kind: 'toxic' } },
-    { id: 'cryo', name: 'CRYO STATION', desc: 'Ice, blizzards, no grip.', ground: 'ground4', frame: STYLE.pal.ice, half: [440, 330], diff: { speed: 1.2, spawn: 0.72, damage: 1.45, bossHp: 1.45, cores: 2, hits: 2.5, rate: 0.6, allRate: 0.5, capMul: 2.1, boss: { hp: 2.4, fire: 0.6, speed: 1.2, dmg: 1.65 } }, level: 4, unlockFrac: 0.5,
+    { id: 'cryo', name: 'CRYO STATION', desc: 'Ice, blizzards, no grip.', ground: 'ground4', frame: STYLE.pal.ice, half: [440, 330], diff: { speed: 1.2, spawn: 0.72, damage: 2.75, bossHp: 1.45, cores: 2, hits: 2.5, rate: 0.6, allRate: 0.5, capMul: 2.1, boss: { hp: 2.4, fire: 0.6, speed: 1.2, dmg: 1.65 } }, level: 4, unlockFrac: 0.5,
       // Kryo-Station: Eisfelder (ice: Spieler rutscht, Tempo folgt der Eingabe nur langsam), Blizzard (blizzard: first = erster Sturm nach s, every = Pause (min/max), warn = Vorwarnung mit Richtungspfeil,
       // dur = Dauer, push = Schub in Einheiten pro Bild auf Spieler UND Gegner) und Kaelte (Treffer der Frost-Gegner bremsen den Spieler). Im Bosskampf ruhen Eis und Sturm.
       hazards: ['ICE SHEETS', 'BLIZZARDS', 'CHILL'],

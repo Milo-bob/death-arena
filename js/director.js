@@ -123,8 +123,8 @@ class Director {
   // Weitere Gegnertypen (CFG.extraSpawn): je Typ ein eigener Takt
   spawnExtra(dt) {
     for (const type of Object.keys(CFG.extraSpawn)) {
-      const C = CFG.extraSpawn[type];
-      if (G.time < C.from || G.enemies.filter((e) => e.alive && e.type === type).length >= Math.ceil(C.maxAlive * CFG.spawnAll.capMul * G.diff.capMul * this.infCap)) continue;
+      const C0 = CFG.extraSpawn[type], C = G.eliteUp && C0.up ? Object.assign({}, C0, C0.up) : C0;       // Elite-Gegner: nach dem Upgrade kuerzerer Takt und mehr gleichzeitig
+      if (G.time < C.from || G.enemies.filter((e) => e.alive && e.type === type).length >= (C.fixedCap ? C.maxAlive : Math.ceil(C.maxAlive * CFG.spawnAll.capMul * G.diff.capMul * this.infCap))) continue;
       if (this.extraT[type] === undefined) this.extraT[type] = rand(C.min, C.max) * this.spawnAllFactor * ((G.map.trim || {})[type] || 1);
       this.extraT[type] -= dt;
       if (this.extraT[type] > 0) continue;

@@ -169,6 +169,8 @@ const Patterns = {
   // Basis-Muster je Typ (siehe CFG.patterns)
   base: {
     // Zickzack: schlängelt sich auf den Spieler zu
+    phantom(e, dt, tg) { return Elite.phantomSteer(e, dt, tg); },
+    bastion(e, dt, tg) { return Elite.bastionSteer(e, dt, tg); },
     circle(e) {
       const C = CFG.patterns.circle;
       e.dir += C.amp * Math.sin(G.realTime * C.freq + e.phase);
@@ -367,7 +369,7 @@ const Patterns = {
 
   // ---------- Globale Events ----------
   canStart(kind) {
-    const C = CFG.events.global[kind], free = G.enemies.filter((e) => e.alive && !e.ov && !e.act);
+    const C = CFG.events.global[kind], free = G.enemies.filter((e) => e.alive && !e.ov && !e.act && !e.elite);
     if (G.enemies.some((e) => e.ov && e.ov.global)) return false;           // es läuft schon eins
     if (C.from && G.time < C.from) return false;
     if (C.minEnemies && free.length < C.minEnemies) return false;
@@ -376,7 +378,7 @@ const Patterns = {
 
   startGlobal(kind) {
     const C = CFG.events.global[kind], P = STYLE.pal, p = G.player;
-    const free = G.enemies.filter((e) => e.alive && !e.ov && !e.act);
+    const free = G.enemies.filter((e) => e.alive && !e.ov && !e.act && !e.elite);
     if (kind === 'charge') {
       G.notice('CHARGE!', P.red, STYLE.type.h1);
       for (const e of free) e.ov = this.dashOv(e, C.tele, C.go, C.speed, true, true);

@@ -14,6 +14,23 @@ const SaveTransfer = {
     const root = mk('div', 'position:fixed;inset:0;background:rgba(5,6,15,.88);z-index:10;display:flex;align-items:center;justify-content:center;' + font);
     const box = mk('div', 'width:min(560px,92vw);max-height:92vh;overflow:auto;box-sizing:border-box;padding:16px;background:' + P.void + ';border:2px solid ' + P.cyan + ';color:' + P.ice + ';');
     const btn = (label, color) => mk('button', 'flex:1 1 140px;padding:10px 8px;margin:3px;cursor:pointer;background:' + P.voidLight + ';color:' + color + ';border:2px solid ' + color + ';font:inherit;font-size:15px;', label);
+    // Datei-Knopf: der echte <input type=file> liegt unsichtbar ueber dem Knopf, der Klick trifft ihn direkt (ein per Skript ausgeloester Klick wird in manchen
+    // eingebetteten Seiten/iframes stillschweigend geblockt). onLoad bekommt den Text der gewaehlten Datei, say meldet Fortschritt und Fehler.
+    const fileBtn = (label, color, say, onLoad) => {
+      const wrap = mk('div', 'position:relative;flex:1 1 140px;margin:3px;display:flex;'), b = btn(label, color), inp = mk('input', 'position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:0;');
+      b.style.margin = '0'; b.style.flex = '1 1 auto'; inp.type = 'file'; inp.title = label;
+      const read = (f) => {
+        if (!f) return;
+        say('READING ' + f.name + ' ...', P.grey);
+        const r = new FileReader();
+        r.onload = () => onLoad(String(r.result).trim(), f.name);
+        r.onerror = () => say('FILE COULD NOT BE READ', P.red);
+        r.readAsText(f);
+      };
+      inp.onchange = () => { read(inp.files && inp.files[0]); inp.value = ''; };
+      wrap.appendChild(b); wrap.appendChild(inp);
+      return { wrap, read };
+    };
     box.appendChild(mk('div', 'color:' + P.yellow + ';font-size:22px;margin-bottom:6px;', 'SAVE TRANSFER  (SLOT ' + (Save.slot + 1) + ')'));
     box.appendChild(mk('div', 'color:' + P.grey + ';font-size:13px;line-height:1.4;margin-bottom:8px;',
       'EXPORT: copy the code or download the file, then import it on another device. IMPORT: paste a code (or load a file) and press IMPORT. ' +
@@ -24,8 +41,10 @@ const SaveTransfer = {
     const msg = mk('div', 'min-height:20px;margin:6px 2px;font-size:14px;color:' + P.grey + ';');
     const say = (t, color) => { msg.textContent = t; msg.style.color = color || P.grey; };
     const row = mk('div', 'display:flex;flex-wrap:wrap;');
-    const bCopy = btn('COPY CODE', P.cyan), bDown = btn('DOWNLOAD FILE', P.cyan), bFile = btn('LOAD FILE...', P.yellow), bImp = btn('IMPORT', P.orange), bClose = btn('CLOSE', P.grey);
-    const fileIn = mk('input'); fileIn.type = 'file'; fileIn.accept = '.txt,.json,.deatharena,text/plain,application/json'; fileIn.style.display = 'none';
+    const bCopy = btn('COPY CODE', P.cyan), bDown = btn('DOWNLOAD FILE', P.cyan), bImp = btn('IMPORT', P.orange), bClose = btn('CLOSE', P.grey);
+    const F1 = fileBtn('LOAD FILE...', P.yellow, say, (text) => { ta.value = text; this.confirm = false; bImp.textContent = 'IMPORT'; say('FILE LOADED - PRESS IMPORT', P.teal); });
+    ta.addEventListener('dragover', (e) => e.preventDefault());                                  // Datei direkt ins Textfeld ziehen geht auch
+    ta.addEventListener('drop', (e) => { e.preventDefault(); F1.read(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]); });
 
     bCopy.onclick = () => {
       ta.value = Save.exportCode(); ta.focus(); ta.select();
@@ -41,15 +60,6 @@ const SaveTransfer = {
         say('FILE SAVED (CHECK YOUR DOWNLOADS)', P.teal);
       } catch (e) { say('DOWNLOAD BLOCKED - USE COPY CODE', P.yellow); }
     };
-    bFile.onclick = () => fileIn.click();
-    fileIn.onchange = () => {
-      const f = fileIn.files && fileIn.files[0]; if (!f) return;
-      const r = new FileReader();
-      r.onload = () => { ta.value = String(r.result).trim(); this.confirm = false; bImp.textContent = 'IMPORT'; say('FILE LOADED - PRESS IMPORT', P.teal); };
-      r.onerror = () => say('FILE COULD NOT BE READ', P.red);
-      r.readAsText(f);
-      fileIn.value = '';
-    };
     bImp.onclick = () => {
       if (!this.confirm) { this.confirm = true; bImp.textContent = 'SURE? REPLACES SLOT ' + (Save.slot + 1); say('PRESS AGAIN TO CONFIRM', P.orange); return; }
       this.confirm = false; bImp.textContent = 'IMPORT';
@@ -60,8 +70,8 @@ const SaveTransfer = {
     ta.oninput = () => { this.confirm = false; bImp.textContent = 'IMPORT'; };
     bClose.onclick = () => this.close();
 
-    [bCopy, bDown, bFile, bImp, bClose].forEach((b) => row.appendChild(b));
-    box.appendChild(msg); box.appendChild(row); box.appendChild(fileIn);
+    [bCopy, bDown, F1.wrap, bImp, bClose].forEach((b) => row.appendChild(b));
+    box.appendChild(msg); box.appendChild(row);
 
     // Spieldaten (anonymes Protokoll fuers Balancing, siehe runstats.js): jeder kann sein Protokoll als Code weitergeben,
     // im Dev-Modus fuehrt MERGE die Codes anderer Spieler mit dem eigenen Protokoll zusammen (Statistik-Bildschirm).
@@ -92,22 +102,13 @@ const SaveTransfer = {
     };
     row2.appendChild(bCopy2); row2.appendChild(bDown2);
     if (dev) {
-      const bFile2 = btn('LOAD FILE...', P.yellow), bMerge = btn('MERGE', P.orange), fileIn2 = mk('input');
-      fileIn2.type = 'file'; fileIn2.accept = '.txt,.json,text/plain'; fileIn2.style.display = 'none';
-      bFile2.onclick = () => fileIn2.click();
-      fileIn2.onchange = () => {
-        const f = fileIn2.files && fileIn2.files[0]; if (!f) return;
-        const r = new FileReader();
-        r.onload = () => { ta2.value = String(r.result).trim(); say2('FILE LOADED - PRESS MERGE', P.teal); };
-        r.onerror = () => say2('FILE COULD NOT BE READ', P.red);
-        r.readAsText(f); fileIn2.value = '';
-      };
+      const bMerge = btn('MERGE', P.orange), F2 = fileBtn('LOAD FILE...', P.yellow, say2, (text) => { ta2.value = text; say2('FILE LOADED - PRESS MERGE', P.teal); });
       bMerge.onclick = () => {
         const res = Stats.mergeData(ta2.value);
         if (res.ok) { say2('MERGED: ' + res.deaths + ' RUNS, ' + res.bosses + ' BOSS FIGHTS ADDED', P.teal); ta2.value = Stats.exportData(); }
         else say2(res.error, P.red);
       };
-      row2.appendChild(bFile2); row2.appendChild(bMerge); row2.appendChild(fileIn2);
+      row2.appendChild(F2.wrap); row2.appendChild(bMerge);
     }
     box.appendChild(msg2); box.appendChild(row2);
     root.appendChild(box);
