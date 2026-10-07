@@ -111,7 +111,10 @@ const CFG = {
   // Gebufft (Original: Tempo 8, Größe 1, Cooldown 0.5 s, 25 Bilder Reichweite): breiterer Treffer, schneller, weiter und mit Zielhilfe:
   // liegt ein Gegner im Kegel von aimAssistDeg Grad vor dem Spieler, zielt der Schuss darauf.
   shot: { baseSpeed: 10, baseSize: 2, baseCooldown: 0.35, maxSpeed: 12, maxSize: 11, minCooldown: 0.18, frames: 30,
-          hitPad: 3, aimAssistDeg: 25, aimAssistRange: 320 },
+          hitPad: 3, aimAssistDeg: 25, aimAssistRange: 320,
+          // Nachladen: erst ab Doppelschuss (Stufe 1). Nach `mag` Salven kommt eine kurze Nachladepause `time` (s), danach wieder lange freies Feuern.
+          // Mit dem dritten Schuss (Stufe 2) wird die Pause etwas laenger. Index = Schuss-Stufe (0 = Einzelschuss, kein Nachladen). Pause laeuft mit Angriffstempo schneller.
+          reload: [null, { mag: 10, time: 0.6 }, { mag: 10, time: 0.8 }], idleRefill: 1.2 },
 
   // --- Fernkampf: Impuls ---
   // Welle fliegt vorwärts. width = halbe Breite, push = Rückstoß pro Bild, frames = Lebensdauer.
@@ -1386,3 +1389,26 @@ const DEATH_SECRET_AT = 666;                                                    
     CFG.cosmetics.items[id] = [first].concat(rest.map((r) => r.it));
   }
 })();
+
+// Waffen-Perks (Nahkampf und Fernkampf): Bonus, solange die Waffe gerade ANGELEGT UND GEWAEHLT ist (Taste 1 / 2), also nur wenn man sie wirklich benutzt.
+// Der Blaster hat bewusst keinen Perk (einfach, sicher), dafuer hat jede andere Waffe einen eigenen Grund, sie zu spielen.
+// Werte: dropMul / ultMul / xpMul / dmgTaken = Faktor, coreChance = Chance auf +1 Core pro Kill, cdOnKill = Sekunden Abklingzeit-Abzug pro Kill, magnet = Zuschlag auf die Einsammelreichweite.
+// Wirkung: js/xp.js (Objekt Perk), Haken in Enemy.die, Player.hit, pickupRange, Xp.drop.
+CFG.items.perks = {
+  sword:     { name: 'SCAVENGER',   text: 'Each kill has a 7% chance to give +1 core, and buffs drop 40% more often.', coreChance: 0.07, dropMul: 1.4 },
+  whip:      { name: 'CHARGER',     text: 'Kills charge your ultimate 30% faster.', ultMul: 1.3 },
+  katana:    { name: 'FLOW',        text: 'Every kill shortens all ability cooldowns by 0.25 s.', cdOnKill: 0.25 },
+  hammer:    { name: 'BULWARK',     text: 'You take 12% less damage.', dmgTaken: 0.88 },
+  lance:     { name: 'MENTOR',      text: 'Enemies drop 25% more XP.', xpMul: 1.25 },
+  impulse:   { name: 'CUSHION',     text: 'You take 10% less damage.', dmgTaken: 0.9 },
+  shotgun:   { name: 'BOUNTY',      text: 'Each kill has a 5% chance to give +1 core.', coreChance: 0.05 },
+  boomerang: { name: 'MAGNETIC',    text: 'Pickup range +60% (drops, XP, health).', magnet: 0.6 },
+  molotov:   { name: 'ARSONIST',    text: 'Kills charge your ultimate 25% faster.', ultMul: 1.25 },
+  rocket:    { name: 'BATTLE DATA', text: 'Enemies drop 30% more XP.', xpMul: 1.3 },
+  bounce:    { name: 'ANGLE PLAY',  text: 'Every kill shortens all ability cooldowns by 0.2 s.', cdOnKill: 0.2 },
+};
+for (const id of Object.keys(CFG.items.catalog)) {
+  const I = CFG.items.catalog[id], P = CFG.items.perks[id];
+  if (I.slot !== 'melee' && I.slot !== 'ranged') continue;
+  I.desc += P ? ' PERK ' + P.name + ' (while selected): ' + P.text : ' No perk: the simple, reliable choice.';
+}

@@ -287,7 +287,8 @@ class Enemy {
     Sfx.play(this.mini || HEAVY.includes(this.type) ? 'killBig' : 'kill');
     Cos.killSparks(this.x, this.y, this.mini ? STYLE.pal.yellow : STYLE.pal.orange, this.mini ? 10 : HEAVY.includes(this.type) ? 6 : 4);
     G.player.heal(CFG.enemy.killHeal + Xp.val('leech') + (Save.equipped('artifact') === 'vampire' ? CFG.items.vampire.heal * Save.gearMul('vampire') : 0) + (G.player.buffs.vampire > 0 ? CFG.drops.types.vampire.heal : 0));
-    G.addUlt((HEAVY.includes(this.type) ? 2 : 1) * (G.bloodMoon ? CFG.bloodMoon.ultFactor : 1));
+    G.addUlt((HEAVY.includes(this.type) ? 2 : 1) * (G.bloodMoon ? CFG.bloodMoon.ultFactor : 1) * Perk.mul('ultMul'));
+    Perk.onKill(this);
     G.addCombo();
     G.kills++;
     Ach.kill(this);
@@ -297,7 +298,7 @@ class Enemy {
     if (this.type === 'splitter') Patterns.splitlet(this, CFG.enemy.splitter.splitCount);
     const D = G.director;
     if (!this.raised && !this.splitlet && CORPSE_TYPES.includes(this.type) && D.corpses.length < 12 && G.enemies.some((n) => n.alive && n.type === 'necro')) D.corpses.push({ x: this.x, y: this.y, type: this.type, t: CFG.patterns.necro.corpseLife });
-    if (!this.splitlet && Math.random() < (this.mini || this.elite ? CFG.drops.miniChance : G.bloodMoon ? CFG.bloodMoon.dropChance : G.flood ? CFG.flood.dropChance : CFG.drops.chance) * (Save.equipped('artifact') === 'lucky' ? 1 + (CFG.items.lucky.mult - 1) * Save.gearMul('lucky') : 1) * (1 + Save.bonus('luck') + Xp.val('luck')) * Hero.mods().luck) G.drops.push(new Drop(this.x, this.y));
+    if (!this.splitlet && Math.random() < (this.mini || this.elite ? CFG.drops.miniChance : G.bloodMoon ? CFG.bloodMoon.dropChance : G.flood ? CFG.flood.dropChance : CFG.drops.chance) * (Save.equipped('artifact') === 'lucky' ? 1 + (CFG.items.lucky.mult - 1) * Save.gearMul('lucky') : 1) * (1 + Save.bonus('luck') + Xp.val('luck')) * Hero.mods().luck * Perk.mul('dropMul')) G.drops.push(new Drop(this.x, this.y));
     if (this.type === 'rhombus') G.blasts.push(new Blast('wave', this.x, this.y, false, Stats.enemyName(this)));
     if (this.V && !this.splitlet && !G.clearing) {                      // kartenspezifische Variante: Besonderheit beim Tod (Cinder: Funkenexplosion, Spore: Giftwolke)
       if (this.V.death === 'ember') G.blasts.push(new Blast('ember', this.x, this.y, false, Stats.enemyName(this)));
@@ -643,7 +644,7 @@ function spawnMiniboss(x, y) {
 }
 
 // Aufsammelreichweite (Meta-Upgrade Magnet + Magnet-Buff) und Sog des Magnet-Buffs: Pickups in der Naehe wandern zum Spieler
-function pickupRange() { return 1 + Save.bonus('magnet') + Xp.val('magnet') + (G.player.buffs.magnet > 0 ? CFG.drops.types.magnet.range : 0); }
+function pickupRange() { return 1 + Save.bonus('magnet') + Xp.val('magnet') + Perk.add('magnet') + (G.player.buffs.magnet > 0 ? CFG.drops.types.magnet.range : 0); }
 function magnetPull(o, dt) {
   const p = G.player, M = CFG.drops.types.magnet;
   if (p.buffs.magnet <= 0) return;

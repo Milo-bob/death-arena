@@ -64,7 +64,7 @@ const Xp = {
   },
   drop(e) {
     if (!this.on) return;
-    const v = this.valueOf(e) * Hero.mods().xp;       // Held-Modifier (Harbinger: mehr XP)
+    const v = this.valueOf(e) * Hero.mods().xp * Perk.mul('xpMul');       // Held-Modifier (Harbinger: mehr XP)
     if (v > 0) this.spawn(e.x, e.y, v);
   },
   // Kugel erzeugen; bei zu vielen verschmilzt sie mit der nächsten der letzten 30
@@ -176,5 +176,27 @@ const Xp = {
       uiText(ctx, uiFit(ctx, K.name, w - 34, T.small), x + 15, y + 8, { size: T.small, color: P.ice });
       uiText(ctx, 'x' + this.stacks(id), x + w - 6, y + 8, { size: T.small, color: this.stacks(id) >= K.max ? P.yellow : P.grey, align: 'right' });
     });
+  },
+};
+
+// Waffen-Perks (CFG.items.perks): gelten nur, solange die Nahkampf-/Fernkampfwaffe im Slot gerade gewaehlt ist (Taste 1 / 2)
+const Perk = {
+  cur() {
+    const p = G.player;
+    if (!p || Tutorial.active) return null;
+    return CFG.items.perks[Save.equipped(p.weapon === WEAPON.SWORD ? 'melee' : 'ranged')] || null;
+  },
+  mul(k) { const c = this.cur(); return c && c[k] ? c[k] : 1; },
+  add(k) { const c = this.cur(); return c && c[k] ? c[k] : 0; },
+  // Pro Kill: Core-Chance und Abklingzeit-Abzug (nicht fuer Minions, Wiederbelebte, Splitter-Kleine, damit man damit nicht farmen kann)
+  onKill(e) {
+    if (e.minion || e.raised || e.splitlet) return;
+    if (Math.random() < this.add('coreChance')) { G.lootCores += 1; Juice.sparks(e.x, e.y, STYLE.pal.yellow, 5); }
+    const cd = this.add('cdOnKill');
+    if (cd > 0) {
+      const p = G.player;
+      for (const k of Object.keys(p.cds)) p.cds[k] = Math.max(0, p.cds[k] - cd);
+      p.dashCd = Math.max(0, p.dashCd - cd); p.shieldCd = Math.max(0, p.shieldCd - cd);
+    }
   },
 };

@@ -12,6 +12,7 @@ class Player {
     this.invincibleT = CFG.player.startInvincible;
     this.weapon = 0;           // 0 Schwert, 1 Schuss (siehe WEAPON in config.js). Der Beam liegt separat auf E
     this.attackCd = 0;
+    this.shotMag = 0; this.reloadT = 0; this.reloadMax = 1; this.lastShotT = -9;      // Blaster: Salven im Magazin, Nachladepause (Restzeit/Gesamt), Zeit des letzten Schusses
     this.dashCd = 0;           // Abilities (Slots in CFG.loadout): Dash und Schildblase
     this.shieldLeft = 0;
     this.shieldCd = 0;
@@ -149,7 +150,7 @@ class Player {
       amount = base * this.damageFactor * (G.bloodMoon ? CFG.bloodMoon.damageFactor : 1);
       if (Save.equipped('artifact') === 'armor') amount *= 1 - CFG.items.armor.reduce * Save.gearMul('armor');
     }
-    amount *= (G.diff.damage + this.dmgRamp()) * mul * Hero.mods().dmgTaken * (this.fortressT > 0 ? 1 - CFG.fortress.reduce : 1);                          // Karten-Schwierigkeit, Boss-Stärke
+    amount *= (G.diff.damage + this.dmgRamp()) * mul * Hero.mods().dmgTaken * Perk.mul('dmgTaken') * (this.fortressT > 0 ? 1 - CFG.fortress.reduce : 1);                          // Karten-Schwierigkeit, Boss-Stärke
     amount *= Math.max(0.2, 1 - Save.bonus('resist') - Save.bonus('tough') - Xp.val('armor') - (this.has('barrier') ? CFG.passives.barrier.reduce * Save.gearMul('barrier') : 0));     // Meta-Upgrade Abwehr + Meilenstein Schadensabwehr
     G.addDamageText(amount, this.x, this.y);                      // die Zahl zeigt den echten Schaden (nach Karte, Zeit, Boss, Ruestung ...)
     if (Save.equipped('artifact') === 'thorns') this.thornBurst();
@@ -184,6 +185,7 @@ class Player {
     this.invincibleT = Math.max(0, this.invincibleT - dt);
     this.fortressT = Math.max(0, this.fortressT - dt);
     this.attackCd = Math.max(0, this.attackCd - dt);
+    this.reloadT = Math.max(0, this.reloadT - dt);
     this.chillT = Math.max(0, this.chillT - dt);
     const cdDt = dt * this.cdRate;          // Meta-Upgrade: Abklingzeiten laufen schneller ab
     this.dashCd = Math.max(0, this.dashCd - cdDt * Save.gearMul('dash'));          // Ability-Stufe: Abklingzeit laeuft schneller ab
@@ -693,6 +695,14 @@ class Player {
       Sfx.play('shoot');
       for (const off of spread) { const s = new Shot(this.x, this.y, aim + off); s.seek = this.evo('seeker'); G.attacks.push(s); }
       this.attackCd = Loadout.shot.cooldown * (1 - Save.bonus('shot')) / this.hasteFor('shot');
+      const R = CFG.shot.reload[lvl];                                                 // Nachladepause ab Doppelschuss, mit dem dritten Schuss etwas laenger
+      if (G.realTime - this.lastShotT > CFG.shot.idleRefill) this.shotMag = 0;       // laenger nicht geschossen: Magazin ist wieder voll
+      this.lastShotT = G.realTime;
+      if (R && ++this.shotMag >= R.mag) {
+        this.shotMag = 0; this.reloadMax = R.time / this.hasteFor('shot'); this.reloadT = this.reloadMax;
+        this.attackCd = Math.max(this.attackCd, this.reloadMax);
+        Sfx.play('tick');
+      } else if (!R) this.shotMag = 0;
     } else if (slotItem === 'whip') {
       Sfx.play('swing');
       const wAim = this.aimAssist(CFG.whip);
@@ -848,6 +858,11 @@ class Player {
     if (this.decoyT > 0 && this.decoy) {                    // Koeder: durchsichtiges Trugbild, blinkt kurz vor dem Ende
       const blink = this.decoyT < 1 && Math.floor(this.decoyT * 8) % 2 === 0;
       drawSprite(ctx, Hero.sprite(), this.decoy.x, this.decoy.y, this.decoy.dir, CFG.player.size, { hue: 90, alpha: blink ? 0.2 : 0.55 });
+    }
+    if (this.reloadT > 0) {                                 // Blaster laedt nach: kleiner Balken unter dem Schiff, fuellt sich bis zum naechsten Schuss
+      const bx = Math.round(STAGE_W / 2 + this.x) - 8, by = Math.round(STAGE_H / 2 - this.y) + 15, f = 1 - this.reloadT / this.reloadMax;
+      ctx.save(); ctx.globalAlpha = 0.85; ctx.fillStyle = STYLE.pal.greyDark; ctx.fillRect(bx - 1, by - 1, 18, 4);
+      ctx.fillStyle = STYLE.pal.yellow; ctx.fillRect(bx, by, Math.round(16 * f), 2); ctx.restore();
     }
     if (this.chillT > 0) {                                  // gekuehlt: blasser, gestrichelter Eisring
       const cx = STAGE_W / 2 + this.x, cy = STAGE_H / 2 - this.y;

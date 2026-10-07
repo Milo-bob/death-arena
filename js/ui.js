@@ -744,9 +744,11 @@ function drawInventoryScreen(ctx) {
       if (f) ty += 2 + 10 * uiWrap(ctx, f, tx, ty + 1, tw, 10, { size: T.small, color: P.cyan });
     } else uiText(ctx, 'Nothing equipped. Press SPACE to choose an item.', tx, ty, { size: T.body, color: P.grey });
     // Evolutions-Rezepte dieses Items
-    const recs = id ? evoRecipesOf(id).slice(0, 2) : [];
+    let recs = id ? evoRecipesOf(id).slice(0, 2) : [];
+    const evoTop = (n) => py + ph - 78 - 18 - n * 37 - 10;
+    if (recs.length > 1 && evoTop(recs.length) < ty - 2) recs = recs.slice(0, 1);       // wenig Platz: nur ein Rezept, damit der Beschreibungstext frei bleibt
     if (recs.length) {
-      const top = py + ph - 78 - 18 - recs.length * 37 - 10;
+      const top = Math.max(evoTop(recs.length), ty - 2);
       uiText(ctx, 'EVOLUTION  -  NEEDS ' + CFG.evolutions.minUps + ' BOSSES IN A RUN', tx, top + 7, { size: T.small, color: P.yellow });
       recs.forEach((eid, k) => drawEvoRecipe(ctx, tx, top + 11 + k * 37, tw, eid));
     }
