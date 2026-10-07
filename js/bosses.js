@@ -54,7 +54,8 @@ class Boss {
     // Beschwörer: zu Kampfbeginn kommt einmal ein Nekromanten-Miniboss als Minion dazu (belebt gefallene Minions wieder). Stirbt er, kommt kein neuer.
     if (type === 'summoner') {
       const a = rand(0, 360), m = new Enemy('necro', x + fwdX(a) * 45, y + fwdY(a) * 45, true);
-      m.minion = true;
+      m.minion = true; m.bossNecro = true;
+      m.hitsLeft = m.maxHits = Math.round(m.hitsLeft * this.cfg.necro.hitsMul);
       G.enemies.push(m);
     }
   }
@@ -392,6 +393,14 @@ class Boss {
   takeDamage() {
     let dmg = 0, stun = 0;
     this.killedByBurst = false;
+    if (this.type === 'summoner' && this.phase2) {               // Blasterschild: Schüsse zerplatzen am Schild, bevor sie den Boss erreichen
+      for (const a of G.attacks) {
+        if (a.alive && a.kind === 'shot' && a.hitsCircle(this.x, this.y, this.cfg.shieldRadius)) {
+          a.alive = false; this.shieldFlash = 0.15;
+          Juice.sparks(a.x, a.y, STYLE.pal.cyan, 2, 2);
+        }
+      }
+    }
     for (const a of G.attacks) {
       if (!a.alive) continue;
       if ((a.kind === 'sword' || a.kind === 'lance' || a.kind === 'shot' || a.kind === 'impulse' || a.kind === 'dash') && a.hitsCircle(this.x, this.y, this.radius)) {
@@ -486,6 +495,14 @@ class Boss {
       ctx.save(); ctx.fillStyle = P.ice;
       ctx.globalAlpha = 0.2 + 0.3 * (1 - k); pxGlow(ctx, bx, by, 24);
       ctx.globalAlpha = 0.9; pxRing(ctx, bx, by, 14 + 26 * k, 2, 10, G.realTime * 0.4);
+      ctx.restore();
+    }
+    if (this.type === 'summoner' && this.phase2) {               // Blasterschild (Phase 2)
+      this.shieldFlash = Math.max(0, (this.shieldFlash || 0) - 0.016);
+      ctx.save();
+      ctx.fillStyle = P.cyan;
+      ctx.globalAlpha = 0.12 + 0.2 * (this.shieldFlash / 0.15); pxGlow(ctx, cx, cy, this.cfg.shieldRadius);
+      ctx.globalAlpha = 0.55 + 0.4 * (this.shieldFlash / 0.15); pxRing(ctx, cx, cy, this.cfg.shieldRadius, 2, 14, G.realTime * 0.5);
       ctx.restore();
     }
     if (this.summonFlash > 0) {                                  // Aufleuchten beim Beschwören

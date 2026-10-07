@@ -259,7 +259,7 @@ const Patterns = {
     },
     // Nekromant: hält Abstand, belebt Leichen in Reichweite nach einer Kanalisierungszeit wieder
     necro(e, dt, tg) {
-      const C = CFG.patterns.necro;
+      const C = e.bossNecro ? Object.assign({}, CFG.patterns.necro, CFG.boss.summoner.necro) : CFG.patterns.necro;     // Nekromant des Beschwörers: viel schnelleres Wiederbeleben
       if (e.act && e.act.kind === 'raise') return { step: 0, touch: false };
       e.raiseT -= dt;
       if (e.raiseT <= 0) {

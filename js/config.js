@@ -1178,7 +1178,11 @@ const CFG = {
     // Beschwörer (neu): hält Abstand (keepDist), beschwört alle
     // summonEvery Sekunden summonCount Minions (höchstens maxMinions gleichzeitig, triangleChance = Anteil Dreiecke), unter rageBelow (Lebensanteil) schneller/mehr.
     summoner: { speed: 1.4, radius: 22, hpBase: 38, hpPerStage: 5, hitStun: 0.15, keepDist: 130,
-                summonFirst: 2, summonEvery: 6, summonCount: 3, maxMinions: 9, triangleChance: 0.25, rageBelow: 0.5, rageEvery: 4, rageCount: 4 },
+                summonFirst: 2, summonEvery: 2, summonCount: 6, maxMinions: 30, triangleChance: 0.25, rageBelow: 0.5, rageEvery: 3, rageCount: 6,
+                // Phase 2: Blasterschild (fängt alle Blaster-Schüsse im Radius ab, Nahkampf/Beam/Granate/Ultimate gehen durch)
+                shieldRadius: 46,
+                // Nekromant-Miniboss des Kampfes: hitsMul = Leben-Faktor, min/max/channel überschreiben CFG.patterns.necro (schnelleres Wiederbeleben)
+                necro: { hitsMul: 4, min: 1.2, max: 3, channel: 0.8, range: 320 } },
     // Zu Kampfbeginn erscheint zusätzlich ein Nekromanten-Miniboss als Minion (einmal pro Kampf, er belebt gefallene Minions wieder).
     // Laser-Turm (neu): steht in der Mitte. Ruhe (verwundbar, schießt) -> tele Sekunden Vorwarnung -> fire Sekunden dreht sich der Laser (spin Grad/s,
     // len = Länge, width = halbe Breite). Anzahl Laser steigt alle 2 Zyklen bis maxLasers.
