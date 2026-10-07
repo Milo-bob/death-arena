@@ -48,6 +48,7 @@ const CFG = {
     turnMinStep: 8,           // mindestens so viele Grad pro Bild, damit der Schluss der Drehung nicht ausschleicht
     tapSeconds: 0.14,         // kurzer Tastendruck (kuerzer als das): Spieler dreht sich nur in die Richtung, ohne zu laufen. Laenger gehalten: er laeuft los
     faceTolerance: 25,        // zeigt er schon (fast) in die Tastenrichtung, laeuft er sofort los
+    releaseGrace: 0.07,       // Toleranz beim Loslassen: lässt man erst eine von zwei Richtungstasten los, bleibt die alte Richtung so lange gültig (Diagonale bleibt erhalten)
     moveGrace: 0.12,          // direkt nach dem Laufen zaehlt ein neuer Druck sofort als Laufen (fluessiges Richtungswechseln)
     afkSeconds: 7.5,          // so lange stillstehen, dann Leben-Verlust
     afkDamage: 0.5,
@@ -75,13 +76,12 @@ const CFG = {
     usableInBossFight: true,  // im Original wurde das Ultimate im Bosskampf sofort gelöscht; Schaden an Bossen: CFG.boss.ultDamage
   },
 
-  // Bloodburst: Notfallangriff bei Beinahe-Tod (automatisch) oder per Kill-Kombo
+  // Bloodburst: Notfallangriff bei Beinahe-Tod (nur automatisch durch niedrige Leben)
   bloodburst: {
     triggerHp: 3.5,
     rearmHp: 75,
     heal: 5,
-    comboNeeded: 15,          // Kills in Folge (kein Treffer, Lücke unter 1.5 s)
-    comboWindow: 1.5,
+    comboWindow: 1.5,         // Kill-Kombo (Lücke unter 1.5 s): löst keinen Bloodburst mehr aus, zählt nur für das Achievement COMBO BREAKER
     cooldown: 120,            // Sekunden, bis der nächste Bloodburst möglich ist (Original: sofort wieder)
     protectSeconds: 2.5,      // so lange ist man danach (fast) unverwundbar (Original ca. 4.5 s)
   },
@@ -803,6 +803,7 @@ const CFG = {
     // Elite-Gegner (neu, siehe CFG.elite und js/elites.js): auf allen Karten gleich, sehr stark. sprite = Grafik eines vorhandenen Typs (umgefaerbt).
     phantom: { speed: 3.6, push: 0.5, radius: 10, size: 300, hits: 10, sprite: 'teleporter' },    // weicht Nahkampf aus, haelt Abstand, schiesst Salven
     bastion: { speed: 1.5, push: 0.3, radius: 10, size: 420, hits: 16, sprite: 'tank' },          // Schildfront haelt Schuesse ab, Rammstoss
+    magnetar: { speed: 1.8, push: 0.3, radius: 10, size: 400, hits: 14, sprite: 'support' },       // zieht den Spieler heran, Erschuetterung mit Vorwarnung (gegen Kiten)
     // Geschosse der Gegner
     bolt: { speed: 7, frames: 30, radius: 5 },
     missile: { speed: 4, frames: 60, turn: 5, radius: 5 },
@@ -846,6 +847,7 @@ const CFG = {
     // Elite-Gegner: ab dem Mittelspiel, fixedCap = Obergrenze gilt unabhaengig vom Kartenfaktor, up = Werte nach dem Upgrade (CFG.elite.upgradeAt)
     phantom:    { from: 300, min: 40, max: 55, maxAlive: 1, fixedCap: true, up: { min: 30, max: 42, maxAlive: 2 } },
     bastion:    { from: 360, min: 46, max: 62, maxAlive: 1, fixedCap: true, up: { min: 34, max: 46, maxAlive: 2 } },
+    magnetar:   { from: 420, min: 52, max: 68, maxAlive: 1, fixedCap: true, up: { min: 38, max: 50, maxAlive: 2 } },
   },
 
   // Elite-Gegner (js/elites.js): zwei Gegner, die die schnellen Endgame-Waffen umgehen (Plasma Blade mit 4 Klingen, Dreifach-Blaster). Nicht kartenspezifisch.
@@ -868,6 +870,13 @@ const CFG = {
       arc: 70, arc2: 115, turn: 70, turn2: 120, shield: 7,
       bashMin: 4, bashMax: 6, range: 170, tele: 0.9, go: 0.5, speed: 7,
       dmgTable: { beam: 5, grenade: 5, bombard: 5, blackhole: 3, chain: 3, molotov: 2, fire: 2, dash: 3 },       // Schaden je Angriffsart (sonst 1)
+    },
+    // Magnetar: gegen Kiten und Abstandhalten. Zieht den Spieler im Umkreis `range` heran (staerker je naeher, Dash ist immun, im Safe Spot aus) und loest alle `every` s eine
+    // Erschuetterung aus: `tele` s Vorwarnring, dann Schaden im Radius `radius`; danach `rest` s ohne Sog (Zeit zum Zuschlagen). Mk II: staerkerer Sog, groesserer Ring, zwei Schlaege.
+    magnetar: {
+      dmg: 1.6, gate: 0.6, gate2: 0.85, hue: 130,
+      range: 190, minPull: 0.9, maxPull: 2.6, chargePull: 1.5, mk2Pull: 1.35,
+      keepDist: 75, band: 25, first: 3, every: 5.5, every2: 4.2, tele: 0.9, tele2: 0.55, radius: 62, radius2: 80, rest: 1.2,
     },
   },
 

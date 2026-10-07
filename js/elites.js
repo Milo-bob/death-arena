@@ -23,6 +23,7 @@ const Elite = {
     e.dodgeCd = rand(0.5, 1.2); e.dodgeT = 0; e.dodgeDir = 0; e.ghostT = 0; e.ghostFrom = null;
     if (e.type === 'phantom') e.shootT = C.shootFirst;
     if (e.type === 'bastion') e.bashT = rand(C.bashMin, C.bashMax);
+    if (e.type === 'magnetar') { e.slamT = C.first; e.slamWarn = 0; e.slamN = 0; e.pullOff = 0; }
   },
 
   // Jedes Bild im Lauf: das Upgrade zum festen Zeitpunkt (alle Elite-Gegner, auch die schon da sind)
@@ -110,9 +111,44 @@ const Elite = {
     }
   },
 
+  // ---------- Magnetar ----------
+  magnetarSteer(e, dt, tg) {
+    const C = CFG.elite.magnetar, mk2 = e.mk === 2, toP = dirTo(e.x, e.y, tg.x, tg.y), d = Math.hypot(tg.x - e.x, tg.y - e.y), step = CFG.enemy.magnetar.speed * this.speedMul(e);
+    e.dir = toP; e.slamT -= dt; e.pullOff = Math.max(0, e.pullOff - dt);
+    if (e.slamWarn > 0) {                                              // laedt die Erschuetterung: steht still
+      e.slamWarn -= dt;
+      if (e.slamWarn <= 0) this.slam(e);
+      return { step: 0, touch: true };
+    }
+    if (e.slamT <= 0 && d < C.range && !SafeSpot.inside) { e.slamWarn = C.tele; e.slamN = mk2 ? 2 : 1; Sfx.play('ventWarn'); }
+    if (d > C.keepDist + C.band) return { step, touch: true, move: toP };
+    if (d < C.keepDist - C.band) return { step: step * 0.6, touch: true, move: toP + 180 };
+    return { step: step * 0.5, touch: true, move: toP + e.side * 90 };
+  },
+  slam(e) {
+    const C = CFG.elite.magnetar, mk2 = e.mk === 2, R = mk2 ? C.radius2 : C.radius, p = G.player;
+    G.blasts.push(new Pop(e.x, e.y, R, STYLE.pal.green));
+    Juice.shake(2); Sfx.play('ventBlast');
+    if (Math.hypot(p.x - e.x, p.y - e.y) <= R + p.radius) p.hit('shoot', e.dmgMul, Stats.enemyName(e));
+    if (--e.slamN > 0) e.slamWarn = C.tele2;
+    else { e.slamT = mk2 ? C.every2 : C.every; e.pullOff = C.rest; }
+  },
+  // Sog aller Magnetare auf den Spieler (Einheiten pro Bild, f = framesOf(dt)); im Dash und im Safe Spot wirkungslos
+  pullPlayer(p, f) {
+    if (SafeSpot.inside) return;
+    const C = CFG.elite.magnetar;
+    for (const e of G.enemies) {
+      if (!e.alive || e.type !== 'magnetar' || e.pullOff > 0) continue;
+      const d = Math.hypot(e.x - p.x, e.y - p.y);
+      if (d > C.range || d < e.radius + p.radius + 3) continue;
+      const s = (C.minPull + (C.maxPull - C.minPull) * (1 - d / C.range)) * (e.mk === 2 ? C.mk2Pull : 1) * (e.slamWarn > 0 ? C.chargePull : 1) * f;
+      p.x += (e.x - p.x) / d * s; p.y += (e.y - p.y) / d * s;
+    }
+  },
+
   // ---------- Zeichnen (unter dem Gegner): Schein, Ringe, Schildfront, Nachbilder, Mk-Markierung ----------
   drawFx(ctx, e) {
-    const P = STYLE.pal, r = e.radius, cx = STAGE_W / 2 + e.x, cy = STAGE_H / 2 - e.y, t = G.realTime, col = e.type === 'phantom' ? P.purple : P.orange, mk2 = e.mk === 2;
+    const P = STYLE.pal, r = e.radius, cx = STAGE_W / 2 + e.x, cy = STAGE_H / 2 - e.y, t = G.realTime, col = e.type === 'phantom' ? P.purple : e.type === 'magnetar' ? P.green : P.orange, mk2 = e.mk === 2;
     ctx.save();
     if (e.type === 'phantom' && e.ghostT > 0 && e.ghostFrom) {                               // Nachbilder entlang des Ausweichsprungs
       for (let k = 1; k <= 3; k++) {
@@ -125,6 +161,16 @@ const Elite = {
     ctx.globalAlpha = mk2 ? 0.8 : 0.5; ctx.fillStyle = mk2 ? P.red : col;
     pxRing(ctx, cx, cy, r * 1.45, 1, 10, t * 0.25);
     if (mk2) { ctx.fillStyle = P.yellow; pxRing(ctx, cx, cy, r * 1.7, 1, 14, -t * 0.3); }
+    if (e.type === 'magnetar') {                                                               // Sogfeld: Ringe laufen nach innen, Vorwarnring der Erschuetterung
+      const C = CFG.elite.magnetar, R = mk2 ? C.radius2 : C.radius;
+      if (e.pullOff <= 0) for (let k = 0; k < 3; k++) { const ph = (t * 0.7 + k / 3) % 1; ctx.globalAlpha = 0.08 + 0.3 * ph; ctx.fillStyle = col; pxRing(ctx, cx, cy, C.range * (1 - ph) + r, 1, 18, 0); }
+      if (e.slamWarn > 0) {
+        const tl = e.slamN > 0 && e.slamWarn < C.tele ? e.slamWarn / C.tele : 1;
+        ctx.globalAlpha = 0.12 + 0.1 * Math.sin(t * 24); ctx.fillStyle = P.red; pxGlow(ctx, cx, cy, R);
+        ctx.globalAlpha = 0.9; ctx.fillStyle = P.red; pxRing(ctx, cx, cy, R, 2, 22, 0);
+        ctx.globalAlpha = 0.7; ctx.fillStyle = P.yellow; pxRing(ctx, cx, cy, R * (1 - Math.min(1, tl)), 1, 22, 0);
+      }
+    }
     if (e.type === 'bastion') {                                                                // Schildfront
       const th = Math.atan2(-Math.cos(e.face * DEG), Math.sin(e.face * DEG)), A = this.arc(e) * DEG;
       ctx.globalAlpha = 0.95; ctx.fillStyle = e.blockFlash > 0 ? P.white : mk2 ? P.yellow : P.ice;

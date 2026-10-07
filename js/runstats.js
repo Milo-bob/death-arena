@@ -6,7 +6,7 @@
 const STAT_ENEMY_NAMES = {
   circle: 'CIRCLE', triangle: 'TRIANGLE', square: 'SQUARE', rhombus: 'RHOMBUS', guard: 'SHIELD GUARD', support: 'SUPPORT',
   bomber: 'BOMBER', splitter: 'SPLITTER', leech: 'BLOODSUCKER', teleporter: 'TELEPORTER', sniper: 'SNIPER', miner: 'MINELAYER',
-  tank: 'TANK', necro: 'NECROMANCER', phantom: 'PHANTOM', bastion: 'BASTION',
+  tank: 'TANK', necro: 'NECROMANCER', phantom: 'PHANTOM', bastion: 'BASTION', magnetar: 'MAGNETAR',
 };
 const STAT_BOSS_NAMES = {
   octagon: 'OCTAGON', kite: 'KITE', summoner: 'SUMMONER', turret: 'LASER TURRET', twin: 'TWINS', arena: 'ARENA BOSS', reaper: 'DEATH',

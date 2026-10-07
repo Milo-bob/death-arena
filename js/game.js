@@ -262,12 +262,16 @@ const G = {
     if (Tutorial.active) { Tutorial.exit(); return; }                  // Tutorial verlassen: nichts wird gespeichert
     this.mode = 'dead';
     this.deadAge = 0;
-    Cos2.dfx = Cos2.deathStart(this.player);                           // Cosmetic DEATH: Animation vor dem Todesbildschirm (null = keine)
+    Cos2.dfx = Cos2.deathStart(this.player) || Cos2.deathPlain(this.player);       // Cosmetic DEATH: Animation vor dem Todesbildschirm (ohne Cosmetic eine kurze neutrale Phase)
     Sfx.play('death');
     this.settleRun(0);
     Stats.finish(this.time, this.bosses, this.map.id, this.infinite);       // Todesursache + Zusammenfassung (Save.write passiert unten in settleRun schon, daher hier nochmal)
     Ach.runEnd(false);
     Save.write();
+    // Todesphase: Uhr steht (nur im Modus play zaehlt die Zeit), alle Gegner und Geschosse weg, nur die Todes-Animation laeuft
+    for (const b of this.bossList()) b.alive = false;
+    this.boss = null; this.intro = null; this.bossShots = [];
+    for (const key of ['enemies', 'shots', 'spawners', 'blasts', 'meteors']) this[key] = [];
     hostMsg({ type: 'gameOver', score: Math.floor(this.time) });
   },
 
@@ -744,8 +748,9 @@ const G = {
       this.updateSettings();
     } else if (this.mode === 'ending') {
       this.endAge += dt;
+      if (this.endAge > ENDING_MENU_AT && Input.pressed('Tab')) { this.deathDetails = !this.deathDetails; Sfx.play('select'); }
       if (Input.pressed('Space') || Input.pressed('Enter')) {
-        if (this.endAge > ENDING_MENU_AT) this.mode = 'start';
+        if (this.endAge > ENDING_MENU_AT) { this.deathDetails = false; this.mode = 'start'; }
         else if (this.endAge > 3 && this.endAge < ENDING_SPLIT && Save.data.wins > 1) this.endAge = ENDING_SPLIT;       // ab dem zweiten Sieg darf man die Szene überspringen
       }
     } else if (this.mode === 'dead') {
@@ -753,8 +758,9 @@ const G = {
       if (Cos2.dfx) Cos2.deathStep(Cos2.dfx, dt);
       if (Cos2.pet) Cos2.pet.hide = Math.min(1, Cos2.pet.hide + dt * 3);          // Begleiter versteckt sich
       if (this.deadAge > 0.6 && Input.pressed('Tab')) { this.deathDetails = !this.deathDetails; Sfx.play('select'); }
-      if (this.deadAge > 1 && Input.pressed('Space')) this.mode = 'start';      // nach dem Tod zurück ins Menü (hier wird später Build/Leveln ausgebaut)
-      else if (this.deadAge > 1 && Input.pressed('KeyR')) { Sfx.play('select'); this.begin(false, this.infinite); }      // Komfort: sofort noch ein Lauf, gleicher Modus und gleiche Karte
+      const ready = this.deadAge > 1 && Cos2.deathFadeIn() >= 1;                // erst wenn die Todes-Animation vorbei und der Deathscreen eingeblendet ist
+      if (ready && Input.pressed('Space')) this.mode = 'start';      // nach dem Tod zurück ins Menü (hier wird später Build/Leveln ausgebaut)
+      else if (ready && Input.pressed('KeyR')) { Sfx.play('select'); this.begin(false, this.infinite); }      // Komfort: sofort noch ein Lauf, gleicher Modus und gleiche Karte
     } else if (this.mode === 'pick') {
       this.updatePick(dt);
     } else if (this.mode === 'swap') {

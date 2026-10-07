@@ -43,7 +43,7 @@ function touchesPlayer(x, y, r) {
 const CHASERS = ['circle', 'bomber', 'splitter', 'leech', 'teleporter', 'tank'];
 const TOUCHERS = ['circle', 'splitter', 'teleporter', 'tank'];
 const SHOOTERS = ['triangle', 'square', 'rhombus'];
-const HEAVY = ['square', 'rhombus', 'guard', 'support', 'sniper', 'miner', 'necro', 'tank', 'teleporter', 'phantom', 'bastion'];
+const HEAVY = ['square', 'rhombus', 'guard', 'support', 'sniper', 'miner', 'necro', 'tank', 'teleporter', 'phantom', 'bastion', 'magnetar'];
 const CORPSE_TYPES = ['circle', 'triangle', 'square', 'rhombus', 'guard', 'bomber', 'teleporter'];
 class Enemy {
   // type: 'circle' | 'triangle' | 'square' | 'rhombus'; mini = Miniboss (größer, mehr Leben)

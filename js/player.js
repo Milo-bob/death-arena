@@ -199,7 +199,7 @@ class Player {
     this.useAbilities(dt);
     this.useArtifact();
     this.move(f);
-    if (this.dashLeft <= 0) { const [bx, by] = MapEnv.pushAt(this.x, this.y, this.radius); this.x += bx * f; this.y += by * f; }       // Schlackenband schiebt (nicht im Dash)
+    if (this.dashLeft <= 0) { const [bx, by] = MapEnv.pushAt(this.x, this.y, this.radius); this.x += bx * f; this.y += by * f; Elite.pullPlayer(this, f); }       // Schlackenband schiebt, Magnetar zieht (beides nicht im Dash)
     if (this.dashLeft > 0 || this.surgeT > 0) Juice.ghost(this);   // Nachbilder bei Dash und Boost
     this.useWeapon(dt, f);
     this.updateUltimate();
@@ -255,14 +255,24 @@ class Player {
     const px0 = this.x, py0 = this.y;
     const w = Input.actDown('up'), a = Input.actDown('left'), s = Input.actDown('down'), d = Input.actDown('right');
     // gleiche Reihenfolge der Bedingungen wie im Original (gegenüberliegende Tasten behalten die alte Richtung)
-    if (w && !a) this.moveDir = 0;
-    if (s && !d) this.moveDir = 180;
-    if (a && !s) this.moveDir = -90;
-    if (d && !w) this.moveDir = 90;
-    if (w && a) this.moveDir = -45;
-    if (w && d) this.moveDir = 45;
-    if (s && a) this.moveDir = -135;
-    if (s && d) this.moveDir = 135;
+    let rd = this.rawDir === undefined ? this.moveDir : this.rawDir;
+    if (w && !a) rd = 0;
+    if (s && !d) rd = 180;
+    if (a && !s) rd = -90;
+    if (d && !w) rd = 90;
+    if (w && a) rd = -45;
+    if (w && d) rd = 45;
+    if (s && a) rd = -135;
+    if (s && d) rd = 135;
+    this.rawDir = rd;
+    // Toleranzfenster beim Loslassen: Zwei Tasten (Diagonale) lassen sich nie im selben Bild loslassen. Faellt nur eine weg, bleibt die alte Richtung noch
+    // P.releaseGrace Sekunden gueltig; sind bis dahin alle Tasten oben, bleibt der Spieler genau in der Diagonale stehen. Neue Tasten gelten sofort.
+    const nKeys = (w ? 1 : 0) + (a ? 1 : 0) + (s ? 1 : 0) + (d ? 1 : 0), Pg = CFG.player;
+    if (rd === this.moveDir) this.releaseT = 0;
+    else if (nKeys > 0 && nKeys < (this.prevKeys || 0)) { this.releaseT = (this.releaseT || 0) + f / 30; if (this.releaseT >= Pg.releaseGrace) { this.moveDir = rd; this.releaseT = 0; } }
+    else if (nKeys > 0) { this.moveDir = rd; this.releaseT = 0; }
+    else this.releaseT = 0;
+    this.prevKeys = nKeys;
 
     const can = this.canMove, P = CFG.player, anyKey = this.anyMoveKey();
     if (Save.data.mouseAim) {                                                  // Maus-Zielen: Blickrichtung = zur Maus, Laufen unabhaengig davon in die Tastenrichtung (Tippen-zum-Drehen entfaellt)
@@ -293,7 +303,7 @@ class Player {
     if (can > 0) {
       const turn = angleDiff(this.moveDir, this.dir);
       if (anyKey && !this.moveArmed) this.dir = this.moveDir;                  // Tippen: sofort ausrichten, kein Laufen
-      else {                                                                   // sanft in Laufrichtung drehen (Original: 20 % pro Bild), grosse Wenden schneller
+      else if (anyKey) {                                                       // sanft in Laufrichtung drehen (Original: 20 % pro Bild), grosse Wenden schneller; ohne Taste bleibt die Blickrichtung wie sie ist
         const k = 1 - Math.pow(1 - (Math.abs(turn) > 90 ? P.turnSmoothingBig : P.turnSmoothing), f);
         this.dir += Math.sign(turn) * Math.min(Math.abs(turn), Math.max(Math.abs(turn * k), P.turnMinStep * f));
       }
@@ -821,10 +831,6 @@ class Player {
       this.startBloodburst();
     }
     if (!this.bloodArmed && this.hp > CFG.bloodburst.rearmHp) this.bloodArmed = true;
-    if (G.combo > CFG.bloodburst.comboNeeded && !active) {
-      G.resetCombo();
-      this.startBloodburst();
-    }
   }
 
   startBloodburst() {

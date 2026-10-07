@@ -1306,7 +1306,8 @@ function drawEndingScreen(ctx) {
   });
   milestoneLines().forEach((l, i) => uiText(ctx, l, STAGE_W / 2, 264 + i * 11, { size: T.small, color: P.cyan, align: 'center' }));
   ctx.restore();
-  if (t > ENDING_MENU_AT) drawPrompt(ctx, 'MENU [SPACE]', 322);
+  if (t > ENDING_MENU_AT) drawPrompt(ctx, 'MENU [SPACE]     DETAILS [TAB]', 322);
+  if (G.deathDetails && Stats.summary) drawRunDetails(ctx, Stats.summary);
 }
 
 function drawDeathScreen(ctx) {
@@ -1333,7 +1334,8 @@ function drawDeathScreen(ctx) {
 function drawRunDetails(ctx, sm) {
   const P = STYLE.pal, T = STYLE.type;
   ctx.fillStyle = '#05060f'; ctx.fillRect(0, 0, STAGE_W, STAGE_H);
-  uiText(ctx, 'KILLED BY: ' + sm.killer, STAGE_W / 2, 30, { size: T.h1 || T.h2, color: P.red, align: 'center' });
+  const won = sm.killer === 'VICTORY';
+  uiText(ctx, won ? 'VICTORY' : 'KILLED BY: ' + sm.killer, STAGE_W / 2, 30, { size: T.h1 || T.h2, color: won ? P.yellow : P.red, align: 'center' });
   uiText(ctx, 'TIME ' + formatTime(G.time) + '   LEVEL ' + sm.level + '   BOSSES ' + G.bosses + '   KILLS ' + G.kills + '   HITS TAKEN ' + sm.hitCount + '   DAMAGE ' + Math.round(sm.taken), STAGE_W / 2, 54, { size: T.small, color: P.grey, align: 'center' });
   uiText(ctx, 'SAFE SPOT BLOCKED ' + (sm.savedHits || 0) + ' HITS (ABOUT ' + Math.round(sm.savedDmg || 0) + ' DAMAGE)', STAGE_W / 2, 68, { size: T.small, color: sm.savedHits ? P.green : P.grey, align: 'center' });
   const col = (x, title, rows, color, fmt) => {
@@ -1352,7 +1354,7 @@ function drawRunDetails(ctx, sm) {
   };
   col(18, 'DAMAGE TAKEN', sm.dmg, P.red, (v, tot) => Math.round(v) + ' (' + Math.round(100 * v / tot) + '%)');
   col(250, 'KILLS BY WEAPON', sm.kills, P.cyan, (v) => String(v));
-  drawPrompt(ctx, 'BACK [TAB]     MENU [SPACE]     RETRY [R]', 345);
+  drawPrompt(ctx, G.mode === 'ending' ? 'BACK [TAB]     MENU [SPACE]' : 'BACK [TAB]     MENU [SPACE]     RETRY [R]', 345);
 }
 
 

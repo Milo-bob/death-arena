@@ -801,12 +801,16 @@ const Cos2 = {
     return d;
   },
   deathStep(d, dt) { d.t += dt; d.list = Cos.stepParticles(d.list, dt); },
-  deathActive() { return !!this.dfx && this.dfx.t < DEATH_DUR; },
-  deathFadeIn() { return this.dfx ? clamp((this.dfx.t - DEATH_DUR) / 0.3, 0, 1) : 1; },
+  // Ohne Animations-Cosmetic (Standard oder Effekte aus): kurze neutrale Phase, in der das Schiff verblasst
+  deathPlain(p) { return { t: 0, type: 'none', x: p.x, y: p.y, dir: p.dir, list: [], sprite: Cos.player(), dur: 0.45 }; },
+  deathActive() { return !!this.dfx && this.dfx.t < (this.dfx.dur || DEATH_DUR); },
+  deathFadeIn() { return this.dfx ? clamp((this.dfx.t - (this.dfx.dur || DEATH_DUR)) / 0.3, 0, 1) : 1; },
   deathDraw(ctx, d) {
-    const P = STYLE.pal, k = d.t / DEATH_DUR, sx = Math.round(STAGE_W / 2 + d.x), sy = Math.round(STAGE_H / 2 - d.y), size = CFG.player.size;
+    const P = STYLE.pal, k = d.t / (d.dur || DEATH_DUR), sx = Math.round(STAGE_W / 2 + d.x), sy = Math.round(STAGE_H / 2 - d.y), size = CFG.player.size;
     ctx.save();
-    if (d.type === 'dissolve') {
+    if (d.type === 'none') {
+      if (k < 1) drawSprite(ctx, d.sprite, d.x, d.y, d.dir, size, { alpha: 1 - k });
+    } else if (d.type === 'dissolve') {
       const fade = 1 - d.t / 0.55;
       if (fade > 0) for (let i = -3; i <= 3; i++) {                                                               // Schiff zerfaellt in waagerechte Streifen
         ctx.save(); ctx.beginPath(); ctx.rect(sx - 20, sy + i * 3 - 1, 40, 3); ctx.clip();
