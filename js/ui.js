@@ -654,9 +654,17 @@ function drawEvoRecipe(ctx, x, y, w, id) {
   uiPanel(ctx, x + 41, y + 6, 22, 22, { color: pt.have ? pt.color : P.greyMid, fill: P.ink, alpha: 1, notch: 2, glow: pt.have });
   drawIcon(ctx, pt.icon, x + 52, y + 17, Math.min(18, pt.iconW + 2), pt.have ? 1 : 0.8, !pt.have);
   uiText(ctx, '=', x + 69, y + 21, { size: T.h2, color: P.grey, align: 'center' });
-  uiText(ctx, R.name, x + 77, y + 15, { size: T.h2, color: pt.have ? P.yellow : P.grey });
-  if (!pt.have) uiText(ctx, R.needs.ability ? 'LOCKED' : 'NOT OWNED', x + w - 8, y + 15, { size: T.small, color: P.red, align: 'right' });
-  uiText(ctx, uiFit(ctx, W.name + ' + ' + pt.name + ' (' + pt.kind + ')', w - 85, T.small), x + 77, y + 28, { size: T.small, color: pt.color });
+  uiText(ctx, uiFit(ctx, R.name, w - 85, T.h2), x + 77, y + 15, { size: T.h2, color: pt.have ? P.yellow : P.grey });
+  const status = pt.have ? '' : (R.needs.ability ? 'LOCKED: ' : 'NOT OWNED: ');
+  uiText(ctx, uiFit(ctx, status + pt.name + ' (' + pt.kind + ')', w - 85, T.small), x + 77, y + 28, { size: T.small, color: pt.have ? pt.color : P.red });
+}
+
+// Cores oben rechts: die Beschriftung sitzt links neben der Zahl, egal wie viele Stellen sie hat
+function drawCoreCount(ctx) {
+  const P = STYLE.pal, T = STYLE.type, num = String(Save.data.souls);
+  ctx.save(); ctx.font = uiFont(T.h2); const nw = ctx.measureText(num).width; ctx.restore();
+  uiText(ctx, 'CORES', STAGE_W - 24 - nw - 6, 37, { size: T.small, color: P.grey, align: 'right' });
+  uiText(ctx, num, STAGE_W - 24, 38, { size: T.h2, color: P.yellow, align: 'right', glow: P.yellow });
 }
 
 // Text mit Zeilenumbruch (maxW in Buehneneinheiten), gibt die Zeilenzahl zurueck
@@ -713,11 +721,10 @@ function drawInventoryScreen(ctx) {
   drawSprite(ctx, 'keysettings', 0, 0, 90, 100);
   drawEmbers(ctx);
   uiText(ctx, 'INVENTORY', 24, 40, { size: T.h1, color: P.yellow, glow: P.yellow });
-  uiText(ctx, 'CORES', STAGE_W - 24 - 38, 37, { size: T.small, color: P.grey, align: 'right' });
-  uiText(ctx, String(Save.data.souls), STAGE_W - 24, 38, { size: T.h2, color: P.yellow, align: 'right', glow: P.yellow });
+  drawCoreCount(ctx);
 
   // links: die vier Slots
-  const lx = 24, lw = 170, H = 46, GAP = 6, Y0 = 56;
+  const lx = 24, lw = 170, H = 52, GAP = 6, Y0 = 56;
   slots.forEach((S, i) => {
     const sel = G.invSel === i, y = Y0 + i * (H + GAP), col = slotColor(S.id), id = Save.equipped(S.id), I = id ? CFG.items.catalog[id] : null;
     const x = lx + (sel ? 6 : 0), w = lw - (sel ? 6 : 0);
@@ -746,7 +753,7 @@ function drawInventoryScreen(ctx) {
     uiText(ctx, 'BACK TO MAIN MENU', px + pw / 2, py + ph / 2, { size: T.h2, color: P.greyMid, align: 'center' });
   } else {
     // grosses Symbol mit pulsierendem Schein und Eckklammern
-    const ix = px + 14, iy = py + 14, isz = 54;
+    const ix = px + 14, iy = py + 12, isz = 54;
     ctx.save(); ctx.globalAlpha = 0.14 + 0.08 * Math.sin(t * 3); ctx.fillStyle = col;
     pxGlow(ctx, ix + isz / 2, iy + isz / 2, isz * 0.62); ctx.restore();
     uiPanel(ctx, ix, iy, isz, isz, { color: col, fill: P.ink, alpha: 0.95, notch: 4 });
@@ -757,33 +764,35 @@ function drawInventoryScreen(ctx) {
     uiText(ctx, I ? uiFit(ctx, I.name, pw - isz - 40, 16) : 'EMPTY SLOT', ix + isz + 12, iy + 32, { size: 16, color: I ? P.ice : P.greyMid, glow: I ? col : undefined });
     uiText(ctx, Save.ownedFor(S.id).length + ' OWNED', ix + isz + 12, iy + 48, { size: T.small, color: P.grey });
     const tx = px + 14, tw = pw - 28;
-    let ty = iy + isz + 18;
+    let ty = iy + isz + 16;
     if (I) {
       ty += 11 * uiWrap(ctx, I.desc, tx, ty, tw, 11, { size: T.body, color: P.grey });
       const f = itemFacts(id);
       if (f) ty += 2 + 10 * uiWrap(ctx, f, tx, ty + 1, tw, 10, { size: T.small, color: P.cyan });
     } else uiText(ctx, 'Nothing equipped. Press SPACE to choose an item.', tx, ty, { size: T.body, color: P.grey });
-    // Evolutions-Rezepte dieses Items
-    let recs = id ? evoRecipesOf(id).slice(0, 2) : [];
-    const evoTop = (n) => py + ph - 78 - 18 - n * 37 - 10;
-    if (recs.length > 1 && evoTop(recs.length) < ty - 2) recs = recs.slice(0, 1);       // wenig Platz: nur ein Rezept, damit der Beschreibungstext frei bleibt
-    if (recs.length) {
-      const top = Math.max(evoTop(recs.length), ty - 2);
-      uiText(ctx, 'EVOLUTION  -  NEEDS ' + CFG.evolutions.minUps + ' BOSSES IN A RUN', tx, top + 7, { size: T.small, color: P.yellow });
-      recs.forEach((eid, k) => drawEvoRecipe(ctx, tx, top + 11 + k * 37, tw, eid));
+    // Evolutions-Rezepte dieses Items: so viele, wie zwischen Beschreibung und Stufenblock wirklich Platz haben (nie darueber hinaus)
+    const my = py + ph - 58;                                                                  // Oberkante des Stufenblocks (Linie bei my - 14)
+    if (id) {
+      const all = evoRecipesOf(id).slice(0, 2), free = (my - 18) - (ty + 2);
+      const n = Math.max(0, Math.min(all.length, Math.floor((free - 12) / 37)));
+      if (n) {
+        const top = my - 18 - n * 37 - 12;
+        uiText(ctx, 'EVOLUTION  -  NEEDS ' + CFG.evolutions.minUps + ' BOSSES IN A RUN', tx, top + 7, { size: T.small, color: P.yellow });
+        all.slice(0, n).forEach((eid, k) => drawEvoRecipe(ctx, tx, top + 11 + k * 37, tw, eid));
+      }
     }
     // Stufe
     if (I) {
-      const my = py + ph - 78, lv = Save.gearLv(id), max = Save.gearMax(), maxed = lv >= max, price = Save.gearPrice(id), afford = Save.data.souls >= price;
+      const lv = Save.gearLv(id), max = Save.gearMax(), maxed = lv >= max, price = Save.gearPrice(id), afford = Save.data.souls >= price;
       ctx.fillStyle = col; ctx.globalAlpha = 0.35; ctx.fillRect(tx, my - 14, tw, 1); ctx.globalAlpha = 1;
       uiText(ctx, 'LEVEL ' + lv + ' / ' + max, tx, my - 3, { size: T.h2, color: P.yellow });
       uiText(ctx, 'NOW +' + Math.round(lv * CFG.gear.step[Save.gearKind(id)] * 100) + '%' + (maxed ? '' : '   NEXT +' + Math.round((lv + 1) * CFG.gear.step[Save.gearKind(id)] * 100) + '%'), px + pw - 14, my - 3, { size: T.small, color: P.grey, align: 'right' });
       drawGearMeter(ctx, id, tx, my + 4, tw, col);
-      uiText(ctx, gearStepText(id) + '  -  FILLS WHILE YOU PLAY', tx, my + 32, { size: T.small, color: P.greyMid });
+      uiText(ctx, uiFit(ctx, gearStepText(id) + '  -  FILLS WHILE YOU PLAY', tw, T.small), tx, my + 32, { size: T.small, color: P.greyMid });
       const up = maxed ? 'MAX LEVEL' : '[U] LEVEL UP  -  ' + price + ' CORES';
       uiText(ctx, up, tx, my + 46, { size: T.body, color: maxed ? P.cyan : afford ? P.yellow : P.red });
       uiText(ctx, '[SPACE] CHANGE', px + pw - 14, my + 46, { size: T.small, color: P.cyan, align: 'right' });
-    } else uiText(ctx, '[SPACE] CHOOSE ITEM', px + pw / 2, py + ph - 16, { size: T.body, color: P.cyan, align: 'center' });
+    } else uiText(ctx, '[SPACE] CHOOSE ITEM', px + pw / 2, py + ph - 12, { size: T.body, color: P.cyan, align: 'center' });
     // Level-up-Effekt: Ringe laufen vom Symbol nach aussen, kurzer Aufheller
     const fx = t - (G.invFlashAt || -9);
     if (fx >= 0 && fx < 0.7) {
@@ -836,8 +845,7 @@ function drawCosmeticsScreen(ctx) {
   drawSprite(ctx, 'keysettings', 0, 0, 90, 100);
   drawEmbers(ctx);
   uiText(ctx, 'COSMETICS', 24, 40, { size: T.h1, color: P.yellow, glow: P.yellow });
-  uiText(ctx, 'CORES', STAGE_W - 24 - 38, 37, { size: T.small, color: P.grey, align: 'right' });
-  uiText(ctx, String(Save.data.souls), STAGE_W - 24, 38, { size: T.h2, color: P.yellow, align: 'right', glow: P.yellow });
+  drawCoreCount(ctx);
 
   // Kategorien
   // (es sind mehr Kategorien als Platz: ein Fenster von VISTAB Reitern folgt der Auswahl, Pfeile zeigen, dass es weitergeht)

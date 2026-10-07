@@ -794,7 +794,7 @@ const CFG = {
     // hurts = diese Angriffe verletzen ihn, blocks = diese prallen ab (ein Schuss wird dabei verbraucht).
     // Kinds: 'sword', 'lance', 'shot', 'impulse', 'dash', 'beam'. plate (grau): Schuss/Impuls prallen ab. mirror (weiß): Schwert, Lanze und Dash prallen ab.
     guard: {
-      speed: 2, push: 2, radius: 15, hits: 3,
+      speed: 2.7, push: 2, radius: 15, hits: 5, touchDmg: 1.6,        // touchDmg = Schadensfaktor bei Berührung
       armor: {
         plate: { hurts: ['sword', 'lance', 'dash', 'beam'], blocks: ['shot', 'impulse'] },
         mirror: { hurts: ['shot', 'impulse', 'beam'], blocks: ['sword', 'lance', 'dash'] },
@@ -829,7 +829,7 @@ const CFG = {
   spawnAll: { rate: 1, capMul: 1 },        // neutral; die Härte kommt pro Karte aus diff.allRate / diff.capMul
 
   // Schild-Gegner: erscheinen ab `from` Sekunden alle min bis max Sekunden. Ab `shrinkFrom` wird das Intervall pro Minute um 1 s kürzer (nicht unter floor).
-  guardSpawn: { from: 150, min: 18, max: 24, shrinkFrom: 300, floor: 9 },
+  guardSpawn: { from: 120, min: 12, max: 17, shrinkFrom: 240, floor: 6 },
 
   // Unterstützer erscheinen ab `from` Sekunden alle min bis max Sekunden, höchstens `maxAlive` gleichzeitig.
   supportSpawn: { from: 210, min: 30, max: 40, maxAlive: 2 },
@@ -900,7 +900,7 @@ const CFG = {
     triangle: { orbitDist: 110, speed: 0.5, pull: 45 },                        // Umkreisen: Wunschabstand, Tempo, wie stark er Abstand korrigiert (Grad)
     square:   { anchorDist: 150 },                                             // Artillerie: bleibt ab diesem Abstand stehen
     rhombus:  { move: 1.1, stop: 0.7 },                                        // Stop-and-Go: Sekunden laufen / Sekunden stehen
-    guard:    { bashMin: 3.5, bashMax: 5, range: 110, tele: 0.5, go: 0.35, speed: 7 },   // Rammstoß: Pause zwischen Stößen, Reichweite, Vorwarnung, Dauer, Tempo
+    guard:    { bashMin: 2, bashMax: 3, range: 150, tele: 0.4, go: 0.4, speed: 10 },   // Rammstoß: Pause zwischen Stößen, Reichweite, Vorwarnung, Dauer, Tempo
     // Weitere Typen. bomber: triggerDist = ab hier zündet er, fuse = Sekunden bis zur Explosion, fuseSpeed = Tempofaktor währenddessen.
     // sniper: Abstand/Tempo, min/max = Pause zwischen Schüssen, tele = Zielzeit, lockAt = ab dieser Restzeit zielt er nicht mehr nach, range = Schussweite.
     // miner: min/max = Pause zwischen Minen, arm = Zeit bis scharf, life = Lebensdauer einer Mine, triggerR = Auslöse-Radius, count = Minen bei MINEFIELD.

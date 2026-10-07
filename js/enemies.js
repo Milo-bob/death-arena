@@ -179,7 +179,7 @@ class Enemy {
       let step = this.stun <= 0 ? e.guard.speed : 0;
       if (onShield) step -= e.guard.push;
       moveForward(this, step * f);
-      if (touchesPlayer(this.x, this.y, r)) p.hit('touch', 1, Stats.enemyName(this));
+      if (touchesPlayer(this.x, this.y, r)) p.hit('touch', e.guard.touchDmg * this.dmgMul, Stats.enemyName(this));
     } else if (this.type === 'square' || this.type === 'rhombus') {
       const c = e[this.type];
       if (!this.halted) {
