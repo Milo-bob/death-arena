@@ -217,6 +217,7 @@ const G = {
     Xp.reset(); this.xpOrbs = [];                                              // XP und Perks beginnen jeden Lauf von vorn
     this.time = 0;
     this.deadAge = 0;
+    Cos2.reset();                                                              // Cosmetics: Bodenmarken, Begleiter, Animationen zuruecksetzen
     this.lootCores = 0; this.fallen = []; this.attacks = []; this.enemies = []; this.shots = []; this.blasts = []; this.meteors = []; this.obstacles = [];
     this.spawners = []; this.powerups = []; this.drops = []; this.texts = []; this.events = [];
     this.boss = null; this.intro = null; this.bossShots = [];
@@ -261,6 +262,7 @@ const G = {
     if (Tutorial.active) { Tutorial.exit(); return; }                  // Tutorial verlassen: nichts wird gespeichert
     this.mode = 'dead';
     this.deadAge = 0;
+    Cos2.dfx = Cos2.deathStart(this.player);                           // Cosmetic DEATH: Animation vor dem Todesbildschirm (null = keine)
     Sfx.play('death');
     this.settleRun(0);
     Stats.finish(this.time, this.bosses, this.map.id, this.infinite);       // Todesursache + Zusammenfassung (Save.write passiert unten in settleRun schon, daher hier nochmal)
@@ -403,6 +405,8 @@ const G = {
       else Sfx.play(Save.cosEquip(cat.id, items[this.cosSel].id) ? 'buy' : 'deny');
     }
     if (Input.pressed('Escape')) this.mode = 'start';
+    const ck = cat.id + ':' + this.cosSel;                                         // Sound-Pakete: beim Auswaehlen eine Hoerprobe spielen
+    if (ck !== this.cosKey) { this.cosKey = ck; if (cat.id === 'sound' && items[this.cosSel]) Cos2.sample(items[this.cosSel]); }
   },
 
   // Upgrade-Menü: A/D wechselt den Reiter, W/S wählt die Zeile, Leertaste kauft, letzte Zeile (oder ESC) geht zurück
@@ -654,6 +658,7 @@ const G = {
     this.bossFight = true;
     Stats.bossStart(type);
     Sfx.play('bossIntro');
+    Cos2.introStart(type);                                      // Cosmetic INTRO: Titelkarte
     this.intro = new BossIntro(type);
     this.bossTimer = 0;
   },
@@ -745,6 +750,8 @@ const G = {
       }
     } else if (this.mode === 'dead') {
       this.deadAge += dt;
+      if (Cos2.dfx) Cos2.deathStep(Cos2.dfx, dt);
+      if (Cos2.pet) Cos2.pet.hide = Math.min(1, Cos2.pet.hide + dt * 3);          // Begleiter versteckt sich
       if (this.deadAge > 0.6 && Input.pressed('Tab')) { this.deathDetails = !this.deathDetails; Sfx.play('select'); }
       if (this.deadAge > 1 && Input.pressed('Space')) this.mode = 'start';      // nach dem Tod zurück ins Menü (hier wird später Build/Leveln ausgebaut)
       else if (this.deadAge > 1 && Input.pressed('KeyR')) { Sfx.play('select'); this.begin(false, this.infinite); }      // Komfort: sofort noch ein Lauf, gleicher Modus und gleiche Karte
@@ -769,6 +776,7 @@ const G = {
     this.flashT = Math.max(0, (this.flashT || 0) - dt);
     if (Tutorial.active && Tutorial.phase === 'brief') { Juice.update(dt); Tutorial.update(dt); return; }       // Tutorial-Textbox: das Spiel steht still, bis SPACE gedrueckt wird
     Juice.update(dt);
+    Cos2.tick(dt);                                              // Cosmetics: Bodenmarken, Echos, Titelkarte, Siegerpose, Wiederbelebung
     MsFx.update(dt);
     Ach.update(dt);
     this.player.update(dt);
@@ -873,7 +881,12 @@ const G = {
     } else if (this.mode === 'ending') {
       drawEndingScreen(ctx);
     } else if (this.mode === 'dead') {
-      drawDeathScreen(ctx);
+      if (Cos2.deathActive()) this.drawPlay(ctx);                           // Cosmetic DEATH: erst die Animation in der Welt, dann der Todesbildschirm
+      else {
+        drawDeathScreen(ctx);
+        const fade = Cos2.deathFadeIn();
+        if (fade < 1) { ctx.save(); ctx.globalAlpha = 1 - fade; ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, STAGE_W, STAGE_H); ctx.restore(); }
+      }
     } else if (this.mode === 'pick') {
       this.drawPlay(ctx);
       drawPickScreen(ctx);
@@ -890,6 +903,7 @@ const G = {
   },
 
   drawPlay(ctx) {
+    Cos2.victorySync();
     Juice.begin(ctx);                       // Zoom-Puls und Wackeln um die Bildmitte (HUD bleibt fest)
     drawGround(ctx);
     if (this.infinite) { const [mx, my] = Juice.margin; Cos.drawEndlessGround(ctx, Cos.cur('endless'), this.cam, STAGE_W / 2 + mx, STAGE_H / 2 + my, this.realTime); }      // Endlos-Cosmetics: Raster/Sterne
@@ -900,6 +914,7 @@ const G = {
     MapFx.drawBelow(ctx);
     MapEnv.draw(ctx);
     SafeSpot.draw(ctx);
+    Cos2.drawDecals(ctx);                                                          // Cosmetics: Stempel, Spuren, Tinte, Grabsteine am Boden
     for (const e of this.meteors) e.drawGround(ctx);
     Tutorial.drawWorld(ctx);
     for (const e of this.obstacles) e.draw(ctx);
@@ -916,8 +931,12 @@ const G = {
     for (const e of this.bossShots) e.draw(ctx);
     // Waffen liegen hinter dem Spieler, Ultimate und Bloodburst darüber
     const overlay = (a) => a.kind === 'ult' || a.kind === 'blood';
+    Cos2.drawEchoes(ctx);                                                          // Cosmetic Slash Echo: eingefrorene Abbilder
     for (const a of this.attacks) if (!overlay(a)) Cos.drawAttack(ctx, a);          // Waffen mit dem ausgerüsteten Glow-Cosmetic
-    this.player.draw(ctx);
+    Cos2.petDraw(ctx, Cos2.pet, Cos.cur('pet'), this.realTime);                    // Cosmetic PET
+    Cos2.victoryDraw(ctx, Cos2.vic);                                               // Cosmetic WIN (Fanfare, Flagge)
+    if (this.mode === 'dead' && Cos2.dfx) Cos2.deathDraw(ctx, Cos2.dfx);           // Cosmetic DEATH: statt des Spielers
+    else this.player.draw(ctx);
     for (const a of this.attacks) if (overlay(a)) a.draw(ctx);
     MapFx.drawAbove(ctx);
     for (const e of this.meteors) e.drawSky(ctx);
@@ -925,9 +944,12 @@ const G = {
     drawWorldHud(ctx);
     ctx.restore();
     ctx.restore();                          // Ende von Juice.begin
+    Cos2.drawWeather(ctx, Cos.cur('weather'), this.realTime, 0, 0, STAGE_W, STAGE_H, this.cam.x, -this.cam.y);          // Cosmetic WEATHER
     if (this.bloodMoon) drawBloodMoonTint(ctx);
     MapFx.drawScreen(ctx);                  // Beleuchtung, Boss-Vignette, Blizzard (js/mapfx.js)
-    drawHud(ctx);
+    Cos2.hudBegin(); try { drawHud(ctx); } finally { Cos2.hudEnd(); }              // Cosmetic HUD-Theme
+    if (Cos2.intro) Cos2.introDraw(ctx, Cos2.intro, STAGE_W / 2, 96, 1);           // Cosmetic INTRO: Boss-Titelkarte
+    if (Cos2.rev) Cos2.reviveDraw(ctx, Cos2.rev, STAGE_W / 2, STAGE_H / 2 - 10, 1);       // Cosmetic REVIVE: Totem of Undying
     if (Save.data.dev) uiText(ctx, 'DEV' + (this.god ? '  GOD' : '') + (this.cheated ? '  (DEV RUN)' : ''), 6, 10, { size: STYLE.type.small, color: STYLE.pal.yellow });
     if (Save.data.mouseAim && this.mode === 'play' && !(Tutorial.active && Tutorial.phase === 'brief') && Input.mouse.x > -900) {      // Fadenkreuz statt Mauszeiger
       const mx = Input.mouse.x, my = Input.mouse.y, P = STYLE.pal;

@@ -17,7 +17,9 @@ class FloatingText {
     if (o) {
       ctx.save();
       ctx.globalAlpha = Math.min(1, (1 - k) / 0.3);
-      uiText(ctx, o.text, STAGE_W / 2 + this.x0 + 5 * k, STAGE_H / 2 - (this.y0 + 5 * k) - 10 - 8 * k, { size: o.size, color: o.color, align: 'center' });
+      const nx = STAGE_W / 2 + this.x0 + 5 * k, ny = STAGE_H / 2 - (this.y0 + 5 * k) - 10 - 8 * k, ns = Cos.cur('numbers').style;
+      if (ns) Cos2.drawNumber(ctx, ns, o, nx, ny, k);                                  // Cosmetic: Stil der Schadenszahlen
+      else uiText(ctx, o.text, nx, ny, { size: o.size, color: o.color, align: 'center' });
       ctx.restore();
       return;
     }
@@ -311,7 +313,7 @@ function gearReady() {
 
 function drawStartScreen(ctx) {
   const P = STYLE.pal, T = STYLE.type, t = G.realTime;
-  drawSprite(ctx, 'startscreen', 0, 0, 90, 100);
+  if (!Cos2.drawMenuBg(ctx, Cos.cur('menubg'), t, 0, 0, STAGE_W, STAGE_H)) drawSprite(ctx, 'startscreen', 0, 0, 90, 100);       // Cosmetic: animierter Hintergrund
   drawEmbers(ctx);
   // Titel: pulsierendes Glühen, ab und zu ein kurzes cyanes Flackern (Glitch)
   ctx.save();
@@ -816,13 +818,17 @@ function drawCosmeticsScreen(ctx) {
   uiText(ctx, String(Save.data.souls), STAGE_W - 24, 38, { size: T.h2, color: P.yellow, align: 'right', glow: P.yellow });
 
   // Kategorien
-  const tg = 3, tx0 = 24, tw = Math.floor((STAGE_W - 48 - (C.cats.length - 1) * tg) / C.cats.length);
-  C.cats.forEach((c, i) => {
-    const x = tx0 + i * (tw + tg), sel = G.cosTab === i;
+  // (es sind mehr Kategorien als Platz: ein Fenster von VISTAB Reitern folgt der Auswahl, Pfeile zeigen, dass es weitergeht)
+  const VISTAB = 9, tg = 3, tx0 = 24, tw = Math.floor((STAGE_W - 48 - (VISTAB - 1) * tg) / VISTAB), toff = clamp(G.cosTab - 4, 0, Math.max(0, C.cats.length - VISTAB));
+  C.cats.slice(toff, toff + VISTAB).forEach((c, k) => {
+    const i = toff + k, x = tx0 + k * (tw + tg), sel = G.cosTab === i;
     UIHit.add(x, 50, tw, 20, () => { G.cosTab = i; G.cosSel = Math.max(0, Cos.items(c.id).findIndex((q) => q.id === Save.cosEquipped(c.id))); }, { noConfirm: true });
     uiPanel(ctx, x, 50, tw, 20, { color: sel ? P.cyan : P.greyMid, fill: sel ? P.voidLight : P.void, alpha: 0.92, glow: sel });
-    uiText(ctx, c.label, x + tw / 2, 64, { size: T.body, color: sel ? P.ice : P.grey, align: 'center' });
+    uiText(ctx, c.label, x + tw / 2, 64, { size: T.small, color: sel ? P.ice : P.grey, align: 'center' });
   });
+  if (toff > 0) uiText(ctx, '<', 14, 64, { size: T.body, color: P.yellow, align: 'center' });
+  if (toff + VISTAB < C.cats.length) uiText(ctx, '>', STAGE_W - 14, 64, { size: T.body, color: P.yellow, align: 'center' });
+  uiText(ctx, (G.cosTab + 1) + '/' + C.cats.length, STAGE_W / 2, 44, { size: T.small, color: P.grey, align: 'center' });
 
   // Liste links
   const lx = 24, lw = 232, H = 28, GAP = 4, Y0 = 80, VIS = 7;
@@ -837,8 +843,8 @@ function drawCosmeticsScreen(ctx) {
     ctx.strokeStyle = P.ink; ctx.strokeRect(x + 8.5, y + 7.5, 13, 13);
     uiText(ctx, it.name, x + 30, y + 18, { size: T.body, color: sel ? P.ice : P.grey });
     const lock = !owned && Save.cosLocked(it);
-    const st = eq ? 'EQUIPPED' : owned ? 'OWNED' : lock ? 'ENDLESS ' + it.needInf + ' MIN' : it.cost + ' CORES';
-    uiText(ctx, st, x + w - 8, y + 18, { size: T.small, color: eq ? P.cyan : owned ? P.ice : lock ? P.red : afford ? P.yellow : P.red, align: 'right' });
+    const st = eq ? 'EQUIPPED' : owned ? 'OWNED' : it.achOnly ? 'ACHIEVEMENT' : lock ? 'ENDLESS ' + it.needInf + ' MIN' : it.cost + ' CORES';
+    uiText(ctx, st, x + w - 8, y + 18, { size: T.small, color: eq ? P.cyan : owned ? P.ice : it.achOnly || lock ? P.red : afford ? P.yellow : P.red, align: 'right' });
   });
   if (items.length > VIS) uiText(ctx, (off > 0 ? '^ ' : '') + (off + VIS < items.length ? 'v' : ''), lx + lw - 6, Y0 - 3, { size: T.small, color: P.grey, align: 'right' });
   const by = Y0 + VIS * (H + GAP) + 2, backSel = G.cosSel === items.length;
@@ -857,8 +863,9 @@ function drawCosmeticsScreen(ctx) {
     uiWrap(ctx, cat.desc, px + 12, py + 162, pw - 24, 11, { size: T.small, color: P.grey });
     const owned = Save.cosOwned(cat.id, it.id), eq = Save.cosEquipped(cat.id) === it.id, afford = Save.data.souls >= it.cost;
     const lock = !owned && Save.cosLocked(it);
-    const msg = eq ? 'EQUIPPED' : owned ? '[SPACE] EQUIP' : lock ? 'SURVIVE ' + it.needInf + ' MIN IN ENDLESS TO UNLOCK' : '[SPACE] BUY  -  ' + it.cost + ' CORES';
-    uiText(ctx, msg, px + pw / 2, py + ph - 14, { size: T.body, color: eq ? P.cyan : owned ? P.cyan : lock ? P.red : afford ? P.yellow : P.red, align: 'center' });
+    const msg = eq ? 'EQUIPPED' : owned ? '[SPACE] EQUIP' : it.achOnly ? 'ACHIEVEMENT REWARD' : lock ? 'SURVIVE ' + it.needInf + ' MIN IN ENDLESS TO UNLOCK' : '[SPACE] BUY  -  ' + it.cost + ' CORES';
+    if (it.achOnly && !owned) uiWrap(ctx, 'Locked: ' + it.achOnly + '.', px + 12, py + ph - 38, pw - 24, 11, { size: T.small, color: P.red });
+    uiText(ctx, msg, px + pw / 2, py + ph - 14, { size: T.body, color: eq ? P.cyan : owned ? P.cyan : it.achOnly || lock ? P.red : afford ? P.yellow : P.red, align: 'center' });
   } else uiText(ctx, 'BACK TO MAIN MENU', px + pw / 2, py + ph / 2, { size: T.h2, color: P.greyMid, align: 'center' });
   uiText(ctx, 'A/D = CATEGORY    W/S = SELECT    SPACE = BUY / EQUIP    ESC = BACK', STAGE_W / 2, 352, { size: T.small, color: P.grey, align: 'center' });
 }
@@ -887,15 +894,26 @@ function drawCosmeticPreview(ctx, cat, it, x, y, w, h) {
   ctx.globalAlpha = 1;
   ctx.translate(cx - STAGE_W / 2, cy - STAGE_H / 2);
 
+  if (Cos2.PREVIEW_CATS.indexOf(cat) >= 0) {                                          // neue Kategorien (js/cosmetics2.js): eigene Vorschau
+    pv.list = Cos.stepParticles(pv.list, dt);
+    Cos2.previewCat(ctx, cat, it, w, h, t, dt, pv);
+    for (const q of pv.list) Cos.drawParticle(ctx, q);
+    ctx.restore();
+    uiPanel(ctx, x - 1, y - 1, w + 2, h + 2, { color: it.color, fill: 'rgba(0,0,0,0)', alpha: 0, notch: 3 });
+    uiCorners(ctx, x - 3, y - 3, w + 6, h + 6, it.color);
+    return;
+  }
+
   // Position und Blickrichtung des Vorschau-Schiffs
   let px = 0, py = 0, dir = 90 + Math.sin(t * 0.8) * 25, moving = false;
   const path = (tt) => [Math.cos(tt * 1.6) * 40, Math.sin(tt * 1.6) * 20];
-  if (cat === 'trail' || cat === 'gear' || cat === 'endless') {
+  if (cat === 'trail' || cat === 'gear' || cat === 'endless' || cat === 'skin') {
     [px, py] = path(t); const [nx, ny] = path(t + 0.05);
     dir = Math.atan2(nx - px, ny - py) / DEG; moving = true;
   } else if (cat === 'kill') px = -30;
-  else if (cat === 'blade') { px = -w / 4 - 10; dir = 90; }                                // Schiff links, die Angriffe fliegen nach rechts
+  else if (cat === 'blade' || cat === 'proj') { px = -w / 4 - 10; dir = 90; }              // Schiff links, die Angriffe fliegen nach rechts
   const fx = { x: px, y: py, dir };
+  Cos2.state = { moving, dash: cat === 'skin' && t % 3 < 0.45, hp: cat === 'skin' ? 0.12 + 0.88 * (0.5 + 0.5 * Math.cos(t * 0.9)) : 1 };       // Zustand fuer Skins mit Verhalten (Dash, Leben schwankt)
 
   // Partikel erzeugen
   if (trail.shape === 'echo') { pv.ghostT -= dt; if (moving && pv.ghostT <= 0) { pv.ghostT = 0.05; pv.ghosts.push({ x: px, y: py, dir, t: 0, life: 0.5 }); } }
@@ -904,10 +922,10 @@ function drawCosmeticPreview(ctx, cat, it, x, y, w, h) {
   Cos.gearTick(pv.list, gear, px, py, dir, dt, moving);
   Cos.endlessTick(pv.list, endless, { x: px, y: py, dir }, dt, moving);
   const swordDir = t * 200;
-  if (cat === 'blade') {                                                              // Sandbox mit der gerade gezeigten Waffe pflegen und steppen
-    const list = [melee, ranged, heavy].filter(Boolean), slot = Math.floor(t / 3.6) % Math.max(1, list.length), id = list[slot];
+  if (cat === 'blade' || cat === 'proj') {                                            // Sandbox mit der gerade gezeigten Waffe pflegen und steppen (SHOTS: nur Waffen mit Projektilen)
+    const list = (cat === 'proj' ? [ranged, heavy] : [melee, ranged, heavy]).filter(Boolean), slot = Math.floor(t / 3.6) % Math.max(1, list.length), id = list[slot];
     if (id && (!pv.sbx || pv.sbx.id !== id)) { Cos.previewInit(pv, id, w); pv.list = []; }
-    if (id) Cos.previewStep(pv, blade, dt, t);
+    if (id) Cos.previewStep(pv, blade, dt, t, cat === 'proj' ? { proj: it } : undefined);
   }
   const bossL = { x: -38, y: 0, radius: 24 }, bossR = { x: 42, y: 0, radius: 19 };
   if (cat === 'boss') { Cos.bossTick(pv.list, bossL, dt, boss); Cos.bossTick(pv.list, bossR, dt, boss); }
@@ -930,11 +948,11 @@ function drawCosmeticPreview(ctx, cat, it, x, y, w, h) {
     Cos.drawShip(ctx, ship, px, py, dir, 250, {}, skin, t);
     Cos.drawGear(ctx, gear, px, py, dir, t, 'front');
   };
-  if (cat !== 'blade') drawShipStack();
-  if (cat === 'blade') {                                                               // die ECHTEN Angriffe der ausgeruesteten Waffen, nacheinander (wie im Spiel, hinter dem Spieler)
-    const list = [melee, ranged, heavy].filter(Boolean), slot = Math.floor(t / 3.6) % Math.max(1, list.length), id = list[slot];
+  if (cat !== 'blade' && cat !== 'proj') drawShipStack();
+  if (cat === 'blade' || cat === 'proj') {                                             // die ECHTEN Angriffe der ausgeruesteten Waffen, nacheinander (wie im Spiel, hinter dem Spieler)
+    const list = (cat === 'proj' ? [ranged, heavy] : [melee, ranged, heavy]).filter(Boolean), slot = Math.floor(t / 3.6) % Math.max(1, list.length), id = list[slot];
     if (id) {
-      Cos.previewDraw(ctx, pv, blade, t);
+      Cos.previewDraw(ctx, pv, blade, t, cat === 'proj' ? { proj: it } : undefined);
       uiText(ctx, CFG.items.catalog[id].name, STAGE_W / 2, STAGE_H / 2 + h / 2 - 5, { size: STYLE.type.small, color: P.grey, align: 'center' });
     } else uiText(ctx, 'NO WEAPON EQUIPPED', STAGE_W / 2, STAGE_H / 2, { size: STYLE.type.small, color: P.greyMid, align: 'center' });
     drawShipStack();                                                                    // Spieler ganz oben, wie im Spiel

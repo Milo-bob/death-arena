@@ -72,12 +72,19 @@ const Cos = {
   stepParticles(list, dt) {
     for (const q of list) {
       q.t += dt;
+      if (q.home !== undefined && q.t > q.home) {                  // Muenzen (Coin Rain): fliegen nach kurzer Zeit zum Spieler und verschwinden dort
+        const tg = Cos2.homeTarget(), dx = tg.x - q.x, dy = tg.y - q.y, d = Math.hypot(dx, dy) || 1, sp = 3 + (q.t - q.home) * 14;
+        q.vx = dx / d * sp; q.vy = dy / d * sp; q.g = 0;
+        if (d < 9) q.t = q.life;
+      }
       if (q.g) q.vy += q.g * dt * 30;
       q.x += q.vx * dt * 30; q.y += q.vy * dt * 30;
       q.vx *= 0.93; q.vy *= q.g ? 0.98 : 0.93;
       if (q.spin) q.rot += q.spin * dt;
     }
-    return list.filter((q) => q.t < q.life);
+    const out = list.filter((q) => q.t < q.life);
+    if (out.length !== list.length) for (const q of list) if (q.t >= q.life && q.onEnd) q.onEnd(out, q);       // z. B. Feuerwerk: Rakete platzt am Ende
+    return out;
   },
   drawParticle(ctx, q) {
     const sx = Math.round(STAGE_W / 2 + q.x), sy = Math.round(STAGE_H / 2 - q.y), k = q.t / q.life, s = q.size;
@@ -94,7 +101,7 @@ const Cos = {
       case 'smoke': { const z = Math.round(s * (1 + 2.2 * k)); ctx.globalAlpha = 0.45 * (1 - k); ctx.fillRect(sx - z / 2, sy - z / 2, z, z); break; }
       case 'flame': { const z = Math.max(1, Math.round(s * (1 - k * 0.7))); ctx.globalAlpha = 0.95 * (1 - k * 0.5); ctx.fillStyle = k < 0.3 ? '#ffd91f' : k < 0.65 ? '#ff8a1f' : '#ff2d3d'; ctx.fillRect(sx - z / 2, sy - z / 2, z, z); break; }
       case 'streak': ctx.globalAlpha = 1 - k; pxLine(ctx, sx, sy, sx - q.vx * 3, sy + q.vy * 3); break;
-      default: ctx.globalAlpha = 1 - k; ctx.fillRect(sx - s / 2, sy - s / 2, s, s);
+      default: if (!Cos2.drawParticleEx(ctx, q, sx, sy, k)) { ctx.globalAlpha = 1 - k; ctx.fillRect(sx - s / 2, sy - s / 2, s, s); }
     }
     ctx.globalAlpha = 1;
   },
@@ -104,6 +111,7 @@ const Cos = {
   // ---------------------------------------------------------------------------------------------
   drawShip(ctx, name, x, y, dir, size, opts, it, t) {
     opts = opts || {};
+    if (Cos2.drawShip(ctx, name, x, y, dir, size, opts, it, t)) return;               // Skins mit Verhalten (js/cosmetics2.js)
     const fx = it && it.fx;
     if (fx === 'glitch') {
       const burst = (t * 5) % 1 < 0.18;
@@ -427,6 +435,7 @@ const Cos = {
     const cols = it && it.colors;
     if (!cols) { if (list === Juice.particles) Juice.sparks(x, y, def, n); else for (let i = 0; i < n; i++) this.push(list, { x, y, vx: rand(-3, 3), vy: rand(-3, 3), life: 0.35, color: def, size: 2 }); return; }
     const c = (i) => cols[i % cols.length], sc = Juice.level === 2 ? 1 : 0.5;
+    if (Cos2.emitKill(list, x, y, it, sc)) return;                                       // Grabstein, Muenzregen, Tinte, Feuerwerk, Glitch Delete
     if (it.shape === 'shockring') {
       this.push(list, { x, y, vx: 0, vy: 0, life: 0.45, color: c(0), size: 9, shape: 'ring' });
       this.push(list, { x, y, vx: 0, vy: 0, life: 0.6, color: c(1), size: 6, shape: 'ring' });
@@ -461,6 +470,9 @@ const Cos = {
   // nur Sprite-Waffen (Beam) laufen ueber den Farbfilter. Ein reiner Filter wirkt bei fast weissen Farben (Peitsche: ice/white) naemlich kaum.
   drawAttack(ctx, a, itOv) {
     const it = itOv || this.cur('blade');
+    if (it && it.fx === 'echo' && !Cos2.echoBusy && a.kind !== 'fire' && (this.isWeapon(a) || a instanceof SwordSwing || a instanceof Shot)) Cos2.echoSnap(a);       // Slash Echo: Abbild zuruecklassen (alle Waffen)
+    const pj = this.cur('proj');
+    if (pj && pj.shape && Cos2.isProj(a)) { Cos2.drawProj(ctx, a, pj, it); return; }          // SHOTS: Form fuer alle Projektile
     if (!it || (!it.filter && !it.fx) || !this.isWeapon(a)) { a.draw(ctx); return; }
     const warm = a.kind === 'fire' || a.kind === 'molotov', restore = it.id !== 'default' ? this.remapPalette(it, warm) : null, f = a.kind === 'beam' && it.filter ? it.filter : '';
     try {
@@ -578,14 +590,15 @@ const Cos = {
     pv.sbx.home = pv.sbx.enemies.map((e) => [e.x, e.y]);
   },
   // Einen Schritt der Sandbox (dt Sekunden): Angriffe feuern lassen und aktualisieren, ohne das echte Spiel anzufassen
-  previewStep(pv, it, dt, t) {
+  previewStep(pv, it, dt, t, overObj) {            // overObj: Vorschau einer anderen Kategorie (z. B. { proj: item }), sonst gilt it als Glow-Item
     const S = pv.sbx;
     if (!S || S.fail || !S.spec) return;
     const sv = { attacks: G.attacks, blasts: G.blasts, shots: G.shots, enemies: G.enemies, spawners: G.spawners, obstacles: G.obstacles, player: G.player, boss: G.boss, bossShots: G.bossShots };
     const jp = Juice.particles, play = Sfx.play, over = this.over;
     try {
       G.attacks = S.attacks; G.blasts = S.blasts; G.shots = S.shots; G.enemies = S.enemies; G.spawners = []; G.obstacles = []; G.player = S.mock; G.boss = null; G.bossShots = [];
-      Juice.particles = pv.list; Sfx.play = () => {}; this.over = { blade: it };
+      Juice.particles = pv.list; Sfx.play = () => {}; this.over = overObj || { blade: it };
+      Cos2.stepEchoes(dt);
       S.enemies.forEach((e, i) => { e.x = S.home[i][0]; e.y = S.home[i][1]; e.alive = true; });                // Ziele bleiben stehen
       const m = S.mock;
       if (S.id === 'beam' && m.beam && m.beam.state === 'fire') { m.beam.clock -= CFG.beam.decayPerSecond * dt; if (m.beam.clock < 0) m.beam.state = 'none'; }
@@ -599,14 +612,15 @@ const Cos = {
       Object.assign(G, sv); Juice.particles = jp; Sfx.play = play; this.over = over;
     }
   },
-  previewDraw(ctx, pv, it, t) {
+  previewDraw(ctx, pv, it, t, overObj) {
     const S = pv.sbx;
     if (!S || S.fail) return;
-    const over = this.over; this.over = { blade: it };
+    const over = this.over; this.over = overObj || { blade: it };
     try {
       for (const e of S.enemies) drawSprite(ctx, 'circle', e.x, e.y, 270, 230, { alpha: 0.55 });                // Ziele
       for (const b of S.blasts) b.draw(ctx);
-      for (const a of S.attacks) this.drawAttack(ctx, a, it);
+      Cos2.drawEchoes(ctx);
+      for (const a of S.attacks) this.drawAttack(ctx, a, overObj ? undefined : it);
     } catch (e) { S.fail = true; }
     this.over = over;
   },

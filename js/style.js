@@ -81,7 +81,7 @@ function uiText(ctx, text, x, y, opts = {}) {
 
 // Panel mit abgeschrägten Ecken: dunkle Füllung, helle Außenlinie, gedämpfte Innenlinie ("Doppelkante")
 function uiPanel(ctx, x, y, w, h, opts = {}) {
-  const P = STYLE.pal, c = opts.color || P.frame, n = opts.notch === undefined ? 2 : opts.notch;
+  const P = STYLE.pal, c = opts.color || P.frame, n = STYLE.frameTheme ? Cos2.panelNotch(STYLE.frameTheme) : opts.notch === undefined ? 2 : opts.notch;       // HUD-Theme (Cos2) bestimmt die Ecken
   const path = (ins) => {
     const a = x + ins, b = y + ins, r = x + w - ins, d = y + h - ins, k = Math.max(0, n - ins);
     ctx.beginPath();
@@ -95,6 +95,7 @@ function uiPanel(ctx, x, y, w, h, opts = {}) {
   path(0.5); ctx.lineWidth = 1; ctx.strokeStyle = c; ctx.stroke();
   path(2); ctx.strokeStyle = c; ctx.globalAlpha = 0.3; ctx.stroke();
   ctx.restore();
+  if (STYLE.frameTheme) Cos2.panelDeco(ctx, x, y, w, h, c);
 }
 
 // Balken: Rahmen + gefüllte Segmente. frac 0..1

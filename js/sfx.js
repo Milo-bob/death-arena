@@ -58,8 +58,10 @@ const Sfx = {
 
   // name: Eintrag aus SFX. arg: optionaler Zusatzwert (z. B. Fallzeit des Meteors)
   play(name, arg) {
-    const def = SFX[name];
+    let def = SFX[name];
     if (!def || Save.data.sfxVol <= 0 || !this.init()) return;
+    const pk = Cos2.pack(), alt = pk && pk[name];                                    // Cosmetic: Sound-Paket ersetzt einzelne Klaenge
+    if (alt) def = { gap: def.gap, big: def.big, fn: alt };
     if (this.ctx.state !== 'running') { try { this.ctx.resume().catch(() => {}); } catch (e) {} }
     const now = performance.now();
     if (now - (this.last[name] || 0) < (def.gap === undefined ? 40 : def.gap)) return;
@@ -138,6 +140,8 @@ const SFX = {
   upgrade:   { big: true, fn: (s) => { [392, 523, 659, 784].forEach((f, i) => s.tone('square', f, f, 0.12, 0.1, i * 0.07)); } },
   notice:    { gap: 300, fn: (s) => { s.tone('triangle', 440, 440, 0.1, 0.14); s.tone('triangle', 660, 660, 0.18, 0.14, 0.09); } },
   event:     { big: true, fn: (s) => { s.tone('sawtooth', 220, 220, 0.25, 0.16); s.tone('sawtooth', 165, 165, 0.45, 0.16, 0.25); s.noise('lowpass', 600, 150, 0.6, 0.12); } },
+  totem:     { big: true, fn: (s) => { s.tone('triangle', 392, 392, 0.2, 0.2); [523, 659, 784, 1047].forEach((f, i) => s.tone('triangle', f, f, 0.35, 0.22, 0.12 + i * 0.1)); s.noise('highpass', 4000, 9000, 0.7, 0.07, 0.3); } },     // Totem of Undying (Cosmetic)
+  totem:     { big: true, fn: (s) => { s.tone('triangle', 392, 392, 0.2, 0.2); [523, 659, 784, 1047].forEach((f, i) => s.tone('triangle', f, f, 0.35, 0.22, 0.12 + i * 0.1)); s.noise('highpass', 4000, 9000, 0.7, 0.07, 0.3); } },     // Totem of Undying (Cosmetic)
   death:     { big: true, fn: (s) => { s.tone('sawtooth', 400, 40, 1.3, 0.3); s.tone('square', 300, 30, 1.3, 0.12); s.noise('lowpass', 1200, 60, 1.2, 0.2); } },
 
   // ---- Meteoriten ----

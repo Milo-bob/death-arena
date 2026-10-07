@@ -264,6 +264,20 @@ const CFG = {
       { id: 'enemy', label: 'FOES',  desc: 'How normal enemies look. Shield enemies and elites keep their colors, but get the effects.' },
       { id: 'boss',  label: 'BOSSES', desc: 'How bosses look: recolors, glitches, shadows, flames.' },
       { id: 'endless', label: 'ENDLESS', desc: 'Only shown in Infinite Mode: floor effects and markers for the wall-less map. Some need an Endless survival time.' },
+      // Neu: gelten immer fuer die ganze Kategorie (alle Waffen, alle Kills, alle Treffer ...), nie nur fuer eine einzelne Waffe oder Faehigkeit
+      { id: 'proj',  label: 'SHOTS',  desc: 'The look of ALL your projectiles: shots, pellets, rockets, discs, grenades. Uses your Glow color.' },
+      { id: 'hit',   label: 'HITS',   desc: 'What every hit leaves behind, from any weapon: comic words or stamps on the floor.' },
+      { id: 'floor', label: 'FLOOR',  desc: 'What your steps leave on the ground: prints, flowers, ripples. Fades away on its own.' },
+      { id: 'weather', label: 'WEATHER', desc: 'Pure decoration over the whole arena: rain, snow, fireflies, ash. Does not change the game.' },
+      { id: 'pet',   label: 'PET',    desc: 'A little companion that follows you, cheers after bosses and hides when you die. Cannot be hurt, does nothing.' },
+      { id: 'hud',   label: 'HUD',    desc: 'New frames and colors for the in-game HUD: hotbar, orb, bars.' },
+      { id: 'numbers', label: 'DIGITS', desc: 'Style of the damage numbers that float up from you.' },
+      { id: 'sound', label: 'SOUND',  desc: 'Sound pack for hits, kills, shots and impacts. Select one to hear it.' },
+      { id: 'menubg', label: 'MENU',  desc: 'Animated background of the main menu.' },
+      { id: 'death', label: 'DEATH',  desc: 'How your ship goes down when you die.' },
+      { id: 'intro', label: 'INTRO',  desc: 'The title card that appears when a boss shows up. Works for every boss.' },
+      { id: 'victory', label: 'WIN',  desc: 'A little celebration after every boss you defeat.' },
+      { id: 'revive', label: 'REVIVE', desc: 'The animation when the Revival Core saves you.' },
     ],
     items: {
       // fx am Skin: glitch (versetzte Farbkopien, Ruckeln), holo (flackernd durchscheinend mit Scan-Linie)
@@ -301,6 +315,15 @@ const CFG = {
         { id: 'venom',   name: 'VENOM',       cost: 200, color: STYLE.pal.green,  filter: 'hue-rotate(215deg) brightness(0.7) saturate(1.8)' },
         { id: 'permafrost', name: 'PERMAFROST', cost: 340, color: STYLE.pal.ice,  filter: 'hue-rotate(-65deg) brightness(1.3) saturate(0.8)', fx: 'holo' },
         { id: 'inferno2', name: 'MOLTEN CORE', cost: 390, color: STYLE.pal.orange, filter: 'hue-rotate(125deg) brightness(1.1) saturate(1.5)', fx: 'ember' },
+        // Neu: Skins mit Verhalten (wirken bei allen Helden). dissolve/slime/mech reagieren aufs Laufen und Dashen, cracks/hbeat aufs Leben
+        { id: 'dissolve', name: 'PIXEL DISSOLVE', cost: 360, color: STYLE.pal.cyan,  filter: '', fx: 'dissolve' },
+        { id: 'lens',    name: 'GRAVITY LENS', cost: 420, color: STYLE.pal.violet, filter: 'hue-rotate(-20deg) brightness(0.8)', fx: 'lens' },
+        { id: 'mech',    name: 'MECH SHELL',  cost: 440, color: STYLE.pal.grey,   filter: 'grayscale(0.7) brightness(1.1)', fx: 'mech' },
+        { id: 'slime',   name: 'SLIME',       cost: 300, color: STYLE.pal.green,  filter: 'hue-rotate(225deg) saturate(1.3)', fx: 'slime' },
+        { id: 'twin',    name: 'GHOST TWIN',  cost: 400, color: STYLE.pal.ice,    filter: '', fx: 'twin' },
+        { id: 'wire',    name: 'WIREFRAME',   cost: 380, color: STYLE.pal.green,  filter: '', fx: 'wire' },
+        { id: 'cracks',  name: 'BATTLE WORN', cost: 320, color: STYLE.pal.red,    filter: '', fx: 'cracks' },
+        { id: 'hbeat',   name: 'PULSE CORE',  cost: 340, color: STYLE.pal.pink,   filter: '', fx: 'hbeat' },
       ],
       // fx am Glow: comet (Nachbilder), sparkle (Funkelsterne, Sternschuesse), volt (Blitze)
       blade: [
@@ -322,6 +345,9 @@ const CFG = {
         { id: 'glacier', name: 'GLACIER TAIL', cost: 300, color: STYLE.pal.ice,   filter: 'hue-rotate(-25deg) brightness(1.3) saturate(1.4)', fx: 'comet' },
         { id: 'meteor',  name: 'METEOR SHOWER', cost: 320, color: STYLE.pal.orange, filter: 'hue-rotate(170deg) saturate(2.4) brightness(1.1)', fx: 'sparkle' },
         { id: 'tesla',   name: 'TESLA COIL',  cost: 360, color: STYLE.pal.purple, filter: 'hue-rotate(80deg) saturate(2.2) brightness(1.2)', fx: 'volt' },
+        // Neu: Slash Echo = jeder Angriff (jede Waffe) laesst eingefrorene Abbilder zurueck, die nach und nach zerfallen
+        { id: 'echo',    name: 'SLASH ECHO',  cost: 340, color: STYLE.pal.cyan,   filter: '', fx: 'echo' },
+        { id: 'echogold', name: 'GILDED ECHO', cost: 380, color: STYLE.pal.yellow, filter: 'hue-rotate(-145deg) saturate(2.2)', fx: 'echo' },
       ],
       // shape am Trail: ring (steigende Blasen), plus (Sternenstaub), smoke (wachsende Rauchquadrate), echo (Nachbilder des Schiffs)
       trail: [
@@ -348,6 +374,12 @@ const CFG = {
         { id: 'shatter', name: 'SHATTER',     cost: 240, color: STYLE.pal.ice,    colors: [STYLE.pal.ice, STYLE.pal.cyanMid, STYLE.pal.white, STYLE.pal.cyan], shape: 'shatter' },
         { id: 'bloom',   name: 'PIXEL BLOOM', cost: 260, color: STYLE.pal.pink,   colors: [STYLE.pal.pink, STYLE.pal.yellow, STYLE.pal.white], shape: 'bloom' },
         { id: 'supernova', name: 'SUPERNOVA', cost: 320, color: STYLE.pal.yellow, colors: [STYLE.pal.yellow, STYLE.pal.white, STYLE.pal.orange], shape: 'supernova' },
+        // Neu: eigene Abläufe statt Funken (shape wird in js/cosmetics2.js umgesetzt)
+        { id: 'grave',   name: 'GRAVESTONE',  cost: 300, color: STYLE.pal.grey,   colors: [STYLE.pal.grey, STYLE.pal.greyMid, STYLE.pal.white], shape: 'grave' },
+        { id: 'coins',   name: 'COIN RAIN',   cost: 340, color: STYLE.pal.yellow, colors: [STYLE.pal.yellow, STYLE.pal.orange, STYLE.pal.white], shape: 'coins' },
+        { id: 'ink',     name: 'INK SPLAT',   cost: 360, color: STYLE.pal.pink,   colors: [STYLE.pal.pink, STYLE.pal.cyan, STYLE.pal.yellow, STYLE.pal.green], shape: 'ink' },
+        { id: 'fireworks', name: 'FIREWORKS', cost: 380, color: STYLE.pal.red,    colors: [STYLE.pal.red, STYLE.pal.yellow, STYLE.pal.cyan, STYLE.pal.pink, STYLE.pal.green], shape: 'fireworks' },
+        { id: 'glitchdel', name: 'GLITCH DELETE', cost: 400, color: STYLE.pal.cyan, colors: [STYLE.pal.cyan, STYLE.pal.pink, STYLE.pal.white, STYLE.pal.red], shape: 'glitchdel' },
       ],
       // Auren: motes (Lichtpunkte), halo (Ring), arcs (Blitzbogen), pulse (Herzschlag-Ring), flames (Flammenkranz)
       aura: [
@@ -421,6 +453,99 @@ const CFG = {
         { id: 'bloodgrid', name: 'BLOOD GRID',   cost: 280, color: STYLE.pal.red,     fx: 'grid',   needInf: 10 },
         { id: 'chrono',  name: 'CHRONO SIGILS',  cost: 340, color: STYLE.pal.yellow,  fx: 'chrono', needInf: 20 },
         { id: 'warp',    name: 'WARP LINES',     cost: 380, color: STYLE.pal.violet,  fx: 'warp',   needInf: 30 },
+      ],
+
+      // ---- Neue Kategorien (Umsetzung: js/cosmetics2.js, Objekt Cos2). Standard ist immer das erste Item. ----
+      // Geschosse: Form fuer ALLE Projektile des Spielers (Schuss, Schrot, Prallschuss, Rakete, Scheibe, Granate)
+      proj: [
+        { id: 'default', name: 'STANDARD',    cost: 0,   color: STYLE.pal.cyan,   shape: null },
+        { id: 'plane',   name: 'PAPER PLANES', cost: 200, color: STYLE.pal.white,  shape: 'plane' },
+        { id: 'arrow',   name: 'ARROWS',      cost: 220, color: STYLE.pal.yellow, shape: 'arrow' },
+        { id: 'note',    name: 'MUSIC NOTES', cost: 260, color: STYLE.pal.pink,   shape: 'note' },
+        { id: 'fish',    name: 'FISH',        cost: 280, color: STYLE.pal.teal,   shape: 'fish' },
+        { id: 'star',    name: 'SHURIKEN',    cost: 300, color: STYLE.pal.ice,    shape: 'shuriken' },
+      ],
+      // Treffer: passiert bei JEDEM Treffer auf Gegner und Bosse, egal womit
+      hit: [
+        { id: 'none',    name: 'NOTHING',     cost: 0,   color: STYLE.pal.greyMid, shape: null },
+        { id: 'comic',   name: 'COMIC WORDS', cost: 240, color: STYLE.pal.yellow, shape: 'comic' },
+        { id: 'claws',   name: 'CLAW MARKS',  cost: 260, color: STYLE.pal.red,    shape: 'claws' },
+        { id: 'skulls',  name: 'SKULL STAMPS', cost: 300, color: STYLE.pal.ice,   shape: 'skulls' },
+        { id: 'stars',   name: 'STAR STAMPS', cost: 280, color: STYLE.pal.yellow, shape: 'starstamp' },
+      ],
+      // Boden: Spuren am Boden beim Laufen
+      floor: [
+        { id: 'none',    name: 'NOTHING',     cost: 0,   color: STYLE.pal.greyMid, shape: null },
+        { id: 'boots',   name: 'FOOTPRINTS',  cost: 160, color: STYLE.pal.grey,   shape: 'boots' },
+        { id: 'paws',    name: 'PAW PRINTS',  cost: 180, color: STYLE.pal.ice,    shape: 'paws' },
+        { id: 'flowers', name: 'FLOWER PATH', cost: 260, color: STYLE.pal.pink,   shape: 'flowers' },
+        { id: 'ripple',  name: 'NEON RIPPLE', cost: 300, color: STYLE.pal.cyan,   shape: 'ripple' },
+      ],
+      weather: [
+        { id: 'none',    name: 'CLEAR',       cost: 0,   color: STYLE.pal.greyMid, shape: null },
+        { id: 'rain',    name: 'RAIN',        cost: 200, color: STYLE.pal.cyanMid, shape: 'rain' },
+        { id: 'snow',    name: 'SNOWFALL',    cost: 200, color: STYLE.pal.white,  shape: 'snow' },
+        { id: 'fireflies', name: 'FIREFLIES', cost: 240, color: STYLE.pal.yellow, shape: 'fireflies' },
+        { id: 'ash',     name: 'FALLING ASH', cost: 220, color: STYLE.pal.grey,   shape: 'ash' },
+      ],
+      pet: [
+        { id: 'none',    name: 'NO PET',      cost: 0,   color: STYLE.pal.greyMid, shape: null },
+        { id: 'drone',   name: 'MINI DRONE',  cost: 300, color: STYLE.pal.cyan,   shape: 'drone' },
+        { id: 'dog',     name: 'SHADOW DOG',  cost: 360, color: STYLE.pal.purple, shape: 'dog' },
+        { id: 'cat',     name: 'GHOST CAT',   cost: 340, color: STYLE.pal.ice,    shape: 'cat' },
+      ],
+      // HUD-Themes: ersetzen Farben und Rahmen des HUD (Hotbar, Kugel, Balken)
+      hud: [
+        { id: 'default', name: 'NEON VOID',   cost: 0,   color: STYLE.pal.cyan,   theme: null },
+        { id: 'retro',   name: 'RETRO CONSOLE', cost: 240, color: STYLE.pal.pink, theme: 'retro' },
+        { id: 'terminal', name: 'TERMINAL',   cost: 260, color: STYLE.pal.green,  theme: 'terminal' },
+        { id: 'blueprint', name: 'BLUEPRINT', cost: 280, color: STYLE.pal.cyan,   theme: 'blueprint' },
+        { id: 'wood',    name: 'WOODEN',      cost: 260, color: STYLE.pal.orange, theme: 'wood' },
+      ],
+      numbers: [
+        { id: 'default', name: 'STANDARD',    cost: 0,   color: STYLE.pal.red,    style: null },
+        { id: 'flame',   name: 'FLAMES',      cost: 220, color: STYLE.pal.orange, style: 'flame' },
+        { id: 'ice',     name: 'ICICLES',     cost: 220, color: STYLE.pal.cyan,   style: 'ice' },
+        { id: 'hearts',  name: 'PIXEL HEARTS', cost: 260, color: STYLE.pal.pink,  style: 'hearts' },
+        { id: 'coins',   name: 'COINS',       cost: 280, color: STYLE.pal.yellow, style: 'coins' },
+      ],
+      // Sound-Pakete: ersetzen die Klaenge von Treffer, Kill, Schuss, Schlag, Explosion, Schaden
+      sound: [
+        { id: 'default', name: 'STANDARD',    cost: 0,   color: STYLE.pal.cyan,   pack: null },
+        { id: 'arcade',  name: '8-BIT ARCADE', cost: 220, color: STYLE.pal.yellow, pack: 'arcade' },
+        { id: 'drums',   name: 'DRUM KIT',    cost: 240, color: STYLE.pal.orange, pack: 'drums' },
+        { id: 'laser',   name: 'RETRO LASER', cost: 260, color: STYLE.pal.green,  pack: 'laser' },
+        { id: 'squeak',  name: 'RUBBER SQUEAK', cost: 200, color: STYLE.pal.pink, pack: 'squeak' },
+      ],
+      menubg: [
+        { id: 'default', name: 'STANDARD',    cost: 0,   color: STYLE.pal.red,    bg: null },
+        { id: 'stars',   name: 'STAR DRIFT',  cost: 200, color: STYLE.pal.ice,    bg: 'stars' },
+        { id: 'city',    name: 'NIGHT CITY',  cost: 260, color: STYLE.pal.purple, bg: 'city' },
+        { id: 'arena',   name: 'BURNING ARENA', cost: 280, color: STYLE.pal.orange, bg: 'arena' },
+      ],
+      death: [
+        { id: 'default', name: 'STANDARD',    cost: 0,   color: STYLE.pal.red,    anim: null },
+        { id: 'dissolve', name: 'PIXEL DUST', cost: 260, color: STYLE.pal.cyan,   anim: 'dissolve' },
+        { id: 'scrap',   name: 'SCRAP BLAST', cost: 300, color: STYLE.pal.orange, anim: 'scrap' },
+        { id: 'tomb',    name: 'TOMBSTONE',   cost: 320, color: STYLE.pal.grey,   anim: 'tomb' },
+        { id: 'hole',    name: 'BLACK HOLE',  cost: 360, color: STYLE.pal.violet, anim: 'hole' },
+      ],
+      intro: [
+        { id: 'default', name: 'NO CARD',     cost: 0,   color: STYLE.pal.greyMid, card: null },
+        { id: 'comic',   name: 'COMIC BURST', cost: 240, color: STYLE.pal.yellow, card: 'comic' },
+        { id: 'arcade',  name: 'ARCADE ALERT', cost: 260, color: STYLE.pal.pink,  card: 'arcade' },
+        { id: 'horror',  name: 'HORROR',      cost: 300, color: STYLE.pal.red,    card: 'horror' },
+      ],
+      victory: [
+        { id: 'none',    name: 'NOTHING',     cost: 0,   color: STYLE.pal.greyMid, pose: null },
+        { id: 'fanfare', name: 'FANFARE',     cost: 240, color: STYLE.pal.yellow, pose: 'fanfare' },
+        { id: 'flag',    name: 'PLANT A FLAG', cost: 260, color: STYLE.pal.red,   pose: 'flag' },
+        { id: 'dance',   name: 'VICTORY SPIN', cost: 280, color: STYLE.pal.cyan,  pose: 'dance' },
+      ],
+      // achOnly = nicht kaeuflich, nur als Belohnung (Achievement)
+      revive: [
+        { id: 'default', name: 'REVIVAL RING', cost: 0,  color: STYLE.pal.yellow, anim: null },
+        { id: 'totem',   name: 'TOTEM OF UNDYING', cost: 999, color: STYLE.pal.green, anim: 'totem', achOnly: 'Trigger the Revival Core 64 times' },
       ],
     },
   },

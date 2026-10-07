@@ -81,6 +81,7 @@ const ACH_LIST = [
   { id: 'acid',      br: 'odd', name: 'EW, CHEMISTRY',          desc: 'Be killed by an acid pool.',                     icon: 'molotovIcon',  key: 'killAcid',  need: 1,    reward: { cores: 15 } },
   { id: 'meteor',    br: 'odd', name: 'WELL, THAT HAPPENED',    desc: 'Be killed by a meteor.',                         icon: 'bombardIcon',  key: 'killMeteor', need: 1,   reward: { cores: 15 } },
   { id: 'notoday',   br: 'odd', name: 'NOT TODAY',              desc: 'Get saved by the Revival Core.',                 icon: 'phoenixIcon',  key: 'revive',    need: 1,    reward: { cores: 25 } },
+  { id: 'postmortal', br: 'odd', name: 'POSTMORTAL',            desc: 'Get saved by the Revival Core 64 times.',        icon: 'phoenixIcon',  key: 'revive',    need: 64,   reward: { cos: 'revive:totem' } },
   { id: 'crates',    br: 'odd', name: "PANDORA'S BOX",          desc: 'Smash 25 crates.',                               icon: 'spawner',      key: 'crates',    need: 25,   reward: { cores: 20 } },
   { id: 'thread',    br: 'odd', name: 'HANGING BY A THREAD',    desc: 'Spend 10 seconds under 10 HP in one run.',       icon: 'aegisIcon',    key: 'edge',      need: 10,   reward: { cores: 30 } },
 
@@ -293,7 +294,12 @@ const Ach = {
 
   // ---- Pruefen und freischalten ----
   scan() {
-    for (const a of ACH_LIST) if (!this.done(a.id) && this.value(a.key) >= a.need) this.unlock(a);
+    for (const a of ACH_LIST) {
+      if (this.done(a.id)) {                                  // erreicht: Belohnungs-Cosmetic muss auch wirklich gehoeren (z. B. nach einem Import ohne dieses Cosmetic)
+        if (a.reward.cos && !Save.data.cosmetics.owned[a.reward.cos]) { Save.data.cosmetics.owned[a.reward.cos] = true; this.dirty2 = true; }
+      } else if (this.value(a.key) >= a.need) this.unlock(a);
+    }
+    if (this.dirty2) { this.dirty2 = false; Save.write(); }
   },
   unlock(a) {
     const d = this.data();

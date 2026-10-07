@@ -76,6 +76,7 @@ class Boss {
     const f = framesOf(dt);
     const p = G.player, tg = p.target;          // tg = wohin der Boss zielt (bei Phase/Koeder nicht der echte Spieler)
     Cos.bossTick(Juice.particles, this, dt);    // Cosmetic: Flammen um den Boss
+    Cos2.bossWatch(this);                       // Cosmetic HITS: Schaden am Boss erkennen
     this.age += dt;
     this.bar += dt;
     this.stun = Math.max(0, this.stun - dt);
@@ -447,6 +448,7 @@ class Boss {
     if (this.type === 'reaper') { G.bosses++; G.startVictory(); }   // finaler Boss: Sieg, kein Upgrade
     else if (!Tutorial.active) G.later(0.25, () => Loadout.weaponUp(G.time));      // im Tutorial kein Upgrade und keine Ability-Wahl
     Ach.bossDown(this);
+    Cos2.vic = Cos2.victoryStart(G.player); if (Cos2.vic) Cos2.vic.live = G.realTime; Cos2.petCheer(Cos2.pet, Juice.particles);          // Cosmetics: Siegerpose und Freude des Begleiters
     G.endBossFight();
   }
 

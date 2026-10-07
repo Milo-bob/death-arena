@@ -117,7 +117,7 @@ const Save = {
     const it = CFG.cosmetics.items[cat].find((i) => i.id === id);
     if (!it) return false;
     if (!this.cosOwned(cat, id)) {
-      if (this.cosLocked(it) || this.data.souls < it.cost) return false;
+      if (it.achOnly || this.cosLocked(it) || this.data.souls < it.cost) return false;          // achOnly = nur als Achievement-Belohnung
       this.data.souls -= it.cost; this.data.cosmetics.owned[cat + ':' + id] = true;
       if (typeof Ach !== 'undefined') Ach.add('cosBuy', 1, true);
     }
@@ -232,6 +232,21 @@ const Save = {
     const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(out))));
     return 'DA1:' + b64 + ':' + this.checksum(b64);
   },
+  // Zwei Achievement-Staende vereinigen: done = Vereinigung, cnt = Hoechstwert (Zahlen) bzw. Vereinigung (Mengen wie types/bossTypes), seen = kleinerer Wert
+  mergeAch(a, b) {
+    const out = { done: {}, cnt: {}, seen: 0 };
+    const A = a && typeof a === 'object' ? a : {}, B = b && typeof b === 'object' ? b : {};
+    for (const s of [A, B]) for (const k of Object.keys(s.done || {})) if (s.done[k]) out.done[k] = true;
+    const merge = (x, y) => {
+      if (typeof x === 'number' && typeof y === 'number') return Math.max(x, y);
+      if (x && y && typeof x === 'object' && typeof y === 'object') { const o = Object.assign({}, x); for (const k of Object.keys(y)) o[k] = k in o ? merge(o[k], y[k]) : y[k]; return o; }
+      return x !== undefined && x !== null ? x : y;
+    };
+    const ca = A.cnt || {}, cb = B.cnt || {};
+    for (const k of new Set([...Object.keys(ca), ...Object.keys(cb)])) if (k !== '__proto__') out.cnt[k] = merge(ca[k], cb[k]);
+    out.seen = Math.min(A.seen || 0, B.seen || 0);
+    return out;
+  },
   checksum(s) { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h.toString(36); },
   // Code/Dateiinhalt prüfen und in den aktiven Slot übernehmen. Gibt { ok, error } zurück. Lautstärken, Effekte und Tastenbelegung dieses Geräts bleiben.
   importCode(text) {
@@ -242,11 +257,19 @@ const Save = {
       const src = JSON.parse(decodeURIComponent(escape(atob(m[1]))));
       if (!src || typeof src !== 'object' || Array.isArray(src)) return { ok: false, error: 'SAVE DATA IS INVALID' };
       const next = JSON.parse(this.DEFAULTS);
-      for (const k of Object.keys(next)) if (src[k] !== undefined && typeof src[k] === typeof next[k]) next[k] = src[k];       // nur bekannte Felder mit passendem Typ
+      for (const k of Object.keys(next)) if (src[k] !== undefined && typeof src[k] === typeof next[k]) next[k] = src[k];       // bekannte Felder mit passendem Typ
+      for (const k of Object.keys(src)) {                                // Felder, die erst im Lauf entstehen und nicht in DEFAULTS stehen (z. B. devUnlockAll), gingen frueher verloren
+        if (k in next || this.KEEP.includes(k) || k === 'dev' || k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
+        if (src[k] !== null && ['string', 'number', 'boolean', 'object'].includes(typeof src[k])) next[k] = src[k];
+      }
+      // Achievements gehen nie verloren: Fortschritt dieses Geraets und des Codes werden zusammengefuehrt (erreichte Achievements vereinigt, Zaehler = Hoechstwert),
+      // auch wenn man einen aelteren Code ueber einen neueren Stand importiert
+      if (src.dev !== true && this.data.ach) next.ach = this.mergeAch(next.ach, this.data.ach);
       for (const k of this.KEEP) if (this.data[k] !== undefined) next[k] = this.data[k];
       next.dev = src.dev === true || this.data.dev === true;           // die Dev-Save-Datei schaltet den Dev-Modus fuer diesen Slot frei (bleibt dort auch nach einem normalen Import)
       this.data = next;
       this.migrate();
+      if (typeof Ach !== 'undefined') Ach.scan(true);                  // abgeleitete Achievements sofort neu pruefen, Belohnungs-Cosmetics nachtragen
       this.write();
       return { ok: true };
     } catch (e) { return { ok: false, error: 'CODE COULD NOT BE READ' }; }

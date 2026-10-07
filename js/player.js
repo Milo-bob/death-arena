@@ -210,6 +210,9 @@ class Player {
       Cos.auraTick(Juice.particles, Cos.cur('aura'), this.x, this.y, dt);
       Cos.gearTick(Juice.particles, Cos.cur('gear'), this.x, this.y, this.dir, dt, moving);
       if (G.infinite) Cos.endlessTick(Juice.particles, Cos.cur('endless'), this, dt, moving);
+      this.cosMoving = moving;
+      Cos2.floorTick(dt, this, moving);                                      // Spuren am Boden (FLOOR)
+      Cos2.petTick(dt, this, moving);                                        // Begleiter (PET)
     }
     if (this.has('blades') && !(this.bladesObj && this.bladesObj.alive)) { this.bladesObj = new OrbitBlades(this); G.attacks.push(this.bladesObj); }
     this.sinceHit += dt;
@@ -231,6 +234,7 @@ class Player {
         this.invincibleT = Math.max(this.invincibleT, CFG.items.phoenix.protect);
         Juice.hitStop(0.1); Juice.zoomPulse(1.05, 0.4);
         G.trigger('REVIVAL CORE!', STYLE.pal.yellow, { flash: 0.5, radius: 140, rings: 3, life: CFG.items.phoenix.protect, hold: true });
+        Cos2.reviveStart();                                                  // Cosmetic REVIVE (z. B. Totem of Undying)
       } else G.die();
     }
   }
@@ -874,7 +878,9 @@ class Player {
     Cos.drawAura(ctx, Cos.cur('aura'), this.x, this.y, t);
     if (G.infinite) Cos.drawEndless(ctx, Cos.cur('endless'), this.x, this.y, t, { homeX: 0, homeY: 0, mins: G.time / 60 });
     Cos.drawGear(ctx, gear, this.x, this.y, this.dir, t, 'back');
-    Cos.drawShip(ctx, Cos.player(), this.x, this.y, this.dir, CFG.player.size + (this.boosted ? 30 : 0), { hue, brightness, alpha: this.blinkT > 0 ? 0.18 : 1 }, Cos.cur('skin'), t);
+    Cos2.state.moving = !!this.cosMoving; Cos2.state.dash = this.dashLeft > 0; Cos2.state.hp = clamp(this.hp / this.maxHp, 0, 1);       // Zustand fuer Skins mit Verhalten (Cosmetics)
+    const vm = Cos2.victoryMod(Cos2.vic);                                    // Cosmetic Siegerpose "Victory Spin": huepft und dreht sich kurz
+    Cos.drawShip(ctx, Cos.player(), this.x, this.y + vm.hop, this.dir + vm.spin, CFG.player.size + (this.boosted ? 30 : 0), { hue, brightness, alpha: this.blinkT > 0 ? 0.18 : 1 }, Cos.cur('skin'), t);
     Cos.drawGear(ctx, gear, this.x, this.y, this.dir, t, 'front');
   }
 }

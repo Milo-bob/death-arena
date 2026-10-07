@@ -262,6 +262,7 @@ class Enemy {
       if (this.hitCd > 0) return;
       this.hitCd = this.mk === 2 ? E.gate2 : E.gate; n *= (E.dmgTable && E.dmgTable[src]) || 1; stun = false;
     }
+    Cos2.hit(this.x, this.y);                               // Cosmetic HITS: bei jedem Treffer, egal womit
     if (this.hitsLeft <= n) { this.die(); return; }
     this.hitsLeft -= n;
     if (stun) this.stun = CFG.enemy.stun;
