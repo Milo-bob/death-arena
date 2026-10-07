@@ -1,6 +1,6 @@
 // Cosmetics, Teil 2 (Objekt Cos2): die "speziellen" Cosmetics, die mehr als nur Farben aendern. Daten in CFG.cosmetics (config.js [4c]).
 // Regel: jedes Cosmetic gilt fuer die GANZE Kategorie, nie nur fuer eine einzelne Waffe oder Faehigkeit.
-//   Skin-Effekte (fx)     : drawShip -> dissolve, lens, mech, slime, twin, wire, cracks, hbeat (reagieren aufs Laufen, Dashen und Leben)
+//   Skin-Effekte (fx)     : drawShip -> dissolve, cloud, lens, mech, slime, twin, wire, cracks, hbeat (reagieren aufs Laufen, Dashen und Leben)
 //   Glow 'echo'           : jeder Angriff jeder Waffe laesst eingefrorene Abbilder zurueck (Cos.drawAttack -> echoSnap)
 //   SHOTS (proj)          : Form fuer alle Projektile (Schuss, Schrot, Prallschuss, Scheibe, Rakete, Granate, Flasche)
 //   HITS (hit)            : bei jedem Treffer auf Gegner und Bosse (Comic-Woerter)
@@ -318,7 +318,7 @@ const Cos2 = {
   // Skin-Effekte am Schiff. Gibt true zurueck, wenn der Skin ein Effekt dieser Datei ist (Cos.drawShip ruft das zuerst auf).
   // Zustand (laeuft, Dash, Leben) kommt aus Cos2.state.
   // ---------------------------------------------------------------------------------------------
-  SHIP_FX: ['dissolve', 'lens', 'mech', 'slime', 'twin', 'wire', 'cracks', 'hbeat'],
+  SHIP_FX: ['dissolve', 'cloud', 'lens', 'mech', 'slime', 'twin', 'wire', 'cracks', 'hbeat'],
   wireSprite(base) {                                           // Umriss + blasse Fuellung; nur drawImage und Compositing (kein getImageData, das scheitert bei file://)
     const key = base + '@wire';
     if (IMG[key]) return key;
@@ -336,6 +336,47 @@ const Cos2 = {
       return key;
     } catch (e) { return base; }
   },
+  // Pixel Dissolve / Pixel Cloud: das Sprite wird in ein Raster aus Zellen zerlegt (drawImage mit Quellrechteck, kein getImageData noetig, geht auch bei file://).
+  // k (0..1) = Aufloesungsgrad, steigt beim Laufen/Dash schnell und faellt im Stand langsamer, dann fliegen die Zellen zurueck an ihren Platz.
+  //   dissolve: hinten (entgegen der Laufrichtung) loesen sich die Zellen auf und treiben nach hinten weg, vorne bleibt das Schiff dicht und erkennbar
+  //   cloud   : beim Laufen wird das ganze Schiff zu einer kreisenden Teilchenwolke
+  disK: 0, disT: -1,
+  drawDissolve(ctx, name, x, y, dir, size, opts, fx, t, a) {
+    const st = this.state, dt = this.disT < 0 || t < this.disT ? 0 : Math.min(0.1, t - this.disT);
+    this.disT = t;
+    const goal = st.moving || st.dash ? 1 : 0;
+    this.disK += (goal - this.disK) * Math.min(1, dt * (goal > this.disK ? 5 : 2.2));
+    const k = this.disK, im = IMG[name];
+    if (k < 0.015 || !im || !im.ok) { drawSprite(ctx, name, x, y, dir, size, opts); return; }
+    const s = size / 100, c = Math.max(1, Math.round(Math.max(im.w, im.h) / 16)), gw = Math.ceil(im.w / c), gh = Math.ceil(im.h / c);
+    const cw = c / im.res * s, halfW = im.w / im.res * s / 2, k2 = s / 2.5;
+    const sx = STAGE_W / 2 + x, sy = STAGE_H / 2 - y, ga = (dir - 90) * DEG, ca = Math.cos(ga), sa = Math.sin(ga), cloud = fx === 'cloud';
+    ctx.save(); ctx.imageSmoothingEnabled = false;
+    for (let j = 0; j < gh; j++) for (let i = 0; i < gw; i++) {
+      const id = j * gw + i, r1 = chash(id + 1), r2 = chash(id * 1.7 + 9), r3 = chash(id * 2.3 + 4);
+      const lx = ((i * c + c / 2) - im.rcx) / im.res * s, ly = ((j * c + c / 2) - im.rcy) / im.res * s;   // Mitte der Zelle im Schiffs-Koordinatensystem (+x = vorn)
+      const back = (1 - clamp(lx / halfW, -1, 1)) / 2;                                                       // 0 = vorn, 1 = ganz hinten
+      const th = cloud ? r1 * 0.3 : 0.2 + (1 - back) * 0.85 + r1 * 0.1;                                          // wie spaet sich die Zelle aufloest
+      let d = clamp((k - th) * 3, 0, 1); d = d * d * (3 - 2 * d);
+      let ox = lx, oy = ly, al = a, sc = 1, spin = 0;
+      if (d > 0) {
+        if (cloud) {
+          const ang = r3 * 6.283 + t * (0.8 + r2), rad = d * (5 + r2 * 18) * k2;
+          ox = lx * (1 - d * 0.4) + Math.cos(ang) * rad - d * 5 * k2; oy = ly * (1 - d * 0.4) + Math.sin(ang) * rad; al = a * (1 - 0.25 * d);
+        } else {
+          const m = d * (6 + r2 * 22) * k2 * (0.8 + 0.2 * Math.sin(t * 4 + r3 * 6.283));
+          ox = lx - m; oy = ly + (r3 - 0.5) * 2 * d * 6 * k2 + Math.sin(t * 5 + r2 * 6.283) * d * 1.5; al = a * (1 - 0.55 * d);
+        }
+        sc = 1 - d * 0.15; spin = d * (r3 - 0.5) * 3;
+      }
+      const cs = cw * sc;
+      ctx.globalAlpha = al;
+      ctx.save(); ctx.translate(sx + ox * ca - oy * sa, sy + ox * sa + oy * ca); ctx.rotate(ga + spin);
+      ctx.drawImage(im.img, i * c, j * c, Math.min(c, im.w - i * c), Math.min(c, im.h - j * c), -cs / 2, -cs / 2, cs * 1.1, cs * 1.1);
+      ctx.restore();
+    }
+    ctx.restore();
+  },
   drawShip(ctx, name, x, y, dir, size, opts, it, t) {
     const fx = it && it.fx;
     if (!fx || this.SHIP_FX.indexOf(fx) < 0) return false;
@@ -343,14 +384,8 @@ const Cos2 = {
     const ga = (dir - 90) * DEG, ca = Math.cos(ga), sa = Math.sin(ga);
     const T = (x2, y2) => [sx + x2 * ca - y2 * sa, sy + x2 * sa + y2 * ca];                    // lokale Koordinaten, +x = nach vorn
     ctx.save();
-    if (fx === 'dissolve') {                                   // Pixel loesen sich vom Schiff und wehen nach hinten weg
-      drawSprite(ctx, name, x, y, dir, size, Object.assign({}, opts, { alpha: a * (st.moving ? 0.8 : 0.95) }));
-      const n = st.moving ? 14 : 4, cols = [P.cyan, P.ice, P.white, P.cyanMid];
-      for (let i = 0; i < n; i++) {
-        const k = cmod(t * 1.7 + i / n, 1), sd = i * 12.9898, ox = Math.sin(sd) * R * 0.7, oy = Math.cos(sd * 1.3) * R * 0.7;
-        ctx.globalAlpha = (1 - k) * a; ctx.fillStyle = cols[i % 4];
-        ctx.fillRect(Math.round(sx + ox - fwdX(dir) * k * R * 2.4), Math.round(sy + oy + fwdY(dir) * k * R * 2.4 - k * 5), 2, 2);
-      }
+    if (fx === 'dissolve' || fx === 'cloud') {                 // das Schiff besteht aus Pixel-Teilchen: beim Laufen loesen sie sich nach hinten auf, im Stand sammeln sie sich wieder
+      this.drawDissolve(ctx, name, x, y, dir, size, opts, fx, t, a);
     } else if (fx === 'lens') {                                // Einstein-Ring, Sterne werden spiralfoermig hineingezogen
       ctx.fillStyle = it.color;
       [R * 1.25, R * 1.75, R * 2.3].forEach((r, i) => { ctx.globalAlpha = (0.2 + 0.1 * Math.sin(t * 3 + i)) * a; pxRing(ctx, sx, sy, r, 1, 14, t * 0.1 * (i % 2 ? -1 : 1)); });

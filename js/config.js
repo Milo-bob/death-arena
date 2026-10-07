@@ -316,6 +316,7 @@ const CFG = {
         { id: 'inferno2', name: 'MOLTEN CORE', cost: 390, color: STYLE.pal.orange, filter: 'hue-rotate(125deg) brightness(1.1) saturate(1.5)', fx: 'ember' },
         // Neu: Skins mit Verhalten (wirken bei allen Helden). dissolve/slime/mech reagieren aufs Laufen und Dashen, cracks/hbeat aufs Leben
         { id: 'dissolve', name: 'PIXEL DISSOLVE', cost: 360, color: STYLE.pal.cyan,  filter: '', fx: 'dissolve' },
+        { id: 'cloud',    name: 'PIXEL CLOUD',    cost: 380, color: STYLE.pal.cyan,  filter: '', fx: 'cloud' },
         { id: 'lens',    name: 'GRAVITY LENS', cost: 420, color: STYLE.pal.violet, filter: 'hue-rotate(-20deg) brightness(0.8)', fx: 'lens' },
         { id: 'mech',    name: 'MECH SHELL',  cost: 440, color: STYLE.pal.grey,   filter: 'grayscale(0.7) brightness(1.1)', fx: 'mech' },
         { id: 'slime',   name: 'SLIME',       cost: 300, color: STYLE.pal.green,  filter: 'hue-rotate(225deg) saturate(1.3)', fx: 'slime' },

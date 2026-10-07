@@ -908,8 +908,11 @@ function drawCosmeticPreview(ctx, cat, it, x, y, w, h) {
   let px = 0, py = 0, dir = 90 + Math.sin(t * 0.8) * 25, moving = false;
   const path = (tt) => [Math.cos(tt * 1.6) * 40, Math.sin(tt * 1.6) * 20];
   if (cat === 'trail' || cat === 'gear' || cat === 'endless' || cat === 'skin') {
-    [px, py] = path(t); const [nx, ny] = path(t + 0.05);
-    dir = Math.atan2(nx - px, ny - py) / DEG; moving = true;
+    // Skin-Vorschau: das Schiff laeuft 3.8 s und steht dann 1.7 s still (zeigt z. B. wie sich Pixel Dissolve wieder zusammensetzt)
+    let pt = t;
+    if (cat === 'skin') { pv.pathT = (pv.pathT || 0) + ((t % 5.5) < 3.8 ? dt : 0); pt = pv.pathT; moving = (t % 5.5) < 3.8; } else moving = true;
+    [px, py] = path(pt); const [nx, ny] = path(pt + 0.05);
+    dir = Math.atan2(nx - px, ny - py) / DEG;
   } else if (cat === 'kill') px = -30;
   else if (cat === 'blade' || cat === 'proj') { px = -w / 4 - 10; dir = 90; }              // Schiff links, die Angriffe fliegen nach rechts
   const fx = { x: px, y: py, dir };
@@ -933,10 +936,10 @@ function drawCosmeticPreview(ctx, cat, it, x, y, w, h) {
   }
   const bossL = { x: -38, y: 0, radius: 24 }, bossR = { x: 42, y: 0, radius: 19 };
   if (cat === 'boss') { Cos.bossTick(pv.list, bossL, dt, boss); Cos.bossTick(pv.list, bossR, dt, boss); }
-  if (cat === 'kill') {                                                                // Bodenmarken (Stempel, Grabstein, Tinte) bleiben liegen: die letzten 4 Kills zeigen
+  if (cat === 'kill') {                                                                // Bodenmarken (Stempel, Grabstein, Tinte) bleiben liegen (genau dort, wo der Dummy-Gegner stirbt, der letzte Kill ersetzt den vorigen)
     if (pv.markId !== kill.id) { pv.markId = kill.id; Cos2.decals = []; }
     const k = Math.floor(t / 1.6);
-    if (k !== pv.lastKill && t % 1.6 > 0.9) { pv.lastKill = k; if (Cos2.decals.length >= 4) Cos2.decals.shift(); Cos.emitKill(pv.list, rand(5, 55), rand(-20, 20), P.orange, 6, kill); }
+    if (k !== pv.lastKill && t % 1.6 > 0.9) { pv.lastKill = k; Cos2.decals = []; Cos.emitKill(pv.list, 30, 0, P.orange, 6, kill); }
   }
   if (cat === 'kill' || cat === 'trail') Cos2.stepDecals(dt);
   pv.list = Cos.stepParticles(pv.list, dt);
