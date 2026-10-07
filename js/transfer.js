@@ -68,6 +68,7 @@ const SaveTransfer = {
       else say(res.error, P.red);
     };
     ta.oninput = () => { this.confirm = false; bImp.textContent = 'IMPORT'; };
+    ta.addEventListener('paste', () => say('CODE PASTED. NOTE: THE FIRST TWO LETTERS OF THE CODE (DA) MUST BE UPPERCASE, OTHERWISE IT IS NOT ACCEPTED.', P.yellow));      // Hinweis nur beim Einfuegen, nicht beim Laden einer Datei
     bClose.onclick = () => this.close();
 
     [bCopy, bDown, F1.wrap, bImp, bClose].forEach((b) => row.appendChild(b));
