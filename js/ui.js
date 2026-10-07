@@ -917,6 +917,10 @@ function drawCosmeticPreview(ctx, cat, it, x, y, w, h) {
 
   // Partikel erzeugen
   if (trail.shape === 'echo') { pv.ghostT -= dt; if (moving && pv.ghostT <= 0) { pv.ghostT = 0.05; pv.ghosts.push({ x: px, y: py, dir, t: 0, life: 0.5 }); } }
+  else if (cat === 'trail' && Cos2.FLOOR_SHAPES[trail.shape]) {                      // Boden-Marken (Fussspuren, Pfoten, Blumen, Ripple) statt Partikel
+    if (pv.markId !== trail.id) { pv.markId = trail.id; Cos2.decals = []; Cos2.lastPos = null; Cos2.floorDist = 0; }
+    Cos2.floorTick(dt, fx, true, trail);
+  }
   else if (cat === 'trail') Cos.trailTick(pv.list, trail, fx, dt, moving, t);
   Cos.auraTick(pv.list, aura, px, py, dt);
   Cos.gearTick(pv.list, gear, px, py, dir, dt, moving);
@@ -929,7 +933,12 @@ function drawCosmeticPreview(ctx, cat, it, x, y, w, h) {
   }
   const bossL = { x: -38, y: 0, radius: 24 }, bossR = { x: 42, y: 0, radius: 19 };
   if (cat === 'boss') { Cos.bossTick(pv.list, bossL, dt, boss); Cos.bossTick(pv.list, bossR, dt, boss); }
-  if (cat === 'kill') { const k = Math.floor(t / 1.6); if (k !== pv.lastKill && t % 1.6 > 0.9) { pv.lastKill = k; Cos.emitKill(pv.list, 30, 0, P.orange, 6, kill); } }
+  if (cat === 'kill') {                                                                // Bodenmarken (Stempel, Grabstein, Tinte) bleiben liegen: die letzten 4 Kills zeigen
+    if (pv.markId !== kill.id) { pv.markId = kill.id; Cos2.decals = []; }
+    const k = Math.floor(t / 1.6);
+    if (k !== pv.lastKill && t % 1.6 > 0.9) { pv.lastKill = k; if (Cos2.decals.length >= 4) Cos2.decals.shift(); Cos.emitKill(pv.list, rand(5, 55), rand(-20, 20), P.orange, 6, kill); }
+  }
+  if (cat === 'kill' || cat === 'trail') Cos2.stepDecals(dt);
   pv.list = Cos.stepParticles(pv.list, dt);
   for (const g of pv.ghosts) g.t += dt;
   pv.ghosts = pv.ghosts.filter((g) => g.t < g.life);
@@ -939,6 +948,7 @@ function drawCosmeticPreview(ctx, cat, it, x, y, w, h) {
     const cam = { x: t * 26, y: Math.sin(t * 0.5) * 30 };
     Cos.drawEndlessGround(ctx, endless, cam, w / 2 + 2, h / 2 + 2, t);
   }
+  if (cat === 'kill' || (cat === 'trail' && Cos2.FLOOR_SHAPES[trail.shape])) Cos2.drawDecals(ctx);          // Bodenmarken liegen unter dem Schiff
   const drawShipStack = () => {                                                       // Schiff mit Aura und Gear (im Spiel liegen die Waffen dahinter)
     if (!showShip) return;
     for (const g of pv.ghosts) drawSprite(ctx, ship, g.x, g.y, g.dir, 250, { alpha: 0.4 * (1 - g.t / g.life) });

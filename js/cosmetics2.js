@@ -3,9 +3,9 @@
 //   Skin-Effekte (fx)     : drawShip -> dissolve, lens, mech, slime, twin, wire, cracks, hbeat (reagieren aufs Laufen, Dashen und Leben)
 //   Glow 'echo'           : jeder Angriff jeder Waffe laesst eingefrorene Abbilder zurueck (Cos.drawAttack -> echoSnap)
 //   SHOTS (proj)          : Form fuer alle Projektile (Schuss, Schrot, Prallschuss, Scheibe, Rakete, Granate, Flasche)
-//   HITS (hit)            : bei jedem Treffer auf Gegner und Bosse (Comic-Woerter oder Stempel am Boden)
-//   KILLS (neue shapes)   : Grabstein, Muenzregen, Tintenklecks, Feuerwerk, Glitch-Loeschen
-//   FLOOR / WEATHER       : Spuren beim Laufen / Wetter ueber der Arena
+//   HITS (hit)            : bei jedem Treffer auf Gegner und Bosse (Comic-Woerter)
+//   KILLS (neue shapes)   : Stempel (Krallen, Totenkopf, Stern), Grabstein, Muenzregen, Tintenklecks, Feuerwerk, Glitch-Loeschen
+//   TRAIL (Boden-Shapes)  : Fussspuren, Pfotenabdruecke, Blumen, Ripple (floorTick) / WEATHER: Wetter ueber der Arena
 //   PET                   : Begleiter, der folgt, sich nach Bossen freut und sich beim Tod versteckt
 //   HUD / DIGITS / SOUND / MENU BG : HUD-Themes, Schadenszahlen, Sound-Pakete, animierter Menue-Hintergrund
 //   DEATH / INTRO / WIN / REVIVE   : Todes-Animation, Boss-Titelkarte, Siegerpose, Wiederbelebungs-Animation (Totem of Undying)
@@ -22,8 +22,10 @@ const CBM = {
   arrow: ['........#..', '.........#.', '###########', '.........#.', '........#..'],
   note: ['....####', '....#.##', '....#..#', '....#...', '....#...', '..###...', '.####...', '.####...', '..##....'],
   fish: ['...###....', '.#######.#', '#e#######.', '.#######.#', '...###....'],
-  totem: ['....ooooo....', '...o#####o...', '..o#######o..', '..o#e###e#o..', '..o###g###o..', '..o#######o..', '...o#ddd#o...', 'oooo#####oooo',
-          'o##oo###oo##o', 'o#d.o#g#o.d#o', 'ooo.o###o.ooo', '....o###o....', '....o#d#o....', '....o###o....', '....o#d#o....', '...oo###oo...', '..o###o###o..', '..ooooo.ooooo'],
+  // Totem of Undying wie in Minecraft (16x16): goldene Figur mit ausgestreckten Armen und gruenen Smaragden als Augen/Mund
+  // a = dunkles Gold (Rand), b = Gold, c = Braun (Umriss), d = Hellgelb (Glanz), e = Cremegelb, f = helles Gold, g = Smaragd hell, h = Smaragd dunkel, i = Orange-Gold (Schatten)
+  totem: ['................', '.....aaaaaa.....', '....abbbbbba....', '....cbddeebc....', '....cffebffc....', '....cdgffdgc....', '....cghdeghc....', '....cifebfic....',
+          '.aaaacibbicaaaa.', '.abfcbfiificifc.', '..ccaedebbfacc..', '....abffffic....', '....caaaaaac....', '.....cfiiic.....', '.....cfiifc.....', '......cccc......'],
 };
 // Zeichnet ein Pixelbild mittig bei (cx, cy), k = Pixel pro Zelle, pal = Farben je Zeichen
 function cbmDraw(ctx, rows, cx, cy, k, pal) {
@@ -38,11 +40,38 @@ function cbmDraw(ctx, rows, cx, cy, k, pal) {
 const cmod = (a, b) => ((a % b) + b) % b;
 const chash = (n) => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };       // Zufall aus einer Zahl, immer gleich (kein Zustand noetig)
 
+const TOTEM_PAL = { a: '#a05b23', b: '#eadb84', c: '#85400f', d: '#fdfbee', e: '#f8eea5', f: '#d1a75d', g: '#41e67f', h: '#00bb46', i: '#c58742' };       // Farben des Minecraft-Totems
 const DEATH_DUR = 1.05;           // Dauer der Todes-Animation (Sekunden), danach kommt der Todesbildschirm
 const INTRO_DUR = 2.3, VICTORY_DUR = { fanfare: 1.7, flag: 2.4, dance: 1.5 }, REVIVE_DUR = 2.0;
 
+const INK_HALF = 56;           // halbe Kantenlaenge des vorgerenderten Farbklecks-Bildes
+// Farbklecks: Liste aus Kreisen [x, y, r] relativ zur Mitte: Kern, Spritzarme mit abgerissenen Tropfen, verstreute Spritzer
+function inkBlobs() {
+  const out = [], add = (x, y, r) => out.push([x, y, r]);
+  add(0, 0, rand(12, 15));
+  for (let i = 0; i < 7; i++) { const a = rand(0, 6.283), d = rand(6, 15); add(Math.cos(a) * d, Math.sin(a) * d, rand(5, 9)); }                // unregelmaessiger, breiter Kern
+  const arms = randInt(5, 7);
+  for (let i = 0; i < arms; i++) {                                                                                                         // kurze, dicke Spritzer mit abgerissenem Tropfen
+    const a = i / arms * 6.283 + rand(-0.45, 0.45), len = rand(8, 20);
+    for (let st = 1; st <= 3; st++) { const f = st / 3, d = 12 + f * len; add(Math.cos(a) * d, Math.sin(a) * d, Math.max(2.5, (1 - f * 0.6) * rand(5, 7))); }
+    const dd = 14 + len + rand(5, 10); add(Math.cos(a) * dd, Math.sin(a) * dd, rand(2.2, 3.6));
+  }
+  for (let i = 0; i < 9; i++) { const a = rand(0, 6.283), d = rand(26, 48); add(Math.cos(a) * d, Math.sin(a) * d, rand(1, 2.4)); }              // kleine Spritzer
+  return out;
+}
+// Rendert den Klecks einmal in ein eigenes Bild (viele Klekse bleiben lange liegen). Ohne Canvas (Tests) null, dann wird live gezeichnet.
+function inkImage(blobs, color) {
+  try {
+    const cv = document.createElement('canvas'); cv.width = cv.height = INK_HALF * 2;
+    const g = cv.getContext('2d'); g.fillStyle = color;
+    for (const b of blobs) { if (b[2] < 2.6) pxFill(g, INK_HALF + b[0], INK_HALF + b[1], b[2] < 1.6 ? 1 : 2); else pxDisc(g, INK_HALF + b[0], INK_HALF + b[1], b[2]); }       // winzige Spritzer als Quadrate (Kreise waeren Kreuze)
+    g.fillStyle = 'rgba(255,255,255,0.32)'; pxDisc(g, INK_HALF - 3, INK_HALF - 3, 3); pxFill(g, INK_HALF + 4, INK_HALF - 5, 1);        // Glanzpunkte
+    return cv;
+  } catch (e) { return null; }
+}
+
 const Cos2 = {
-  PREVIEW_CATS: ['hit', 'floor', 'weather', 'pet', 'hud', 'numbers', 'sound', 'menubg', 'death', 'intro', 'victory', 'revive'],       // Kategorien mit eigener Vorschau (previewCat)
+  PREVIEW_CATS: ['hit', 'weather', 'pet', 'hud', 'numbers', 'sound', 'menubg', 'death', 'intro', 'victory', 'revive'],       // Kategorien mit eigener Vorschau (previewCat)
   decals: [], echoes: [], echoT: new WeakMap(), echoBusy: false,
   state: { moving: false, dash: false, hp: 1 },            // Zustand des Spielers fuer Skin-Effekte (Player.draw setzt ihn, die Vorschau auch)
   twinHist: [], mechK: 0,
@@ -70,6 +99,10 @@ const Cos2 = {
     if (Juice.level === 0) return;
     d.t = 0;
     this.decals.push(d);
+    if (d.kind === 'ink') {                                                                  // Tinte bleibt lange liegen, deshalb eigene Obergrenze
+      let n = 0; for (const q of this.decals) if (q.kind === 'ink') n++;
+      if (n > 60) { const i = this.decals.findIndex((q) => q.kind === 'ink'); if (i >= 0) this.decals.splice(i, 1); }
+    }
     if (this.decals.length > 170) this.decals.shift();
   },
   stepDecals(dt) {
@@ -83,21 +116,33 @@ const Cos2 = {
     ctx.save();
     for (const d of this.decals) {
       const k = d.t / d.life, sx = Math.round(STAGE_W / 2 + d.x), sy = Math.round(STAGE_H / 2 - d.y);
-      ctx.globalAlpha = (k < 0.7 ? 1 : 1 - (k - 0.7) / 0.3) * (d.a || 0.85);
+      const al = (k < 0.7 ? 1 : 1 - (k - 0.7) / 0.3) * (d.a || 0.85);
+      ctx.globalAlpha = al;
       ctx.fillStyle = d.color;
       switch (d.kind) {
-        case 'grave': { const sink = k > 0.72 ? (k - 0.72) / 0.28 * 14 : 0, rise = Math.min(1, d.t / 0.25); cbmDraw(ctx, CBM.tomb, sx, sy + sink + (1 - rise) * 8, 2, { '#': P.grey, o: P.greyDark }); break; }
-        case 'ink': for (const b of d.blobs) pxDisc(ctx, sx + b[0], sy + b[1], b[2] * (k < 0.05 ? k / 0.05 : 1)); break;
+        case 'grave': {                                                                       // steigt aus dem Boden, bleibt stehen, versinkt am Ende
+          const sink = k > 0.75 ? (k - 0.75) / 0.25 * 18 : 0, rise = Math.min(1, d.t / 0.25), top = Math.round(sy - 14 + sink + (1 - rise) * 12), a0 = al;
+          ctx.fillStyle = '#000000'; ctx.globalAlpha = a0 * 0.35; ctx.fillRect(sx - 12, sy + 12, 25, 3); ctx.globalAlpha = a0;
+          cbmDraw(ctx, CBM.tomb, sx, top + 15, 3, { '#': P.grey, o: P.greyMid });
+          ctx.fillStyle = P.ice; ctx.fillRect(sx - 12, top + 1, 3, 3);                       // Lichtkante links oben
+          break;
+        }
+        case 'ink': {                                                                          // Farbklecks: spritzt in 0.16 s auseinander, bleibt lange und verblasst am Ende
+          const g = Math.min(1, d.t / 0.16), sc = 0.45 + 0.55 * (1 - (1 - g) * (1 - g));
+          if (d.img) { ctx.imageSmoothingEnabled = false; ctx.drawImage(d.img, Math.round(sx - INK_HALF * sc), Math.round(sy - INK_HALF * sc), Math.round(INK_HALF * 2 * sc), Math.round(INK_HALF * 2 * sc)); }
+          else for (const b of d.blobs) { if (b[2] < 2.6) pxFill(ctx, sx + b[0] * sc, sy + b[1] * sc, b[2] < 1.6 ? 1 : 2); else pxDisc(ctx, sx + b[0] * sc, sy + b[1] * sc, b[2] * sc); }
+          break;
+        }
         case 'claws': for (let i = -1; i <= 1; i++) { const ca = Math.cos(d.rot), sa = Math.sin(d.rot), ox = -sa * i * 4, oy = ca * i * 4; pxLine(ctx, sx + ox - ca * 7, sy + oy - sa * 7, sx + ox + ca * 7, sy + oy + sa * 7, 1); } break;
-        case 'skull': cbmDraw(ctx, CBM.skull, sx, sy, 2, { '#': d.color }); break;
-        case 'starstamp': cbmDraw(ctx, CBM.star, sx, sy, 2, { '#': d.color }); break;
+        case 'skull': cbmDraw(ctx, CBM.skull, sx, sy, d.t < 0.08 ? 3 : 2, { '#': d.color }); break;                 // Stempel: schlaegt kurz gross ein
+        case 'starstamp': cbmDraw(ctx, CBM.star, sx, sy, d.t < 0.08 ? 3 : 2, { '#': d.color }); break;
         case 'boots': {
-          ctx.save(); ctx.translate(sx, sy); ctx.rotate((d.rot - 90) * DEG);
+          ctx.save(); ctx.translate(sx, sy); ctx.rotate(d.rot * DEG);                                   // rot = Richtung zum Spieler (0 = oben)
           ctx.fillRect(-2, -5, 4, 6); ctx.fillRect(-1, 2, 3, 3);                                   // Sohle vorn und Ferse
           ctx.restore(); break;
         }
         case 'paws': {
-          ctx.save(); ctx.translate(sx, sy); ctx.rotate((d.rot - 90) * DEG);
+          ctx.save(); ctx.translate(sx, sy); ctx.rotate(d.rot * DEG);
           ctx.fillRect(-2, 0, 5, 3); ctx.fillRect(-4, -3, 2, 2); ctx.fillRect(-1, -5, 2, 2); ctx.fillRect(2, -3, 2, 2);
           ctx.restore(); break;
         }
@@ -172,7 +217,7 @@ const Cos2 = {
   },
 
   // ---------------------------------------------------------------------------------------------
-  // HITS: bei jedem Treffer (Gegner und Bosse, jede Waffe). list = Partikelliste (Vorschau: eigene)
+  // HITS: bei jedem Treffer (Gegner und Bosse, jede Waffe): Comic-Woerter. list = Partikelliste (Vorschau: eigene)
   // ---------------------------------------------------------------------------------------------
   hit(x, y, list, itOv) {
     const it = itOv || Cos.cur('hit');
@@ -186,8 +231,6 @@ const Cos2 = {
       Cos.push(list || Juice.particles, { x: jx, y: jy + 6, vx: rand(-0.4, 0.4), vy: 0.55, life: 0.55, color: [P.yellow, P.orange, P.white, P.pink][randInt(0, 3)], size: randInt(11, 14), shape: 'text', text: w + '!', rot: rand(-0.25, 0.25) });
       return;
     }
-    const kind = it.shape === 'claws' ? 'claws' : it.shape === 'skulls' ? 'skull' : 'starstamp';
-    this.addDecal({ kind, x: jx, y: jy, rot: rand(-1, 1), color: it.shape === 'claws' ? P.red : it.shape === 'skulls' ? P.ice : P.yellow, life: 4.5, a: 0.8 });
   },
   // Bosse haben keinen einzelnen Treffer-Aufruf (der Schaden wird an vielen Stellen abgezogen): sinkt hp seit dem letzten Bild, gilt das als Treffer
   bossWatch(b) {
@@ -201,9 +244,15 @@ const Cos2 = {
   // ---------------------------------------------------------------------------------------------
   emitKill(list, x, y, it, sc) {
     const c = (i) => it.colors[i % it.colors.length], P = STYLE.pal;
+    if (it.shape === 'claws' || it.shape === 'skulls' || it.shape === 'starstamp') {      // Stempel bleiben am Todesort liegen
+      const kind = it.shape === 'claws' ? 'claws' : it.shape === 'skulls' ? 'skull' : 'starstamp';
+      this.addDecal({ kind, x, y, rot: rand(0, Math.PI), color: c(randInt(0, it.colors.length - 1)), life: 7, a: 0.85 });
+      for (let i = 0; i < 4 * sc; i++) { const a = rand(0, 360), v = rand(1.2, 2.8); Cos.push(list, { x, y, vx: fwdX(a) * v, vy: fwdY(a) * v, life: 0.3, color: c(i), size: 2 }); }
+      return true;
+    }
     if (it.shape === 'grave') {
-      this.addDecal({ kind: 'grave', x, y, color: P.grey, life: 3, a: 0.95 });
-      for (let i = 0; i < 4 * sc; i++) Cos.push(list, { x, y, vx: rand(-1.4, 1.4), vy: rand(0.2, 1), life: 0.5, color: c(i), size: 3, shape: 'smoke' });
+      this.addDecal({ kind: 'grave', x, y, color: P.grey, life: 7, a: 0.95 });
+      for (let i = 0; i < 5 * sc; i++) Cos.push(list, { x: x + rand(-8, 8), y: y - 8, vx: rand(-1.2, 1.2), vy: rand(0.2, 0.9), life: 0.55, color: c(i), size: 3, shape: 'smoke' });       // Staub beim Aufsteigen
       return true;
     }
     if (it.shape === 'coins') {
@@ -211,10 +260,8 @@ const Cos2 = {
       return true;
     }
     if (it.shape === 'ink') {
-      const blobs = [[0, 0, 7 + randInt(0, 3)]];
-      for (let i = 0; i < 6; i++) { const a = rand(0, Math.PI * 2), d = rand(5, 13); blobs.push([Math.cos(a) * d, Math.sin(a) * d, randInt(2, 5)]); }
-      this.addDecal({ kind: 'ink', x, y, color: c(randInt(0, it.colors.length - 1)), blobs, life: 12, a: 0.8 });
-      for (let i = 0; i < 6 * sc; i++) { const a = rand(0, 360), v = rand(1.5, 3.5); Cos.push(list, { x, y, vx: fwdX(a) * v, vy: fwdY(a) * v, life: 0.35, color: c(i), size: 3 }); }
+      const blobs = inkBlobs(), col = c(randInt(0, it.colors.length - 1));                  // ein echter Farbklecks am Boden statt Partikeln, bleibt ca. 40 s
+      this.addDecal({ kind: 'ink', x, y, color: col, blobs, img: inkImage(blobs, col), life: 40, a: 0.92 });
       return true;
     }
     if (it.shape === 'fireworks') {
@@ -367,11 +414,12 @@ const Cos2 = {
   },
 
   // ---------------------------------------------------------------------------------------------
-  // FLOOR: Spuren am Boden. Wird pro Bild aufgerufen, solange der Spieler laeuft.
+  // TRAIL-Items mit Boden-Marken (Fussspuren, Pfoten, Blumen, Ripple). Wird pro Bild aufgerufen, solange der Spieler laeuft.
   // ---------------------------------------------------------------------------------------------
+  FLOOR_SHAPES: { boots: 1, paws: 1, flowers: 1, ripple: 1 },
   floorTick(dt, p, moving, itOv) {
-    const it = itOv || Cos.cur('floor');
-    if (!it || !it.shape || Juice.level === 0) { this.lastPos = null; return; }
+    const it = itOv || Cos.cur('trail');                                                    // Boden-Marken sind Items der Kategorie TRAIL (boots, paws, flowers, ripple)
+    if (!it || !this.FLOOR_SHAPES[it.shape] || Juice.level === 0) { this.lastPos = null; return; }
     const lp = this.lastPos;
     this.lastPos = { x: p.x, y: p.y };
     if (!lp || !moving) return;
@@ -381,9 +429,10 @@ const Cos2 = {
     const step = { boots: 11, paws: 12, flowers: 19, ripple: 10 }[it.shape] || 12, P = STYLE.pal;
     while (this.floorDist >= step) {
       this.floorDist -= step; this.floorFoot ^= 1;
-      const side = (this.floorFoot ? 1 : -1) * 3, bx = p.x + fwdX(p.dir + 90) * side - fwdX(p.dir) * 3, by = p.y + fwdY(p.dir + 90) * side - fwdY(p.dir) * 3;
-      if (it.shape === 'boots') this.addDecal({ kind: 'boots', x: bx, y: by, rot: p.dir, color: P.grey, life: 5, a: 0.55 });
-      else if (it.shape === 'paws') this.addDecal({ kind: 'paws', x: bx, y: by, rot: p.dir, color: P.ice, life: 5, a: 0.55 });
+      const side = (this.floorFoot ? 1 : -1) * 2.5, bx = p.x + fwdX(p.dir + 90) * side - fwdX(p.dir) * 6, by = p.y + fwdY(p.dir + 90) * side - fwdY(p.dir) * 6;
+      const toPlayer = Math.atan2(p.x - bx, p.y - by) / DEG;                                  // Oberseite des Abdrucks zeigt beim Entstehen zum Spieler (0 = oben), danach bleibt er so liegen
+      if (it.shape === 'boots') this.addDecal({ kind: 'boots', x: bx, y: by, rot: toPlayer, color: P.grey, life: 5, a: 0.55 });
+      else if (it.shape === 'paws') this.addDecal({ kind: 'paws', x: bx, y: by, rot: toPlayer, color: P.ice, life: 5, a: 0.55 });
       else if (it.shape === 'flowers') this.addDecal({ kind: 'flower', x: p.x + rand(-4, 4), y: p.y + rand(-4, 4), color: [P.pink, P.white, P.yellow, P.ice][randInt(0, 3)], life: 8, a: 0.95 });
       else this.addDecal({ kind: 'ripple', x: p.x, y: p.y, color: it.color, life: 0.9, a: 0.9 });
     }
@@ -408,11 +457,17 @@ const Cos2 = {
         const x = x0 + cmod(i * 83.1 + Math.sin(t * 0.7 + i) * 14 + t * 6 - cx * 0.5, w), y = y0 + cmod(i * 37.7 + t * (16 + (i % 5) * 5) - cy * 0.5, h);
         ctx.globalAlpha = 0.5 + (i % 4) * 0.12; const s = i % 4 === 0 ? 3 : 2; ctx.fillRect(Math.round(x), Math.round(y), s, s);
       }
-    } else if (it.shape === 'fireflies') {
-      for (let i = 0; i < 24 * n; i++) {
-        const x = x0 + w * (0.5 + 0.47 * Math.sin(t * 0.13 * (1 + i % 3) + i * 1.7)) - cx * 0.2, y = y0 + h * (0.5 + 0.45 * Math.cos(t * 0.11 * (1 + i % 4) + i * 2.3)) - cy * 0.2, b = Math.pow(Math.max(0, Math.sin(t * 1.6 + i * 1.3)), 2);
-        ctx.fillStyle = it.color; ctx.globalAlpha = 0.9 * b; ctx.fillRect(Math.round(x), Math.round(y), 2, 2);
-        ctx.globalAlpha = 0.18 * b; pxGlow(ctx, x, y, 7);
+    } else if (it.shape === 'fireflies') {                                           // Gluehwuermchen: wandern langsam, leuchten weich auf und ab, mit hellem Kern und Schein
+      for (let i = 0; i < 30 * n; i++) {
+        const sp = 0.25 + (i % 5) * 0.07, rx = 50 + (i * 37) % 70, ry = 35 + (i * 53) % 55;
+        const hx = x0 + cmod(i * 211.7 - cx * 0.25, w), hy = y0 + cmod(i * 139.3 - cy * 0.25, h);                    // Heimatpunkt, wandert mit der Kamera mit
+        const x = hx + Math.sin(t * sp + i * 1.7) * rx + Math.sin(t * sp * 2.3 + i) * 12, y = hy + Math.cos(t * sp * 0.8 + i * 2.3) * ry + Math.cos(t * sp * 1.9 + i * 3) * 9;
+        const b = Math.pow(0.5 + 0.5 * Math.sin(t * (0.9 + (i % 4) * 0.25) + i * 1.3), 1.5);
+        if (b < 0.05) continue;
+        ctx.fillStyle = it.color; ctx.globalAlpha = 0.16 * b; pxGlow(ctx, x, y, 14);
+        ctx.globalAlpha = 0.3 * b; pxGlow(ctx, x, y, 7);
+        ctx.globalAlpha = 0.95 * b; ctx.fillRect(Math.round(x) - 1, Math.round(y) - 1, 3, 3);
+        ctx.fillStyle = P.white; ctx.globalAlpha = b; ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
       }
     } else if (it.shape === 'ash') {
       for (let i = 0; i < 44 * n; i++) {
@@ -842,15 +897,15 @@ const Cos2 = {
     const P = STYLE.pal, t = r.t;
     // Partikel (gruen und gold) strömen aus dem Totem; in der Vorschau erzeugt die Zeichnung selbst nach, das Spiel erzeugt sie hier ebenso
     if (t < 1.4) r.emit = (r.emit || 0) + 1;
-    if (t < 1.4 && r.emit % 2 === 0) for (let i = 0; i < 3; i++) { const a = rand(0, Math.PI * 2), v = rand(30, 120); r.list.push({ x: 0, y: -4, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 40, t: 0, life: rand(0.6, 1.1), color: ['#34e36b', '#ffd91f', '#9cff7a', '#f3c623'][randInt(0, 3)], s: randInt(2, 4) }); }
+    if (t < 1.4 && r.emit % 2 === 0) for (let i = 0; i < 3; i++) { const a = rand(0, Math.PI * 2), v = rand(30, 120); r.list.push({ x: 0, y: -4, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 40, t: 0, life: rand(0.6, 1.1), color: ['#41e67f', '#00bb46', '#f8eea5', '#eadb84'][randInt(0, 3)], s: randInt(2, 4) }); }
     const pop = t < 0.25 ? 0.2 + 1.05 * (t / 0.25) : t < 1.5 ? 1.25 : 1.25 * (1 - (t - 1.5) / 0.5), up = t > 1.5 ? (t - 1.5) / 0.5 * -60 : 0;
     const shake = t > 0.25 && t < 1.5 ? [Math.sin(t * 70) * 2, Math.cos(t * 83) * 2] : [0, 0];
     ctx.save(); ctx.translate(cx, cy); ctx.scale(sc, sc);
-    ctx.fillStyle = '#34e36b'; ctx.globalAlpha = 0.16 * Math.max(0, Math.min(1, pop)); pxGlow(ctx, 0, 0, 90);
+    ctx.fillStyle = '#41e67f'; ctx.globalAlpha = 0.16 * Math.max(0, Math.min(1, pop)); pxGlow(ctx, 0, 0, 90);
     ctx.globalAlpha = 1;
     for (const q of r.list) { ctx.globalAlpha = 1 - q.t / q.life; ctx.fillStyle = q.color; ctx.fillRect(Math.round(q.x), Math.round(q.y), q.s, q.s); }
     ctx.globalAlpha = Math.max(0, Math.min(1, pop));
-    if (pop > 0.01) { ctx.translate(shake[0], shake[1] + up); ctx.scale(pop, pop); cbmDraw(ctx, CBM.totem, 0, 0, 5, { '#': '#f3c623', o: '#2a1a05', d: '#b8860b', e: '#2a1a05', g: '#34e36b' }); }
+    if (pop > 0.01) { ctx.translate(shake[0], shake[1] + up); ctx.scale(pop, pop); cbmDraw(ctx, CBM.totem, 0, 0, 6, TOTEM_PAL); }
     ctx.restore();
   },
 };

@@ -257,8 +257,8 @@ const CFG = {
     cats: [
       { id: 'skin',  label: 'SKIN',  desc: 'Recolor your ship. Some skins also change how it looks and moves.' },
       { id: 'blade', label: 'GLOW',  desc: 'Color of ALL your weapons: blades, shots, lances, rockets, beams. Some add trails, stars or lightning.' },
-      { id: 'trail', label: 'TRAIL', desc: 'Leave a trail behind while you run: sparks, bubbles, stars, smoke.' },
-      { id: 'kill',  label: 'KILLS', desc: 'What happens when an enemy dies: colors, rings, shards, blasts.' },
+      { id: 'trail', label: 'TRAIL', desc: 'What you leave behind while you run: sparks, bubbles, smoke, or marks on the ground (footprints, paw prints, flowers, ripples).' },
+      { id: 'kill',  label: 'KILLS', desc: 'What happens when an enemy dies: colors, rings, shards, blasts, or a mark left on the ground (stamps, gravestone, ink).' },
       { id: 'aura',  label: 'AURA',  desc: 'An effect that surrounds your ship all the time.' },
       { id: 'gear',  label: 'GEAR',  desc: 'Parts attached to your ship: wings, horns, a crown, a jetpack.' },
       { id: 'enemy', label: 'FOES',  desc: 'How normal enemies look. Shield enemies and elites keep their colors, but get the effects.' },
@@ -266,8 +266,7 @@ const CFG = {
       { id: 'endless', label: 'ENDLESS', desc: 'Only shown in Infinite Mode: floor effects and markers for the wall-less map. Some need an Endless survival time.' },
       // Neu: gelten immer fuer die ganze Kategorie (alle Waffen, alle Kills, alle Treffer ...), nie nur fuer eine einzelne Waffe oder Faehigkeit
       { id: 'proj',  label: 'SHOTS',  desc: 'The look of ALL your projectiles: shots, pellets, rockets, discs, grenades. Uses your Glow color.' },
-      { id: 'hit',   label: 'HITS',   desc: 'What every hit leaves behind, from any weapon: comic words or stamps on the floor.' },
-      { id: 'floor', label: 'FLOOR',  desc: 'What your steps leave on the ground: prints, flowers, ripples. Fades away on its own.' },
+      { id: 'hit',   label: 'HITS',   desc: 'What every hit shows, from any weapon: comic words.' },
       { id: 'weather', label: 'WEATHER', desc: 'Pure decoration over the whole arena: rain, snow, fireflies, ash. Does not change the game.' },
       { id: 'pet',   label: 'PET',    desc: 'A little companion that follows you, cheers after bosses and hides when you die. Cannot be hurt, does nothing.' },
       { id: 'hud',   label: 'HUD',    desc: 'New frames and colors for the in-game HUD: hotbar, orb, bars.' },
@@ -305,7 +304,7 @@ const CFG = {
         { id: 'midnight', name: 'MIDNIGHT',   cost: 150, color: STYLE.pal.violet, filter: 'hue-rotate(-20deg) brightness(0.6) saturate(1.4)' },
         { id: 'lime',    name: 'ACID LIME',   cost: 140, color: STYLE.pal.green,  filter: 'hue-rotate(190deg) brightness(1.3) saturate(1.6)' },
         { id: 'copper',  name: 'COPPER',      cost: 160, color: STYLE.pal.redMid, filter: 'hue-rotate(130deg) saturate(1.4) brightness(0.9)' },
-        { id: 'obsidian', name: 'OBSIDIAN',   cost: 240, color: STYLE.pal.greyMid, filter: 'grayscale(1) brightness(0.45) contrast(1.4)' },
+        { id: 'obsidian', name: 'OBSIDIAN',   cost: 240, color: STYLE.pal.greyMid, filter: 'grayscale(1) brightness(0.45) contrast(1.4)', special: true },
         { id: 'aurora',  name: 'AURORA',      cost: 330, color: STYLE.pal.teal,   filter: 'hue-rotate(-120deg) brightness(1.2)', fx: 'holo' },
         { id: 'scorch',  name: 'SCORCHED',    cost: 380, color: STYLE.pal.red,    filter: 'hue-rotate(100deg) brightness(0.7)', fx: 'ember' },
         // Neu: Meilenstein-/Achievement-Belohnungen (Cryo Station, Endless, Elite) und zwei mit Effekt
@@ -361,6 +360,11 @@ const CFG = {
         { id: 'stardust', name: 'STARDUST',   cost: 260, color: STYLE.pal.yellow, colors: [STYLE.pal.yellow, STYLE.pal.white, STYLE.pal.pink], style: 'pick', shape: 'plus' },
         { id: 'smoke',   name: 'SMOKE STACK', cost: 180, color: STYLE.pal.grey,   colors: [STYLE.pal.grey, STYLE.pal.greyMid, STYLE.pal.ice], style: 'pick', shape: 'smoke' },
         { id: 'echo',    name: 'AFTERIMAGE',  cost: 340, color: STYLE.pal.violet, colors: [STYLE.pal.violet], style: 'pick', shape: 'echo' },
+        // Marken am Boden (frueher Kategorie FLOOR, Umsetzung Cos2.floorTick): bleiben liegen und verblassen von allein, haben keine Partikel
+        { id: 'boots',   name: 'FOOTPRINTS',  cost: 160, color: STYLE.pal.grey,   shape: 'boots' },
+        { id: 'paws',    name: 'PAW PRINTS',  cost: 180, color: STYLE.pal.ice,    shape: 'paws' },
+        { id: 'flowers', name: 'FLOWER PATH', cost: 260, color: STYLE.pal.pink,   shape: 'flowers' },
+        { id: 'ripple',  name: 'NEON RIPPLE', cost: 300, color: STYLE.pal.cyan,   shape: 'ripple' },
       ],
       // shape bei Kill-Effekten: shockring (Ringe), shatter (fallende Scherben), supernova (Ring + Strahlen), bloom (Plus-Blueten)
       kill: [
@@ -380,6 +384,10 @@ const CFG = {
         { id: 'ink',     name: 'INK SPLAT',   cost: 360, color: STYLE.pal.pink,   colors: [STYLE.pal.pink, STYLE.pal.cyan, STYLE.pal.yellow, STYLE.pal.green], shape: 'ink' },
         { id: 'fireworks', name: 'FIREWORKS', cost: 380, color: STYLE.pal.red,    colors: [STYLE.pal.red, STYLE.pal.yellow, STYLE.pal.cyan, STYLE.pal.pink, STYLE.pal.green], shape: 'fireworks' },
         { id: 'glitchdel', name: 'GLITCH DELETE', cost: 400, color: STYLE.pal.cyan, colors: [STYLE.pal.cyan, STYLE.pal.pink, STYLE.pal.white, STYLE.pal.red], shape: 'glitchdel' },
+        // Stempel am Boden (frueher unter HITS): bleiben liegen, wo der Gegner gestorben ist
+        { id: 'claws',   name: 'CLAW MARKS',   cost: 260, color: STYLE.pal.red,    colors: [STYLE.pal.red, STYLE.pal.orange], shape: 'claws' },
+        { id: 'skulls',  name: 'SKULL STAMPS', cost: 300, color: STYLE.pal.ice,    colors: [STYLE.pal.ice, STYLE.pal.white, STYLE.pal.grey], shape: 'skulls' },
+        { id: 'stars',   name: 'STAR STAMPS',  cost: 280, color: STYLE.pal.yellow, colors: [STYLE.pal.yellow, STYLE.pal.orange, STYLE.pal.white], shape: 'starstamp' },
       ],
       // Auren: motes (Lichtpunkte), halo (Ring), arcs (Blitzbogen), pulse (Herzschlag-Ring), flames (Flammenkranz)
       aura: [
@@ -465,21 +473,10 @@ const CFG = {
         { id: 'fish',    name: 'FISH',        cost: 280, color: STYLE.pal.teal,   shape: 'fish' },
         { id: 'star',    name: 'SHURIKEN',    cost: 300, color: STYLE.pal.ice,    shape: 'shuriken' },
       ],
-      // Treffer: passiert bei JEDEM Treffer auf Gegner und Bosse, egal womit
+      // Treffer: passiert bei JEDEM Treffer auf Gegner und Bosse, egal womit (Stempel am Boden sind jetzt unter KILLS)
       hit: [
         { id: 'none',    name: 'NOTHING',     cost: 0,   color: STYLE.pal.greyMid, shape: null },
         { id: 'comic',   name: 'COMIC WORDS', cost: 240, color: STYLE.pal.yellow, shape: 'comic' },
-        { id: 'claws',   name: 'CLAW MARKS',  cost: 260, color: STYLE.pal.red,    shape: 'claws' },
-        { id: 'skulls',  name: 'SKULL STAMPS', cost: 300, color: STYLE.pal.ice,   shape: 'skulls' },
-        { id: 'stars',   name: 'STAR STAMPS', cost: 280, color: STYLE.pal.yellow, shape: 'starstamp' },
-      ],
-      // Boden: Spuren am Boden beim Laufen
-      floor: [
-        { id: 'none',    name: 'NOTHING',     cost: 0,   color: STYLE.pal.greyMid, shape: null },
-        { id: 'boots',   name: 'FOOTPRINTS',  cost: 160, color: STYLE.pal.grey,   shape: 'boots' },
-        { id: 'paws',    name: 'PAW PRINTS',  cost: 180, color: STYLE.pal.ice,    shape: 'paws' },
-        { id: 'flowers', name: 'FLOWER PATH', cost: 260, color: STYLE.pal.pink,   shape: 'flowers' },
-        { id: 'ripple',  name: 'NEON RIPPLE', cost: 300, color: STYLE.pal.cyan,   shape: 'ripple' },
       ],
       weather: [
         { id: 'none',    name: 'CLEAR',       cost: 0,   color: STYLE.pal.greyMid, shape: null },
@@ -1376,3 +1373,15 @@ const DEATH_SCREENS = [
 ];
 for (const s of DEATH_SCREENS) s[0] = Math.round(s[0] * CFG.finalBoss.at / 2000);       // auf die tatsächliche Lauflänge skalieren
 const DEATH_SECRET_AT = 666;                                                            // Geheimscreen (Teufelszahl, ein kleiner Joke): genau in Sekunde 666 sterben. Bleibt fest, auch wenn sich die Lauflänge ändert (muss unter CFG.finalBoss.at liegen)
+
+// Cosmetics sortieren (Menue-Reihenfolge): Standard-Item zuerst, dann einfache Umfaerbungen, unten die speziellen Items (mit Effekt, Form oder Verhalten).
+// Innerhalb der Gruppen nach Preis. Ein Item kann mit special: true von Hand zu den speziellen gezaehlt werden (z. B. Skin OBSIDIAN).
+(function sortCosmetics() {
+  const special = (it) => !!(it.special || it.fx || it.shape || it.anim || it.pack || it.theme || it.card || it.pose || it.bg || it.style === 'cycle' || it.style === 'glitch' || (it.style && it.style !== 'pick'));
+  for (const id of Object.keys(CFG.cosmetics.items)) {
+    const list = CFG.cosmetics.items[id], first = list[0];
+    const rest = list.slice(1).map((it, i) => ({ it, i, sp: special(it) ? 1 : 0 }));
+    rest.sort((a, b) => a.sp - b.sp || a.it.cost - b.it.cost || a.i - b.i);
+    CFG.cosmetics.items[id] = [first].concat(rest.map((r) => r.it));
+  }
+})();

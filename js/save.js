@@ -197,6 +197,18 @@ const Save = {
     const d = this.data;
     if (!d.mapBest) d.mapBest = {};
     if (!Object.keys(d.mapBest).length && d.best > 0) d.mapBest[CFG.maps[0].id] = d.best;
+    // Cosmetics umgezogen: Stempel von HITS nach KILLS, Boden-Spuren von FLOOR nach TRAIL (gekaufte und ausgeruestete Items mitnehmen)
+    const c = d.cosmetics;
+    if (c && c.owned) {
+      const MOVED = { 'hit:claws': 'kill:claws', 'hit:skulls': 'kill:skulls', 'hit:stars': 'kill:stars', 'floor:boots': 'trail:boots', 'floor:paws': 'trail:paws', 'floor:flowers': 'trail:flowers', 'floor:ripple': 'trail:ripple' };
+      for (const k of Object.keys(MOVED)) if (c.owned[k]) { c.owned[MOVED[k]] = true; delete c.owned[k]; }
+      const eq = c.equipped || (c.equipped = {});
+      for (const [oldCat, newCat] of [['hit', 'kill'], ['floor', 'trail']]) {
+        const id = eq[oldCat];
+        if (id && MOVED[oldCat + ':' + id] && (!eq[newCat] || eq[newCat] === CFG.cosmetics.items[newCat][0].id)) eq[newCat] = id;
+        if (oldCat === 'floor' || (id && MOVED[oldCat + ':' + id])) delete eq[oldCat];
+      }
+    }
   },
   write() {
     try { localStorage.setItem(this.keyFor(this.slot), JSON.stringify(this.data)); } catch (e) { /* ignorieren */ }
