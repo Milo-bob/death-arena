@@ -157,19 +157,35 @@ const SFX = {
   meteorHit:  { gap: 40, big: true, fn: (s) => { s.noise('lowpass', 2800, 90, 0.7, 0.45); s.tone('sine', 130, 28, 0.6, 0.6); s.noise('highpass', 1500, 800, 0.1, 0.12); } },
 };
 
+// Kurze gueltige Stille als WAV (8 kHz, 8 Bit, 0.1 s), damit das <audio>-Element auf dem iPad wirklich laeuft
+function silentWavUri() {
+  const n = 800, rate = 8000, b = new Uint8Array(44 + n), dv = new DataView(b.buffer), w = (o, s) => { for (let i = 0; i < s.length; i++) b[o + i] = s.charCodeAt(i); };
+  w(0, 'RIFF'); dv.setUint32(4, 36 + n, true); w(8, 'WAVE'); w(12, 'fmt '); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
+  dv.setUint32(24, rate, true); dv.setUint32(28, rate, true); dv.setUint16(32, 1, true); dv.setUint16(34, 8, true); w(36, 'data'); dv.setUint32(40, n, true);
+  b.fill(128, 44);
+  let s = ''; for (let i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
+  return 'data:audio/wav;base64,' + btoa(s);
+}
+
 // Bei Taste oder Mausklick den Ton freischalten (Browser-Regel)
 // iPad/iPhone (Safari): Ton wird nur durch eine Beruehrung/einen Klick freigeschaltet (Tastendruck reicht oft nicht), der Context kann
 // auch auf 'interrupted' stehen, und der Stummschalter sperrt WebAudio, solange kein <audio>-Element laeuft (Sitzung "playback").
+Sfx.locked = false;                // true = es gab schon Eingaben, aber der Browser haelt den Ton noch gesperrt (dann zeigt das Spiel einen Hinweis "tippen")
 Sfx.wake = function () {
   if (!this.init()) return;
   const c = this.ctx;
+  if (!this.watching) {                                                                            // Zustand mitverfolgen: running = frei, alles andere = gesperrt
+    this.watching = true;
+    try { c.addEventListener('statechange', () => { this.locked = c.state !== 'running'; }); } catch (e) { /* ignorieren */ }
+  }
+  setTimeout(() => { this.locked = c.state !== 'running'; }, 500);
   try { if (c.state !== 'running') { const p = c.resume(); if (p && p.catch) p.catch(() => {}); } } catch (e) { /* ignorieren */ }
   try { const s = c.createBufferSource(); s.buffer = c.createBuffer(1, 1, 22050); s.connect(c.destination); s.start(0); } catch (e) { /* ignorieren */ }    // stiller Ton = iOS-Freischaltung
   if (!this.keepAlive) {
     try {
       const a = document.createElement('audio');
       a.loop = true; a.setAttribute('playsinline', ''); a.volume = 0.01;
-      a.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAABErAAABAAgAZGF0YQAAAAA=';
+      a.src = silentWavUri();                                                    // vorher eine WAV ganz ohne Daten, die Safari moeglicherweise gar nicht abspielt
       const p = a.play(); if (p && p.catch) p.catch(() => { this.keepAlive = null; });
       this.keepAlive = a;
     } catch (e) { /* ignorieren */ }

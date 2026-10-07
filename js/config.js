@@ -112,9 +112,12 @@ const CFG = {
   // liegt ein Gegner im Kegel von aimAssistDeg Grad vor dem Spieler, zielt der Schuss darauf.
   shot: { baseSpeed: 10, baseSize: 2, baseCooldown: 0.35, maxSpeed: 12, maxSize: 11, minCooldown: 0.18, frames: 30,
           hitPad: 3, aimAssistDeg: 25, aimAssistRange: 320,
-          // Nachladen: erst ab Doppelschuss (Stufe 1). Nach `mag` Salven kommt eine kurze Nachladepause `time` (s), danach wieder lange freies Feuern.
-          // Mit dem dritten Schuss (Stufe 2) wird die Pause etwas laenger. Index = Schuss-Stufe (0 = Einzelschuss, kein Nachladen). Pause laeuft mit Angriffstempo schneller.
-          reload: [null, { mag: 10, time: 0.6 }, { mag: 10, time: 0.8 }], idleRefill: 1.2 },
+          // Nachladen (nur Blaster): erst ab Doppelschuss (Stufe 1). Nach `mag` Salven kommt eine kurze Pause `time` (s), danach wieder lange freies Feuern.
+          // Mit dem dritten Schuss (Stufe 2) wird die Pause etwas laenger. Index = Schuss-Stufe (0 = Einzelschuss, kein Nachladen). Pause laeuft mit dem Angriffstempo schneller.
+          // Durchschlag (nur Blaster, waffenspezifisches Upgrade): alle `every` Waffen-Upgrades (Boss-Siege, Weapon-Tuning) fliegt der Schuss durch ein Ziel mehr (bis `max`),
+          // dazu +1 bei maximaler Ausruestungsstufe des Blasters (Inventar leveln). Ziele = Gegner, Bosse, Spawner, Barrikaden.
+          pierce: { every: 2, max: 2, maxGearBonus: 1 },
+          reload: [null, { mag: 18, time: 0.6 }, { mag: 18, time: 0.8 }], idleRefill: 1.2 },
 
   // --- Fernkampf: Impuls ---
   // Welle fliegt vorwärts. width = halbe Breite, push = Rückstoß pro Bild, frames = Lebensdauer.
@@ -204,7 +207,7 @@ const CFG = {
       hammer:    { slot: 'melee',    icon: 'hammerIcon',  iconW: 20, impl: true, cost: 400, name: 'GRAVITY HAMMER',        desc: 'Slow ground slam: pushes enemies away, bosses take double.' },
       lance:     { slot: 'melee',    icon: 'lanceIcon',   iconW: 20, impl: true, cost: 250, name: 'PULSE LANCE',         desc: 'Long thrust that pierces whole rows.' },
       // Fernkampf
-      shot:      { slot: 'ranged',   icon: 'shot',        iconW: 18, impl: true, cost: 0,   name: 'BLASTER',        desc: 'Fast projectiles at range.' },
+      shot:      { slot: 'ranged',   icon: 'shot',        iconW: 18, impl: true, cost: 0,   name: 'BLASTER',        desc: 'Fast projectiles at range. Every 2nd boss upgrade lets shots pierce one more target (max 2), +1 at max gear level.' },
       impulse:   { slot: 'ranged',   icon: 'impulseIcon', iconW: 20, impl: true, cost: 150, name: 'SHOCK EMITTER',        desc: 'Wide wave: pushes enemies away and erases projectiles.' },
       shotgun:   { slot: 'ranged',   icon: 'shotgunIcon',   iconW: 20, impl: true, cost: 180, name: 'SCATTER CANNON', desc: 'Five pellets in a fan, strong only up close.' },
       boomerang: { slot: 'ranged',   icon: 'boomerangIcon', iconW: 20, impl: true, cost: 260, name: 'PLASMA DISC',     desc: 'Flies out and returns, hitting on both trips.' },
@@ -698,6 +701,7 @@ const CFG = {
       buffTime:   { tab: 'stats', name: 'BUFF DURATION',  max: 15, cost: 50, step: 0.1,  desc: (v) => '+' + Math.round(v * 100) + '% buff duration', info: 'Speed, rapid fire and guard buffs last longer.' },
       magnet:     { tab: 'stats', name: 'MAGNET',         max: 15, cost: 40, step: 0.15, desc: (v) => '+' + Math.round(v * 100) + '% pickup range', info: 'You collect healing and buff drops from further away.' },
       coreDrop: { tab: 'stats', name: 'CORE EMITTER',      max: 15, cost: 90, step: 6,    desc: (v) => 'a core drops every ' + (CFG.coreDrop.base - v) + ' s', info: 'Every few seconds you automatically collect a core during a run.' },
+      bounty:   { tab: 'stats', name: 'KILL BOUNTY',      max: 15, cost: 150, step: 0.01, desc: (v) => Math.round(v * 100) + '% chance of +1 core per kill', info: 'Every kill has a chance to drop an extra core (not from minions). Stacks with weapon perks.' },
       souls:    { tab: 'stats', name: 'CORE HARVESTER',    max: 15, cost: 45, step: 0.05, desc: (v) => '+' + Math.round(v * 100) + '% souls from runs', info: 'You get more souls after every run.' },
     },
   },

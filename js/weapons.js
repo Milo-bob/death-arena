@@ -30,7 +30,7 @@ const Loadout = {
   reset() {
     this.resetUps();
     this.sword = { speed: CFG.sword.baseSpeed, size: CFG.sword.baseSize, number: CFG.sword.baseNumber, knock: CFG.sword.knock };
-    this.shot = { speed: CFG.shot.baseSpeed, size: CFG.shot.baseSize, cooldown: CFG.shot.baseCooldown, lvl: 0 };
+    this.shot = { speed: CFG.shot.baseSpeed, size: CFG.shot.baseSize, cooldown: CFG.shot.baseCooldown, lvl: 0, ups: 0 };
     this.shield = { duration: CFG.shield.duration, cooldown: CFG.shield.cooldown };
     this.dash = { lvl: 1, cooldown: CFG.dash.baseCooldown };
     this.lance = { reach: CFG.lance.reach, cooldown: CFG.lance.cooldown, offsets: [0] };      // offsets = Stossrichtungen relativ zur Blickrichtung
@@ -64,6 +64,9 @@ const Loadout = {
     this.upgradeStats(time);
   },
 
+  // Anzahl Ziele, durch die ein Blaster-Schuss fliegt: Waffen-Upgrades dieses Laufs + Bonus fuer die hoechste Ausruestungsstufe
+  shotPierce() { const C = CFG.shot.pierce; return Math.min(C.max, Math.floor(this.shot.ups / C.every)) + (Save.gearLv('shot') >= Save.gearMax() ? C.maxGearBonus : 0); },
+
   // Perk "Weapon Tuning" (XP-Level-up): derselbe Stufenschritt wie nach einem Boss, aber ohne Meldung, Boss-Zähler und Auswahl. time = 0: keine zeitgebundenen Klingen-Sprünge.
   tune() { this.upgradeStats(0); },
 
@@ -81,6 +84,7 @@ const Loadout = {
     p.speed = Math.min(CFG.shot.maxSpeed, p.speed + 1);
     p.size = Math.min(CFG.shot.maxSize, p.size + 1);
     p.cooldown = Math.max(CFG.shot.minCooldown, p.cooldown - 0.0625);
+    p.ups++;                                                    // zaehlt die Waffen-Upgrades fuer den Durchschlag (shotPierce)
 
     const l = this.lance;
     l.reach = Math.min(CFG.lance.maxReach, l.reach + 3);
@@ -189,6 +193,7 @@ class Shot {
     this.framesLeft = o.frames || (bounce ? CFG.bounce.frames : CFG.shot.frames);
   }
   update(dt) {
+    if (this.touched) { this.alive = false; Juice.sparks(this.x, this.y, STYLE.pal.cyan, 2, 1.5); return; }       // Blaster: hat im Bild davor etwas getroffen, jetzt ist der Schuss weg
     const f = framesOf(dt);
     if (this.seek) {                                   // Evolution Seeker Rounds: zum naechsten Gegner in Reichweite lenken
       const S = CFG.evolutions.seeker;
@@ -210,6 +215,23 @@ class Shot {
     this.sizePct += this.growth * f;
     this.framesLeft -= f;
     if (this.framesLeft <= 0) this.alive = false;
+    if (this.stopOnHit && this.alive && this.touchesTarget()) this.touched = true;     // das Ziel bekommt seinen Treffer noch in diesem Bild (Gegner/Bosse/Kisten werden nach den Angriffen aktualisiert)
+  }
+  // Blaster-Schuesse bleiben am ersten Gegner, Boss, Spawner oder Hindernis stecken (nur der Blaster, alle anderen Fernkampfwaffen unveraendert)
+  touchesTarget() {
+    // Durchschlag (`pierce`, siehe Loadout.shotPierce): der Schuss darf durch so viele Ziele hindurch, erst das naechste danach stoppt ihn. Jedes Ziel zaehlt nur einmal.
+    if (!this.passed) this.passed = new Set();
+    let stop = false;
+    const check = (t, r) => {
+      if (this.passed.has(t) || !this.hitsCircle(t.x, t.y, r)) return;
+      this.passed.add(t);
+      if (this.passed.size > (this.pierce || 0)) stop = true;
+    };
+    for (const e of G.enemies) if (e.alive) check(e, e.radius);
+    for (const b of G.bossList()) check(b, b.radius);
+    for (const o of G.obstacles) if (o.alive) check(o, o.r);
+    for (const s of G.spawners) if (s.alive && !s.arriving) check(s, CFG.spawner.radius);
+    return stop;
   }
   hitsCircle(cx, cy, r) {
     const s = this.sizePct / 100;

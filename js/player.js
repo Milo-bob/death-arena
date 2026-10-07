@@ -12,7 +12,7 @@ class Player {
     this.invincibleT = CFG.player.startInvincible;
     this.weapon = 0;           // 0 Schwert, 1 Schuss (siehe WEAPON in config.js). Der Beam liegt separat auf E
     this.attackCd = 0;
-    this.shotMag = 0; this.reloadT = 0; this.reloadMax = 1; this.lastShotT = -9;      // Blaster: Salven im Magazin, Nachladepause (Restzeit/Gesamt), Zeit des letzten Schusses
+    this.shotMag = 0; this.reloadT = 0; this.reloadMax = 1; this.lastShotT = -9;      // Blaster (nur er): Salven im Magazin, Nachladepause (Restzeit/Gesamt), Zeit des letzten Schusses
     this.dashCd = 0;           // Abilities (Slots in CFG.loadout): Dash und Schildblase
     this.shieldLeft = 0;
     this.shieldCd = 0;
@@ -693,9 +693,9 @@ class Player {
       const spread = lvl === 0 ? [0] : lvl === 1 ? [10, -10] : [0, 20, -20];
       const aim = this.aimAssist();
       Sfx.play('shoot');
-      for (const off of spread) { const s = new Shot(this.x, this.y, aim + off); s.seek = this.evo('seeker'); G.attacks.push(s); }
+      for (const off of spread) { const s = new Shot(this.x, this.y, aim + off); s.seek = this.evo('seeker'); s.stopOnHit = true; s.pierce = Loadout.shotPierce(); G.attacks.push(s); }
       this.attackCd = Loadout.shot.cooldown * (1 - Save.bonus('shot')) / this.hasteFor('shot');
-      const R = CFG.shot.reload[lvl];                                                 // Nachladepause ab Doppelschuss, mit dem dritten Schuss etwas laenger
+      const R = CFG.shot.reload[lvl];                                                 // Nachladepause nur beim Blaster, ab Doppelschuss; mit dem dritten Schuss etwas laenger
       if (G.realTime - this.lastShotT > CFG.shot.idleRefill) this.shotMag = 0;       // laenger nicht geschossen: Magazin ist wieder voll
       this.lastShotT = G.realTime;
       if (R && ++this.shotMag >= R.mag) {

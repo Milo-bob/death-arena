@@ -65,7 +65,7 @@ const STAT_GROUPS = [
   { label: 'COMBAT', ids: ['power', 'attackSpeed'] },
   { label: 'SPEED', ids: ['speed', 'cooldown'] },
   { label: 'ULTIMATE', ids: ['ult', 'startUlt'] },
-  { label: 'LOOT', ids: ['souls', 'coreDrop', 'luck', 'magnet', 'buffTime'] },
+  { label: 'LOOT', ids: ['souls', 'coreDrop', 'bounty', 'luck', 'magnet', 'buffTime'] },
 ];
 const ABILITY_GROUPS = [{ id: 'weak', label: 'WEAK ABILITIES' }, { id: 'medium', label: 'MEDIUM ABILITIES' }, { id: 'strong', label: 'STRONG ABILITIES' }];
 const MILESTONE_GROUPS = [{ id: 'best', label: 'SURVIVAL TIME' }, { id: 'bosses', label: 'BOSSES' }, { id: 'kills', label: 'ENEMIES' }, { id: 'runs', label: 'RUNS' }, { id: 'endless', label: 'ENDLESS MODE' }, { id: 'tutorial', label: 'TUTORIAL' }, { id: 'heroes', label: 'HERO UNLOCKS' }, { id: 'cryo', label: 'CRYO STATION' }];
@@ -986,6 +986,10 @@ function loop(now) {
     G.errorT -= dt;
     ctx.setTransform(SCALE, 0, 0, SCALE, 0, 0);
     uiText(ctx, 'ERROR: ' + G.lastError + ' (console: F12)', 6, 14, { size: STYLE.type.small, color: STYLE.pal.red });
+  }
+  if (Sfx.locked && Math.floor(G.realTime * 1.6) % 2 === 0) {                    // Ton noch gesperrt (iPad/Safari): Hinweis, der Tipp auf den Bildschirm schaltet ihn frei
+    ctx.setTransform(SCALE, 0, 0, SCALE, 0, 0);
+    uiText(ctx, 'SOUND IS LOCKED - TAP THE SCREEN', STAGE_W / 2, 14, { size: STYLE.type.small, color: STYLE.pal.yellow, align: 'center' });
   }
   Input.endFrame();
   requestAnimationFrame(loop);

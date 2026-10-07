@@ -429,7 +429,11 @@ function drawUpgradesScreen(ctx) {
     const g = upgradeGroup(curRow), same = rows.filter((q) => q.kind !== 'back' && upgradeGroup(q).label === g.label);
     uiText(ctx, g.label + '  ' + (same.indexOf(curRow) + 1) + '/' + same.length, STAGE_W / 2, 98, { size: T.small, color: GROUP_COLORS[g.idx % GROUP_COLORS.length], align: 'center' });
   } else uiText(ctx, '< A / D >', STAGE_W / 2, 98, { size: T.small, color: P.grey, align: 'center' });
-  const w = 400, x = STAGE_W / 2 - w / 2, H = 32, GAP = 35, Y0 = 106, VIS = 6;
+  const w = 400, x = STAGE_W / 2 - w / 2, H = 32, GAP = 35, Y0 = 106;
+  // Erklaerungsbox unten: lange Texte (z. B. Waffen-Perks) werden umgebrochen, die Box waechst nach oben und die Liste zeigt dafuer weniger Zeilen.
+  // Die Hoehe richtet sich nach dem laengsten Text des Reiters, damit das Layout beim Durchblaettern ruhig bleibt.
+  let maxN = 2; for (const r of rows) if (r.kind !== 'back') { const [la, lb] = detailWrapped(ctx, r, w - 20); maxN = Math.max(maxN, la.length + lb.length); }
+  const boxH = maxN * DETAIL_LH + 4, VIS = 6 - Math.ceil(Math.max(0, maxN - 2) * DETAIL_LH / GAP);
   const off = clamp(G.upgradeSel - (VIS - 1), 0, Math.max(0, rows.length - VIS));
   rows.slice(off, off + VIS).forEach((r, k) => {
     const i = off + k, sel = G.upgradeSel === i, y = Y0 + k * GAP;
@@ -493,13 +497,29 @@ function drawUpgradesScreen(ctx) {
   if (rows.length > VIS) uiText(ctx, (off > 0 ? '^ ' : '') + (off + VIS < rows.length ? 'v' : ''), STAGE_W / 2 + 215, 98, { size: T.small, color: P.grey });
   const cur = rows[G.upgradeSel];
   if (cur && cur.kind !== 'back') {                                // Erklaerung zum gewaehlten Eintrag
-    const lines = upgradeDetail(cur);
-    uiPanel(ctx, x, 316, w, 28, { color: P.greyMid, fill: P.void, alpha: 0.9 });
-    uiText(ctx, lines[0], x + 10, 327, { size: T.small, color: P.ice });
-    uiText(ctx, lines[1], x + 10, 339, { size: T.small, color: P.grey });
+    const [la, lb] = detailWrapped(ctx, cur, w - 20), top = 344 - boxH;
+    uiPanel(ctx, x, top, w, boxH, { color: P.greyMid, fill: P.void, alpha: 0.9 });
+    la.forEach((l, i) => uiText(ctx, l, x + 10, top + 11 + i * DETAIL_LH, { size: T.small, color: P.ice }));
+    lb.forEach((l, i) => uiText(ctx, l, x + 10, top + 11 + (la.length + i) * DETAIL_LH, { size: T.small, color: P.grey }));
   }
   uiText(ctx, 'W/S = SELECT    A/D = TAB    SPACE = BUY    ESC = BACK', STAGE_W / 2, 352, { size: T.small, color: P.grey, align: 'center' });
 }
+
+// Text auf eine Breite umbrechen (gibt die Zeilen zurueck, zeichnet nichts)
+const DETAIL_LH = 12;
+function wrapLines(ctx, text, maxW, size) {
+  ctx.save(); ctx.font = uiFont(size);
+  const out = []; let line = '';
+  for (const w of String(text).split(' ')) {
+    const t = line ? line + ' ' + w : w;
+    if (ctx.measureText(t).width > maxW && line) { out.push(line); line = w; } else line = t;
+  }
+  if (line) out.push(line);
+  ctx.restore();
+  return out;
+}
+// Die zwei Erklaerungstexte eines Eintrags, jeweils umgebrochen: [Zeilen von Text 1, Zeilen von Text 2]
+function detailWrapped(ctx, row, maxW) { const l = upgradeDetail(row); return [wrapLines(ctx, l[0], maxW, STYLE.type.small), wrapLines(ctx, l[1], maxW, STYLE.type.small)]; }
 
 // Zwei Zeilen Erklaerung zu einem Eintrag im Upgrade-Menue: was ist es, welche Zahlen stecken dahinter
 function upgradeDetail(r) {

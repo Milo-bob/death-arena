@@ -190,8 +190,8 @@ const Perk = {
   add(k) { const c = this.cur(); return c && c[k] ? c[k] : 0; },
   // Pro Kill: Core-Chance und Abklingzeit-Abzug (nicht fuer Minions, Wiederbelebte, Splitter-Kleine, damit man damit nicht farmen kann)
   onKill(e) {
-    if (e.minion || e.raised || e.splitlet) return;
-    if (Math.random() < this.add('coreChance')) { G.lootCores += 1; Juice.sparks(e.x, e.y, STYLE.pal.yellow, 5); }
+    if (e.minion || e.raised || e.splitlet || Tutorial.active) return;
+    if (Math.random() < this.add('coreChance') + Save.bonus('bounty')) { G.lootCores += 1; Juice.sparks(e.x, e.y, STYLE.pal.yellow, 5); }
     const cd = this.add('cdOnKill');
     if (cd > 0) {
       const p = G.player;
