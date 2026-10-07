@@ -263,9 +263,9 @@ const Save = {
   // Code/Dateiinhalt prüfen und in den aktiven Slot übernehmen. Gibt { ok, error } zurück. Lautstärken, Effekte und Tastenbelegung dieses Geräts bleiben.
   importCode(text) {
     try {
-      const m = /DA1:([A-Za-z0-9+/=]+):([0-9a-z]+)/.exec(String(text).replace(/\s+/g, ''));
+      const m = /DA1:([A-Za-z0-9+/=]+):([0-9a-z]+)/i.exec(String(text).replace(/\s+/g, ''));
       if (!m) return { ok: false, error: 'NOT A DEATHARENA SAVE CODE' };
-      if (this.checksum(m[1]) !== m[2]) return { ok: false, error: 'CODE IS DAMAGED OR INCOMPLETE' };
+      if (this.checksum(m[1]) !== m[2].toLowerCase()) return { ok: false, error: 'CODE IS DAMAGED OR INCOMPLETE' };
       const src = JSON.parse(decodeURIComponent(escape(atob(m[1]))));
       if (!src || typeof src !== 'object' || Array.isArray(src)) return { ok: false, error: 'SAVE DATA IS INVALID' };
       const next = JSON.parse(this.DEFAULTS);
