@@ -958,7 +958,7 @@ const G = {
     Cos2.drawWeather(ctx, Cos.cur('weather'), this.realTime, 0, 0, STAGE_W, STAGE_H, this.cam.x, -this.cam.y);          // Cosmetic WEATHER
     if (this.bloodMoon) drawBloodMoonTint(ctx);
     MapFx.drawScreen(ctx);                  // Beleuchtung, Boss-Vignette, Blizzard (js/mapfx.js)
-    Cos2.hudBegin(); try { drawHud(ctx); } finally { Cos2.hudEnd(); }              // Cosmetic HUD-Theme
+    if (this.mode !== 'dead') { Cos2.hudBegin(); try { drawHud(ctx); } finally { Cos2.hudEnd(); } }              // Cosmetic HUD-Theme
     if (Cos2.intro) Cos2.introDraw(ctx, Cos2.intro, STAGE_W / 2, 96, 1);           // Cosmetic INTRO: Boss-Titelkarte
     if (Cos2.rev) Cos2.reviveDraw(ctx, Cos2.rev, STAGE_W / 2, STAGE_H / 2 - 10, 1);       // Cosmetic REVIVE: Totem of Undying
     if (Save.data.dev) uiText(ctx, 'DEV' + (this.god ? '  GOD' : '') + (this.cheated ? '  (DEV RUN)' : ''), 6, 10, { size: STYLE.type.small, color: STYLE.pal.yellow });

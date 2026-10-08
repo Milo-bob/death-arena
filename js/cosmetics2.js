@@ -41,6 +41,7 @@ const cmod = (a, b) => ((a % b) + b) % b;
 const chash = (n) => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };       // Zufall aus einer Zahl, immer gleich (kein Zustand noetig)
 
 const TOTEM_PAL = { a: '#a05b23', b: '#eadb84', c: '#85400f', d: '#fdfbee', e: '#f8eea5', f: '#d1a75d', g: '#41e67f', h: '#00bb46', i: '#c58742' };       // Farben des Minecraft-Totems
+const DEATH_SLOW = 0.45;         // Zeitlupe-Faktor der Todes-Animation (kleiner = laenger sichtbar)
 const DEATH_DUR = 1.05;           // Dauer der Todes-Animation (Sekunden), danach kommt der Todesbildschirm
 const INTRO_DUR = 2.3, VICTORY_DUR = { fanfare: 1.7, flag: 2.4, dance: 1.5 }, REVIVE_DUR = 2.0;
 
@@ -800,9 +801,9 @@ const Cos2 = {
     }
     return d;
   },
-  deathStep(d, dt) { d.t += dt; d.list = Cos.stepParticles(d.list, dt); },
+  deathStep(d, dt) { dt *= DEATH_SLOW; d.t += dt; d.list = Cos.stepParticles(d.list, dt); },       // Zeitlupe: die Animation dauert in echter Zeit 1/DEATH_SLOW so lang
   // Ohne Animations-Cosmetic (Standard oder Effekte aus): kurze neutrale Phase, in der das Schiff verblasst
-  deathPlain(p) { return { t: 0, type: 'none', x: p.x, y: p.y, dir: p.dir, list: [], sprite: Cos.player(), dur: 0.45 }; },
+  deathPlain(p) { return { t: 0, type: 'none', x: p.x, y: p.y, dir: p.dir, list: [], sprite: Cos.player(), dur: 0.8 }; },
   deathActive() { return !!this.dfx && this.dfx.t < (this.dfx.dur || DEATH_DUR); },
   deathFadeIn() { return this.dfx ? clamp((this.dfx.t - (this.dfx.dur || DEATH_DUR)) / 0.3, 0, 1) : 1; },
   deathDraw(ctx, d) {
