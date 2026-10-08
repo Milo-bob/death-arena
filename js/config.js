@@ -702,7 +702,7 @@ const CFG = {
       magnet:     { tab: 'stats', name: 'MAGNET',         max: 15, cost: 40, step: 0.15, desc: (v) => '+' + Math.round(v * 100) + '% pickup range', info: 'You collect healing and buff drops from further away.' },
       coreDrop: { tab: 'stats', name: 'CORE EMITTER',      max: 15, cost: 90, step: 3,    desc: (v) => 'a core drops every ' + (CFG.coreDrop.base - v) + ' s', info: 'Every few seconds you automatically collect a core during a run.' },
       bounty:   { tab: 'stats', name: 'KILL BOUNTY',      max: 15, cost: 150, step: 0.02, desc: (v) => Math.round(v * 100) + '% chance of +1 core per kill', info: 'Every kill has a chance to drop an extra core (not from minions). Stacks with weapon perks.' },
-      souls:    { tab: 'stats', name: 'CORE HARVESTER',    max: 15, cost: 45, step: 0.05, desc: (v) => '+' + Math.round(v * 100) + '% souls from runs', info: 'You get more souls after every run.' },
+      souls:    { tab: 'stats', name: 'CORE HARVESTER',    max: 15, cost: 45, step: 0.05, desc: (v) => '+' + Math.round(v * 100) + '% cores from runs', info: 'You get more cores after every run.' },
     },
   },
 
