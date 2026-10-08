@@ -12,6 +12,7 @@ const SaveTransfer = {
     const P = STYLE.pal, mk = (tag, css, text) => { const e = document.createElement(tag); e.style.cssText = css || ''; if (text) e.textContent = text; return e; };
     const font = 'font-family:"Pixelify Sans",monospace;';
     const root = mk('div', 'position:fixed;inset:0;background:rgba(5,6,15,.88);z-index:10;display:flex;align-items:center;justify-content:center;' + font);
+    root.setAttribute('data-nogame', '1');                                  // Touches auf den Dialog zaehlen nicht als Spielklick (input.js)
     const box = mk('div', 'width:min(560px,92vw);max-height:92vh;overflow:auto;box-sizing:border-box;padding:16px;background:' + P.void + ';border:2px solid ' + P.cyan + ';color:' + P.ice + ';');
     const btn = (label, color) => mk('button', 'flex:1 1 140px;padding:10px 8px;margin:3px;cursor:pointer;background:' + P.voidLight + ';color:' + color + ';border:2px solid ' + color + ';font:inherit;font-size:15px;', label);
     // Datei-Knopf: der echte <input type=file> liegt unsichtbar ueber dem Knopf, der Klick trifft ihn direkt (ein per Skript ausgeloester Klick wird in manchen

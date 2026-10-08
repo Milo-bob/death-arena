@@ -55,7 +55,7 @@ const Tutorial = {
     const p = G.player;
     p.afk = 0;
     if (p.hp < TUT_HP_FLOOR) p.hp = TUT_HP_FLOOR;              // Sicherheitsnetz: im Tutorial stirbt man nicht
-    if (this.phase === 'end') { if (Input.pressed('Space') || Input.pressed('Enter')) this.finish(); return; }
+    if (this.phase === 'end') { if (Input.pressed('Space') || Input.pressed('Enter') || Input.clicked) this.finish(); return; }
     if (this.phase === 'cleared') {
       this.t += dt;
       if (this.t > 1.5) { if (this.idx + 1 >= SCENARIOS.length) { this.phase = 'end'; this.clearField(); this.complete(); } else this.enterScenario(this.idx + 1); }
@@ -64,7 +64,7 @@ const Tutorial = {
     const s = SCENARIOS[this.idx];
     if (this.phase === 'brief') {                                          // Textbox: nichts passiert, bis der Spieler SPACE drueckt
       this.t += dt;
-      if (this.t > 0.35 && (Input.pressed('Space') || Input.pressed('Enter'))) {
+      if (this.t > 0.35 && (Input.pressed('Space') || Input.pressed('Enter') || Input.clicked)) {
         this.phase = 'task'; this.t = 0;
         Sfx.play('select');
         if (!this.begun) { this.begun = true; s.begin && s.begin(this.s); }
@@ -159,7 +159,7 @@ const SCENARIOS = [
     enter: (s) => { s.pts = [[-130, 60], [120, 70], [0, -100]]; s.i = 0; },
     update: (dt, s) => { const q = s.pts[s.i]; if (q && Math.hypot(G.player.x - q[0], G.player.y - q[1]) < 22) { s.i++; Sfx.play('select'); } },
     marker: (s) => s.pts[s.i] ? { x: s.pts[s.i][0], y: s.pts[s.i][1], r: 22 } : null,
-    lines: () => ['MOVE: ' + tkeys('up', 'left', 'down', 'right'), Save.data.mouseAim ? 'Walk into the glowing ring. You aim with the mouse.' : 'Walk into the glowing ring. You face the way you walk. A quick tap only turns you.'],
+    lines: () => ['MOVE: ' + tkeys('up', 'left', 'down', 'right'), Save.data.touch ? 'Walk into the glowing ring with the left stick. The right stick aims and attacks.' : Save.data.mouseAim ? 'Walk into the glowing ring. You aim with the mouse.' : 'Walk into the glowing ring. You face the way you walk. A quick tap only turns you.'],
     progress: (s) => tutCount(s.i, 3, 'RINGS'),
     done: (s) => s.i >= 3,
   },

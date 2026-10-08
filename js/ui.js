@@ -245,10 +245,11 @@ function drawPrompt(ctx, text, y) {
 // setzt bei Mausbewegung die Auswahl (select) und macht aus einem Klick einen Tastendruck: Leertaste, oder bei Reglern (lr) Pfeil links/rechts je nach Seite.
 // noConfirm = nur auswaehlen (Reiter). Rechtsklick = ESC, Mausrad = hoch/runter. Die Liste wird zu Beginn jedes Zeichnens geleert.
 const UIHit = {
-  list: [], hover: null,
+  list: [], hover: null, blocks: [],                                   // blocks = Scrollleisten: dort wird nichts darunter ausgewaehlt oder bestaetigt
   add(x, y, w, h, select, o = {}) { this.list.push({ x, y, w, h, select, lr: !!o.lr, noConfirm: !!o.noConfirm }); },
   under() {
     const m = Input.mouse;
+    if (this.blocks.some((b) => m.x >= b.x && m.x <= b.x + b.w && m.y >= b.y && m.y <= b.y + b.h)) return null;
     for (let i = this.list.length - 1; i >= 0; i--) {                 // zuletzt gezeichnet = oben
       const h = this.list[i];
       if (m.x >= h.x && m.x <= h.x + h.w && m.y >= h.y && m.y <= h.y + h.h) return h;
@@ -257,6 +258,8 @@ const UIHit = {
   },
   update() {
     if (G.bindWait) return;                                            // beim Belegen einer Taste zaehlt nur die Tastatur
+    if (UIScroll.id && !Input.mouseHeld) UIScroll.id = null;
+    if (UIScroll.id) return;                                          // beim Ziehen einer Scrollleiste wird nichts ausgewaehlt
     const h = this.under();
     if (Input.mouse.moved && h) {
       const key = h.x + ',' + h.y;
@@ -271,6 +274,46 @@ const UIHit = {
     }
     if (Input.rightClicked) Input.pressedNow.Escape = true;
     if (Input.wheel) Input.pressedNow[G.mode === 'pick' ? (Input.wheel > 0 ? 'ArrowRight' : 'ArrowLeft') : (Input.wheel > 0 ? 'ArrowDown' : 'ArrowUp')] = true;
+  },
+};
+
+// Scrollleiste (vertikal oder horizontal) fuer Menues mit mehr Eintraegen als Platz. Mit der Maus ziehen oder in die Leiste klicken
+// (springt dorthin). Aufruf beim Zeichnen: set(neuerOffset) wird nur aufgerufen, solange gezogen wird. total/vis/off zaehlen Eintraege.
+const UIScroll = {
+  id: null, grab: 0, st: {},
+  // Ausschnitt einer Liste: folgt der Auswahl, solange sie sich aendert (sel); sonst bestimmt die Scrollleiste. group = z. B. der Reiter (Wechsel setzt zurueck).
+  win(id, group, sel, vis, total) {
+    const S = this.st[id] || (this.st[id] = { off: 0, group: null, sel: null });
+    if (S.group !== group || S.sel !== sel) {
+      S.off = clamp(S.group === group ? S.off : 0, sel - (vis - 1), sel); S.group = group; S.sel = sel;
+    }
+    S.off = clamp(S.off, 0, Math.max(0, total - vis));
+    return S;
+  },
+  bar(ctx, id, x, y, w, h, vertical, total, vis, off, set) {
+    if (total <= vis) return;
+    const P = STYLE.pal, len = vertical ? h : w, thumb = Math.max(16, Math.round(len * vis / total)), span = len - thumb, max = total - vis, m = Input.mouse;
+    const at = (v) => v - (vertical ? y : x), pad = Input.touchSeen ? 12 : 4;           // Finger brauchen eine breitere Trefferflaeche
+    const inside = m.x >= x - pad && m.x <= x + w + pad && m.y >= y - pad && m.y <= y + h + pad;
+    UIHit.blocks.push({ x: x - pad, y: y - pad, w: w + 2 * pad, h: h + 2 * pad });
+    let pos = Math.round(off / max * span);
+    if (Input.clicked && inside) {
+      const p = at(vertical ? m.y : m.x);
+      this.id = id; this.grab = (p >= pos && p <= pos + thumb) ? p - pos : thumb / 2;       // Griff gepackt oder in die Leiste geklickt
+    }
+    if (!Input.mouseHeld && this.id === id) this.id = null;
+    if (this.id === id) {
+      const p = at(vertical ? m.y : m.x) - this.grab;
+      set(clamp(Math.round(clamp(p / span, 0, 1) * max), 0, max));
+      pos = Math.round(clamp(at(vertical ? m.y : m.x) - this.grab, 0, span));
+    }
+    const hot = this.id === id || inside;
+    ctx.save();
+    ctx.fillStyle = P.void; ctx.globalAlpha = 0.9; ctx.fillRect(x, y, w, h);
+    ctx.globalAlpha = 1; ctx.strokeStyle = P.greyMid; ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+    ctx.fillStyle = hot ? P.cyan : P.grey;
+    if (vertical) ctx.fillRect(x + 1, y + pos, w - 2, thumb); else ctx.fillRect(x + pos, y + 1, thumb, h - 2);
+    ctx.restore();
   },
 };
 
@@ -434,7 +477,9 @@ function drawUpgradesScreen(ctx) {
   // Die Hoehe richtet sich nach dem laengsten Text des Reiters, damit das Layout beim Durchblaettern ruhig bleibt.
   let maxN = 2; for (const r of rows) if (r.kind !== 'back') { const [la, lb] = detailWrapped(ctx, r, w - 20); maxN = Math.max(maxN, la.length + lb.length); }
   const boxH = maxN * DETAIL_LH + 4, VIS = 6 - Math.ceil(Math.max(0, maxN - 2) * DETAIL_LH / GAP);
-  const off = clamp(G.upgradeSel - (VIS - 1), 0, Math.max(0, rows.length - VIS));
+  const SW = UIScroll.win('upgrades', G.upgradeTab, G.upgradeSel, VIS, rows.length);
+  UIScroll.bar(ctx, 'upgrades', x + w + 6, Y0, 6, VIS * GAP - 3, true, rows.length, VIS, SW.off, (v) => { SW.off = v; });
+  const off = SW.off;
   rows.slice(off, off + VIS).forEach((r, k) => {
     const i = off + k, sel = G.upgradeSel === i, y = Y0 + k * GAP;
     if (r.kind === 'back') { drawMenuRow(ctx, y + 2, 'BACK', sel, { w: 190, hit: () => { G.upgradeSel = i; } }); return; }
@@ -849,7 +894,10 @@ function drawCosmeticsScreen(ctx) {
 
   // Kategorien
   // (es sind mehr Kategorien als Platz: ein Fenster von VISTAB Reitern folgt der Auswahl, Pfeile zeigen, dass es weitergeht)
-  const VISTAB = 9, tg = 3, tx0 = 24, tw = Math.floor((STAGE_W - 48 - (VISTAB - 1) * tg) / VISTAB), toff = clamp(G.cosTab - 4, 0, Math.max(0, C.cats.length - VISTAB));
+  const VISTAB = 9, tg = 3, tx0 = 24, tw = Math.floor((STAGE_W - 48 - (VISTAB - 1) * tg) / VISTAB), tmax = Math.max(0, C.cats.length - VISTAB);
+  if (G.cosTabSeen !== G.cosTab) { G.cosTabSeen = G.cosTab; G.cosTabOff = clamp(G.cosTabOff === undefined ? G.cosTab - 4 : G.cosTabOff, G.cosTab - VISTAB + 1, G.cosTab); }       // Auswahl bleibt sichtbar, sonst bestimmt die Scrollleiste
+  const toff = clamp(G.cosTabOff, 0, tmax);
+  UIScroll.bar(ctx, 'cosTabs', tx0, 73, STAGE_W - 48, 5, false, C.cats.length, VISTAB, toff, (v) => { G.cosTabOff = v; });
   C.cats.slice(toff, toff + VISTAB).forEach((c, k) => {
     const i = toff + k, x = tx0 + k * (tw + tg), sel = G.cosTab === i;
     UIHit.add(x, 50, tw, 20, () => { G.cosTab = i; G.cosSel = Math.max(0, Cos.items(c.id).findIndex((q) => q.id === Save.cosEquipped(c.id))); }, { noConfirm: true });
@@ -862,7 +910,12 @@ function drawCosmeticsScreen(ctx) {
 
   // Liste links
   const lx = 24, lw = 232, H = 28, GAP = 4, Y0 = 80, VIS = 7;
-  const off = clamp(G.cosSel - (VIS - 1), 0, Math.max(0, items.length - VIS));
+  const lmax = Math.max(0, items.length - VIS), lkey = G.cosTab + ':' + G.cosSel;
+  if (G.cosListSeen !== lkey) {                                                                       // Auswahl (oder Reiter) hat sich geaendert: Ausschnitt nachfuehren
+    G.cosListOff = clamp(G.cosListSeen && G.cosListSeen.split(':')[0] === '' + G.cosTab ? G.cosListOff : 0, G.cosSel - (VIS - 1), G.cosSel); G.cosListSeen = lkey;
+  }
+  const off = clamp(G.cosListOff, 0, lmax);
+  UIScroll.bar(ctx, 'cosList', lx + lw + 3, Y0, 5, VIS * (H + GAP) - GAP, true, items.length, VIS, off, (v) => { G.cosListOff = v; });
   items.slice(off, off + VIS).forEach((it, k) => {
     const i = off + k, sel = G.cosSel === i, y = Y0 + k * (H + GAP), owned = Save.cosOwned(cat.id, it.id), eq = Save.cosEquipped(cat.id) === it.id, afford = Save.data.souls >= it.cost;
     UIHit.add(lx, y, lw, H, () => { G.cosSel = i; });
@@ -1025,7 +1078,9 @@ function drawBindsScreen(ctx) {
   uiText(ctx, 'KEYBINDS', STAGE_W / 2, 44, { size: T.h1, color: P.yellow, align: 'center' });
   const rows = A.concat([{ id: '_reset' }, { id: '_back' }]);
   const w = 340, x = STAGE_W / 2 - w / 2, H = 24, GAP = 27, Y0 = 56, VIS = 9;
-  const off = clamp(G.bindSel - (VIS - 1), 0, Math.max(0, rows.length - VIS));
+  const SW = UIScroll.win('binds', 0, G.bindSel, VIS, rows.length);
+  UIScroll.bar(ctx, 'binds', x + w + 6, Y0, 6, VIS * GAP - 3, true, rows.length, VIS, SW.off, (v) => { SW.off = v; });
+  const off = SW.off;
   rows.slice(off, off + VIS).forEach((r, k) => {
     const i = off + k, sel = G.bindSel === i, y = Y0 + k * GAP;
     if (r.id === '_reset') { drawMenuRow(ctx, y, 'RESTORE DEFAULTS', sel, { w: 250, hit: () => { G.bindSel = i; } }); return; }
@@ -1133,6 +1188,7 @@ function drawSettingsScreen(ctx) {
     fx: 'EFFECTS  ' + ['OFF', 'REDUCED', 'FULL'][Juice.level],
     fullscreen: 'FULLSCREEN: ' + (document.fullscreenElement ? 'ON' : 'OFF'),
     mouseaim: 'MOUSE AIMING: ' + (Save.data.mouseAim ? 'ON' : 'OFF'),
+    touch: 'TOUCH CONTROLS: ' + (Save.data.touch ? 'ON' : 'OFF'),
     slot: 'SAVE SLOT  ' + [0, 1, 2].map((i) => i === Save.slot ? '[' + (i + 1) + ']' : ' ' + (i + 1) + ' ').join(' '),
     controls: 'CONTROLS',
     binds: 'KEYBINDS',
@@ -1150,13 +1206,13 @@ function drawSettingsScreen(ctx) {
   });
   uiText(ctx, 'A/D', tx0 - 8, 71, { size: T.small, color: tabSel ? P.cyan : P.greyMid, align: 'right' });
   list.slice(1).forEach((id, k) => {
-    const i = k + 1, y = id === 'back' ? 276 : 96 + k * 30;
+    const i = k + 1, y = 96 + k * 30;
     drawMenuRow(ctx, y, rows[id], G.settingsSel === i, { w: 300, h: 24, hit: () => { G.settingsSel = i; }, lr: id === 'music' || id === 'sfx' || id === 'slot' });
   });
   if (list.includes('slot')) {                                                    // die drei Spielstaende als Karten (Klick wechselt den Slot)
     const cw = 150, cg = 6, cx0 = STAGE_W / 2 - (3 * cw + 2 * cg) / 2;
     for (let i = 0; i < Save.SLOTS; i++) {
-      const x = cx0 + i * (cw + cg), y = 224, on = i === Save.slot, I = Save.slotInfo(i);
+      const x = cx0 + i * (cw + cg), y = 284, on = i === Save.slot, I = Save.slotInfo(i);
       UIHit.add(x, y, cw, 38, () => { Save.switchSlot(i); G.resetConfirm = false; }, { noConfirm: true });
       uiPanel(ctx, x, y, cw, 38, { color: on ? P.yellow : P.greyMid, fill: on ? P.voidLight : P.void, alpha: 0.92, glow: on });
       uiText(ctx, 'SLOT ' + (i + 1) + (on ? '  - ACTIVE' : ''), x + 8, y + 13, { size: T.small, color: on ? P.yellow : P.grey });
@@ -1217,6 +1273,7 @@ function drawKeysScreen(ctx) {
   tips.forEach((t, i) => uiText(ctx, t, R + 8, 204 + i * 14, { size: T.small, color: P.grey }));
 
   uiText(ctx, 'SURVIVE.', STAGE_W / 2, 292, { size: T.h2, color: P.red, align: 'center', glow: P.red });
+  UIHit.add(STAGE_W / 2 - 80, 306, 160, 24, () => {});                // Klick = zurueck
   drawPrompt(ctx, 'BACK [SPACE]', 322);
 }
 

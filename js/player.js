@@ -248,8 +248,11 @@ class Player {
   }
 
   anyMoveKey() {
-    return Input.actDown('up') || Input.actDown('left') || Input.actDown('down') || Input.actDown('right');
+    return Input.actDown('up') || Input.actDown('left') || Input.actDown('down') || Input.actDown('right') || Input.touchMoving();
   }
+
+  // Blickrichtung unabhaengig von der Laufrichtung (Maus-Zielen oder Touch-Sticks)
+  freeAim() { return !!(Save.data.mouseAim || Save.data.touch); }
 
   move(f) {
     const px0 = this.x, py0 = this.y;
@@ -275,9 +278,12 @@ class Player {
     this.prevKeys = nKeys;
 
     const can = this.canMove, P = CFG.player, anyKey = this.anyMoveKey();
-    if (Save.data.mouseAim) {                                                  // Maus-Zielen: Blickrichtung = zur Maus, Laufen unabhaengig davon in die Tastenrichtung (Tippen-zum-Drehen entfaellt)
+    if (this.freeAim()) {                                                      // Maus-Zielen: Blickrichtung = zur Maus, Laufen unabhaengig davon in die Tastenrichtung (Tippen-zum-Drehen entfaellt)
       this.moveGraceT = 0; this.keyHeldT = anyKey ? 1 : 0; this.moveArmed = anyKey; this.moveGo = anyKey;
-      if (can > 0 && Input.mouse.x > -900) {
+      if (Save.data.touch) {                                                   // Touch: linker Stick = Laufrichtung (stufenlos), rechter Stick = Blickrichtung, sonst in Laufrichtung schauen
+        if (Input.touchMoving()) this.moveDir = Input.touch.mv.dir;
+        if (can > 0) { if (Input.touchAiming()) this.dir = Input.touch.aim.dir; else if (Input.touchMoving()) this.dir = this.moveDir; }
+      } else if (can > 0 && Input.mouse.x > -900) {
         const mx = Input.mouse.x - STAGE_W / 2 + G.cam.x, my = STAGE_H / 2 - Input.mouse.y + G.cam.y;
         if (Math.hypot(mx - this.x, my - this.y) > 4) this.dir = dirTo(this.x, this.y, mx, my);
       }
@@ -353,7 +359,7 @@ class Player {
   // Dash-Bewegung. Bei Maus-Zielen geht der Dash in die gehaltene Tastenrichtung (ohne Taste zur Maus), sonst in Blickrichtung.
   moveDash(f) {
     if (this.dashLeft <= 0) return;
-    const step = Math.min(this.dashLeft, f), d = Save.data.mouseAim && this.dashDir !== undefined ? this.dashDir : this.dir;
+    const step = Math.min(this.dashLeft, f), d = this.freeAim() && this.dashDir !== undefined ? this.dashDir : this.dir;
     this.x += fwdX(d) * CFG.dash.stepsPerFrame * step; this.y += fwdY(d) * CFG.dash.stepsPerFrame * step;
     this.dashLeft -= step;
     if (this.dashLeft <= 0) { this.dashLeft = 0; this.dashCd = Loadout.dash.cooldown; }
@@ -494,7 +500,7 @@ class Player {
 
   tryDash() {
     if (this.dashCd <= 0 && this.dashLeft <= 0 && this.canMove > 0) {
-      this.dashDir = Save.data.mouseAim && this.anyMoveKey() ? this.moveDir : this.dir;
+      this.dashDir = this.freeAim() && this.anyMoveKey() ? this.moveDir : this.dir;
       G.attacks.push(new DashTrail(this.x, this.y, this.dashDir));
       Sfx.play('dash');
       Juice.zoomPulse(CFG.juice.dashZoom, 0.3);                     // kurz rauszoomen: der Dash wirkt schneller

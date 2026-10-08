@@ -352,8 +352,11 @@ const Ach = {
     if (Input.pressed('ArrowUp') || Input.pressed('KeyW')) { s.r = (s.r + n) % (n + 1); if (s.r < n) s.c = Math.min(s.c, rows[s.r].length - 1); }
     if (Input.pressed('ArrowDown') || Input.pressed('KeyS')) { s.r = (s.r + 1) % (n + 1); if (s.r < n) s.c = Math.min(s.c, rows[s.r].length - 1); }
     const maxTop = Math.max(0, n - ACH_VISIBLE);
-    if (s.r < n) s.top = clamp(clamp(s.top, s.r - ACH_VISIBLE + 1, s.r), 0, maxTop);       // Auswahl bleibt im sichtbaren Ausschnitt
-    else s.top = maxTop;                                                                   // BACK: ganz unten
+    if (s.seenR !== s.r) {                                                                 // nur wenn sich die Auswahl aendert (sonst darf die Scrollleiste frei verschieben)
+      s.seenR = s.r;
+      if (s.r < n) s.top = clamp(clamp(s.top, s.r - ACH_VISIBLE + 1, s.r), 0, maxTop);     // Auswahl bleibt im sichtbaren Ausschnitt
+      else s.top = maxTop;                                                                 // BACK: ganz unten
+    }
     if (s.r < n) {
       if (Input.pressed('ArrowRight') || Input.pressed('KeyD')) s.c = Math.min(rows[s.r].length - 1, s.c + 1);
       if (Input.pressed('ArrowLeft') || Input.pressed('KeyA')) s.c = Math.max(0, s.c - 1);
@@ -369,7 +372,7 @@ const Ach = {
     uiText(ctx, this.doneCount() + ' / ' + this.total(), STAGE_W - 24, 38, { size: T.h2, color: P.yellow, align: 'right', glow: P.yellow });
     const X0 = 108, DX = 38, NS = 28, Y0 = 56, DY = 41, top = s.top || 0, vis = Math.min(ACH_VISIBLE, rows.length);
     let tip = null;
-    if (rows.length > vis) uiText(ctx, (top > 0 ? '^ ' : '  ') + (top + vis < rows.length ? 'v' : ''), STAGE_W - 24, 54, { size: T.small, color: P.grey, align: 'right' });
+    UIScroll.bar(ctx, 'ach', STAGE_W - 14, Y0, 6, vis * DY - 13, true, rows.length, vis, top, (v) => { s.top = v; });
     rows.forEach((row, r) => {
       if (r < top || r >= top + vis) return;                                    // nur der sichtbare Ausschnitt
       const y = Y0 + (r - top) * DY, B = ACH_BRANCHES[r], got = row.filter((a) => this.done(a.id)).length;

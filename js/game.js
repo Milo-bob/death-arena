@@ -112,7 +112,7 @@ function upgradeRows(tab) {
 }
 const SETTINGS_PAGES = [                      // Einstellungen in Seiten; Zeile 0 jeder Seite ist die Seitenwahl ('tabs', A/D wechselt), unten immer 'back'
   { label: 'SOUND & VIDEO', items: ['music', 'sfx', 'fx', 'fullscreen'] },
-  { label: 'GAME', items: ['mouseaim', 'slot', 'controls', 'binds'] },
+  { label: 'GAME', items: ['mouseaim', 'touch', 'slot', 'controls', 'binds'] },
   { label: 'DATA', items: ['transfer', 'resetAll'] },
 ];
 const settingsList = () => ['tabs'].concat(SETTINGS_PAGES[G.settingsPage || 0].items, ['back']);
@@ -532,8 +532,9 @@ const G = {
     else if (item === 'music' && dir) { setMusicVolume(Math.round((Save.data.musicVol + dir * 0.1) * 10) / 10); Save.write(); }
     else if (item === 'sfx' && dir) { Sfx.setVolume(Math.round((Save.data.sfxVol + dir * 0.1) * 10) / 10); Save.write(); Sfx.play('select'); }
     else if (item === 'fx' && (dir || ok)) { Save.data.fx = (Juice.level + (dir || 1) + 3) % 3; Save.write(); }       // OFF / REDUCED / FULL
-    else if (item === 'fullscreen' && (ok || dir)) { try { if (document.fullscreenElement) document.exitFullscreen(); else canvas.requestFullscreen(); } catch (e) { /* Browser verbietet Vollbild */ } }
+    else if (item === 'fullscreen' && (ok || dir)) { try { if (document.fullscreenElement) document.exitFullscreen(); else (Save.data.touch ? document.documentElement : canvas).requestFullscreen(); } catch (e) { /* Browser verbietet Vollbild */ } }
     else if (item === 'mouseaim' && (dir || ok)) { Save.data.mouseAim = !Save.data.mouseAim; Save.write(); Sfx.play('select'); }
+    else if (item === 'touch' && (dir || ok)) { Save.data.touch = !Save.data.touch; Save.write(); Sfx.play('select'); }
     else if (item === 'slot' && (dir || ok)) Save.switchSlot((Save.slot + (dir || 1) + Save.SLOTS) % Save.SLOTS);
     else if (item === 'controls' && ok) this.mode = 'keys';
     else if (item === 'binds' && ok) { this.mode = 'binds'; this.bindSel = 0; this.bindWait = false; this.bindsBack = 'settings'; }
@@ -852,7 +853,7 @@ const G = {
   },
 
   draw(ctx) {
-    UIHit.list.length = 0;                  // klickbare Flächen werden beim Zeichnen neu gesammelt
+    UIHit.blocks.length = 0; UIHit.list.length = 0;                  // klickbare Flächen werden beim Zeichnen neu gesammelt
     ctx.setTransform(SCALE, 0, 0, SCALE, 0, 0);
     ctx.imageSmoothingEnabled = false;
     ctx.fillStyle = '#000';

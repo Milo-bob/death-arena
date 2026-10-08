@@ -29,7 +29,7 @@ const Input = {
   ],
   code(action) { return (Save.data.binds && Save.data.binds[action]) || this.actions.find((a) => a.id === action).def; },
   mouseHeld: false,                                      // linke Maustaste gehalten
-  actDown(action) { return this.down(this.code(action)) || (action === 'attack' && this.mouseHeld && !!Save.data.mouseAim); },
+  actDown(action) { return this.down(this.code(action)) || (action === 'attack' && this.mouseHeld && !!Save.data.mouseAim) || (action === 'attack' && !!this.touchAiming && this.touchAiming()); },
   actPressed(action) { return this.pressed(this.code(action)); },
   // Kurzer Tastentext fuer Anzeigen (HUD, Menue)
   label(action) { return this.codeLabel(this.code(action)); },
@@ -82,9 +82,30 @@ window.addEventListener('keydown', syncMods, true);
 window.addEventListener('keyup', syncMods, true);
 window.addEventListener('mousedown', syncMods, true);
 window.addEventListener('mousemove', syncMods, true);
-window.addEventListener('mousedown', (e) => { Input.setMouse(e); if (e.button === 2) Input.rightClicked = true; else { Input.clicked = true; Input.mouseHeld = true; } });
-window.addEventListener('mouseup', (e) => { if (e.button !== 2) Input.mouseHeld = false; });
-window.addEventListener('mousemove', (e) => { Input.setMouse(e); Input.mouse.moved = true; });
+// Touch: ein Finger verhaelt sich wie die Maus (Tippen = Klick, Ziehen = gehaltene Maus, z. B. an Scrollleisten).
+// Nach einem angenommenen Tipp ignoriert das Spiel TAP_LOCK Sekunden lang weitere Tipps, damit man den Finger heben kann, ohne mehrfach zu tippen.
+// Die vom Browser nachgereichten Mausereignisse (mousedown/up/move nach touchend) werden ignoriert, sonst zaehlt jeder Tipp doppelt.
+const TAP_LOCK = 350;                                   // ms
+let lastTouchAt = -1e9, lastTapAt = -1e9;
+const fromTouch = () => performance.now() - lastTouchAt < 1000;
+const inTouchUI = (e) => !!(e.target && e.target.closest && e.target.closest('#touchUI, [data-nogame], input, textarea, button'));
+const touchPos = (e) => { const t = e.touches[0] || e.changedTouches[0]; if (t) Input.setMouse(t); };
+window.addEventListener('touchstart', (e) => {
+  lastTouchAt = performance.now(); Input.touchSeen = true;
+  if (inTouchUI(e)) return;
+  touchPos(e);
+  Input.mouse.moved = true;
+  const now = performance.now();
+  if (now - lastTapAt < TAP_LOCK) return;               // zu schnell nach dem letzten Tipp: ignorieren
+  lastTapAt = now; Input.clicked = true; Input.mouseHeld = true;
+}, { passive: true });
+window.addEventListener('touchmove', (e) => { lastTouchAt = performance.now(); if (inTouchUI(e)) return; touchPos(e); if (Input.mouseHeld) Input.mouse.moved = true; }, { passive: true });
+const touchEnd = (e) => { lastTouchAt = performance.now(); if (!inTouchUI(e)) Input.mouseHeld = false; };
+window.addEventListener('touchend', touchEnd, { passive: true });
+window.addEventListener('touchcancel', touchEnd, { passive: true });
+window.addEventListener('mousedown', (e) => { if (fromTouch()) return; Input.setMouse(e); if (e.button === 2) Input.rightClicked = true; else { Input.clicked = true; Input.mouseHeld = true; } });
+window.addEventListener('mouseup', (e) => { if (fromTouch()) return; if (e.button !== 2) Input.mouseHeld = false; });
+window.addEventListener('mousemove', (e) => { if (fromTouch()) return; Input.setMouse(e); Input.mouse.moved = true; });
 window.addEventListener('contextmenu', (e) => e.preventDefault());
 
 // Eingebettet (iframe, z. B. auf der Holiday-Games-Seite) bekommt das Spiel Tasten nur, wenn es den Fokus hat.
