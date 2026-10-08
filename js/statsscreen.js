@@ -65,7 +65,7 @@ const StatsScreen = {
   // ---------- Zeichnen ----------
   draw(ctx) {
     const P = STYLE.pal, T = STYLE.type, A = this.A;
-    drawSprite(ctx, 'keysettings', 0, 0, 90, 100);
+    drawMenuBg(ctx, 'keysettings');
     ctx.fillStyle = 'rgba(5,6,15,0.82)'; ctx.fillRect(0, 0, STAGE_W, STAGE_H);
     uiText(ctx, 'STATISTICS', STAGE_W / 2, 24, { size: T.h1, color: P.yellow, align: 'center', glow: P.yellow });
 
@@ -86,7 +86,7 @@ const StatsScreen = {
       uiText(ctx, uiFit(ctx, f.label, fw - 6, T.small), x + fw / 2, 62, { size: T.small, color: on ? P.yellow : P.grey, align: 'center' });
     });
     // Schalter oben rechts: Dev-Laeufe anzeigen/ausblenden
-    const dx = STAGE_W - 128, dy = 8, dOn = this.showDev;
+    const dx = STAGE_W - 168, dy = 12, dOn = this.showDev;
     UIHit.add(dx, dy, 120, 16, () => { this.showDev = !this.showDev; this.refresh(); }, { noConfirm: true });
     uiPanel(ctx, dx, dy, 120, 16, { color: dOn ? P.green : P.orange, fill: P.void, alpha: 0.95 });
     uiText(ctx, 'DEV RUNS: ' + (dOn ? 'SHOWN' : 'HIDDEN') + (this.devRuns ? ' (' + this.devRuns + ')' : ''), dx + 60, dy + 12, { size: T.small, color: dOn ? P.green : P.orange, align: 'center' });
@@ -94,9 +94,9 @@ const StatsScreen = {
     uiText(ctx, A.n + ' RUNS' + (this.ownOnly ? ' (OWN DATA ONLY)' : ' (' + this.own + ' OWN, ' + Math.max(0, imp) + ' IMPORTED)') + (A.gaveUp ? '   ' + A.gaveUp + ' GAVE UP (NOT COUNTED)' : '') + (A.n > 0 && A.n < 10 ? '   FEW RUNS - ROUGH NUMBERS' : ''), STAGE_W / 2, 79, { size: T.small, color: A.n < 10 ? P.orange : P.grey, align: 'center' });
 
     if (!A.n && !this.B.length) {
-      uiPanel(ctx, 60, 120, 360, 120, { color: P.greyMid, fill: P.void, alpha: 0.92 });
-      uiText(ctx, 'NO DATA YET FOR THIS FILTER', STAGE_W / 2, 160, { size: T.h2, color: P.ice, align: 'center' });
-      uiWrap(ctx, 'Every finished run is logged (not the tutorial). Runs with F2/F3 cheats are marked as dev runs (X hides them). Play some runs, or merge other players\' data: Settings > EXPORT / IMPORT SAVE > PLAY DATA.', 80, 182, 320, 11, { size: T.small, color: P.grey });
+      uiPanel(ctx, STAGE_W / 2 - 200, 120, 400, 120, { color: P.greyMid, fill: P.void, alpha: 0.92 });
+      uiText(ctx, 'NO DATA YET FOR THIS FILTER', STAGE_W / 2, 150, { size: T.h2, color: P.ice, align: 'center' });
+      uiWrap(ctx, 'Every finished run is logged (not the tutorial). Runs with F2/F3 cheats are marked as dev runs (X hides them). Play some runs, or merge other players\' data: Settings > EXPORT / IMPORT SAVE > PLAY DATA.', STAGE_W / 2 - 180, 170, 360, 11, { size: T.small, color: P.grey });
     } else {
       [this.drawOverview, this.drawKillers, this.drawBosses, this.drawBuilds, this.drawRecent][this.tab].call(this, ctx);
     }
@@ -114,12 +114,12 @@ const StatsScreen = {
   ],
 
   drawOverview(ctx) {
-    const P = STYLE.pal, T = STYLE.type, A = this.A, fmt = formatTime;
+    const P = STYLE.pal, T = STYLE.type, A = this.A, fmt = formatTime, E = STAGE_W - 480;       // E = zusaetzliche Breite gegenueber 4:3
     const tiles = [['RUNS', String(A.n)], ['MEDIAN TIME', fmt(A.median)], ['AVERAGE TIME', fmt(A.avg)], ['BEST TIME', fmt(A.best)], ['BOSSES / RUN', A.bossAvg.toFixed(1)]];
-    tiles.forEach(([l, v], i) => this.tile(ctx, 22 + i * 92, 86, 88, l, v, i === 1 ? P.yellow : P.ice));
+    tiles.forEach(([l, v], i) => this.tile(ctx, 22 + i * Math.round((STAGE_W - 44 + 4) / 5), 86, Math.round((STAGE_W - 44 + 4) / 5) - 4, l, v, i === 1 ? P.yellow : P.ice));
 
     // Diagramm: Tode pro Zeitfenster (Balken) und Ueberlebenskurve (Linie), rote Striche = Beginn eines Bosskampfs
-    const px = 22, py = 118, pw = 318, ph = 218, gx = px + 30, gy = py + 14, gw = pw - 40, gh = 156;
+    const px = 22, py = 118, pw = 318 + Math.round(E * 0.62), ph = 218, gx = px + 30, gy = py + 14, gw = pw - 40, gh = 156;
     uiPanel(ctx, px, py, pw, ph, { color: P.greyMid, fill: P.void, alpha: 0.92 });
     uiText(ctx, 'SURVIVAL OVER TIME', px + 8, py + 10, { size: T.small, color: P.yellow });
     for (const f of [0, 0.25, 0.5, 0.75, 1]) {                                          // Gitter + Beschriftung der Prozentachse
@@ -161,7 +161,7 @@ const StatsScreen = {
     uiText(ctx, 'BOSS FIGHT', px + 154, py + ph - 7, { size: T.small, color: P.grey });
 
     // Auswertung in Worten
-    const ix = 348, iw = 110;
+    const ix = px + pw + 8, iw = STAGE_W - 22 - ix;
     uiPanel(ctx, ix, py, iw, ph, { color: P.greyMid, fill: P.void, alpha: 0.92 });
     uiText(ctx, 'READING THE DATA', ix + 8, py + 10, { size: T.small, color: P.yellow });
     const lines = this.insights();
@@ -188,27 +188,27 @@ const StatsScreen = {
   },
 
   drawKillers(ctx) {
-    const P = STYLE.pal, T = STYLE.type, A = this.A, x = 22, y = 86, w = 436;
+    const P = STYLE.pal, T = STYLE.type, A = this.A, x = 22, y = 86, w = STAGE_W - 44, e = w - 436;
     uiPanel(ctx, x, y, w, 250, { color: P.greyMid, fill: P.void, alpha: 0.92 });
     uiText(ctx, 'WHAT KILLS YOU', x + 8, y + 12, { size: T.small, color: P.yellow });
-    uiText(ctx, 'DEATHS', x + 330, y + 12, { size: T.small, color: P.grey, align: 'right' });
+    uiText(ctx, 'DEATHS', x + 330 + e * 0.6, y + 12, { size: T.small, color: P.grey, align: 'right' });
     uiText(ctx, 'MEDIAN TIME', x + w - 8, y + 12, { size: T.small, color: P.grey, align: 'right' });
     const total = A.killers.reduce((s, k) => s + k.n, 0) || 1, max = A.killers.length ? A.killers[0].n : 1;
     if (!A.killers.length) uiText(ctx, 'NO DEATHS LOGGED', x + 12, y + 40, { size: T.small, color: P.grey });
     A.killers.slice(0, 12).forEach((k, i) => {
       const ry = y + 28 + i * 17;
       uiText(ctx, uiFit(ctx, k.name, 120, T.small), x + 10, ry + 8, { size: T.small, color: i === 0 ? P.ice : P.grey });
-      this.bar(ctx, x + 138, ry + 1, 140, 8, k.n / max, i === 0 ? P.red : P.redMid);
-      uiText(ctx, k.n + ' (' + Math.round(100 * k.n / total) + '%)', x + 330, ry + 8, { size: T.small, color: i === 0 ? P.yellow : P.grey, align: 'right' });
+      this.bar(ctx, x + 138, ry + 1, 140 + e * 0.5, 8, k.n / max, i === 0 ? P.red : P.redMid);
+      uiText(ctx, k.n + ' (' + Math.round(100 * k.n / total) + '%)', x + 330 + e * 0.6, ry + 8, { size: T.small, color: i === 0 ? P.yellow : P.grey, align: 'right' });
       uiText(ctx, formatTime(k.med), x + w - 8, ry + 8, { size: T.small, color: P.ice, align: 'right' });
     });
     if (A.killers.length > 12) uiText(ctx, '+' + (A.killers.length - 12) + ' MORE', x + 10, y + 28 + 12 * 17 + 6, { size: T.small, color: P.grey });
   },
 
   drawBosses(ctx) {
-    const P = STYLE.pal, T = STYLE.type, B = this.B, x = 22, y = 86, w = 436;
+    const P = STYLE.pal, T = STYLE.type, B = this.B, x = 22, y = 86, w = STAGE_W - 44, e = w - 436;
     uiPanel(ctx, x, y, w, 250, { color: P.greyMid, fill: P.void, alpha: 0.92 });
-    const col = { name: x + 10, n: x + 150, bar: x + 160, pct: x + 258, died: x + 288, to: x + 322, dur: x + 358, dm: x + 392, at: x + w - 8 };
+    const col = { name: x + 10, n: x + 150, bar: x + 160, pct: x + 258 + e * 0.3, died: x + 288 + e * 0.45, to: x + 322 + e * 0.6, dur: x + 358 + e * 0.75, dm: x + 392 + e * 0.9, at: x + w - 8 };
     const head = (t, cx, al) => uiText(ctx, t, cx, y + 12, { size: T.small, color: P.grey, align: al || 'right' });
     head('BOSS', col.name, 'left'); head('FIGHTS', col.n); head('BEATEN', col.bar, 'left'); head('DIED', col.died); head('TIME UP', col.to); head('LENGTH', col.dur); head('DMG', col.dm); head('STARTS', col.at);
     if (!B.length) uiText(ctx, 'NO BOSS FIGHTS LOGGED', x + 12, y + 40, { size: T.small, color: P.grey });
@@ -216,7 +216,7 @@ const StatsScreen = {
       const ry = y + 24 + i * 16, c = this.rateColor(b.rate);
       uiText(ctx, uiFit(ctx, this.bossName(b.ty), 130, T.small), col.name, ry + 8, { size: T.small, color: P.ice });
       uiText(ctx, String(b.n), col.n, ry + 8, { size: T.small, color: P.grey, align: 'right' });
-      this.bar(ctx, col.bar, ry + 1, 70, 8, b.rate, c);
+      this.bar(ctx, col.bar, ry + 1, 70 + e * 0.3, 8, b.rate, c);
       uiText(ctx, Math.round(b.rate * 100) + '%', col.pct, ry + 8, { size: T.small, color: c, align: 'right' });
       uiText(ctx, String(b.died), col.died, ry + 8, { size: T.small, color: b.died ? P.red : P.greyMid, align: 'right' });
       uiText(ctx, String(b.timeout), col.to, ry + 8, { size: T.small, color: b.timeout ? P.orange : P.greyMid, align: 'right' });
@@ -229,19 +229,19 @@ const StatsScreen = {
 
   drawBuilds(ctx) {
     const P = STYLE.pal, T = STYLE.type, items = this.builds;
-    const cols = [['WEAPONS & IMPLANTS', 'w:', 22], ['ABILITIES', 'a:', 244]], w = 214;
+    const w = Math.floor((STAGE_W - 44 - 8) / 2), e = w - 214, cols = [['WEAPONS & IMPLANTS', 'w:', 22], ['ABILITIES', 'a:', 22 + w + 8]];
     for (const [title, prefix, x] of cols) {
       const y = 86, list = items.filter((q) => q.id.startsWith(prefix)).sort((a, b) => b.n - a.n).slice(0, 11), max = list.length ? list[0].n : 1;
       uiPanel(ctx, x, y, w, 238, { color: P.greyMid, fill: P.void, alpha: 0.92 });
       uiText(ctx, title, x + 8, y + 12, { size: T.small, color: P.yellow });
-      uiText(ctx, 'RUNS', x + 148, y + 12, { size: T.small, color: P.grey, align: 'right' });
+      uiText(ctx, 'RUNS', x + 148 + e * 0.7, y + 12, { size: T.small, color: P.grey, align: 'right' });
       uiText(ctx, 'MEDIAN', x + w - 8, y + 12, { size: T.small, color: P.grey, align: 'right' });
       if (!list.length) uiText(ctx, 'NO LOADOUT DATA', x + 10, y + 36, { size: T.small, color: P.grey });
       list.forEach((q, i) => {
         const ry = y + 26 + i * 20;
         uiText(ctx, uiFit(ctx, this.name(q.id), 100, T.small), x + 8, ry + 7, { size: T.small, color: P.ice });
-        this.bar(ctx, x + 8, ry + 10, 130, 4, q.n / max, prefix === 'w:' ? P.cyan : P.violet);
-        uiText(ctx, String(q.n), x + 148, ry + 7, { size: T.small, color: P.grey, align: 'right' });
+        this.bar(ctx, x + 8, ry + 10, 130 + e * 0.7, 4, q.n / max, prefix === 'w:' ? P.cyan : P.violet);
+        uiText(ctx, String(q.n), x + 148 + e * 0.7, ry + 7, { size: T.small, color: P.grey, align: 'right' });
         uiText(ctx, formatTime(q.med), x + w - 8, ry + 7, { size: T.small, color: P.yellow, align: 'right' });
       });
     }
@@ -249,20 +249,20 @@ const StatsScreen = {
   },
 
   drawRecent(ctx) {
-    const P = STYLE.pal, T = STYLE.type, x = 22, y = 86, w = 436;
+    const P = STYLE.pal, T = STYLE.type, x = 22, y = 86, w = STAGE_W - 44, f = w / 436;
     uiPanel(ctx, x, y, w, 250, { color: P.greyMid, fill: P.void, alpha: 0.92 });
     const head = (t, cx, al) => uiText(ctx, t, cx, y + 12, { size: T.small, color: P.grey, align: al || 'left' });
-    head('TIME', x + 10); head('BOSSES', x + 50); head('KILLED BY', x + 96); head('MAP', x + 196); head('MELEE', x + 282); head('RANGED', x + 356);
+    head('TIME', x + 10); head('BOSSES', x + 50); head('KILLED BY', x + 96); head('MAP', x + 196 * f); head('MELEE', x + 282 * f); head('RANGED', x + 356 * f);
     if (!this.recent.length) uiText(ctx, 'NO OWN RUNS LOGGED FOR THIS FILTER (IMPORTED RUNS ARE NOT LISTED HERE)', x + 12, y + 40, { size: T.small, color: P.grey });
     this.recent.forEach((r, i) => {
       const ry = y + 28 + i * 18, col = r.win ? P.green : r.by === 'GAVE UP' ? P.greyMid : P.ice;
       uiText(ctx, formatTime(r.t), x + 10, ry + 8, { size: T.small, color: col });
       uiText(ctx, String(r.b), x + 62, ry + 8, { size: T.small, color: P.grey, align: 'center' });
-      uiText(ctx, uiFit(ctx, r.by + (r.fy ? ' (' + this.bossName(r.fy) + ' FIGHT)' : ''), 94, T.small), x + 96, ry + 8, { size: T.small, color: r.win ? P.green : P.red });
-      uiText(ctx, uiFit(ctx, (r.inf ? 'ENDLESS ' : '') + this.mapName(r.map), 82, T.small), x + 196, ry + 8, { size: T.small, color: P.grey });
+      uiText(ctx, uiFit(ctx, r.by + (r.fy ? ' (' + this.bossName(r.fy) + ' FIGHT)' : ''), 94 * f, T.small), x + 96, ry + 8, { size: T.small, color: r.win ? P.green : P.red });
+      uiText(ctx, uiFit(ctx, (r.inf ? 'ENDLESS ' : '') + this.mapName(r.map), 82 * f, T.small), x + 196 * f, ry + 8, { size: T.small, color: P.grey });
       const nm = (id) => (id ? this.name('w:' + id) : '-');
-      uiText(ctx, uiFit(ctx, r.w ? nm(r.w[0]) : '-', 70, T.small), x + 282, ry + 8, { size: T.small, color: P.grey });
-      uiText(ctx, uiFit(ctx, r.w ? nm(r.w[1]) : '-', 70, T.small), x + 356, ry + 8, { size: T.small, color: P.grey });
+      uiText(ctx, uiFit(ctx, r.w ? nm(r.w[0]) : '-', 70 * f, T.small), x + 282 * f, ry + 8, { size: T.small, color: P.grey });
+      uiText(ctx, uiFit(ctx, r.w ? nm(r.w[1]) : '-', 70 * f, T.small), x + 356 * f, ry + 8, { size: T.small, color: P.grey });
     });
   },
 };

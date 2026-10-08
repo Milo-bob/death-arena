@@ -23,8 +23,13 @@
 
 // ---------- [1] Globale Konstanten ----------
 const FPS = 30;
-const STAGE_W = 480;          // Scratch-Bühne: 480 x 360, Mittelpunkt (0,0), y zeigt nach oben
+let STAGE_W = 480;          // Scratch-Bühne: 480 x 360, Mittelpunkt (0,0), y zeigt nach oben
 const STAGE_H = 360;
+let VIEW_PAD = 80;          // aktueller Seitenrand: im Lauf PAD (4:3 mittig), in Menüs 0 (volle 16:9-Breite)
+const PAD = 80;              // Menüs: 16:9-Fläche (640 x 360), der Lauf bleibt 4:3 (480 x 360) und sitzt mittig mit je PAD Einheiten Rand
+const CANVAS_W = 480 + 2 * PAD;
+// Ansicht umschalten: Menüs = 640 breit, Lauf = 480 breit (STAGE_W gilt dann im ganzen Zeichen-/Menücode)
+function setView(menu) { STAGE_W = menu ? CANVAS_W : 480; VIEW_PAD = menu ? 0 : PAD; }
 const SCALE = 2;              // Canvas = 960 x 720
 const DEG = Math.PI / 180;
 const WEAPON_NAMES_LIST = ['Blade', 'Blaster'];   // Reihenfolge = Tasten 1, 2 (Leertaste greift mit der gewählten Waffe an). Die starke Waffe liegt separat auf E.

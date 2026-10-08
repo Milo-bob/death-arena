@@ -10,7 +10,7 @@ function imageList() {
     'startscreen', 'keysettings', 'ground', 'ground2', 'ground3', 'ground4', 'pulseIcon', 'blinkIcon', 'lanceIcon', 'impulseIcon', 'frostIcon', 'fieldIcon',
     'beamIcon', 'grenadeIcon', 'fireIcon', 'armorIcon', 'regenIcon', 'phoenixIcon', 'damageIcon',
     'whipIcon', 'katanaIcon', 'hammerIcon', 'shotgunIcon', 'boomerangIcon', 'molotovIcon', 'chainIcon', 'blackholeIcon',
-    'shockstepIcon', 'adrenalineIcon', 'droneIcon', 'overchargeIcon', 'stormIcon', 'berserkIcon', 'nanoIcon', 'buffHaste', 'buffRapid', 'buffGuard', 'buffCharge', 'buffPower', 'buffMagnet', 'buffRegen', 'buffVampire', 'buffChrono', 'buffCoolant', 'buffNova', 'rocketIcon', 'bladesIcon', 'hackIcon', 'necroIcon', 'stimIcon',
+    'shockstepIcon', 'adrenalineIcon', 'droneIcon', 'overchargeIcon', 'stormIcon', 'berserkIcon', 'nanoIcon', 'buffHaste', 'buffRapid', 'buffGuard', 'buffCharge', 'buffPower', 'buffMagnet', 'buffRegen', 'buffVampire', 'buffChrono', 'buffCoolant', 'buffNova', 'rocketIcon', 'swapIcon', 'pauseIcon', 'slotEmptyIcon', 'ultIcon', 'bladesIcon', 'hackIcon', 'necroIcon', 'stimIcon',
     'thrustersIcon', 'scannerIcon', 'barrierIcon', 'capacitorIcon', 'overclockIcon', 'aegisIcon',
     'surgeIcon', 'decoyIcon', 'bombardIcon', 'bounceIcon', 'thornsIcon', 'vampireIcon', 'luckyIcon',
     'deathSecret1', 'deathSecret2', 'deathSecret3', 'deathSecret4',

@@ -329,7 +329,7 @@ const Ach = {
     if (!this.toasts.length) return;
     const P = STYLE.pal, T = STYLE.type, w = 176, h = 32;
     ctx.save();
-    ctx.setTransform(SCALE, 0, 0, SCALE, 0, 0);
+    ctx.setTransform(SCALE, 0, 0, SCALE, VIEW_PAD * SCALE, 0);
     this.toasts.slice(0, 3).forEach((t, i) => {
       const inn = Math.min(1, t.age / 0.35), out = Math.min(1, (this.TOAST_LIFE - t.age) / 0.35), k = Math.min(inn, out), e = 1 - Math.pow(1 - k, 3);
       const x = STAGE_W - w - 8 + (1 - e) * (w + 12), y = STAGE_H - 74 - i * (h + 4);
@@ -366,13 +366,13 @@ const Ach = {
 
   drawScreen(ctx) {
     const P = STYLE.pal, T = STYLE.type, rows = this.rows(), s = this.sel;
-    drawSprite(ctx, 'keysettings', 0, 0, 90, 100);
+    drawMenuBg(ctx, 'keysettings');
     drawEmbers(ctx);
     uiText(ctx, 'ACHIEVEMENTS', 24, 40, { size: T.h1, color: P.yellow, glow: P.yellow });
-    uiText(ctx, this.doneCount() + ' / ' + this.total(), STAGE_W - 24, 38, { size: T.h2, color: P.yellow, align: 'right', glow: P.yellow });
-    const X0 = 108, DX = 38, NS = 28, Y0 = 56, DY = 41, top = s.top || 0, vis = Math.min(ACH_VISIBLE, rows.length);
+    uiText(ctx, this.doneCount() + ' / ' + this.total(), STAGE_W - 56, 38, { size: T.h2, color: P.yellow, align: 'right', glow: P.yellow });
+    const X0 = 150, DX = 52, NS = 36, Y0 = 56, DY = 41, top = s.top || 0, vis = Math.min(ACH_VISIBLE, rows.length);
     let tip = null;
-    UIScroll.bar(ctx, 'ach', STAGE_W - 14, Y0, 6, vis * DY - 13, true, rows.length, vis, top, (v) => { s.top = v; });
+    UIScroll.bar(ctx, 'ach', STAGE_W - 20, Y0, 6, vis * DY - 13, true, rows.length, vis, top, (v) => { s.top = v; });
     rows.forEach((row, r) => {
       if (r < top || r >= top + vis) return;                                    // nur der sichtbare Ausschnitt
       const y = Y0 + (r - top) * DY, B = ACH_BRANCHES[r], got = row.filter((a) => this.done(a.id)).length;
@@ -396,7 +396,7 @@ const Ach = {
     UIHit.add(24, by, 120, 22, () => { s.r = rows.length; });
     uiPanel(ctx, 24, by, 120, 22, { color: backSel ? P.cyan : P.greyMid, fill: P.void, alpha: 0.9, glow: backSel });
     uiText(ctx, 'BACK', 84, by + 15, { size: T.h2, color: backSel ? P.ice : P.grey, align: 'center' });
-    uiText(ctx, 'W/S/A/D OR MOUSE = SELECT    HOVER = SEE WHAT TO DO    ESC = BACK', STAGE_W / 2, 352, { size: T.small, color: P.grey, align: 'center' });
+    uiText(ctx, 'W/S/A/D OR MOUSE = SELECT    HOVER = SEE WHAT TO DO    X / ESC = BACK', STAGE_W / 2, 352, { size: T.small, color: P.grey, align: 'center' });
     if (tip) this.drawTip(ctx, tip);
   },
 

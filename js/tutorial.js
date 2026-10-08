@@ -159,7 +159,7 @@ const SCENARIOS = [
     enter: (s) => { s.pts = [[-130, 60], [120, 70], [0, -100]]; s.i = 0; },
     update: (dt, s) => { const q = s.pts[s.i]; if (q && Math.hypot(G.player.x - q[0], G.player.y - q[1]) < 22) { s.i++; Sfx.play('select'); } },
     marker: (s) => s.pts[s.i] ? { x: s.pts[s.i][0], y: s.pts[s.i][1], r: 22 } : null,
-    lines: () => ['MOVE: ' + tkeys('up', 'left', 'down', 'right'), Save.data.touch ? 'Walk into the glowing ring with the left stick. The right stick aims and attacks.' : Save.data.mouseAim ? 'Walk into the glowing ring. You aim with the mouse.' : 'Walk into the glowing ring. You face the way you walk. A quick tap only turns you.'],
+    lines: () => ['MOVE: ' + tkeys('up', 'left', 'down', 'right'), Save.data.touch ? 'Walk into the glowing ring with the left stick. You face the way you walk.' : Save.data.mouseAim ? 'Walk into the glowing ring. You aim with the mouse.' : 'Walk into the glowing ring. You face the way you walk. A quick tap only turns you.'],
     progress: (s) => tutCount(s.i, 3, 'RINGS'),
     done: (s) => s.i >= 3,
   },

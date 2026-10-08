@@ -29,7 +29,18 @@ const Input = {
   ],
   code(action) { return (Save.data.binds && Save.data.binds[action]) || this.actions.find((a) => a.id === action).def; },
   mouseHeld: false,                                      // linke Maustaste gehalten
-  actDown(action) { return this.down(this.code(action)) || (action === 'attack' && this.mouseHeld && !!Save.data.mouseAim) || (action === 'attack' && !!this.touchAiming && this.touchAiming()); },
+  // Angriff: Halten (Standard) oder Umschalten (Einstellung ATTACK, gilt auch im Touch-Modus): ein Druck startet den Dauerangriff, der naechste beendet ihn
+  attackOn: false,
+  attackToggleMode() { return Save.data.attackMode === 'toggle'; },
+  tickAttack() {
+    if (typeof G === 'undefined' || G.mode !== 'play' || !this.attackToggleMode()) { this.attackOn = false; return; }
+    if (typeof Tutorial !== 'undefined' && Tutorial.active && (Tutorial.phase === 'brief' || Tutorial.phase === 'end')) { this.attackOn = false; return; }       // dort bestaetigt Leertaste/Klick nur den Text
+    if (this.pressedNow[this.code('attack')] || (this.clicked && !!Save.data.mouseAim)) this.attackOn = !this.attackOn;
+  },
+  actDown(action) {
+    if (action === 'attack' && this.attackToggleMode()) return this.attackOn;
+    return this.down(this.code(action)) || (action === 'attack' && this.mouseHeld && !!Save.data.mouseAim);
+  },
   actPressed(action) { return this.pressed(this.code(action)); },
   // Kurzer Tastentext fuer Anzeigen (HUD, Menue)
   label(action) { return this.codeLabel(this.code(action)); },
@@ -58,7 +69,7 @@ const Input = {
   // Mausposition aus einem Browser-Event in Buehnenkoordinaten umrechnen (das Canvas wird per CSS skaliert)
   setMouse(e) {
     const cv = document.getElementById('gameCanvas'), r = cv.getBoundingClientRect();
-    this.mouse.x = (e.clientX - r.left) / r.width * STAGE_W;
+    this.mouse.x = (e.clientX - r.left) / r.width * CANVAS_W - VIEW_PAD;
     this.mouse.y = (e.clientY - r.top) / r.height * STAGE_H;
   },
 };

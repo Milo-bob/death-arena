@@ -3,7 +3,7 @@
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-canvas.width = STAGE_W * SCALE;
+canvas.width = CANVAS_W * SCALE;
 canvas.height = STAGE_H * SCALE;
 
 // Begrenzt eine Position auf die Karte (bei unendlicher Karte unverändert). margin = Abstand zum Rand.
@@ -112,7 +112,7 @@ function upgradeRows(tab) {
 }
 const SETTINGS_PAGES = [                      // Einstellungen in Seiten; Zeile 0 jeder Seite ist die Seitenwahl ('tabs', A/D wechselt), unten immer 'back'
   { label: 'SOUND & VIDEO', items: ['music', 'sfx', 'fx', 'fullscreen'] },
-  { label: 'GAME', items: ['mouseaim', 'touch', 'slot', 'controls', 'binds'] },
+  { label: 'GAME', items: ['mouseaim', 'attackmode', 'touch', 'slot', 'controls', 'binds'] },
   { label: 'DATA', items: ['transfer', 'resetAll'] },
 ];
 const settingsList = () => ['tabs'].concat(SETTINGS_PAGES[G.settingsPage || 0].items, ['back']);
@@ -183,10 +183,10 @@ const G = {
   modeSel: 0,             // gewählter Punkt in der Modus-Auswahl nach PLAY
   menuSel: 0,           // gewählter Menüpunkt im Hauptmenü
   infSel: 0,             // gewählte Zeile im Endlos-Setup
+  mapBack: false,         // Kartenauswahl: BACK-Knopf gewaehlt
   upgradeSel: 0,          // gewählte Zeile im Upgrade-Menü (die letzte Zeile ist Zurück)
   swapSel: 0,             // gewaehlte Zeile im Ability-Tausch
   pauseSel: 0,            // gewaehlte Zeile im Pausemenue
-  mapBack: false,         // Kartenauswahl: BACK-Knopf gewaehlt
   pauseConfirm: false,    // Aufgeben wartet auf eine zweite Bestaetigung
   bindsBack: 'settings',  // wohin das Tasten-Menue zurueckfuehrt (settings oder pause)
   bindSel: 0,             // gewaehlte Zeile im Tasten-Menue
@@ -207,6 +207,7 @@ const G = {
   // withTutorial: Hinweise im Lauf (erster Lauf automatisch, sonst über das Hauptmenü)
   // infinite: Endlos-Modus (unendliche Karte, finaler Boss nach der gewählten Zeit)
   begin(withTutorial = false, infinite = false) {
+    setView(false);
     this.mode = 'play';
     this.infinite = infinite && !withTutorial;
     CFG.map.infinite = this.infinite;                       // die Kartenregeln (Wände, Kamera, Boss-Kamera) hängen an diesem Schalter
@@ -538,6 +539,7 @@ const G = {
     else if (item === 'fx' && (dir || ok)) { Save.data.fx = (Juice.level + (dir || 1) + 3) % 3; Save.write(); }       // OFF / REDUCED / FULL
     else if (item === 'fullscreen' && (ok || dir)) { try { if (document.fullscreenElement) document.exitFullscreen(); else (Save.data.touch ? document.documentElement : canvas).requestFullscreen(); } catch (e) { /* Browser verbietet Vollbild */ } }
     else if (item === 'mouseaim' && (dir || ok)) { Save.data.mouseAim = !Save.data.mouseAim; Save.write(); Sfx.play('select'); }
+    else if (item === 'attackmode' && (dir || ok)) { Save.data.attackMode = Save.data.attackMode === 'toggle' ? 'hold' : 'toggle'; Save.write(); Sfx.play('select'); }
     else if (item === 'touch' && (dir || ok)) { Save.data.touch = !Save.data.touch; Save.write(); Sfx.play('select'); }
     else if (item === 'slot' && (dir || ok)) Save.switchSlot((Save.slot + (dir || 1) + Save.SLOTS) % Save.SLOTS);
     else if (item === 'controls' && ok) this.mode = 'keys';
@@ -719,8 +721,10 @@ const G = {
 
   update(dt) {
     this.realTime += dt;
+    setView(this.isMenuView());
     if (canvas.style) canvas.style.cursor = this.mode === 'play' ? 'none' : '';       // Komfort: im Spiel kein Mauszeiger
     if (this.mode !== 'play' && this.mode !== 'loading') UIHit.update();      // Maus in den Menues
+    Input.tickAttack();
     this.menuSounds();
     Ach.tick(dt);
     if (MENU_MUSIC_MODES.includes(this.mode) && !(this.mode === 'binds' && this.bindsBack === 'pause')) playMusic('menu');
@@ -856,12 +860,19 @@ const G = {
 
   },
 
+  // Menü-Ansicht (16:9): alles außer dem Lauf samt Pause/Wahl-Bildschirmen (4:3)
+  isMenuView() { return !['play', 'pause', 'pick', 'swap', 'loading'].includes(this.mode) && !(this.mode === 'dead' && Cos2.deathActive()); },
+
   draw(ctx) {
     UIHit.blocks.length = 0; UIHit.list.length = 0;                  // klickbare Flächen werden beim Zeichnen neu gesammelt
-    ctx.setTransform(SCALE, 0, 0, SCALE, 0, 0);
-    ctx.imageSmoothingEnabled = false;
+    const menuView = this.isMenuView();
+    setView(menuView);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, STAGE_W, STAGE_H);
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.setTransform(SCALE, 0, 0, SCALE, VIEW_PAD * SCALE, 0);
+    ctx.imageSmoothingEnabled = false;
+    if (!menuView) { ctx.save(); ctx.beginPath(); ctx.rect(0, 0, STAGE_W, STAGE_H); ctx.clip(); }       // Lauf (4:3): nichts darf in die Seitenstreifen ragen
 
     if (this.mode === 'loading') {
       uiText(ctx, 'LOADING ...', 20, 30, { size: STYLE.type.h2, color: STYLE.pal.cyan });
@@ -910,6 +921,8 @@ const G = {
     } else if (this.mode === 'play') {
       this.drawPlay(ctx);
     }
+    if (['achievements', 'stats', 'modeselect', 'cosmetics', 'infsetup', 'mapselect', 'keys', 'binds', 'inventory', 'upgrades', 'settings', 'swap', 'pause'].includes(this.mode)) drawCloseX(ctx);
+    if (!menuView) ctx.restore();
     Ach.drawToasts(ctx);
   },
 
@@ -995,11 +1008,11 @@ function loop(now) {
   }
   if (G.errorT > 0) {
     G.errorT -= dt;
-    ctx.setTransform(SCALE, 0, 0, SCALE, 0, 0);
+    ctx.setTransform(SCALE, 0, 0, SCALE, VIEW_PAD * SCALE, 0);
     uiText(ctx, 'ERROR: ' + G.lastError + ' (console: F12)', 6, 14, { size: STYLE.type.small, color: STYLE.pal.red });
   }
   if (Sfx.locked && Math.floor(G.realTime * 1.6) % 2 === 0) {                    // Ton noch gesperrt (iPad/Safari): Hinweis, der Tipp auf den Bildschirm schaltet ihn frei
-    ctx.setTransform(SCALE, 0, 0, SCALE, 0, 0);
+    ctx.setTransform(SCALE, 0, 0, SCALE, VIEW_PAD * SCALE, 0);
     uiText(ctx, 'SOUND IS LOCKED - TAP THE SCREEN', STAGE_W / 2, 14, { size: STYLE.type.small, color: STYLE.pal.yellow, align: 'center' });
   }
   Input.endFrame();

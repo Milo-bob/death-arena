@@ -20,10 +20,10 @@
                 align-items: center;
                 justify-content: center;
             }
-            /* Das Spiel skaliert mit dem Fenster und behält das Seitenverhältnis 4:3 */
+            /* Das Spiel skaliert mit dem Fenster und behält das Seitenverhältnis 16:9 (Menüs; der Lauf sitzt darin als 4:3) */
             canvas {
-                width: min(100vw, calc(100vh * 4 / 3));
-                height: min(100vh, calc(100vw * 3 / 4));
+                width: min(100vw, calc(100vh * 16 / 9));
+                height: min(100vh, calc(100vw * 9 / 16));
                 background: #000;
                 image-rendering: pixelated;
             }

@@ -166,25 +166,46 @@ function drawUltOrb(ctx, frac, ready, o) {
   uiText(ctx, Input.label('ultimate'), cx, cy + r + 4, { size: STYLE.type.small, align: 'center', color: ready ? P.teal : P.grey });
 }
 
+// Daten aller Hotbar-Slots (Optionen fuer drawSlot): Nahkampf, Fernkampf, starke Waffe, Abilities je Stufe, Held-Artefakt (oder null).
+// Wird vom HUD und von den Touch-Tasten (touch.js) gemeinsam benutzt, damit beide gleich aussehen (inkl. Cosmetic-HUD-Themes).
+function hudSlots(p) {
+  const P = STYLE.pal, b = p.beam, beamBusy = b.state === 'fire';
+  const melee = Save.equipped('melee'), ranged = Save.equipped('ranged'), heavyId = Save.equipped('heavy');
+  const ICONS = {};
+  for (const [k, v] of Object.entries(CFG.items.catalog)) ICONS[k] = [v.icon, v.iconW];
+  const out = {};
+  out.melee = { icon: ICONS[melee][0], iconW: ICONS[melee][1], key: Input.label('weapon1'), color: P.cyan, ready: 1, selected: p.weapon === WEAPON.SWORD, count: melee === 'sword' ? 'x' + Loadout.sword.number : '' };
+  out.ranged = { icon: ICONS[ranged][0], iconW: ICONS[ranged][1], key: Input.label('weapon2'), color: P.cyan, ready: 1, selected: p.weapon === WEAPON.SHOT };
+  const hk = Input.label('beam');
+  if (heavyId === 'grenade') out.heavy = { icon: 'grenadeIcon', iconW: 18, key: hk, color: P.cyan, ready: 1 - p.grenadeCd / CFG.grenade.cooldown, left: p.grenadeCd };
+  else if (heavyId === 'firetrail') out.heavy = { icon: 'fireIcon', iconW: 18, key: hk, color: P.orange, ready: 1, active: p.fire.on, charge: p.fire.fuel < 1 || p.fire.on ? p.fire.fuel : 0 };
+  else if (heavyId === 'chain' || heavyId === 'blackhole') out.heavy = { icon: ICONS[heavyId][0], iconW: 18, key: hk, color: P.cyan, ready: 1 - p.heavyCd / CFG[heavyId].cooldown, left: p.heavyCd };
+  else if (heavyId !== 'beam') out.heavy = { icon: null, key: hk, color: P.greyMid, ready: 1 };
+  else out.heavy = { icon: 'beamLoad2', iconW: 14, key: hk, color: P.yellow, ready: beamBusy ? clamp(1 - b.clock / CFG.beam.maxClock, 0, 1) : 1, active: b.state === 'load', charge: b.state === 'load' ? b.clock / CFG.beam.maxClock : 0 };
+  out.abilities = CFG.loadout.tiers.map((tier) => {
+    const id = p.slots[tier.id], key = Input.label('ability_' + tier.id);
+    if (!id) return { icon: null, key, color: P.greyMid, ready: 1 };
+    const st = p.abilityStatus(id), passive = CFG.loadout.abilities[id].passive;
+    return { icon: st.icon, iconW: st.iconW, key: passive ? '' : key, color: P.cyan, ready: st.active ? 1 : st.frac, active: st.active, left: st.left };
+  });
+  const art = Hero.artifact();
+  if (art) {
+    const cd = p.cds[art.id] || 0, total = CFG[art.id].cooldown, on = art.id === 'fortress' && p.fortressT > 0;
+    out.artifact = { icon: art.icon, iconW: 18, key: Input.label('artifact'), color: P.yellow, ready: on ? 1 : 1 - cd / total, active: on, left: cd };
+  } else out.artifact = null;
+  return out;
+}
+
 function drawHotbar(ctx, p) {
   const P = STYLE.pal, T = STYLE.type, { cx, r } = ORB;
   const lx = cx - r - 6;                                       // rechte Kante der linken Gruppe
+  const D = hudSlots(p);
 
   // links: 1 Schwert, 2 Schuss, E Beam
-  const b = p.beam;
-  const beamBusy = b.state === 'fire';
   const slotX = (i) => lx - SLOT - (2 - i) * (SLOT + SLOT_GAP);
-  const melee = Save.equipped('melee'), ranged = Save.equipped('ranged');
-  const ICONS = {};
-  for (const [k, v] of Object.entries(CFG.items.catalog)) ICONS[k] = [v.icon, v.iconW];
-  drawSlot(ctx, slotX(0), HOTBAR_Y, { icon: ICONS[melee][0], iconW: ICONS[melee][1], key: Input.label('weapon1'), color: P.cyan, ready: 1, selected: p.weapon === WEAPON.SWORD, count: melee === 'sword' ? 'x' + Loadout.sword.number : '' });
-  drawSlot(ctx, slotX(1), HOTBAR_Y, { icon: ICONS[ranged][0], iconW: ICONS[ranged][1], key: Input.label('weapon2'), color: P.cyan, ready: 1, selected: p.weapon === WEAPON.SHOT });
-  const heavy = Save.equipped('heavy');
-  if (heavy === 'grenade') drawSlot(ctx, slotX(2), HOTBAR_Y, { icon: 'grenadeIcon', iconW: 18, key: Input.label('beam'), color: P.cyan, ready: 1 - p.grenadeCd / CFG.grenade.cooldown, left: p.grenadeCd });
-  else if (heavy === 'firetrail') drawSlot(ctx, slotX(2), HOTBAR_Y, { icon: 'fireIcon', iconW: 18, key: Input.label('beam'), color: P.orange, ready: 1, active: p.fire.on, charge: p.fire.fuel < 1 || p.fire.on ? p.fire.fuel : 0 });
-  else if (heavy === 'chain' || heavy === 'blackhole') drawSlot(ctx, slotX(2), HOTBAR_Y, { icon: ICONS[heavy][0], iconW: 18, key: Input.label('beam'), color: P.cyan, ready: 1 - p.heavyCd / CFG[heavy].cooldown, left: p.heavyCd });
-  else if (heavy !== 'beam') drawSlot(ctx, slotX(2), HOTBAR_Y, { icon: null, key: Input.label('beam'), color: P.greyMid, ready: 1 });
-  else drawSlot(ctx, slotX(2), HOTBAR_Y, { icon: 'beamLoad2', iconW: 14, key: Input.label('beam'), color: P.yellow, ready: beamBusy ? clamp(1 - b.clock / CFG.beam.maxClock, 0, 1) : 1, active: b.state === 'load', charge: b.state === 'load' ? b.clock / CFG.beam.maxClock : 0 });
+  drawSlot(ctx, slotX(0), HOTBAR_Y, D.melee);
+  drawSlot(ctx, slotX(1), HOTBAR_Y, D.ranged);
+  drawSlot(ctx, slotX(2), HOTBAR_Y, D.heavy);
 
   // Mitte: Ultimate
   const ultReady = G.ultCharge > CFG.ult.readyAt;
@@ -196,18 +217,16 @@ function drawHotbar(ctx, p) {
   }
 
   // rechts: Ability-Slots (leer, bis man nach einem Boss eine gewählt hat)
-  CFG.loadout.tiers.forEach((tier, i) => {
-    const x = cx + r + 6 + i * (SLOT + SLOT_GAP), id = p.slots[tier.id], key = Input.label('ability_' + tier.id);
-    if (!id) { drawSlot(ctx, x, HOTBAR_Y, { icon: null, key, color: P.greyMid, ready: 1 }); return; }
-    const st = p.abilityStatus(id), passive = CFG.loadout.abilities[id].passive;
-    drawSlot(ctx, x, HOTBAR_Y, { icon: st.icon, iconW: st.iconW, key: passive ? '' : key, color: P.cyan, ready: st.active ? 1 : st.frac, active: st.active, left: st.left });
-  });
+  D.abilities.forEach((o, i) => drawSlot(ctx, cx + r + 6 + i * (SLOT + SLOT_GAP), HOTBAR_Y, o));
 
   // Held-Artefakt: vierter Slot rechts (nur Helden nach Vanguard, nicht im Tutorial)
-  const art = Hero.artifact();
-  if (art) {
-    const cd = p.cds[art.id] || 0, total = CFG[art.id].cooldown, on = art.id === 'fortress' && p.fortressT > 0;
-    drawSlot(ctx, cx + r + 6 + CFG.loadout.tiers.length * (SLOT + SLOT_GAP), HOTBAR_Y, { icon: art.icon, iconW: 18, key: Input.label('artifact'), color: P.yellow, ready: on ? 1 : 1 - cd / total, active: on, left: cd });
+  if (D.artifact) {
+    drawSlot(ctx, cx + r + 6 + CFG.loadout.tiers.length * (SLOT + SLOT_GAP), HOTBAR_Y, D.artifact);
+    // Gegenstück ohne Funktion auf der linken Seite, damit die Leiste symmetrisch bleibt (gleicher Slot-Stil, daher auch in den HUD-Skins)
+    const dx = slotX(-1);
+    drawSlot(ctx, dx, HOTBAR_Y, { icon: 'luckyIcon', iconW: 18, key: '', color: P.greyMid, ready: 1 });
+    ctx.save(); ctx.globalAlpha = 0.7; ctx.fillStyle = P.void; ctx.fillRect(dx + 2, HOTBAR_Y + 2, SLOT - 4, SLOT - 4);      // abdunkeln (Filter/Graustufen gehen nicht überall)
+    ctx.restore();
   }
 
   // aktive Drop-Buffs mit Restzeit: oben links (unter dem XP-Balken und der Levelanzeige)
@@ -246,7 +265,7 @@ function drawPrompt(ctx, text, y) {
 // noConfirm = nur auswaehlen (Reiter). Rechtsklick = ESC, Mausrad = hoch/runter. Die Liste wird zu Beginn jedes Zeichnens geleert.
 const UIHit = {
   list: [], hover: null, blocks: [],                                   // blocks = Scrollleisten: dort wird nichts darunter ausgewaehlt oder bestaetigt
-  add(x, y, w, h, select, o = {}) { this.list.push({ x, y, w, h, select, lr: !!o.lr, noConfirm: !!o.noConfirm }); },
+  add(x, y, w, h, select, o = {}) { this.list.push({ x, y, w, h, select, lr: !!o.lr, noConfirm: !!o.noConfirm, esc: !!o.esc }); },
   under() {
     const m = Input.mouse;
     if (this.blocks.some((b) => m.x >= b.x && m.x <= b.x + b.w && m.y >= b.y && m.y <= b.y + b.h)) return null;
@@ -270,12 +289,35 @@ const UIHit = {
     if (G.mode === 'ending') { if (Input.clicked) Input.pressedNow.Space = true; return; }
     if (Input.clicked && h) {
       h.select();
-      if (!h.noConfirm) Input.pressedNow[h.lr ? (Input.mouse.x > h.x + h.w / 2 ? 'ArrowRight' : 'ArrowLeft') : 'Space'] = true;
+      if (h.esc) Input.pressedNow.Escape = true;
+      else if (!h.noConfirm) Input.pressedNow[h.lr ? (Input.mouse.x > h.x + h.w / 2 ? 'ArrowRight' : 'ArrowLeft') : 'Space'] = true;
     }
     if (Input.rightClicked) Input.pressedNow.Escape = true;
     if (Input.wheel) Input.pressedNow[G.mode === 'pick' ? (Input.wheel > 0 ? 'ArrowRight' : 'ArrowLeft') : (Input.wheel > 0 ? 'ArrowDown' : 'ArrowUp')] = true;
   },
 };
+
+// Zurück-Knopf aller Menüs: rotes X oben rechts (Klick = ESC). Wird in G.draw am Ende gezeichnet, liegt also über allem.
+function drawCloseX(ctx) {
+  const P = STYLE.pal, s = 30, x = STAGE_W - s - 8, y = 8, m = Input.mouse, hot = m.x >= x && m.x <= x + s && m.y >= y && m.y <= y + s;
+  UIHit.add(x - 2, y - 2, s + 4, s + 4, () => {}, { esc: true });
+  ctx.save();
+  ctx.fillStyle = hot ? '#3a0a0a' : P.void; ctx.globalAlpha = 0.95; ctx.fillRect(x, y, s, s);
+  ctx.globalAlpha = 1; ctx.strokeStyle = hot ? '#ff6060' : '#d01c1c'; ctx.lineWidth = 2; ctx.strokeRect(x + 1, y + 1, s - 2, s - 2);
+  ctx.fillStyle = hot ? '#ff6060' : '#f02828';
+  for (let i = 7; i < s - 7; i++) { ctx.fillRect(x + i - 1, y + i - 1, 3, 3); ctx.fillRect(x + s - i - 2, y + i - 1, 3, 3); }
+  ctx.restore();
+}
+// Hintergrundbild eines Menüs über die ganze (16:9-)Breite
+function drawMenuBg(ctx, name, keepRatio) {
+  const im = IMG[name];
+  if (!im || !im.ok) return;
+  if (!keepRatio || STAGE_W === 480) { ctx.drawImage(im.img, 0, 0, STAGE_W, STAGE_H); return; }
+  // Bilder mit Figuren (Death-Screens): unverzerrt in der Mitte, links und rechts eine abgedunkelte gestreckte Kopie als Hintergrund
+  ctx.drawImage(im.img, 0, 0, STAGE_W, STAGE_H);
+  ctx.fillStyle = 'rgba(0,0,0,0.65)'; ctx.fillRect(0, 0, STAGE_W, STAGE_H);
+  ctx.drawImage(im.img, (STAGE_W - 480) / 2, 0, 480, STAGE_H);
+}
 
 // Scrollleiste (vertikal oder horizontal) fuer Menues mit mehr Eintraegen als Platz. Mit der Maus ziehen oder in die Leiste klicken
 // (springt dorthin). Aufruf beim Zeichnen: set(neuerOffset) wird nur aufgerufen, solange gezogen wird. total/vis/off zaehlen Eintraege.
@@ -319,10 +361,10 @@ const UIScroll = {
 
 // Menüzeile: gewählte Zeile hat cyanen Rahmen, Glühen und Pfeil. opts.hit = Auswahl per Maus (siehe UIHit), opts.lr = Regler
 function drawMenuRow(ctx, y, text, sel, opts = {}) {
-  const P = STYLE.pal, T = STYLE.type, w = opts.w || 190, h = opts.h || 24, x = STAGE_W / 2 - w / 2, ty = y + Math.round(h / 2) + 5;
+  const P = STYLE.pal, T = STYLE.type, w = opts.w || 190, h = opts.h || 24, cx = opts.cx === undefined ? STAGE_W / 2 : opts.cx, x = cx - w / 2, ty = y + Math.round(h / 2) + 5;
   if (opts.hit) UIHit.add(x, y, w, h, opts.hit, { lr: opts.lr });
   uiPanel(ctx, x, y, w, h, { color: sel ? P.cyan : P.greyMid, fill: P.void, alpha: 0.9, glow: sel });
-  uiText(ctx, text, STAGE_W / 2, ty, { size: T.h2, color: sel ? P.ice : P.grey, align: 'center' });
+  uiText(ctx, text, cx, ty, { size: T.h2, color: sel ? P.ice : P.grey, align: 'center' });
   if (sel) uiText(ctx, '>', x + 10, ty, { size: T.h2, color: P.cyan });
 }
 
@@ -356,7 +398,7 @@ function gearReady() {
 
 function drawStartScreen(ctx) {
   const P = STYLE.pal, T = STYLE.type, t = G.realTime;
-  if (!Cos2.drawMenuBg(ctx, Cos.cur('menubg'), t, 0, 0, STAGE_W, STAGE_H)) drawSprite(ctx, 'startscreen', 0, 0, 90, 100);       // Cosmetic: animierter Hintergrund
+  if (!Cos2.drawMenuBg(ctx, Cos.cur('menubg'), t, 0, 0, STAGE_W, STAGE_H)) drawMenuBg(ctx, 'startscreen');       // Cosmetic: animierter Hintergrund
   drawEmbers(ctx);
   // Titel: pulsierendes Glühen, ab und zu ein kurzes cyanes Flackern (Glitch)
   ctx.save();
@@ -394,39 +436,48 @@ function drawModeSelectScreen(ctx) {
     tutorial: ['A short guided level that teaches the basics.', 'You cannot die. Nothing is saved.'],
     back: ['Back to the main menu.', ''],
   };
-  drawSprite(ctx, 'keysettings', 0, 0, 90, 100);
+  drawMenuBg(ctx, 'keysettings');
   drawEmbers(ctx);
   uiText(ctx, 'CHOOSE A MODE', STAGE_W / 2, 56, { size: T.h1, color: P.yellow, align: 'center', glow: P.yellow });
+  const lw = 300, lcx = 40 + lw / 2, PX = 40 + lw + 24, PW = STAGE_W - 40 - PX, top = 90, GAP = 46;          // links die Modi, rechts das Info-Feld
   MODE_ITEMS.forEach((id, i) => {
-    const y = 90 + i * 30;
-    drawMenuRow(ctx, y, labels[id], G.modeSel === i, { w: 300, hit: () => { G.modeSel = i; } });
-    if (id === 'tutorial' && !Save.data.tutorialDone) uiHintDot(ctx, STAGE_W / 2 + 160, y + 12, t);
+    const y = top + i * GAP;
+    drawMenuRow(ctx, y, labels[id], G.modeSel === i, { w: lw, h: 36, cx: lcx, hit: () => { G.modeSel = i; } });
+    if (id === 'tutorial' && !Save.data.tutorialDone) uiHintDot(ctx, 40 + lw + 8, y + 18, t);
   });
-  const d = descs[MODE_ITEMS[G.modeSel]];
-  uiText(ctx, d[0], STAGE_W / 2, 238, { size: T.body, color: P.ice, align: 'center' });
-  uiText(ctx, d[1], STAGE_W / 2, 252, { size: T.body, color: P.grey, align: 'center' });
-  uiText(ctx, 'W/S OR MOUSE = SELECT    SPACE OR CLICK = OK    ESC = BACK', STAGE_W / 2, 346, { size: T.small, color: P.grey, align: 'center' });
+  const id = MODE_ITEMS[G.modeSel], d = descs[id], mc = { regular: P.yellow, infinite: P.cyan, tutorial: P.green }[id] || P.ice;
+  uiPanel(ctx, PX, top, PW, MODE_ITEMS.length * GAP - 10, { color: mc, fill: P.void, alpha: 0.92, glow: true });
+  uiText(ctx, labels[id], PX + 14, top + 24, { size: T.h1, color: mc });
+  let ty = top + 48;
+  ty += 13 * uiWrap(ctx, d[0], PX + 14, ty, PW - 28, 13, { size: T.body, color: P.ice }) + 6;
+  uiWrap(ctx, d[1], PX + 14, ty, PW - 28, 13, { size: T.body, color: P.grey });
+  uiText(ctx, 'W/S OR MOUSE = SELECT    SPACE OR CLICK = OK    X / ESC = BACK', STAGE_W / 2, 346, { size: T.small, color: P.grey, align: 'center' });
 }
 
 // Endlos-Modus vor dem Start: Zeitpunkt des finalen Bosses wählen
 function drawInfSetupScreen(ctx) {
   const P = STYLE.pal, T = STYLE.type, m = CFG.infinite.finalMinutes[Save.data.infSel];
-  drawSprite(ctx, 'keysettings', 0, 0, 90, 100);
+  drawMenuBg(ctx, 'keysettings');
   drawEmbers(ctx);
   uiText(ctx, 'INFINITE MODE', STAGE_W / 2, 56, { size: T.h1, color: P.cyan, align: 'center', glow: P.cyan });
-  uiText(ctx, 'An endless map without walls. Enemies keep coming from every side.', STAGE_W / 2, 80, { size: T.body, color: P.ice, align: 'center' });
-  uiText(ctx, 'Choose when the final boss (Death) arrives. Beat him to win.', STAGE_W / 2, 94, { size: T.body, color: P.grey, align: 'center' });
   const mapName = CFG.maps[Save.mapUnlocked(Save.data.mapSel) ? Save.data.mapSel : 0].name;
   const rows = ['FINAL BOSS: ' + (m === null ? 'NEVER (ENDLESS)' : 'AFTER ' + m + ' MIN'), 'MAP: ' + mapName, 'START', 'BACK'];
-  rows.forEach((r, i) => drawMenuRow(ctx, 116 + i * 30, r, G.infSel === i, { w: 300, hit: () => { G.infSel = i; }, lr: i < 2 }));
-  uiText(ctx, 'CORES x' + CFG.infinite.coreFactor + '    OWN BEST TIME: ' + (Save.data.bestInf > 0 ? formatTime(Save.data.bestInf) : '-'), STAGE_W / 2, 250, { size: T.body, color: P.yellow, align: 'center' });
-  uiText(ctx, 'W/S = SELECT    A/D = CHANGE    SPACE = OK    ESC = BACK', STAGE_W / 2, 346, { size: T.small, color: P.grey, align: 'center' });
+  const lw = 330, PX = 40 + lw + 24, PW = STAGE_W - 40 - PX, top = 90, GAP = 46;
+  rows.forEach((r, i) => drawMenuRow(ctx, top + i * GAP, r, G.infSel === i, { w: lw, h: 36, cx: 40 + lw / 2, hit: () => { G.infSel = i; }, lr: i < 2 }));
+  uiPanel(ctx, PX, top, PW, rows.length * GAP - 10, { color: P.cyan, fill: P.void, alpha: 0.92, glow: true });
+  uiText(ctx, 'HOW IT WORKS', PX + 14, top + 20, { size: T.h2, color: P.cyan });
+  let ty = top + 40;
+  ty += 12 * uiWrap(ctx, 'An endless map without walls. Enemies keep coming from every side.', PX + 14, ty, PW - 28, 12, { size: T.body, color: P.ice }) + 6;
+  ty += 12 * uiWrap(ctx, 'Choose when the final boss (Death) arrives. Beat him to win.', PX + 14, ty, PW - 28, 12, { size: T.body, color: P.grey }) + 10;
+  uiText(ctx, 'CORES x' + CFG.infinite.coreFactor, PX + 14, ty, { size: T.body, color: P.yellow });
+  uiText(ctx, 'OWN BEST TIME: ' + (Save.data.bestInf > 0 ? formatTime(Save.data.bestInf) : '-'), PX + 14, ty + 14, { size: T.body, color: P.yellow });
+  uiText(ctx, 'W/S = SELECT    A/D = CHANGE    SPACE = OK    X / ESC = BACK', STAGE_W / 2, 346, { size: T.small, color: P.grey, align: 'center' });
 }
 
 // Kartenauswahl nach PLAY: drei Karten nebeneinander, gesperrte zeigen, was zum Freischalten fehlt
 function drawMapSelectScreen(ctx) {
   const P = STYLE.pal, T = STYLE.type, n = CFG.maps.length, gap = n > 3 ? 6 : 12, w = Math.min(140, Math.floor((STAGE_W - 20 - (n - 1) * gap) / n)), x0 = STAGE_W / 2 - (n * w + (n - 1) * gap) / 2, y = 70, h = 215, small = w < 130;
-  drawSprite(ctx, 'keysettings', 0, 0, 90, 100);
+  drawMenuBg(ctx, 'keysettings');
   uiText(ctx, 'CHOOSE A MAP', STAGE_W / 2, 44, { size: T.h1, color: P.yellow, align: 'center' });
   CFG.maps.forEach((M, i) => {
     const x = x0 + i * (w + gap), sel = Save.data.mapSel === i, open = Save.mapUnlocked(i), yy = sel ? y - 6 : y, col = open ? M.frame : P.greyMid;
@@ -450,16 +501,16 @@ function drawMapSelectScreen(ctx) {
     }
   });
   drawMenuRow(ctx, 292, 'BACK', G.mapBack, { w: 190, h: 22, hit: () => { G.mapBack = true; } });
-  uiText(ctx, 'A/D OR MOUSE = SELECT    SPACE OR CLICK = START    S = BACK    ESC = BACK', STAGE_W / 2, 336, { size: T.small, color: P.grey, align: 'center' });
+  uiText(ctx, 'A/D OR MOUSE = SELECT    SPACE OR CLICK = START    S = BACK    X / ESC = BACK', STAGE_W / 2, 336, { size: T.small, color: P.grey, align: 'center' });
 }
 
 function drawUpgradesScreen(ctx) {
   const P = STYLE.pal, T = STYLE.type;
-  drawSprite(ctx, 'keysettings', 0, 0, 90, 100);
+  drawMenuBg(ctx, 'keysettings');
   uiText(ctx, 'UPGRADES', STAGE_W / 2, 40, { size: T.h1, color: P.yellow, align: 'center' });
   uiText(ctx, 'CORES: ' + Save.data.souls, STAGE_W / 2, 58, { size: T.h2, color: P.yellow, align: 'center' });
   // Reiter
-  const tw = Math.min(110, 460 / UPGRADE_TABS.length);
+  const tw = Math.min(130, (STAGE_W - 40) / UPGRADE_TABS.length);
   UPGRADE_TABS.forEach((t, i) => {
     const tx = STAGE_W / 2 - (UPGRADE_TABS.length * tw) / 2 + i * tw, on = G.upgradeTab === i;
     UIHit.add(tx + 2, 66, tw - 4, 18, () => { if (G.upgradeTab !== i) { G.upgradeTab = i; G.upgradeSel = 0; } }, { noConfirm: true });
@@ -471,19 +522,16 @@ function drawUpgradesScreen(ctx) {
   const curRow = rows[G.upgradeSel];
   if (curRow && curRow.kind !== 'back') {                              // Gruppe der gewaehlten Zeile + Position darin
     const g = upgradeGroup(curRow), same = rows.filter((q) => q.kind !== 'back' && upgradeGroup(q).label === g.label);
-    uiText(ctx, g.label + '  ' + (same.indexOf(curRow) + 1) + '/' + same.length, STAGE_W / 2, 98, { size: T.small, color: GROUP_COLORS[g.idx % GROUP_COLORS.length], align: 'center' });
-  } else uiText(ctx, '< A / D >', STAGE_W / 2, 98, { size: T.small, color: P.grey, align: 'center' });
-  const w = 400, x = STAGE_W / 2 - w / 2, H = 32, GAP = 35, Y0 = 106;
-  // Erklaerungsbox unten: lange Texte (z. B. Waffen-Perks) werden umgebrochen, die Box waechst nach oben und die Liste zeigt dafuer weniger Zeilen.
-  // Die Hoehe richtet sich nach dem laengsten Text des Reiters, damit das Layout beim Durchblaettern ruhig bleibt.
-  let maxN = 2; for (const r of rows) if (r.kind !== 'back') { const [la, lb] = detailWrapped(ctx, r, w - 20); maxN = Math.max(maxN, la.length + lb.length); }
-  const boxH = maxN * DETAIL_LH + 4, VIS = 6 - Math.ceil(Math.max(0, maxN - 2) * DETAIL_LH / GAP);
+    uiText(ctx, g.label + '  ' + (same.indexOf(curRow) + 1) + '/' + same.length, 24, 98, { size: T.small, color: GROUP_COLORS[g.idx % GROUP_COLORS.length] });
+  } else uiText(ctx, '< A / D >', 24, 98, { size: T.small, color: P.grey });
+  const w = 372, x = 24, H = 34, GAP = 37, Y0 = 106, DX = x + w + 22, DW = STAGE_W - 24 - DX;      // links die Liste, rechts das Detail-Feld
+  const VIS = 6;
   const SW = UIScroll.win('upgrades', G.upgradeTab, G.upgradeSel, VIS, rows.length);
   UIScroll.bar(ctx, 'upgrades', x + w + 6, Y0, 6, VIS * GAP - 3, true, rows.length, VIS, SW.off, (v) => { SW.off = v; });
   const off = SW.off;
   rows.slice(off, off + VIS).forEach((r, k) => {
     const i = off + k, sel = G.upgradeSel === i, y = Y0 + k * GAP;
-    if (r.kind === 'back') { drawMenuRow(ctx, y + 2, 'BACK', sel, { w: 190, hit: () => { G.upgradeSel = i; } }); return; }
+    if (r.kind === 'back') { drawMenuRow(ctx, y + 2, 'BACK', sel, { w: 190, cx: x + w / 2, hit: () => { G.upgradeSel = i; } }); return; }
     UIHit.add(x, y, w, H, () => { G.upgradeSel = i; });
     uiPanel(ctx, x, y, w, H, { color: sel ? P.cyan : P.greyMid, fill: P.void, alpha: 0.9, glow: sel });
     const g = upgradeGroup(r);                                          // farbiger Streifen links = Gruppe, wechselt die Farbe, beginnt eine neue Gruppe
@@ -540,15 +588,16 @@ function drawUpgradesScreen(ctx) {
       uiText(ctx, txt, x + w - 10, y + 14, { size: T.small, color: col, align: 'right' });
     }
   });
-  if (rows.length > VIS) uiText(ctx, (off > 0 ? '^ ' : '') + (off + VIS < rows.length ? 'v' : ''), STAGE_W / 2 + 215, 98, { size: T.small, color: P.grey });
+  if (rows.length > VIS) uiText(ctx, (off > 0 ? '^ ' : '') + (off + VIS < rows.length ? 'v' : ''), x + w, 98, { size: T.small, color: P.grey, align: 'right' });
   const cur = rows[G.upgradeSel];
-  if (cur && cur.kind !== 'back') {                                // Erklaerung zum gewaehlten Eintrag
-    const [la, lb] = detailWrapped(ctx, cur, w - 20), top = 344 - boxH;
-    uiPanel(ctx, x, top, w, boxH, { color: P.greyMid, fill: P.void, alpha: 0.9 });
-    la.forEach((l, i) => uiText(ctx, l, x + 10, top + 11 + i * DETAIL_LH, { size: T.small, color: P.ice }));
-    lb.forEach((l, i) => uiText(ctx, l, x + 10, top + 11 + (la.length + i) * DETAIL_LH, { size: T.small, color: P.grey }));
+  if (cur && cur.kind !== 'back') {                                // Erklaerung zum gewaehlten Eintrag: Feld rechts neben der Liste
+    const [la, lb] = detailWrapped(ctx, cur, DW - 20), top = Y0, bh = VIS * GAP - 3;
+    uiPanel(ctx, DX, top, DW, bh, { color: P.cyanDark || P.greyMid, fill: P.void, alpha: 0.9 });
+    uiText(ctx, 'DETAILS', DX + 10, top + 13, { size: T.small, color: P.cyan });
+    la.forEach((l, i) => uiText(ctx, l, DX + 10, top + 30 + i * DETAIL_LH, { size: T.small, color: P.ice }));
+    lb.forEach((l, i) => uiText(ctx, l, DX + 10, top + 34 + (la.length + i) * DETAIL_LH, { size: T.small, color: P.grey }));
   }
-  uiText(ctx, 'W/S = SELECT    A/D = TAB    SPACE = BUY    ESC = BACK', STAGE_W / 2, 352, { size: T.small, color: P.grey, align: 'center' });
+  uiText(ctx, 'W/S = SELECT    A/D = TAB    SPACE = BUY    X / ESC = BACK', STAGE_W / 2, 352, { size: T.small, color: P.grey, align: 'center' });
 }
 
 // Text auf eine Breite umbrechen (gibt die Zeilen zurueck, zeichnet nichts)
@@ -709,8 +758,8 @@ function drawEvoRecipe(ctx, x, y, w, id) {
 function drawCoreCount(ctx) {
   const P = STYLE.pal, T = STYLE.type, num = String(Save.data.souls);
   ctx.save(); ctx.font = uiFont(T.h2); const nw = ctx.measureText(num).width; ctx.restore();
-  uiText(ctx, 'CORES', STAGE_W - 24 - nw - 6, 37, { size: T.small, color: P.grey, align: 'right' });
-  uiText(ctx, num, STAGE_W - 24, 38, { size: T.h2, color: P.yellow, align: 'right', glow: P.yellow });
+  uiText(ctx, 'CORES', STAGE_W - 56 - nw - 6, 37, { size: T.small, color: P.grey, align: 'right' });
+  uiText(ctx, num, STAGE_W - 56, 38, { size: T.h2, color: P.yellow, align: 'right', glow: P.yellow });
 }
 
 // Text mit Zeilenumbruch (maxW in Buehneneinheiten), gibt die Zeilenzahl zurueck
@@ -764,7 +813,7 @@ function drawGearMeter(ctx, id, x, y, w, col) {
 
 function drawInventoryScreen(ctx) {
   const P = STYLE.pal, T = STYLE.type, t = G.realTime, slots = CFG.items.slots;
-  drawSprite(ctx, 'keysettings', 0, 0, 90, 100);
+  drawMenuBg(ctx, 'keysettings');
   drawEmbers(ctx);
   uiText(ctx, 'INVENTORY', 24, 40, { size: T.h1, color: P.yellow, glow: P.yellow });
   drawCoreCount(ctx);
@@ -851,7 +900,7 @@ function drawInventoryScreen(ctx) {
       uiText(ctx, 'LEVEL UP!', px + pw - 14, iy + 12, { size: T.h2, color: P.yellow, align: 'right', glow: P.yellow });
     }
   }
-  uiText(ctx, 'W/S = SELECT    SPACE = CHANGE ITEM    U = LEVEL UP    ESC = BACK', STAGE_W / 2, 352, { size: T.small, color: P.grey, align: 'center' });
+  uiText(ctx, 'W/S = SELECT    SPACE = CHANGE ITEM    U = LEVEL UP    X / ESC = BACK', STAGE_W / 2, 352, { size: T.small, color: P.grey, align: 'center' });
   if (G.invPick) drawInvPick(ctx);
 }
 
@@ -882,13 +931,13 @@ function drawInvPick(ctx) {
       uiBar(ctx, x + w - 10 - 64, y + 25, 64, 5, Save.gearFrac(id), Save.gearFrac(id) >= 1 ? P.yellow : col);
     }
   });
-  uiText(ctx, 'W/S = SELECT    SPACE = EQUIP    U = LEVEL UP    ESC = BACK', STAGE_W / 2, y0 + rows * GAP + 8, { size: T.small, color: P.grey, align: 'center' });
+  uiText(ctx, 'W/S = SELECT    SPACE = EQUIP    U = LEVEL UP    X / ESC = BACK', STAGE_W / 2, y0 + rows * GAP + 8, { size: T.small, color: P.grey, align: 'center' });
 }
 
 // ---------- Cosmetics-Menue: oben die Kategorien, links die Items, rechts eine Live-Vorschau ----------
 function drawCosmeticsScreen(ctx) {
   const P = STYLE.pal, T = STYLE.type, t = G.realTime, C = CFG.cosmetics, cat = C.cats[G.cosTab], items = Cos.items(cat.id);
-  drawSprite(ctx, 'keysettings', 0, 0, 90, 100);
+  drawMenuBg(ctx, 'keysettings');
   drawEmbers(ctx);
   uiText(ctx, 'COSMETICS', 24, 40, { size: T.h1, color: P.yellow, glow: P.yellow });
   drawCoreCount(ctx);
@@ -951,7 +1000,7 @@ function drawCosmeticsScreen(ctx) {
     if (it.achOnly && !owned) uiWrap(ctx, 'Locked: ' + it.achOnly + '.', px + 12, py + ph - 38, pw - 24, 11, { size: T.small, color: P.red });
     uiText(ctx, msg, px + pw / 2, py + ph - 14, { size: T.body, color: eq ? P.cyan : owned ? P.cyan : it.achOnly || lock ? P.red : afford ? P.yellow : P.red, align: 'center' });
   } else uiText(ctx, 'BACK TO MAIN MENU', px + pw / 2, py + ph / 2, { size: T.h2, color: P.greyMid, align: 'center' });
-  uiText(ctx, 'A/D = CATEGORY    W/S = SELECT    SPACE = BUY / EQUIP    ESC = BACK', STAGE_W / 2, 352, { size: T.small, color: P.grey, align: 'center' });
+  uiText(ctx, 'A/D = CATEGORY    W/S = SELECT    SPACE = BUY / EQUIP    X / ESC = BACK', STAGE_W / 2, 352, { size: T.small, color: P.grey, align: 'center' });
 }
 
 // Live-Vorschau eines Cosmetics im Kasten (x, y, w, h in Buehnenpixeln). Benutzt dieselben Zeichenfunktionen wie das Spiel (Cos.*) in einem
@@ -1079,7 +1128,7 @@ function drawCosmeticPreviewInner(ctx, cat, it, x, y, w, h) {
 
 function drawBindsScreen(ctx) {
   const P = STYLE.pal, T = STYLE.type, A = Input.actions;
-  drawSprite(ctx, 'keysettings', 0, 0, 90, 100);
+  drawMenuBg(ctx, 'keysettings');
   uiText(ctx, 'KEYBINDS', STAGE_W / 2, 44, { size: T.h1, color: P.yellow, align: 'center' });
   const rows = A.concat([{ id: '_reset' }, { id: '_back' }]);
   const w = 340, x = STAGE_W / 2 - w / 2, H = 24, GAP = 27, Y0 = 56, VIS = 9;
@@ -1089,14 +1138,14 @@ function drawBindsScreen(ctx) {
   rows.slice(off, off + VIS).forEach((r, k) => {
     const i = off + k, sel = G.bindSel === i, y = Y0 + k * GAP;
     if (r.id === '_reset') { drawMenuRow(ctx, y, 'RESTORE DEFAULTS', sel, { w: 250, hit: () => { G.bindSel = i; } }); return; }
-    if (r.id === '_back') { drawMenuRow(ctx, y, 'BACK', sel, { w: 190, hit: () => { G.bindSel = i; } }); return; }
+    if (r.id === '_back') { drawMenuRow(ctx, y, 'BACK', sel, { w: 250, hit: () => { G.bindSel = i; } }); return; }
     UIHit.add(x, y, w, H, () => { G.bindSel = i; });
     uiPanel(ctx, x, y, w, H, { color: sel ? P.cyan : P.greyMid, fill: P.void, alpha: 0.9, glow: sel });
     uiText(ctx, r.label, x + 10, y + 16, { size: T.body, color: sel ? P.ice : P.grey });
     const waiting = sel && G.bindWait;
     uiText(ctx, waiting ? 'PRESS A KEY ...' : Input.codeLabel(Input.code(r.id)), x + w - 10, y + 16, { size: T.body, color: waiting ? P.yellow : P.cyan, align: 'right' });
   });
-  uiText(ctx, G.bindWait ? 'PRESS A NEW KEY    ESC = CANCEL' : 'W/S = SELECT    SPACE = CHANGE    ESC = BACK', STAGE_W / 2, 348, { size: T.small, color: P.grey, align: 'center' });
+  uiText(ctx, G.bindWait ? 'PRESS A NEW KEY    ESC = CANCEL' : 'W/S = SELECT    SPACE = CHANGE    X / ESC = BACK', STAGE_W / 2, 348, { size: T.small, color: P.grey, align: 'center' });
 }
 
 function drawPauseScreen(ctx) {
@@ -1179,12 +1228,12 @@ function drawSwapScreen(ctx) {
     uiText(ctx, lines[0], x + 10, 327, { size: T.small, color: P.ice });
     uiText(ctx, lines[1], x + 10, 339, { size: T.small, color: P.grey });
   }
-  uiText(ctx, 'W/S = SELECT    SPACE = EQUIP    ESC = BACK', STAGE_W / 2, 352, { size: T.small, color: P.grey, align: 'center' });
+  uiText(ctx, 'W/S = SELECT    SPACE = EQUIP    X / ESC = BACK', STAGE_W / 2, 352, { size: T.small, color: P.grey, align: 'center' });
 }
 
 function drawSettingsScreen(ctx) {
   const P = STYLE.pal, T = STYLE.type, page = G.settingsPage || 0, list = settingsList();
-  drawSprite(ctx, 'keysettings', 0, 0, 90, 100);
+  drawMenuBg(ctx, 'keysettings');
   uiText(ctx, 'SETTINGS', STAGE_W / 2, 44, { size: T.h1, color: P.yellow, align: 'center' });
   const vol = Save.data.musicVol, bars = Math.round(vol * 10), sv = Math.round(Save.data.sfxVol * 10);
   const rows = {
@@ -1192,14 +1241,15 @@ function drawSettingsScreen(ctx) {
     sfx: 'SOUND FX  ' + '|'.repeat(sv) + '.'.repeat(10 - sv) + '  ' + Math.round(Save.data.sfxVol * 100) + '%',
     fx: 'EFFECTS  ' + ['OFF', 'REDUCED', 'FULL'][Juice.level],
     fullscreen: 'FULLSCREEN: ' + (document.fullscreenElement ? 'ON' : 'OFF'),
+    attackmode: 'ATTACK: ' + (Save.data.attackMode === 'toggle' ? 'TOGGLE' : 'HOLD'),
     mouseaim: 'MOUSE AIMING: ' + (Save.data.mouseAim ? 'ON' : 'OFF'),
     touch: 'TOUCH CONTROLS: ' + (Save.data.touch ? 'ON' : 'OFF'),
     slot: 'SAVE SLOT  ' + [0, 1, 2].map((i) => i === Save.slot ? '[' + (i + 1) + ']' : ' ' + (i + 1) + ' ').join(' '),
+    back: 'BACK',
     controls: 'CONTROLS',
     binds: 'KEYBINDS',
     transfer: 'EXPORT / IMPORT SAVE',
     resetAll: G.resetConfirm ? 'SURE? DELETE SLOT ' + (Save.slot + 1) : 'RESET SAVE FILE (SLOT ' + (Save.slot + 1) + ')',
-    back: 'BACK',
   };
   // Seitenwahl: drei Reiter, A/D (oder Klick) wechselt
   const tw = 128, tg = 6, tx0 = STAGE_W / 2 - (3 * tw + 2 * tg) / 2, tabSel = G.settingsSel === 0;
@@ -1225,13 +1275,13 @@ function drawSettingsScreen(ctx) {
       if (I) uiText(ctx, 'CORES ' + I.souls + (I.wins ? '   WINS ' + I.wins : ''), x + 8, y + 35, { size: T.small, color: P.yellow });
     }
   }
-  uiText(ctx, 'W/S = SELECT    A/D = CHANGE / PAGE    SPACE = OK    ESC = BACK', STAGE_W / 2, 352, { size: T.small, color: P.grey, align: 'center' });
+  uiText(ctx, 'W/S = SELECT    A/D = CHANGE / PAGE    SPACE = OK    X / ESC = BACK', STAGE_W / 2, 352, { size: T.small, color: P.grey, align: 'center' });
 }
 
 // Controls panel: explains every action in general terms and always shows the CURRENT keys (they can be rebound in Settings > Keybinds)
 function drawKeysScreen(ctx) {
   const P = STYLE.pal, T = STYLE.type;
-  drawSprite(ctx, 'keysettings', 0, 0, 90, 100);
+  drawMenuBg(ctx, 'keysettings');
   uiText(ctx, 'CONTROLS', STAGE_W / 2, 40, { size: T.h1, color: P.yellow, align: 'center' });
 
   // chips: one key chip per action id, returns the x position after the last chip
@@ -1254,30 +1304,31 @@ function drawKeysScreen(ctx) {
     uiText(ctx, sub, x + 8, y + 22, { size: T.small, color: P.grey });
   };
 
-  const L = 24, R = 242, W = 214;
-  panel(L, 54, W, 78, 'MOVE & AIM', P.cyan);
-  const mx = chips(L + 8, 70, ['up', 'left', 'down', 'right'], P.cyan);
+  const W = Math.floor((STAGE_W - 48 - 24) / 3), C1 = 24, C2 = C1 + W + 12, C3 = C2 + W + 12;      // drei Spalten
+  panel(C1, 54, W, 78, 'MOVE & AIM', P.cyan);
+  const mx = chips(C1 + 8, 70, ['up', 'left', 'down', 'right'], P.cyan);
   uiText(ctx, 'MOVE', mx + 4, 81, { size: T.body, color: P.ice });
-  uiText(ctx, 'You always face the way you move.', L + 8, 100, { size: T.small, color: P.grey });
-  uiText(ctx, 'Weapons fire where you face.', L + 8, 111, { size: T.small, color: P.grey });
+  uiText(ctx, 'You always face the way you move.', C1 + 8, 100, { size: T.small, color: P.grey });
+  uiText(ctx, 'Weapons fire where you face.', C1 + 8, 111, { size: T.small, color: P.grey });
 
-  panel(L, 136, W, 134, 'COMBAT', P.red);
-  row(L, 152, ['attack'], 'ATTACK', 'Hold to use the selected weapon.', P.red);
-  row(L, 180, ['weapon1', 'weapon2'], 'SWITCH WEAPON', 'Melee / ranged (mouse wheel works too).', P.red);
-  row(L, 208, ['beam'], 'HEAVY WEAPON', 'Tap or hold, depending on the weapon.', P.yellow);
-  row(L, 236, ['ultimate'], 'ULTIMATE', 'Needs a full charge orb (fills with kills).', P.teal);
-
-  panel(R, 54, W, 124, 'ABILITIES', P.cyan);
-  row(R, 70, ['ability_weak'], 'WEAK SLOT', 'Short cooldown, small effect.', P.cyan);
-  row(R, 94, ['ability_medium'], 'MEDIUM SLOT', 'Longer cooldown, stronger effect.', P.cyan);
-  row(R, 118, ['ability_strong'], 'STRONG SLOT', 'Long cooldown, game-changing effect.', P.cyan);
-  row(R, 142, ['artifact'], 'HERO ARTIFACT', 'Only heroes after Vanguard have one.', P.yellow);
-
-  panel(R, 182, W, 88, 'GOOD TO KNOW', P.yellow);
+  panel(C1, 136, W, 134, 'GOOD TO KNOW', P.yellow);
   const tips = ['Beat a boss to pick a new ability (1 of 3).', 'Passive abilities need no key.', 'ESC, P or BACKSPACE pauses the game.', 'Menus: W/S A/D or arrows, SPACE = OK.', 'Rebind keys: Settings > Keybinds.'];
-  tips.forEach((t, i) => uiText(ctx, t, R + 8, 204 + i * 14, { size: T.small, color: P.grey }));
+  let ty = 158;
+  tips.forEach((t) => { ty += 12 * uiWrap(ctx, t, C1 + 8, ty, W - 16, 12, { size: T.small, color: P.grey }) + 3; });
 
-  uiText(ctx, 'SURVIVE.', STAGE_W / 2, 292, { size: T.h2, color: P.red, align: 'center', glow: P.red });
+  panel(C2, 54, W, 150, 'COMBAT', P.red);
+  row(C2, 70, ['attack'], 'ATTACK', 'Hold to use the weapon.', P.red);
+  row(C2, 98, ['weapon1', 'weapon2'], 'SWITCH WEAPON', 'Melee / ranged (or wheel).', P.red);
+  row(C2, 126, ['beam'], 'HEAVY WEAPON', 'Tap or hold, per weapon.', P.yellow);
+  row(C2, 154, ['ultimate'], 'ULTIMATE', 'Needs a full orb (kills).', P.teal);
+
+  panel(C3, 54, W, 150, 'ABILITIES', P.cyan);
+  row(C3, 70, ['ability_weak'], 'WEAK SLOT', 'Short cooldown, small.', P.cyan);
+  row(C3, 94, ['ability_medium'], 'MEDIUM SLOT', 'Longer cooldown, stronger.', P.cyan);
+  row(C3, 118, ['ability_strong'], 'STRONG SLOT', 'Long cooldown, huge effect.', P.cyan);
+  row(C3, 142, ['artifact'], 'HERO ARTIFACT', 'Heroes after Vanguard only.', P.yellow);
+
+  uiText(ctx, 'SURVIVE.', STAGE_W / 2, 296, { size: T.h2, color: P.red, align: 'center', glow: P.red });
   UIHit.add(STAGE_W / 2 - 80, 306, 160, 24, () => {});                // Klick = zurueck
   drawPrompt(ctx, 'BACK [SPACE]', 322);
 }
@@ -1317,12 +1368,12 @@ function drawDeathItem(ctx, t, tint) {
   ctx.fillStyle = tint;
   ctx.font = t.px + 'px ' + PIXEL_FONT;
   if (t.rot) {
-    ctx.translate(t.x, t.y);
+    ctx.translate(t.x + (STAGE_W - 480) / 2, t.y);
     ctx.rotate(t.rot * DEG);
     ctx.textAlign = 'left';
     ctx.fillText(t.text, 0, 0);
   } else {
-    const target = Math.min(STAGE_W - 2 * t.x, STAGE_W - 20);
+    const target = Math.min(480 - 2 * t.x, 480 - 20);
     const w = ctx.measureText(t.text).width;
     const px = clamp(t.px * target / w, t.px * 0.6, t.px * 1.4);
     ctx.font = px + 'px ' + PIXEL_FONT;
@@ -1347,7 +1398,7 @@ function drawEndingScreen(ctx) {
     ctx.save();
     const shake = t > 1.5 ? Math.min(3, 0.4 + t * 0.3) : 0;                         // je panischer er wird, desto mehr zittert alles
     ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
-    drawSprite(ctx, 'deathSecret4', 0, 0, 90, 100);
+    drawMenuBg(ctx, 'deathSecret4', true);
     const title = Object.assign({}, DEATH_TEXTS.deathSecret4[0], { text: t < 9.6 ? 'DEATH' : 'END', x: t < 9.6 ? 35.75 : 119.76 });
     drawDeathItem(ctx, title, tint);
     for (const [from, idx] of ENDING_LINES) if (t >= from) drawDeathItem(ctx, DEATH_TEXTS.deathSecret4[idx], tint);
@@ -1356,7 +1407,7 @@ function drawEndingScreen(ctx) {
     return;
   }
   const k = Math.min(1, (t - ENDING_SPLIT) / 0.8);
-  drawSprite(ctx, 'deathSecret3', 0, 0, 90, 100);
+  drawMenuBg(ctx, 'deathSecret3', true);
   ctx.save(); ctx.globalAlpha = k;
   outlinedText(ctx, 'YOU WIN', STAGE_W / 2, 100, 64, P.yellow);
   uiText(ctx, 'If you read this you have finished the game', STAGE_W / 2, 126, { size: T.h2, color: P.ice, align: 'center' });
@@ -1374,7 +1425,7 @@ function drawEndingScreen(ctx) {
 
 function drawDeathScreen(ctx) {
   const name = deathScreenFor(G.time);
-  drawSprite(ctx, name, 0, 0, 90, 100);
+  drawMenuBg(ctx, name, true);
   if (G.infinite) uiText(ctx, 'INFINITE MODE', 12, 24, { size: STYLE.type.h2, color: STYLE.deathTints[name] || STYLE.pal.red });
   drawDeathTexts(ctx, name);
   // "Leertaste zum Neustart" schwebt langsam auf und ab
@@ -1382,13 +1433,14 @@ function drawDeathScreen(ctx) {
   const off = k < 4 ? 2 * (k / 4) : 2 - 4 * ((k - 4) / 3);
   const tint = STYLE.deathTints[name] || STYLE.pal.red;
   uiText(ctx, 'MENU [SPACE]     RETRY [R]     DETAILS [TAB]', STAGE_W / 2, 340 - off, { size: STYLE.type.h2, color: tint, align: 'center' });
-  const sm = Stats.summary;
-  if (sm) uiText(ctx, 'KILLED BY: ' + sm.killer, STAGE_W / 2, 326, { size: STYLE.type.small, color: STYLE.pal.ice, align: 'center' });
-  milestoneLines().forEach((l, i, a) => uiText(ctx, l, STAGE_W / 2, 244 - (a.length - 1 - i) * 11, { size: STYLE.type.small, color: STYLE.pal.cyan, align: 'center' }));
-  uiText(ctx, '+' + G.earned + ' CORES', STAGE_W / 2, 268, { size: STYLE.type.h2, color: STYLE.pal.yellow, align: 'center' });
-  if (G.starterBonus && G.starterBonus.extra > 0) uiText(ctx, 'STARTER BONUS +' + G.starterBonus.extra + '  (RUN ' + G.starterBonus.run + '/' + G.starterBonus.of + ')', STAGE_W / 2, 277, { size: STYLE.type.small, color: STYLE.pal.green, align: 'center' });
-  if (G.newBest) uiText(ctx, 'NEW BEST TIME!', STAGE_W / 2, 292, { size: STYLE.type.h2, color: STYLE.pal.yellow, align: 'center', glow: STYLE.pal.yellow });
-  outlinedText(ctx, 'Time: ' + formatTime(G.time) + '  (' + G.time.toFixed(1) + ' s)', STAGE_W / 2, 310, 22, STYLE.pal.ice);
+  const sm = Stats.summary, R = STAGE_W - 12;                                  // Layout: Belohnungen oben rechts, Zeit und Killer unten, damit nichts mit dem Spruch überlappt
+  uiText(ctx, '+' + G.earned + ' CORES', R, 24, { size: STYLE.type.h2, color: STYLE.pal.yellow, align: 'right' });
+  let ry = 36;
+  if (G.starterBonus && G.starterBonus.extra > 0) { uiText(ctx, 'STARTER BONUS +' + G.starterBonus.extra + '  (RUN ' + G.starterBonus.run + '/' + G.starterBonus.of + ')', R, ry, { size: STYLE.type.small, color: STYLE.pal.green, align: 'right' }); ry += 11; }
+  milestoneLines().forEach((l, i) => uiText(ctx, l, R, ry + i * 11, { size: STYLE.type.small, color: STYLE.pal.cyan, align: 'right' }));
+  if (G.newBest) uiText(ctx, 'NEW BEST TIME!', STAGE_W / 2, 24, { size: STYLE.type.h2, color: STYLE.pal.yellow, align: 'center', glow: STYLE.pal.yellow });
+  outlinedText(ctx, 'Time: ' + formatTime(G.time) + '  (' + G.time.toFixed(1) + ' s)', STAGE_W / 2, 292, 22, STYLE.pal.ice);
+  if (sm) uiText(ctx, 'KILLED BY: ' + sm.killer, STAGE_W / 2, 312, { size: STYLE.type.small, color: STYLE.pal.ice, align: 'center' });
   if (G.deathDetails && sm) drawRunDetails(ctx, sm);
 }
 
@@ -1401,21 +1453,22 @@ function drawRunDetails(ctx, sm) {
   uiText(ctx, 'TIME ' + formatTime(G.time) + '   LEVEL ' + sm.level + '   BOSSES ' + G.bosses + '   KILLS ' + G.kills + '   HITS TAKEN ' + sm.hitCount + '   DAMAGE ' + Math.round(sm.taken), STAGE_W / 2, 54, { size: T.small, color: P.grey, align: 'center' });
   uiText(ctx, 'SAFE SPOT BLOCKED ' + (sm.savedHits || 0) + ' HITS (ABOUT ' + Math.round(sm.savedDmg || 0) + ' DAMAGE)', STAGE_W / 2, 68, { size: T.small, color: sm.savedHits ? P.green : P.grey, align: 'center' });
   const col = (x, title, rows, color, fmt) => {
-    const w = 212, top = 76, rowH = 29, max = rows.length ? rows[0][1] : 1, total = rows.reduce((s, r) => s + r[1], 0) || 1;
+    const w = Math.floor((STAGE_W - 36 - 24) / 2), top = 76, rowH = 29, max = rows.length ? rows[0][1] : 1, total = rows.reduce((s, r) => s + r[1], 0) || 1;
     uiPanel(ctx, x, top, w, 256, { color: P.greyMid, fill: P.void, alpha: 0.95 });
     uiText(ctx, title, x + 10, top + 14, { size: T.h2, color });
     if (!rows.length) uiText(ctx, 'NOTHING YET', x + 10, top + 44, { size: T.small, color: P.grey });
     rows.slice(0, 7).forEach(([name, v], i) => {
       const y = top + 40 + i * rowH;
-      uiText(ctx, uiFit(ctx, name, 120, T.small), x + 10, y, { size: T.small, color: i === 0 ? P.ice : P.grey });
+      uiText(ctx, uiFit(ctx, name, w * 0.6, T.small), x + 10, y, { size: T.small, color: i === 0 ? P.ice : P.grey });
       uiText(ctx, fmt(v, total), x + w - 10, y, { size: T.small, color: i === 0 ? P.yellow : P.grey, align: 'right' });
       ctx.fillStyle = P.greyMid; ctx.fillRect(x + 10, y + 6, w - 20, 4);
       ctx.fillStyle = color; ctx.fillRect(x + 10, y + 6, Math.max(2, Math.round((w - 20) * v / max)), 4);
     });
     if (rows.length > 7) uiText(ctx, '+' + (rows.length - 7) + ' MORE', x + 10, top + 40 + 7 * rowH, { size: T.small, color: P.grey });
   };
+  const cw = Math.floor((STAGE_W - 36 - 24) / 2);
   col(18, 'DAMAGE TAKEN', sm.dmg, P.red, (v, tot) => Math.round(v) + ' (' + Math.round(100 * v / tot) + '%)');
-  col(250, 'KILLS BY WEAPON', sm.kills, P.cyan, (v) => String(v));
+  col(18 + cw + 24, 'KILLS BY WEAPON', sm.kills, P.cyan, (v) => String(v));
   drawPrompt(ctx, G.mode === 'ending' ? 'BACK [TAB]     MENU [SPACE]' : 'BACK [TAB]     MENU [SPACE]     RETRY [R]', 345);
 }
 
