@@ -956,6 +956,10 @@ function drawCosmeticsScreen(ctx) {
 // Live-Vorschau eines Cosmetics im Kasten (x, y, w, h in Buehnenpixeln). Benutzt dieselben Zeichenfunktionen wie das Spiel (Cos.*) in einem
 // verschobenen Koordinatensystem: (0, 0) = Mitte des Kastens, y nach oben. Eigene Partikelliste, wird beim Wechseln des Items geleert.
 function drawCosmeticPreview(ctx, cat, it, x, y, w, h) {
+  Juice.force = 2;                                                                    // die Vorschau soll den Effekt zeigen, auch wenn EFFECTS auf OFF/REDUCED steht
+  try { drawCosmeticPreviewInner(ctx, cat, it, x, y, w, h); } finally { Juice.force = undefined; }
+}
+function drawCosmeticPreviewInner(ctx, cat, it, x, y, w, h) {
   const P = STYLE.pal, t = G.realTime, cx = x + w / 2, cy = y + h / 2;
   const pv = G.cosPrev || (G.cosPrev = { list: [], ghosts: [], last: t, key: '', lastKill: -1, ghostT: 0 });
   const key = cat + ':' + it.id;

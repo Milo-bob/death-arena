@@ -12,7 +12,8 @@ const Juice = {
   particles: [], ghosts: [], ghostT: 0,
 
   // 0 = aus, 1 = reduziert, 2 = voll
-  get level() { const v = Save.data.fx; return v === undefined ? 2 : v; },
+  force: undefined,                                              // Cosmetics-Vorschau: zeigt Effekte immer voll, egal was in den Einstellungen steht
+  get level() { if (this.force !== undefined) return this.force; const v = Save.data.fx; return v === undefined ? 2 : v; },
   get scale() { return [0, 0.5, 1][this.level]; },
 
   reset() { this.zoom = 1; this.zoomTarget = 1; this.zoomT = 0; this.shakeAmt = 0; this.hs = 0; this.flashCd = 0; this.particles = []; this.ghosts = []; },
