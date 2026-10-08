@@ -215,8 +215,8 @@ const MapFx = {
     else if (k === 'toxic') { col = P.green; a = 0.045 + 0.035 * (0.5 + 0.5 * Math.sin(gt / 9)); }
     else if (k === 'cryo') { const m = 0.5 + 0.5 * Math.sin(gt / 35); col = m > 0.5 ? P.teal : P.cyan; a = 0.03 + 0.04 * m; }
     ctx.globalAlpha = a * lv; ctx.fillStyle = col; ctx.fillRect(0, 0, STAGE_W, STAGE_H);
-    // Vignette: vor einem Boss pulsiert sie in Warnfarbe, im Bosskampf bleibt sie (Kartenfarbe) und atmet
-    const vg = Math.max(pre, b * 0.7);
+    // Vignette: nur noch im Bosskampf (Kartenfarbe, atmet). Die pulsierende Warn-Vignette vor dem Boss ist entfernt (pre zaehlt weiter, wirkt aber nicht mehr auf den Rand).
+    const vg = b * 0.7;
     if (vg > 0.02) {
       const warn = k === 'cryo' || k === 'void' ? P.red : P.orange, pulse = 0.55 + 0.45 * Math.sin(t * (pre > b ? 6 : 2.4));
       ctx.fillStyle = b > pre ? G.map.frame : warn;

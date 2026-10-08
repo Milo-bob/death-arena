@@ -186,6 +186,7 @@ const G = {
   upgradeSel: 0,          // gewählte Zeile im Upgrade-Menü (die letzte Zeile ist Zurück)
   swapSel: 0,             // gewaehlte Zeile im Ability-Tausch
   pauseSel: 0,            // gewaehlte Zeile im Pausemenue
+  mapBack: false,         // Kartenauswahl: BACK-Knopf gewaehlt
   pauseConfirm: false,    // Aufgeben wartet auf eine zweite Bestaetigung
   bindsBack: 'settings',  // wohin das Tasten-Menue zurueckfuehrt (settings oder pause)
   bindSel: 0,             // gewaehlte Zeile im Tasten-Menue
@@ -370,10 +371,13 @@ const G = {
   updateMapSelect() {
     const n = CFG.maps.length;
     const dir = (Input.pressed('ArrowRight') || Input.pressed('KeyD') ? 1 : 0) - (Input.pressed('ArrowLeft') || Input.pressed('KeyA') ? 1 : 0);
-    if (dir) Save.data.mapSel = (Save.data.mapSel + dir + n) % n;
+    if (dir) { Save.data.mapSel = (Save.data.mapSel + dir + n) % n; this.mapBack = false; }
+    if (Input.pressed('ArrowDown') || Input.pressed('KeyS')) this.mapBack = true;                // BACK-Knopf unter den Karten
+    if (Input.pressed('ArrowUp') || Input.pressed('KeyW')) this.mapBack = false;
     if (Input.pressed('Space') || Input.pressed('Enter')) {
-      if (Save.mapUnlocked(Save.data.mapSel)) { Save.write(); this.begin(false, false); } else Sfx.play('deny');
-    } else if (Input.pressed('Escape')) { Save.write(); this.mode = 'modeselect'; }
+      if (this.mapBack) { this.mapBack = false; Save.write(); this.mode = 'modeselect'; }
+      else if (Save.mapUnlocked(Save.data.mapSel)) { Save.write(); this.begin(false, false); } else Sfx.play('deny');
+    } else if (Input.pressed('Escape')) { this.mapBack = false; Save.write(); this.mode = 'modeselect'; }
   },
 
   // Endlos-Modus vor dem Start: Zeile 0 = Zeitpunkt des finalen Bosses (A/D oder Leertaste wechselt), Zeile 1 = Start, Zeile 2 = Zurück

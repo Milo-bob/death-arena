@@ -430,7 +430,7 @@ function drawMapSelectScreen(ctx) {
   uiText(ctx, 'CHOOSE A MAP', STAGE_W / 2, 44, { size: T.h1, color: P.yellow, align: 'center' });
   CFG.maps.forEach((M, i) => {
     const x = x0 + i * (w + gap), sel = Save.data.mapSel === i, open = Save.mapUnlocked(i), yy = sel ? y - 6 : y, col = open ? M.frame : P.greyMid;
-    UIHit.add(x, y - 6, w, h + 6, () => { Save.data.mapSel = i; });
+    UIHit.add(x, y - 6, w, h + 6, () => { Save.data.mapSel = i; G.mapBack = false; });
     uiPanel(ctx, x, yy, w, h, { color: sel ? col : P.greyMid, fill: P.void, alpha: 0.95, glow: sel });
     const im = IMG[M.ground];
     if (im && im.ok) { ctx.save(); ctx.globalAlpha = open ? 1 : 0.25; ctx.drawImage(im.img, 0, 0, 400, 240, x + 5, yy + 5, w - 10, 78); ctx.restore(); }
@@ -449,7 +449,8 @@ function drawMapSelectScreen(ctx) {
       uiText(ctx, 'ON ' + CFG.maps[i - 1].name, x + w / 2, yy + 200, { size: T.small, color: P.grey, align: 'center' });
     }
   });
-  uiText(ctx, 'A/D OR MOUSE = SELECT    SPACE OR CLICK = START    ESC = BACK', STAGE_W / 2, 330, { size: T.small, color: P.grey, align: 'center' });
+  drawMenuRow(ctx, 292, 'BACK', G.mapBack, { w: 190, h: 22, hit: () => { G.mapBack = true; } });
+  uiText(ctx, 'A/D OR MOUSE = SELECT    SPACE OR CLICK = START    S = BACK    ESC = BACK', STAGE_W / 2, 336, { size: T.small, color: P.grey, align: 'center' });
 }
 
 function drawUpgradesScreen(ctx) {
@@ -1116,7 +1117,7 @@ function drawPauseScreen(ctx) {
     binds: 'KEYBINDS',
     quit: G.pauseConfirm ? 'SURE? [SPACE]' : Tutorial.active ? 'LEAVE TUTORIAL' : 'GIVE UP',
   };
-  PAUSE_ITEMS.forEach((id, i) => drawMenuRow(ctx, 104 + i * 32, rows[id], G.pauseSel === i, { w: 260, hit: () => { G.pauseSel = i; G.pauseConfirm = false; }, lr: id === 'music' || id === 'sfx' }));
+  PAUSE_ITEMS.forEach((id, i) => drawMenuRow(ctx, 104 + i * 32, rows[id], G.pauseSel === i, { w: 260, hit: () => { if (G.pauseSel !== i) { G.pauseSel = i; G.pauseConfirm = false; } }, lr: id === 'music' || id === 'sfx' }));
   if (!Tutorial.active) drawPauseEvos(ctx);
   uiText(ctx, 'W/S = SELECT    SPACE = OK    A/D = VOLUME    ESC / P / BACKSPACE = RESUME', STAGE_W / 2, 346, { size: T.small, color: P.grey, align: 'center' });
 }
