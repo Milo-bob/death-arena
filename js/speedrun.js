@@ -52,7 +52,10 @@ const SpeedRun = {
   // ---------- Hilfen ----------
   C: () => CFG.speedrun,
   unlocked(kind) { return Save.data.dev === true || Save.plevel() >= CFG.speedrun.kinds[kind].level; },
-  bestKey(sr) { return sr.kind === 'seed' ? 'seed:' + sr.seed : sr.kind; },
+  // Schluessel der Bestzeit-Liste (auch die Listen-ID im Leaderboard, dort mit "sr:" davor): rush | gauntlet | rnd (alle Zufalls-Seeds zusammen) | daily:<JJJJMMTT> | seed:<Zahl>
+  bestKey(sr) { return sr.kind !== 'seed' ? sr.kind : sr.mode === 'daily' ? 'daily:' + sr.seed : sr.mode === 'fixed' ? 'seed:' + sr.seed : 'rnd'; },
+  today() { return Number(new Date().toISOString().slice(0, 10).replace(/-/g, '')); },
+  setupKey(S) { return S.kind !== 'seed' ? S.kind : S.seedMode === 'daily' ? 'daily:' + this.today() : S.seedMode === 'fixed' ? 'seed:' + Math.max(1, S.seedNum) : 'rnd'; },
   best(key) { return (Save.data.sr.best || {})[key] || null; },
   color(kind) { return STYLE.pal[CFG.speedrun.kinds[kind].color] || STYLE.pal.ice; },
 
@@ -63,10 +66,10 @@ const SpeedRun = {
       bounds: null, woken: {}, gap: 0, gateDone: false, age: 0, result: null, reason: '' };
     if (kind === 'seed') {
       let seed;
-      if (S.seedMode === 'daily') seed = Number(new Date().toISOString().slice(0, 10).replace(/-/g, ''));
+      if (S.seedMode === 'daily') seed = this.today();
       else if (S.seedMode === 'fixed') seed = Math.max(1, Math.floor(S.seedNum) || 1);
       else seed = 1 + Math.floor(Math.random() * 999999);
-      Object.assign(sr, { seed, rng: srRng(seed), barterRng: srRng((seed ^ 0x9e3779b9) >>> 0), stage: 0, keys: 0, scrap: 0, core: false, tradeT: 0, spawnT: 3, trades: 0, lastKills: 0,
+      Object.assign(sr, { seed, mode: S.seedMode, rng: srRng(seed), barterRng: srRng((seed ^ 0x9e3779b9) >>> 0), stage: 0, keys: 0, scrap: 0, core: false, tradeT: 0, spawnT: 3, trades: 0, lastKills: 0,
         carriers: [], portal: null, merchant: null, bossType: 'octagon', tradeMsg: '', tradeMsgT: 0 });
     }
     return sr;
@@ -291,8 +294,9 @@ const SpeedRun = {
     if (isBest) {
       delete B[key];                                          // neu eintragen (ans Ende), damit die aeltesten Seeds zuerst verfallen
       B[key] = { time: sr.final, base: sr.t, penalty: sr.penalty, splits: sr.splits.map((s) => ({ name: s.name, t: s.t })) };
-      const keys = Object.keys(B).filter((k) => k.startsWith('seed:'));
-      for (let i = 0; i < keys.length - 40; i++) delete B[keys[i]];
+      if (sr.kind === 'seed') B[key].seed = sr.seed;
+      const keys = Object.keys(B).filter((k) => k.startsWith('seed:') || k.startsWith('daily:'));
+      for (let i = 0; i < keys.length - 40; i++) delete B[keys[i]];            // nur die letzten 40 Seeds/Tage merken (alle anderen Listen bleiben)
     }
     return { best: isBest, old, cheat: false };
   },
@@ -373,7 +377,7 @@ const SpeedRun = {
     uiText(ctx, K.short, PX + 14, top + 38, { size: T.small, color: P.grey });
     let ty = top + 56;
     for (const t of K.info) ty += 12 * uiWrap(ctx, t, PX + 14, ty, PW - 28, 12, { size: T.body, color: P.ice }) + 5;
-    const B = this.best(S.kind === 'seed' ? (S.seedMode === 'fixed' ? 'seed:' + Math.max(1, S.seedNum) : S.seedMode === 'daily' ? 'seed:' + Number(new Date().toISOString().slice(0, 10).replace(/-/g, '')) : null) : S.kind);
+    const B = this.best(this.setupKey(S));
     uiText(ctx, 'BEST: ' + (B ? srFmt(B.time) : '-'), PX + 14, ty + 4, { size: T.h2, color: P.yellow });
     ty += 22;
     if (S.kind === 'seed') ty += 12 * uiWrap(ctx, S.seedMode === 'fixed' ? 'TYPE DIGITS (BACKSPACE DELETES) OR PRESS SPACE.' : S.seedMode === 'daily' ? 'DAILY SEED: the same world for everyone today.' : 'A / D: RANDOM, DAILY OR YOUR OWN SEED.', PX + 14, ty, PW - 28, 12, { size: T.small, color: P.grey }) + 4;
@@ -434,6 +438,7 @@ const SpeedRun = {
         uiText(ctx, srFmt(s.t), cx + cw, cy, { size: T.small, color: P.yellow, align: 'right' });
       });
     }
+    if (sr.ok && R && !R.cheat) uiText(ctx, 'LEADERBOARD [B] IN THE MAIN MENU: ' + (sr.kind === 'seed' ? (sr.mode === 'random' ? 'RANDOM SEED' : sr.mode === 'daily' ? 'DAILY SEED' : 'SEED ' + sr.seed) : K.name), STAGE_W / 2, 306, { size: T.small, color: P.grey, align: 'center' });
     UIHit.add(STAGE_W / 2 - 100, 318, 200, 24, () => {});
     uiText(ctx, 'RETRY [R]      BACK [SPACE]', STAGE_W / 2, 332, { size: T.h2, color: P.cyan, align: 'center' });
   },

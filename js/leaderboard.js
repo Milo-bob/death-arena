@@ -23,6 +23,12 @@ const Board = {
       { id: 'kill', label: 'KILLS', hint: 'ENEMIES DEFEATED IN TOTAL', fmt: f },
     ];
     for (const m of CFG.maps) list.push({ id: 'map:' + m.id, label: m.name, hint: 'BEST TIME ON THIS MAP', fmt: formatTime });
+    // Speedrun: schnellste Zeit zuerst (Server: lb_sr_page). Zufalls-Seed = beste Zeit ueber alle Zufalls-Seeds, Daily = Seed des heutigen Tages, Fester Seed = die Zahl aus dem Speedrun-Setup (hier mit Ziffern aenderbar)
+    list.push({ id: 'sr:rush', label: 'BOSS RUSH', hint: 'FASTEST TIME', fmt: srFmt, sr: true });
+    list.push({ id: 'sr:gauntlet', label: 'GAUNTLET', hint: 'FASTEST TIME, PENALTY INCLUDED', fmt: srFmt, sr: true });
+    list.push({ id: 'sr:rnd', label: 'SEED RUN: RANDOM SEED', hint: 'FASTEST TIME WITH ANY RANDOM SEED', fmt: srFmt, sr: true });
+    list.push({ id: 'sr:daily:' + SpeedRun.today(), label: 'SEED RUN: DAILY SEED', hint: 'FASTEST TIME ON THE DAILY SEED (' + SpeedRun.today() + ')', fmt: srFmt, sr: true });
+    list.push({ id: 'sr:seed:' + Math.max(1, Save.data.sr.seedNum), label: 'SEED RUN: SEED ' + Math.max(1, Save.data.sr.seedNum), hint: 'FASTEST TIME ON THIS SEED  -  TYPE DIGITS TO CHANGE THE SEED', fmt: srFmt, sr: true, typeSeed: true });
     return list;
   },
   cur() { return this.tabs()[this.tab]; },
@@ -37,11 +43,12 @@ const Board = {
     if (!Account.configured) { this.error = 'CLOUD SAVES ARE NOT SET UP YET'; return; }
     this.loading[id] = true;
     try {
-      const a = await Account.http('POST', '/rest/v1/rpc/lb_page', { p_board: id, p_limit: this.LIMIT, p_offset: 0 }, Account.on ? await Account.token() : null);
+      const fnPage = id.startsWith('sr:') ? 'lb_sr_page' : 'lb_page', fnMe = id.startsWith('sr:') ? 'lb_sr_me' : 'lb_me';
+      const a = await Account.http('POST', '/rest/v1/rpc/' + fnPage, { p_board: id, p_limit: this.LIMIT, p_offset: 0 }, Account.on ? await Account.token() : null);
       if (!a.ok) { this.pages[id] = old || { rows: null, total: 0, me: null, at: 0 }; this.pages[id].error = a.offline ? 'NO CONNECTION' : 'LEADERBOARD IS NOT SET UP YET'; return; }
       const rows = (a.json || []).map((r) => ({ rank: r.rank, name: r.name, val: +r.val, mine: !!r.mine }));
       let me = null;
-      if (Account.on) { const b = await Account.rest('POST', '/rest/v1/rpc/lb_me', { p_board: id }); if (b.ok && b.json && b.json[0]) me = { rank: b.json[0].rank, val: +b.json[0].val, total: b.json[0].total }; }
+      if (Account.on) { const b = await Account.rest('POST', '/rest/v1/rpc/' + fnMe, { p_board: id }); if (b.ok && b.json && b.json[0]) me = { rank: b.json[0].rank, val: +b.json[0].val, total: b.json[0].total }; }
       this.pages[id] = { rows, total: a.json && a.json[0] ? +a.json[0].total : 0, me, error: '', at: Date.now() };
     } finally { this.loading[id] = false; }
   },
@@ -69,6 +76,14 @@ const Board = {
 
   update() {
     const pg = this.page(), n = pg && pg.rows ? pg.rows.length : 0, vis = 9;
+    const tb = this.cur();
+    if (tb.typeSeed) {                                                                   // fester Seed: Ziffern tippen, Rueckschritt loescht (Liste laedt kurz nach der letzten Eingabe)
+      const S = Save.data.sr; let typed = false;
+      for (const c of Object.keys(Input.pressedNow)) { const m = /^(?:Digit|Numpad)([0-9])$/.exec(c); if (m) { S.seedNum = this.seedTyped ? Math.min(999999999, S.seedNum * 10 + Number(m[1])) : Number(m[1]); this.seedTyped = true; typed = true; } }
+      if (Input.pressedNow.Backspace) { S.seedNum = Math.floor(S.seedNum / 10); this.seedTyped = true; typed = true; }
+      if (typed) { Save.write(); this.seedAt = Date.now(); this.top = 0; if (Input.pressedNow.Backspace) return; }
+      if (this.seedAt && Date.now() - this.seedAt > 600) { this.seedAt = 0; this.load(this.cur().id); }
+    } else this.seedTyped = false;
     if (Input.pressed('Escape')) { G.mode = 'start'; return; }
     if (Input.pressed('ArrowLeft') || Input.pressed('KeyA')) this.step(-1);
     if (Input.pressed('ArrowRight') || Input.pressed('KeyD')) this.step(1);
