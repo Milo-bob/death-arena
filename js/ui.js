@@ -639,7 +639,7 @@ function drawUpgradesScreen(ctx) {
   rows.slice(off, off + VIS).forEach((r, k) => {
     const i = off + k, sel = G.upgradeSel === i, y = Y0 + k * GAP;
     if (r.kind === 'back') { drawMenuRow(ctx, y + 2, 'BACK', sel, { w: 190, cx: x + w / 2, hit: () => { G.upgradeSel = i; } }); return; }
-    UIHit.add(x, y, w, H, () => { G.upgradeSel = i; });
+    UIHit.add(x, y, w, H, () => { G.upgradeSel = i; }, { noConfirm: true });        // Klick waehlt nur aus, gekauft wird ueber den Knopf rechts (oder per Leertaste)
     uiPanel(ctx, x, y, w, H, { color: sel ? P.cyan : P.greyMid, fill: P.void, alpha: 0.9, glow: sel });
     const g = upgradeGroup(r);                                          // farbiger Streifen links = Gruppe, wechselt die Farbe, beginnt eine neue Gruppe
     ctx.fillStyle = GROUP_COLORS[g.idx % GROUP_COLORS.length]; ctx.fillRect(x + 1, y + 3, 3, H - 6);
@@ -703,7 +703,36 @@ function drawUpgradesScreen(ctx) {
     uiText(ctx, 'DETAILS', DX + 10, top + 13, { size: T.small, color: P.cyan });
     la.forEach((l, i) => uiText(ctx, l, DX + 10, top + 30 + i * DETAIL_LH, { size: T.small, color: P.ice }));
     lb.forEach((l, i) => uiText(ctx, l, DX + 10, top + 34 + (la.length + i) * DETAIL_LH, { size: T.small, color: P.grey }));
+    const act = upgradeAction(cur);
+    if (act) drawActionButton(ctx, DX + DW / 2 - 110, top + bh - 34, 220, 24, act);
   }
+}
+
+// Knopf im Detail-Feld (Upgrades) bzw. in der Vorschau (Cosmetics): Klick = Leertaste auf dem gewaehlten Eintrag (kaufen, freischalten, ausruesten).
+// act = { label, color }. Die Tastatur geht weiter wie bisher (Leertaste/Enter).
+function drawActionButton(ctx, x, y, w, h, act) {
+  const P = STYLE.pal, m = Input.mouse, hot = m.x >= x && m.x <= x + w && m.y >= y && m.y <= y + h;
+  UIHit.add(x, y, w, h, () => {});
+  uiPanel(ctx, x, y, w, h, { color: act.color, fill: hot ? P.voidLight : P.void, alpha: 0.95, glow: hot });
+  uiText(ctx, act.label, x + w / 2, y + h / 2 + 5, { size: STYLE.type.h2, color: hot ? P.ice : act.color, align: 'center' });
+}
+// Was die Leertaste beim gewaehlten Eintrag der Upgrade-Liste tut, als Knopfbeschriftung (null = keine Aktion moeglich)
+function upgradeAction(r) {
+  const P = STYLE.pal, souls = Save.data.souls, pay = (txt, price) => ({ label: txt + ' - ' + price + ' CREDITS', color: souls >= price ? P.yellow : P.red });
+  if (r.kind === 'up') return Save.level(r.id) >= CFG.meta.upgrades[r.id].max ? null : pay('BUY', Save.cost(r.id));
+  if (r.kind === 'ability') {
+    if (!Save.isUnlocked(r.id)) return pay('UNLOCK', CFG.loadout.abilities[r.id].unlock);
+    return Save.gearLv(r.id) >= Save.gearMax() ? null : pay('LEVEL UP', Save.gearPrice(r.id));
+  }
+  if (r.kind === 'hero') {
+    if (Save.heroOwned(r.id)) return Save.heroSelected() === r.id ? null : { label: 'SELECT', color: P.cyan };
+    return Save.heroOpen(r.id) ? pay('BUY', CFG.heroes[r.id].cost) : null;
+  }
+  if (r.kind === 'milestone') return null;
+  const I = CFG.items.catalog[r.id];
+  if (!I.impl) return null;
+  if (!Save.owns(r.id)) return pay('BUY', I.cost);
+  return { label: Save.equipped(I.slot) === r.id ? 'UNEQUIP' : 'EQUIP', color: P.cyan };
 }
 
 // Text auf eine Breite umbrechen (gibt die Zeilen zurueck, zeichnet nichts)
@@ -1081,7 +1110,7 @@ function drawCosmeticsScreen(ctx) {
   UIScroll.bar(ctx, 'cosList', lx + lw + 3, Y0, 5, VIS * (H + GAP) - GAP, true, items.length, VIS, off, (v) => { G.cosListOff = v; });
   items.slice(off, off + VIS).forEach((it, k) => {
     const i = off + k, sel = G.cosSel === i, y = Y0 + k * (H + GAP), owned = Save.cosOwned(cat.id, it.id), eq = Save.cosEquipped(cat.id) === it.id, afford = Save.data.souls >= it.cost;
-    UIHit.add(lx, y, lw, H, () => { G.cosSel = i; });
+    UIHit.add(lx, y, lw, H, () => { G.cosSel = i; }, { noConfirm: true });          // Klick waehlt nur aus, gekauft wird ueber den Knopf in der Vorschau
     const x = lx + (sel ? 5 : 0), w = lw - (sel ? 5 : 0);
     uiPanel(ctx, x, y, w, H, { color: sel ? it.color : P.greyMid, fill: sel ? P.voidLight : P.void, alpha: 0.92, glow: sel });
     ctx.save(); ctx.fillStyle = it.color; ctx.globalAlpha = sel ? 1 : 0.5;
@@ -1111,7 +1140,9 @@ function drawCosmeticsScreen(ctx) {
     const lock = !owned && Save.cosLocked(it);
     const msg = eq ? 'EQUIPPED' : owned ? '[SPACE] EQUIP' : it.achOnly ? 'ACHIEVEMENT REWARD' : lock ? 'SURVIVE ' + it.needInf + ' MIN IN ENDLESS TO UNLOCK' : '[SPACE] BUY  -  ' + it.cost + ' CREDITS';
     if (it.achOnly && !owned) uiWrap(ctx, 'Locked: ' + it.achOnly + '.', px + 12, py + ph - 38, pw - 24, 11, { size: T.small, color: P.red });
-    uiText(ctx, msg, px + pw / 2, py + ph - 14, { size: T.body, color: eq ? P.cyan : owned ? P.cyan : it.achOnly || lock ? P.red : afford ? P.yellow : P.red, align: 'center' });
+    const canAct = !eq && !(it.achOnly && !owned) && !lock;
+    if (canAct) drawActionButton(ctx, px + pw / 2 - 120, py + ph - 34, 240, 24, { label: owned ? 'EQUIP' : 'BUY - ' + it.cost + ' CREDITS', color: owned ? P.cyan : afford ? P.yellow : P.red });
+    else uiText(ctx, msg, px + pw / 2, py + ph - 14, { size: T.body, color: eq ? P.cyan : owned ? P.cyan : it.achOnly || lock ? P.red : afford ? P.yellow : P.red, align: 'center' });
   } else uiText(ctx, 'BACK TO MAIN MENU', px + pw / 2, py + ph / 2, { size: T.h2, color: P.greyMid, align: 'center' });
 }
 
