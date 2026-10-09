@@ -451,13 +451,6 @@ function drawStartScreen(ctx) {
   uiText(ctx, 'ONE WAY TICKET TO HELL', STAGE_W / 2, 124, { size: T.h2, color: P.yellow, align: 'center' });
   const labels = { play: 'PLAY', inventory: 'INVENTORY', cosmetics: 'COSMETICS', upgrades: 'UPGRADES', achievements: 'ACHIEVEMENTS', settings: 'SETTINGS', stats: 'STATISTICS' };
   menuItems().forEach((id, i) => {
-    if (id === 'stats') {                                                                // Dev-Statistik: kleiner Knopf unten links in der Ecke, per Pfeil nach dem letzten Punkt erreichbar
-      const sel = G.menuSel === i;
-      UIHit.add(8, 334, 74, 18, () => { G.menuSel = i; });
-      uiPanel(ctx, 8, 334, 74, 18, { color: sel ? P.cyan : P.greyMid, fill: P.void, alpha: 0.85, glow: sel });
-      uiText(ctx, 'STATISTICS', 45, 346, { size: T.small, color: sel ? P.ice : P.grey, align: 'center' });
-      return;
-    }
     const y = 134 + i * 28;
     drawMenuRow(ctx, y, labels[id], G.menuSel === i, { h: 22, hit: () => { G.menuSel = i; } });
     const dot = (id === 'play' && !Save.data.tutorialDone) || (id === 'upgrades' && Save.data.tutorialDone && !Save.data.upgradesSeen);          // Hinweispunkt: erst das Tutorial, danach einmal die Upgrades (weg, sobald man dort war)
@@ -468,7 +461,7 @@ function drawStartScreen(ctx) {
   const best = Save.data.best > 0 ? formatTime(Save.data.best) : '-', L = Save.data.last;
   uiText(ctx, 'BEST ' + best + '    RUNS ' + Save.data.runs + (Save.data.wins ? '    WINS ' + Save.data.wins : '') + '    CORES ' + Save.data.souls, STAGE_W / 2, 316, { size: T.body, color: P.ice, align: 'center' });
   if (L) uiText(ctx, 'LAST RUN ' + formatTime(L.time) + '  -  ' + L.bosses + ' BOSSES  -  ' + L.kills + ' KILLS' + (L.infinite ? '  (INFINITE)' : ''), STAGE_W / 2, 329, { size: T.small, color: P.grey, align: 'center' });
-  uiText(ctx, 'W/S OR MOUSE = SELECT    SPACE OR CLICK = OK    L / M / N / V / F = ICONS', STAGE_W / 2, 350, { size: T.small, color: P.grey, align: 'center' });
+  uiText(ctx, 'W/S OR MOUSE = SELECT    SPACE OR CLICK = OK    L / M / N / V / F' + (statsOpen() ? ' / T' : '') + ' = ICONS', STAGE_W / 2, 350, { size: T.small, color: P.grey, align: 'center' });
 }
 
 // Sync-Anzeige oben links im Hauptmenue: drehender Pixelring waehrend des Abgleichs, danach kurz "SAVED" (gruen) oder "SYNC FAILED" / "OFFLINE"
@@ -498,6 +491,7 @@ function drawSyncIndicator(ctx) {
 
 // ---- Kleine Symbole oben rechts im Hauptmenue: Konto, Musik, Sound, Effekte, Vollbild ----
 const MENU_ICON_ART = {
+  stats: ['......X..', '......X..', '..X...X..', '..X...X.X', '..X.X.X.X', 'X.X.X.X.X', 'X.X.X.X.X', 'X.X.X.X.X'],
   account: ['...XXX...', '..XXXXX..', '..XXXXX..', '...XXX...', '.XXXXXXX.', 'XXXXXXXXX', 'XXXXXXXXX', 'XXXXXXXXX'],
   music: ['....XXXX', '....XXXX', '....X..X', '....X...', '....X...', '..XXX...', '.XXXX...', '.XXXX...', '..XX....'],
   sfx: ['...X.....', '..XX...X.', 'XXXX....X', 'XXXX..X.X', 'XXXX..X.X', 'XXXX....X', '..XX...X.', '...X.....'],
@@ -506,9 +500,10 @@ const MENU_ICON_ART = {
 };
 function drawMenuIcons(ctx) {
   const P = STYLE.pal, T = STYLE.type, t = G.realTime, m = Input.mouse, S = 26, GAP = 4;
-  const ids = ['account', 'music', 'sfx', 'fx', 'fullscreen'];
+  const ids = (statsOpen() ? ['stats'] : []).concat(['account', 'music', 'sfx', 'fx', 'fullscreen']);
   const pct = (v) => Math.round(v * 100) + '%';
   const info = {
+    stats: { name: 'STATISTICS (ALL SLOTS)', lvl: -1 },
     account: { name: Account.on ? 'ACCOUNT: ' + Account.meta.name.toUpperCase() : (Account.configured ? 'NOT LOGGED IN - CLICK TO LOG IN' : 'ACCOUNT (NOT SET UP)'), lvl: -1 },
     music: { name: 'MUSIC ' + pct(Save.data.musicVol), lvl: Save.data.musicVol },
     sfx: { name: 'SOUND FX ' + pct(Save.data.sfxVol), lvl: Save.data.sfxVol },
@@ -520,7 +515,7 @@ function drawMenuIcons(ctx) {
   ids.forEach((id, i) => {
     const x = x0 + i * (S + GAP), hot = m.x >= x && m.x <= x + S && m.y >= y && m.y <= y + S + 6;
     const off = (id === 'music' || id === 'sfx') && info[id].lvl <= 0.001 || (id === 'fx' && Juice.level === 0);
-    const col = id === 'account' ? (Account.on ? P.green : P.orange) : off ? P.greyMid : P.cyan;
+    const col = id === 'stats' ? P.yellow : id === 'account' ? (Account.on ? P.green : P.orange) : off ? P.greyMid : P.cyan;
     UIHit.add(x, y, S, S + 6, () => {}, { act: () => G.menuQuick(id) });
     uiPanel(ctx, x, y, S, S, { color: hot ? P.ice : col, fill: P.void, alpha: 0.9, glow: hot });
     const art = MENU_ICON_ART[id], sc = 2, aw = art[0].length * sc, ah = art.length * sc, ax = x + Math.round((S - aw) / 2), ay = y + Math.round((S - ah) / 2);

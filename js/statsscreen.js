@@ -4,7 +4,7 @@
 // Gezeichnet wird mit Rechtecken (reines UI, keine Spielobjekte), Farben aus STYLE.pal.
 
 const StatsScreen = {
-  tab: 0, filter: 0, ownOnly: false, showDev: true,       // showDev: Dev-Laeufe (mit Cheat-Tasten gespielt) mitzaehlen; Taste X blendet sie aus
+  tab: 0, sel: 0, filter: 0, ownOnly: false, showDev: true,       // showDev: Dev-Laeufe (mit Cheat-Tasten gespielt) mitzaehlen; Taste X blendet sie aus
   TABS: ['OVERVIEW', 'KILLERS', 'BOSSES', 'BUILDS', 'RECENT'],
   A: null, B: [], builds: [], curve: [], recent: [],
 
@@ -34,8 +34,11 @@ const StatsScreen = {
     const L = Input.pressed('ArrowLeft') || Input.pressed('KeyA'), R = Input.pressed('ArrowRight') || Input.pressed('KeyD');
     const U = Input.pressed('ArrowUp') || Input.pressed('KeyW'), D = Input.pressed('ArrowDown') || Input.pressed('KeyS');
     const nf = Stats.filterList().length;
-    if (L) this.tab = (this.tab + this.TABS.length - 1) % this.TABS.length;
-    if (R) this.tab = (this.tab + 1) % this.TABS.length;
+    const nt = this.TABS.length + 1;                       // Reiter + der Schalter DEV RUNS (liegt neben RECENT, A/D erreicht ihn, Leertaste schaltet)
+    if (L) this.sel = (this.sel + nt - 1) % nt;
+    if (R) this.sel = (this.sel + 1) % nt;
+    if (this.sel < this.TABS.length) this.tab = this.sel;
+    else if (Input.pressed('Space') || Input.pressed('Enter')) { this.showDev = !this.showDev; this.refresh(); }
     if (U) { this.filter = (this.filter + nf - 1) % nf; this.refresh(); }
     if (D) { this.filter = (this.filter + 1) % nf; this.refresh(); }
     if (Input.pressed('Tab')) { this.ownOnly = !this.ownOnly; this.refresh(); }
@@ -70,10 +73,10 @@ const StatsScreen = {
     uiText(ctx, 'STATISTICS', STAGE_W / 2, 24, { size: T.h1, color: P.yellow, align: 'center', glow: P.yellow });
 
     // Reiter
-    const tw = 84, tg = 4, tx0 = STAGE_W / 2 - (this.TABS.length * tw + (this.TABS.length - 1) * tg) / 2;
+    const tw = 84, tg = 4, dw = 124, nTabs = this.TABS.length, tx0 = STAGE_W / 2 - (nTabs * (tw + tg) + dw) / 2;
     this.TABS.forEach((name, i) => {
       const x = tx0 + i * (tw + tg), on = i === this.tab;
-      UIHit.add(x, 32, tw, 16, () => { this.tab = i; }, { noConfirm: true });
+      UIHit.add(x, 32, tw, 16, () => { this.tab = i; this.sel = i; }, { noConfirm: true });
       uiPanel(ctx, x, 32, tw, 16, { color: on ? P.cyan : P.greyMid, fill: on ? P.voidLight : P.void, alpha: 0.95, glow: on });
       uiText(ctx, name, x + tw / 2, 44, { size: T.small, color: on ? P.ice : P.grey, align: 'center' });
     });
@@ -85,11 +88,11 @@ const StatsScreen = {
       uiPanel(ctx, x, 52, fw, 14, { color: on ? P.yellow : P.greyMid, fill: on ? P.voidLight : P.void, alpha: 0.95 });
       uiText(ctx, uiFit(ctx, f.label, fw - 6, T.small), x + fw / 2, 62, { size: T.small, color: on ? P.yellow : P.grey, align: 'center' });
     });
-    // Schalter oben rechts: Dev-Laeufe anzeigen/ausblenden
-    const dx = STAGE_W - 168, dy = 12, dOn = this.showDev;
-    UIHit.add(dx, dy, 120, 16, () => { this.showDev = !this.showDev; this.refresh(); }, { noConfirm: true });
-    uiPanel(ctx, dx, dy, 120, 16, { color: dOn ? P.green : P.orange, fill: P.void, alpha: 0.95 });
-    uiText(ctx, 'DEV RUNS: ' + (dOn ? 'SHOWN' : 'HIDDEN') + (this.devRuns ? ' (' + this.devRuns + ')' : ''), dx + 60, dy + 12, { size: T.small, color: dOn ? P.green : P.orange, align: 'center' });
+    // Schalter neben RECENT: Dev-Laeufe anzeigen/ausblenden. Maus: nur Klick schaltet (Ueberfahren markiert nur), Tastatur: A/D bis zum Schalter, Leertaste (oder X)
+    const dx = tx0 + nTabs * (tw + tg), dy = 32, dOn = this.showDev, dSel = this.sel === nTabs;
+    UIHit.add(dx, dy, dw, 16, () => { this.sel = nTabs; }, { act: () => { this.sel = nTabs; this.showDev = !this.showDev; this.refresh(); } });
+    uiPanel(ctx, dx, dy, dw, 16, { color: dOn ? P.green : P.orange, fill: dSel ? P.voidLight : P.void, alpha: 0.95, glow: dSel });
+    uiText(ctx, uiFit(ctx, 'DEV RUNS: ' + (dOn ? 'SHOWN' : 'HIDDEN') + (this.devRuns ? ' (' + this.devRuns + ')' : ''), dw - 6, T.small), dx + dw / 2, dy + 12, { size: T.small, color: dOn ? P.green : P.orange, align: 'center' });
     const imp = A.n - Math.min(A.n, this.own);
     uiText(ctx, A.n + ' RUNS' + (this.ownOnly ? ' (OWN DATA ONLY)' : ' (' + this.own + ' OWN, ' + Math.max(0, imp) + ' IMPORTED)') + (A.gaveUp ? '   ' + A.gaveUp + ' GAVE UP (NOT COUNTED)' : '') + (A.n > 0 && A.n < 10 ? '   FEW RUNS - ROUGH NUMBERS' : ''), STAGE_W / 2, 79, { size: T.small, color: A.n < 10 ? P.orange : P.grey, align: 'center' });
 
@@ -101,7 +104,7 @@ const StatsScreen = {
       [this.drawOverview, this.drawKillers, this.drawBosses, this.drawBuilds, this.drawRecent][this.tab].call(this, ctx);
     }
     uiText(ctx, 'BALANCE IN js/config.js: ' + this.CONFIG_NOTES[this.tab], STAGE_W / 2, 347, { size: T.small, color: P.yellow, align: 'center' });
-    uiText(ctx, 'A/D = TAB    W/S = MAP    TAB = ' + (this.ownOnly ? 'INCLUDE IMPORTED' : 'OWN ONLY') + '    X = DEV RUNS    ESC = BACK', STAGE_W / 2, 357, { size: T.small, color: P.grey, align: 'center' });
+    uiText(ctx, 'A/D = TAB / DEV RUNS    SPACE = TOGGLE    W/S = MAP    TAB = ' + (this.ownOnly ? 'INCLUDE IMPORTED' : 'OWN ONLY') + '    ESC = BACK', STAGE_W / 2, 357, { size: T.small, color: P.grey, align: 'center' });
   },
 
   // Wo man an den Zahlen dreht: alle Balance-Werte stehen in js/config.js (Regel des Projekts), je Reiter die passenden Abschnitte

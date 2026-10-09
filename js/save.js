@@ -13,7 +13,7 @@ const IS_MOBILE = (() => {
 
 const Save = {
   KEY: 'deatharena.save.v1',
-  data: { ach: { done: {}, cnt: {}, seen: 0 }, upgradesSeen: false, settingsSeen: false, best: 0, runs: 0, musicVol: 0.5, sfxVol: 0.6, mouseAim: false, attackMode: IS_MOBILE ? 'toggle' : 'hold', touch: IS_MOBILE, tutorialDone: false, wins: 0, last: null, bestInf: 0, infSel: CFG.infinite.defaultSel, mapSel: 0, lastMode: 'regular', mapBest: {}, seenKeys: false, souls: 0, upgrades: {}, unlocked: {},
+  data: { ach: { done: {}, cnt: {}, seen: 0 }, upgradesSeen: false, settingsSeen: false, devStats: false, best: 0, runs: 0, musicVol: 0.5, sfxVol: 0.6, mouseAim: false, attackMode: IS_MOBILE ? 'toggle' : 'hold', touch: IS_MOBILE, tutorialDone: false, wins: 0, last: null, bestInf: 0, infSel: CFG.infinite.defaultSel, mapSel: 0, lastMode: 'regular', mapBest: {}, seenKeys: false, souls: 0, upgrades: {}, unlocked: {},
     items: JSON.parse(JSON.stringify(CFG.items.start)),     // Inventar: besessene und ausgeruestete Items
     gear: {},       // Stufe und XP je Item/Ability
     cosmetics: { owned: {}, equipped: {} },      // gekaufte Cosmetics ("kategorie:id") und ausgeruestete je Kategorie
@@ -25,7 +25,7 @@ const Save = {
     binds: {} },     // eigene Tastenbelegung (siehe Input.actions)
   // Geraetedaten, die bei Slot-Wechsel, Reset und Import bleiben (kein Teil eines einzelnen Spielstands)
   LOG_KEYS: ['deathLog', 'bossLog', 'imported'],       // nur diese Geraetedaten (anonyme Balancing-Protokolle, gross) wandern NICHT in Codes/Cloud; Einstellungen, Tasten und Dev-Modus schon
-  KEEP: ['musicVol', 'sfxVol', 'mouseAim', 'attackMode', 'touch', 'fx', 'binds', 'deathLog', 'bossLog', 'imported'],       // 'dev' gehoert bewusst NICHT dazu: der Dev-Modus gilt nur fuer den Slot, in den die Dev-Datei importiert wurde
+  KEEP: ['devStats', 'musicVol', 'sfxVol', 'mouseAim', 'attackMode', 'touch', 'fx', 'binds', 'deathLog', 'bossLog', 'imported'],       // 'dev' gehoert bewusst NICHT dazu: der Dev-Modus gilt nur fuer den Slot, in den die Dev-Datei importiert wurde
 
   // Abilities: frei, wenn Preis 0 oder gekauft
   isUnlocked(id) { return CFG.loadout.abilities[id].unlock === 0 || !!(this.data.unlocked && this.data.unlocked[id]); },
@@ -220,6 +220,7 @@ const Save = {
     }
   },
   write() {
+    if (this.data.dev) this.data.devStats = true;       // Geraete-Merker: sobald ein Slot Dev-Modus hat, ist der Statistik-Bildschirm in ALLEN Slots sichtbar (das Protokoll gilt ohnehin fuer alle Slots)
     try { localStorage.setItem(this.keyFor(this.slot), JSON.stringify(this.data)); } catch (e) { /* ignorieren */ }
     try { const d = {}; for (const k of this.KEEP) d[k] = this.data[k]; localStorage.setItem(this.DEVICE_KEY, JSON.stringify(d)); } catch (e) { /* ignorieren */ }
     if (typeof Account !== 'undefined') Account.dirty();       // Cloud-Konto: nach kurzer Ruhe hochladen (account.js)
