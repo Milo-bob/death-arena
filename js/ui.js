@@ -465,8 +465,9 @@ function drawStartScreen(ctx) {
 
 // Sync-Anzeige oben links im Hauptmenue: drehender Pixelring waehrend des Abgleichs, danach kurz "SAVED" (gruen) oder "SYNC FAILED" / "OFFLINE"
 function drawSyncIndicator(ctx) {
-  if (!Account.on) return;
-  const P = STYLE.pal, T = STYLE.type, now = Date.now(), busy = Account.syncing > 0 || now < Account.spinUntil, since = now - Account.doneAt, x = 36, y = 34;
+  const upd = PWA.updateAt > 0;
+  if (!Account.on && !upd) return;
+  const P = STYLE.pal, T = STYLE.type, now = Date.now(), busy = upd || Account.syncing > 0 || now < Account.spinUntil, since = now - Account.doneAt, x = 36, y = 34;
   if (!busy && !(since < 2200 && Account.doneAt)) return;
   ctx.save();
   if (busy) {
@@ -476,7 +477,7 @@ function drawSyncIndicator(ctx) {
       ctx.globalAlpha = Math.max(0.15, 1 - age * 0.14); ctx.fillStyle = P.cyan;
       ctx.fillRect(Math.round(x + Math.sin(a) * 9) - 2, Math.round(y - Math.cos(a) * 9) - 2, 4, 4);
     }
-    ctx.globalAlpha = 1; uiText(ctx, 'SYNCING', x + 18, y + 4, { size: T.small, color: P.cyan });
+    ctx.globalAlpha = 1; uiText(ctx, upd ? 'UPDATING' : 'SYNCING', x + 18, y + 4, { size: T.small, color: P.cyan });
   } else {
     ctx.globalAlpha = Math.min(1, (2200 - since) / 500);
     const ok = Account.doneOk, col = ok ? P.green : Account.doneOffline ? P.grey : P.red;
@@ -491,6 +492,7 @@ function drawSyncIndicator(ctx) {
 // ---- Kleine Symbole oben rechts im Hauptmenue: Konto, Musik, Sound, Effekte, Vollbild ----
 const MENU_ICON_ART = {
   stats: ['......X..', '......X..', '..X...X..', '..X...X.X', '..X.X.X.X', 'X.X.X.X.X', 'X.X.X.X.X', 'X.X.X.X.X'],
+  install: ['....X....', '....X....', '....X....', '..X.X.X..', '...XXX...', '....X....', 'X.......X', 'XXXXXXXXX'],
   account: ['...XXX...', '..XXXXX..', '..XXXXX..', '...XXX...', '.XXXXXXX.', 'XXXXXXXXX', 'XXXXXXXXX', 'XXXXXXXXX'],
   music: ['....XXXX', '....XXXX', '....X..X', '....X...', '....X...', '..XXX...', '.XXXX...', '.XXXX...', '..XX....'],
   sfx: ['...X.....', '..XX...X.', 'XXXX....X', 'XXXX..X.X', 'XXXX..X.X', 'XXXX....X', '..XX...X.', '...X.....'],
@@ -499,10 +501,11 @@ const MENU_ICON_ART = {
 };
 function drawMenuIcons(ctx) {
   const P = STYLE.pal, T = STYLE.type, t = G.realTime, m = Input.mouse, S = 26, GAP = 4;
-  const ids = (statsOpen() ? ['stats'] : []).concat(['account', 'music', 'sfx', 'fx', 'fullscreen']);
+  const ids = (statsOpen() ? ['stats'] : []).concat(['account'], PWA.visible ? ['install'] : [], ['music', 'sfx', 'fx', 'fullscreen']);
   const pct = (v) => Math.round(v * 100) + '%';
   const info = {
     stats: { name: 'STATISTICS (ALL SLOTS)', lvl: -1 },
+    install: { name: 'INSTALL AS APP' + (PWA.offlineReady ? ' (OFFLINE READY)' : ''), lvl: -1 },
     account: { name: Account.on ? 'ACCOUNT: ' + Account.meta.name.toUpperCase() : (Account.configured ? 'NOT LOGGED IN - CLICK TO LOG IN' : 'ACCOUNT (NOT SET UP)'), lvl: -1 },
     music: { name: 'MUSIC ' + pct(Save.data.musicVol), lvl: Save.data.musicVol },
     sfx: { name: 'SOUND FX ' + pct(Save.data.sfxVol), lvl: Save.data.sfxVol },
@@ -514,7 +517,7 @@ function drawMenuIcons(ctx) {
   ids.forEach((id, i) => {
     const x = x0 + i * (S + GAP), hot = m.x >= x && m.x <= x + S && m.y >= y && m.y <= y + S + 6;
     const off = (id === 'music' || id === 'sfx') && info[id].lvl <= 0.001 || (id === 'fx' && Juice.level === 0);
-    const col = id === 'stats' ? P.yellow : id === 'account' ? (Account.on ? P.green : P.orange) : off ? P.greyMid : P.cyan;
+    const col = id === 'stats' ? P.yellow : id === 'install' ? P.green : id === 'account' ? (Account.on ? P.green : P.orange) : off ? P.greyMid : P.cyan;
     UIHit.add(x, y, S, S + 6, () => {}, { act: () => G.menuQuick(id) });
     uiPanel(ctx, x, y, S, S, { color: hot ? P.ice : col, fill: P.void, alpha: 0.9, glow: hot });
     const art = MENU_ICON_ART[id], sc = 2, aw = art[0].length * sc, ah = art.length * sc, ax = x + Math.round((S - aw) / 2), ay = y + Math.round((S - ah) / 2);
@@ -1435,7 +1438,7 @@ function drawKeysScreen(ctx) {
   panel(C2, 208, 2 * W + 12, 78, 'MENUS', P.green);
   const mrow = (x, y, key, text, kw) => { uiText(ctx, key, x, y, { size: T.small, color: P.ice }); uiText(ctx, text, x + kw, y, { size: T.small, color: P.grey, maxW: W - kw - 6 }); };
   [['W/S, ARROWS', 'SELECT (OR MOUSE)'], ['A/D, ARROWS', 'CHANGE / SWITCH TAB'], ['SPACE, ENTER', 'CONFIRM / BUY / EQUIP'], ['ESC, X, R-CLICK', 'BACK']].forEach(([k, t], i) => mrow(C2 + 8, 230 + i * 12, k, t, 84));
-  [['U', 'LEVEL UP GEAR (INVENTORY)'], ['TAB', 'RUN DETAILS / OWN DATA'], ['P, BACKSPACE', 'PAUSE (ALSO ESC)'], ['L M N V F' + (statsOpen() ? ' T' : ''), 'MAIN MENU ICONS']].forEach(([k, t], i) => mrow(C2 + W + 18, 230 + i * 12, k, t, 62));
+  [['U', 'LEVEL UP GEAR (INVENTORY)'], ['TAB', 'RUN DETAILS / OWN DATA'], ['P, BACKSPACE', 'PAUSE (ALSO ESC)'], ['L M N V F' + (PWA.visible ? ' I' : '') + (statsOpen() ? ' T' : ''), 'MAIN MENU ICONS']].forEach(([k, t], i) => mrow(C2 + W + 18, 230 + i * 12, k, t, 62));
 
   uiText(ctx, 'SURVIVE.', STAGE_W / 2, 296, { size: T.h2, color: P.red, align: 'center', glow: P.red });
   UIHit.add(STAGE_W / 2 - 80, 306, 160, 24, () => {});                // Klick = zurueck
