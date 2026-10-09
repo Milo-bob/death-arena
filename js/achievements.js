@@ -398,7 +398,6 @@ const Ach = {
     UIHit.add(24, by, 120, 22, () => { s.r = rows.length; });
     uiPanel(ctx, 24, by, 120, 22, { color: backSel ? P.cyan : P.greyMid, fill: P.void, alpha: 0.9, glow: backSel });
     uiText(ctx, 'BACK', 84, by + 15, { size: T.h2, color: backSel ? P.ice : P.grey, align: 'center' });
-    uiText(ctx, 'W/S/A/D OR MOUSE = SELECT    HOVER = SEE WHAT TO DO    X / ESC = BACK', STAGE_W / 2, 352, { size: T.small, color: P.grey, align: 'center' });
     if (tip) this.drawTip(ctx, tip);
   },
 

@@ -104,7 +104,6 @@ const StatsScreen = {
       [this.drawOverview, this.drawKillers, this.drawBosses, this.drawBuilds, this.drawRecent][this.tab].call(this, ctx);
     }
     uiText(ctx, 'BALANCE IN js/config.js: ' + this.CONFIG_NOTES[this.tab], STAGE_W / 2, 347, { size: T.small, color: P.yellow, align: 'center' });
-    uiText(ctx, 'A/D = TAB / DEV RUNS    SPACE = TOGGLE    W/S = MAP    TAB = ' + (this.ownOnly ? 'INCLUDE IMPORTED' : 'OWN ONLY') + '    ESC = BACK', STAGE_W / 2, 357, { size: T.small, color: P.grey, align: 'center' });
   },
 
   // Wo man an den Zahlen dreht: alle Balance-Werte stehen in js/config.js (Regel des Projekts), je Reiter die passenden Abschnitte

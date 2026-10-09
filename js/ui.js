@@ -461,7 +461,6 @@ function drawStartScreen(ctx) {
   const best = Save.data.best > 0 ? formatTime(Save.data.best) : '-', L = Save.data.last;
   uiText(ctx, 'BEST ' + best + '    RUNS ' + Save.data.runs + (Save.data.wins ? '    WINS ' + Save.data.wins : '') + '    CORES ' + Save.data.souls, STAGE_W / 2, 316, { size: T.body, color: P.ice, align: 'center' });
   if (L) uiText(ctx, 'LAST RUN ' + formatTime(L.time) + '  -  ' + L.bosses + ' BOSSES  -  ' + L.kills + ' KILLS' + (L.infinite ? '  (INFINITE)' : ''), STAGE_W / 2, 329, { size: T.small, color: P.grey, align: 'center' });
-  uiText(ctx, 'W/S OR MOUSE = SELECT    SPACE OR CLICK = OK    L / M / N / V / F' + (statsOpen() ? ' / T' : '') + ' = ICONS', STAGE_W / 2, 350, { size: T.small, color: P.grey, align: 'center' });
 }
 
 // Sync-Anzeige oben links im Hauptmenue: drehender Pixelring waehrend des Abgleichs, danach kurz "SAVED" (gruen) oder "SYNC FAILED" / "OFFLINE"
@@ -559,7 +558,6 @@ function drawModeSelectScreen(ctx) {
   let ty = top + 48;
   ty += 13 * uiWrap(ctx, d[0], PX + 14, ty, PW - 28, 13, { size: T.body, color: P.ice }) + 6;
   uiWrap(ctx, d[1], PX + 14, ty, PW - 28, 13, { size: T.body, color: P.grey });
-  uiText(ctx, 'W/S OR MOUSE = SELECT    SPACE OR CLICK = OK    X / ESC = BACK', STAGE_W / 2, 346, { size: T.small, color: P.grey, align: 'center' });
 }
 
 // Endlos-Modus vor dem Start: Zeitpunkt des finalen Bosses wählen
@@ -579,7 +577,6 @@ function drawInfSetupScreen(ctx) {
   ty += 12 * uiWrap(ctx, 'Choose when the final boss (Death) arrives. Beat him to win.', PX + 14, ty, PW - 28, 12, { size: T.body, color: P.grey }) + 10;
   uiText(ctx, 'CORES x' + CFG.infinite.coreFactor, PX + 14, ty, { size: T.body, color: P.yellow });
   uiText(ctx, 'OWN BEST TIME: ' + (Save.data.bestInf > 0 ? formatTime(Save.data.bestInf) : '-'), PX + 14, ty + 14, { size: T.body, color: P.yellow });
-  uiText(ctx, 'W/S = SELECT    A/D = CHANGE    SPACE = OK    X / ESC = BACK', STAGE_W / 2, 346, { size: T.small, color: P.grey, align: 'center' });
 }
 
 // Kartenauswahl nach PLAY: drei Karten nebeneinander, gesperrte zeigen, was zum Freischalten fehlt
@@ -609,7 +606,6 @@ function drawMapSelectScreen(ctx) {
     }
   });
   drawMenuRow(ctx, 292, 'BACK', G.mapBack, { w: 190, h: 22, hit: () => { G.mapBack = true; } });
-  uiText(ctx, 'A/D OR MOUSE = SELECT    SPACE OR CLICK = START    S = BACK    X / ESC = BACK', STAGE_W / 2, 336, { size: T.small, color: P.grey, align: 'center' });
 }
 
 function drawUpgradesScreen(ctx) {
@@ -705,7 +701,6 @@ function drawUpgradesScreen(ctx) {
     la.forEach((l, i) => uiText(ctx, l, DX + 10, top + 30 + i * DETAIL_LH, { size: T.small, color: P.ice }));
     lb.forEach((l, i) => uiText(ctx, l, DX + 10, top + 34 + (la.length + i) * DETAIL_LH, { size: T.small, color: P.grey }));
   }
-  uiText(ctx, 'W/S = SELECT    A/D = TAB    SPACE = BUY    X / ESC = BACK', STAGE_W / 2, 352, { size: T.small, color: P.grey, align: 'center' });
 }
 
 // Text auf eine Breite umbrechen (gibt die Zeilen zurueck, zeichnet nichts)
@@ -1009,7 +1004,6 @@ function drawInventoryScreen(ctx) {
       uiText(ctx, 'LEVEL UP!', px + pw - 14, iy + 12, { size: T.h2, color: P.yellow, align: 'right', glow: P.yellow });
     }
   }
-  uiText(ctx, 'W/S = SELECT    SPACE = CHANGE ITEM    U = LEVEL UP    X / ESC = BACK', STAGE_W / 2, 352, { size: T.small, color: P.grey, align: 'center' });
   if (G.invPick) drawInvPick(ctx);
 }
 
@@ -1040,7 +1034,6 @@ function drawInvPick(ctx) {
       uiBar(ctx, x + w - 10 - 64, y + 25, 64, 5, Save.gearFrac(id), Save.gearFrac(id) >= 1 ? P.yellow : col);
     }
   });
-  uiText(ctx, 'W/S = SELECT    SPACE = EQUIP    U = LEVEL UP    X / ESC = BACK', STAGE_W / 2, y0 + rows * GAP + 8, { size: T.small, color: P.grey, align: 'center' });
   const sid = K.list[K.sel];                                                        // Touch: Knopf fuer die Stufe des markierten Items
   if (sid) {
     const maxed = Save.gearLv(sid) >= Save.gearMax(), bw = 200, bx = STAGE_W / 2 - bw / 2, by = y0 + rows * GAP + 18, m = Input.mouse;
@@ -1117,7 +1110,6 @@ function drawCosmeticsScreen(ctx) {
     if (it.achOnly && !owned) uiWrap(ctx, 'Locked: ' + it.achOnly + '.', px + 12, py + ph - 38, pw - 24, 11, { size: T.small, color: P.red });
     uiText(ctx, msg, px + pw / 2, py + ph - 14, { size: T.body, color: eq ? P.cyan : owned ? P.cyan : it.achOnly || lock ? P.red : afford ? P.yellow : P.red, align: 'center' });
   } else uiText(ctx, 'BACK TO MAIN MENU', px + pw / 2, py + ph / 2, { size: T.h2, color: P.greyMid, align: 'center' });
-  uiText(ctx, 'A/D = CATEGORY    W/S = SELECT    SPACE = BUY / EQUIP    X / ESC = BACK', STAGE_W / 2, 352, { size: T.small, color: P.grey, align: 'center' });
 }
 
 // Live-Vorschau eines Cosmetics im Kasten (x, y, w, h in Buehnenpixeln). Benutzt dieselben Zeichenfunktionen wie das Spiel (Cos.*) in einem
@@ -1262,7 +1254,7 @@ function drawBindsScreen(ctx) {
     const waiting = sel && G.bindWait;
     uiText(ctx, waiting ? 'PRESS A KEY ...' : Input.codeLabel(Input.code(r.id)), x + w - 10, y + 16, { size: T.body, color: waiting ? P.yellow : P.cyan, align: 'right' });
   });
-  uiText(ctx, G.bindWait ? 'PRESS A NEW KEY    ESC = CANCEL' : 'W/S = SELECT    SPACE = CHANGE    X / ESC = BACK', STAGE_W / 2, 348, { size: T.small, color: P.grey, align: 'center' });
+  if (G.bindWait) uiText(ctx, 'PRESS A NEW KEY    ESC = CANCEL', STAGE_W / 2, 348, { size: T.small, color: P.grey, align: 'center' });
 }
 
 function drawPauseScreen(ctx) {
@@ -1287,7 +1279,6 @@ function drawPauseScreen(ctx) {
   const pItems = pauseItems(), step = pItems.length > 6 ? 28 : 32;
   pItems.forEach((id, i) => drawMenuRow(ctx, 104 + i * step, rows[id], G.pauseSel === i, { w: 260, hit: () => { if (G.pauseSel !== i) { G.pauseSel = i; G.pauseConfirm = false; } }, lr: id === 'music' || id === 'sfx' }));
   if (!Tutorial.active) drawPauseEvos(ctx);
-  uiText(ctx, 'W/S = SELECT    SPACE = OK    A/D = VOLUME    ESC / P / BACKSPACE = RESUME', STAGE_W / 2, 346, { size: T.small, color: P.grey, align: 'center' });
 }
 
 // Evolutionen im Pausenmenue: eine Karte je Waffenslot. Aktiv = Name der Evolution, sonst das beste Rezept der ausgerüsteten Waffe mit Stand des Partners
@@ -1347,7 +1338,6 @@ function drawSwapScreen(ctx) {
     uiText(ctx, lines[0], x + 10, 327, { size: T.small, color: P.ice });
     uiText(ctx, lines[1], x + 10, 339, { size: T.small, color: P.grey });
   }
-  uiText(ctx, 'W/S = SELECT    SPACE = EQUIP    X / ESC = BACK', STAGE_W / 2, 352, { size: T.small, color: P.grey, align: 'center' });
 }
 
 function drawSettingsScreen(ctx) {
@@ -1389,7 +1379,6 @@ function drawSettingsScreen(ctx) {
     if (I) uiText(ctx, 'CORES ' + I.souls + (I.wins ? '   WINS ' + I.wins : ''), x + 8, y + 35, { size: T.small, color: P.yellow });
   }
   drawMenuRow(ctx, 292, rows.back, G.settingsSel === backI, { w: 190, h: 22, hit: () => { G.settingsSel = backI; } });
-  uiText(ctx, 'W/S = SELECT    A/D = CHANGE    SPACE = OK    X / ESC = BACK', STAGE_W / 2, 352, { size: T.small, color: P.grey, align: 'center' });
 }
 
 // Controls panel: explains every action in general terms and always shows the CURRENT keys (they can be rebound in Settings > Keybinds)
@@ -1426,7 +1415,7 @@ function drawKeysScreen(ctx) {
   uiText(ctx, 'Weapons fire where you face.', C1 + 8, 111, { size: T.small, color: P.grey });
 
   panel(C1, 136, W, 134, 'GOOD TO KNOW', P.yellow);
-  const tips = ['Beat a boss to pick a new ability (1 of 3).', 'Passive abilities need no key.', 'ESC, P or BACKSPACE pauses the game.', 'Menus: W/S A/D or arrows, SPACE = OK.', 'Rebind keys: Settings > Keybinds.'];
+  const tips = ['Beat a boss to pick a new ability (1 of 3).', 'Passive abilities need no key.', 'ESC, P or BACKSPACE pauses the game.', 'Rebind keys: Settings > Keybinds.'];
   let ty = 158;
   tips.forEach((t) => { ty += 12 * uiWrap(ctx, t, C1 + 8, ty, W - 16, 12, { size: T.small, color: P.grey }) + 3; });
 
@@ -1441,6 +1430,12 @@ function drawKeysScreen(ctx) {
   row(C3, 94, ['ability_medium'], 'MEDIUM SLOT', 'Longer cooldown, stronger.', P.cyan);
   row(C3, 118, ['ability_strong'], 'STRONG SLOT', 'Long cooldown, huge effect.', P.cyan);
   row(C3, 142, ['artifact'], 'HERO ARTIFACT', 'Heroes after Vanguard only.', P.yellow);
+
+  // Menue-Bedienung (frueher als Hinweiszeile unten auf jedem Bildschirm)
+  panel(C2, 208, 2 * W + 12, 78, 'MENUS', P.green);
+  const mrow = (x, y, key, text, kw) => { uiText(ctx, key, x, y, { size: T.small, color: P.ice }); uiText(ctx, text, x + kw, y, { size: T.small, color: P.grey, maxW: W - kw - 6 }); };
+  [['W/S, ARROWS', 'SELECT (OR MOUSE)'], ['A/D, ARROWS', 'CHANGE / SWITCH TAB'], ['SPACE, ENTER', 'CONFIRM / BUY / EQUIP'], ['ESC, X, R-CLICK', 'BACK']].forEach(([k, t], i) => mrow(C2 + 8, 230 + i * 12, k, t, 84));
+  [['U', 'LEVEL UP GEAR (INVENTORY)'], ['TAB', 'RUN DETAILS / OWN DATA'], ['P, BACKSPACE', 'PAUSE (ALSO ESC)'], ['L M N V F' + (statsOpen() ? ' T' : ''), 'MAIN MENU ICONS']].forEach(([k, t], i) => mrow(C2 + W + 18, 230 + i * 12, k, t, 62));
 
   uiText(ctx, 'SURVIVE.', STAGE_W / 2, 296, { size: T.h2, color: P.red, align: 'center', glow: P.red });
   UIHit.add(STAGE_W / 2 - 80, 306, 160, 24, () => {});                // Klick = zurueck
