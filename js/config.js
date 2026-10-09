@@ -1511,3 +1511,54 @@ for (const id of Object.keys(CFG.items.catalog)) {
   if (I.slot !== 'melee' && I.slot !== 'ranged') continue;
   I.desc += P ? ' PERK ' + P.name + ' (while selected): ' + P.text : ' No perk: the simple, reliable choice.';
 }
+
+// ==========================================================================================
+//  [13] SPEEDRUN (Hauptmenue > PLAY > SPEEDRUN, Code: js/speedrun.js)
+//  Drei "Karten" mit eigener Bestzeit: BOSS RUSH, GAUNTLET, SEED RUN. Freigeschaltet ab Spielerlevel gates.speedrun, jede Karte ab ihrem eigenen Level.
+//  Alle Laeufe nutzen ein STANDARD-LOADOUT (keine Meta-Upgrades, keine Stufen, keine Implants, kein Held, alle Abilities frei), nur Nah-/Fernkampf-/starke Waffe sind waehlbar.
+//  Es gibt weder Credits noch XP noch Erfolge; Tod = Abbruch. Die Uhr zaehlt in Echtzeit (auch in Auswahlbildschirmen), steht nur im Pausenmenue.
+// ==========================================================================================
+CFG.level.gates.speedrun = 5;
+CFG.speedrun = {
+  order: ['rush', 'gauntlet', 'seed'],
+  kinds: {
+    rush:     { name: 'BOSS RUSH', level: 5, color: 'yellow', short: 'ALL SIX BOSSES, THEN DEATH',
+      info: ['Every boss of the regular run, back to back, then Death himself.', 'No waves in between: only a short breather and your ability pick. The clock stops when Death falls.'] },
+    gauntlet: { name: 'GAUNTLET', level: 6, color: 'orange', short: 'RUN THE STRIP, BEAT THE BOSS',
+      info: ['A long corridor full of enemies at fixed spots, a boss waits at the end.', 'Every enemy still alive when you reach the boss gate adds seconds to your time. Kill or run past: your call.'] },
+    seed:     { name: 'SEED RUN', level: 7, color: 'cyan', short: 'FIND KEYS, TRADE, OPEN THE PORTAL',
+      info: ['Endless map built from a seed: collect 3 keys, find the portal, trade for an Ember Core, beat the boss.', 'Same seed = same world and same trade results. Pick RANDOM, DAILY or a fixed number.'] },
+  },
+  loadoutSlots: ['melee', 'ranged', 'heavy'],                 // waehlbar (Reihenfolge im Setup)
+  loadoutStart: { melee: 'sword', ranged: 'shot', heavy: 'beam' },
+  // Boss Rush: start = Sekunden zwischen erster Eingabe und erstem Boss, gap = Pause nach jedem Boss (zaehlt nur im Spiel, nicht in der Auswahl danach).
+  // Technik: nach der Pause springt G.time auf den Zeitpunkt des naechsten Bosses im normalen Lauf (CFG.boss.steps), damit Waffenstufen und Bossstaerke wie im Regular-Modus sind.
+  rush: { start: 2, gap: 5 },
+  // Gauntlet: Streifen half = [halbe Laenge, halbe Hoehe], Start links, Tor bei gateX, dahinter die Boss-Arena bis zum Ende. Gegner stehen fest (schlafen, bis der Spieler auf `wake` herankommt;
+  // eine Gruppe wacht gemeinsam auf). groups: [x, y, Typ, Anzahl, Streuung]. weight = Sekunden Strafe je Gegner, der beim Tor noch lebt. heals: [x, y, Heilung].
+  gauntlet: {
+    half: [1700, 190], startX: -1600, gateX: 1250, wake: 300, boss: 'octagon', bossStage: 4, defaultWeight: 2,
+    weight: { circle: 1, triangle: 1.5, rhombus: 2, square: 2, guard: 3, bomber: 2, splitter: 1.5, tank: 5 },
+    groups: [
+      [-1250, -40, 'circle', 4, 55], [-1060, 50, 'circle', 5, 60], [-880, -50, 'triangle', 3, 50], [-710, 40, 'circle', 4, 55], [-710, 40, 'triangle', 2, 40],
+      [-530, -30, 'splitter', 3, 50], [-350, 30, 'square', 2, 45], [-350, 30, 'circle', 4, 60], [-170, -40, 'bomber', 3, 55], [10, 30, 'guard', 2, 50],
+      [10, 30, 'circle', 3, 55], [190, -30, 'rhombus', 2, 50], [190, -30, 'triangle', 3, 50], [370, 40, 'tank', 1, 0], [370, 40, 'circle', 4, 60],
+      [550, -40, 'square', 2, 50], [550, -40, 'splitter', 2, 45], [730, 30, 'guard', 3, 55], [910, -30, 'triangle', 4, 55], [910, -30, 'bomber', 2, 45],
+      [1090, 20, 'tank', 1, 0], [1090, 20, 'rhombus', 2, 50], [1090, 20, 'circle', 5, 65],
+    ],
+    heals: [[-300, 0, 20], [470, 0, 20], [1000, 0, 20]],
+  },
+  // Seed Run: unendliche Karte aus der Seed-Zahl. Etappen: 0 SALVAGE (keysNeed Schluessel von Traegern), 1 FIND (Portal, Entfernung portalDist), 2 TRADE (am Portal gegen Schrott einen Ember Core handeln),
+  // 3 BOSS (Portal betreten). Traeger: `carriers` Stueck im Ring carrierRing um den Start, genau `keysTotal` davon haben einen Schluessel (aus dem Seed). Schrott: scrap je Kill (Traeger scrapCarrier).
+  // Handeln: Stehen im Ring tradeRadius, kostet tradeCost, Pause tradeCooldown; das Ergebnis der n-ten Runde steht mit dem Seed fest (barter: Gewichte). Druck: Gegner spawnen wie im Regular-Modus (every/cap je Etappe).
+  seed: {
+    carriers: 6, keysTotal: 3, keysNeed: 3, carrierRing: [260, 520], carrierWake: 220, portalDist: [1300, 1800], merchantOffset: 80,
+    scrapKill: 1, scrapCarrier: 3, tradeCost: 5, tradeCooldown: 0.9, tradeRadius: 48, portalRadius: 36,
+    every: [3.4, 2.8, 2.4, 2.4], cap: [9, 12, 13, 13],
+    spawnTypes: [{ circle: 5, triangle: 3 }, { circle: 4, triangle: 3, rhombus: 2, square: 2 }, { circle: 3, triangle: 3, rhombus: 2, square: 2, guard: 2, bomber: 1 }, { circle: 3, triangle: 3, rhombus: 2, square: 2, guard: 2, bomber: 1 }],
+    carrierTypes: ['circle', 'triangle', 'square', 'rhombus'],
+    barter: [{ id: 'core', w: 22 }, { id: 'heal', w: 25 }, { id: 'haste', w: 18 }, { id: 'rapid', w: 15 }, { id: 'scrap', w: 12 }, { id: 'junk', w: 8 }],
+    barterScrap: 3, barterHeal: 25,
+    bosses: ['octagon', 'kite', 'summoner', 'twin', 'turret', 'arena'], bossStage: 3,
+  },
+};

@@ -14,7 +14,7 @@ const MsFx = {
   reset() { this.queue = []; this.cur = null; this.t = 0; this.seen = new Set(); this.parts = []; this.checkT = 0; this.timeSeen = new Set(); this.tpop = null; },
 
   checkTime() {
-    if (Tutorial.active || G.cheated || G.victory > 0) return;
+    if (Tutorial.active || G.cheated || G.victory > 0 || Save.srOn) return;
     for (const mark of this.TIME_MARKS) {
       if (this.timeSeen.has(mark) || G.time < mark) continue;
       this.timeSeen.add(mark);
@@ -43,7 +43,7 @@ const MsFx = {
     this.checkT -= dt;
     if (this.checkT > 0 && !force) return;
     this.checkT = 0.5;
-    if (Tutorial.active || G.cheated || G.victory > 0) return;
+    if (Tutorial.active || G.cheated || G.victory > 0 || Save.srOn) return;
     for (const m of CFG.milestones) {
       if (this.seen.has(m.id) || Save.milestoneDone(m.id)) continue;
       const v = this.liveValue(m.stat);

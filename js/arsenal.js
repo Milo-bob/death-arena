@@ -176,11 +176,12 @@ class Boomerang {
     this.out = CFG.boomerang.outFrames;
     this.age = 0;
     this.spin = 0;
+    this.addSpeed = player.velAlong ? player.velAlong(dir) : 0;      // Eigentempo des Spielers in Wurfrichtung
   }
   update(dt) {
     const C = CFG.boomerang, f = framesOf(dt), p = this.player;
     this.age += dt; this.spin += 900 * dt;
-    if (this.out > 0) { moveForward(this, C.speed * f); this.out -= f; }
+    if (this.out > 0) { moveForward(this, Math.max(1, C.speed + this.addSpeed) * f); this.out -= f; }
     else {
       this.dir = dirTo(this.x, this.y, p.x, p.y);
       moveForward(this, C.speed * 1.15 * f);
@@ -213,12 +214,13 @@ class Molotov {
     this.left = CFG.molotov.flightFrames;
     this.age = 0;
     this.evo = false;                           // Evolution Inferno Flask (Player.useWeapon setzt das)
+    this.addSpeed = player.velAlong ? player.velAlong(dir) : 0;      // Eigentempo des Spielers in Wurfrichtung
   }
   hitsCircle() { return false; }
   update(dt) {
     const C = CFG.molotov, f = Math.min(framesOf(dt), this.left);
     this.age += dt;
-    moveForward(this, C.speed * f);
+    moveForward(this, Math.max(1, C.speed + this.addSpeed) * f);
     this.left -= f;
     const hit = G.enemies.some((e) => e.alive && circlesOverlap(this.x, this.y, 5, e.x, e.y, e.radius)) || G.bossList().some((b) => circlesOverlap(this.x, this.y, 5, b.x, b.y, b.radius));
     if (this.left <= 0 || hit) {
@@ -521,13 +523,14 @@ class Rocket {
     this.exploded = false;
     this.blastAge = 0;
     this.touched = new Set();                   // jeden Gegner nur einmal im Vorbeiflug verletzen
+    this.addSpeed = player.velAlong ? player.velAlong(dir) : 0;      // Eigentempo des Spielers in Flugrichtung
   }
   hitsCircle(cx, cy, r) { return this.exploded ? circlesOverlap(this.x, this.y, CFG.rocket.blast, cx, cy, r) : circlesOverlap(this.x, this.y, CFG.rocket.radius, cx, cy, r); }
   update(dt) {
     const C = CFG.rocket;
     if (this.exploded) { this.blastAge += dt; if (this.blastAge >= C.blastTime) this.alive = false; return; }
     this.age += dt;
-    moveForward(this, C.speed * framesOf(dt));
+    moveForward(this, Math.max(1, C.speed + this.addSpeed) * framesOf(dt));
     if (Math.random() < 0.6) Juice.sparks(this.x - fwdX(this.dir) * 8, this.y - fwdY(this.dir) * 8, STYLE.pal.yellow, 1, 1);
     if (!CFG.map.infinite) { const [cx, cy] = clampToMap(this.x, this.y, C.radius); if (cx !== this.x || cy !== this.y) { this.explode(); return; } }
     for (const e of G.enemies) {

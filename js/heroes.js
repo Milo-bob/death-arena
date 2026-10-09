@@ -13,7 +13,7 @@ const Hero = {
   cfg() { return CFG.heroes[this.id()]; },
   // Sprite eines Helden (Standard: der ausgewaehlte). Mit Skin: Cos.sprite(Hero.sprite(), 'skin')
   sprite(id) { return CFG.heroes[id || this.id()].sprite; },
-  live() { return !(typeof Tutorial !== 'undefined' && Tutorial.active); },
+  live() { return !(typeof Tutorial !== 'undefined' && Tutorial.active) && !Save.srOn; },       // im Tutorial und im Speedrun (Standard-Loadout) gelten keine Held-Modifier
   mods() { return this.live() ? Object.assign({}, HERO_NEUTRAL, this.cfg().mod) : HERO_NEUTRAL; },
   world() { return this.live() && this.cfg().mod.world ? Object.assign({}, HERO_WORLD_NEUTRAL, this.cfg().mod.world) : HERO_WORLD_NEUTRAL; },
   type(t) { const W = this.world(); return W.types[t] ? Object.assign({}, HERO_TYPE_NEUTRAL, W.types[t]) : HERO_TYPE_NEUTRAL; },

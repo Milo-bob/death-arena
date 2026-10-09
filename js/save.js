@@ -23,13 +23,15 @@ const Save = {
     dev: false,                                  // Dev-Modus (Cheat-Tasten + Statistik-Bildschirm), wird mit der Dev-Save-Datei freigeschaltet (tools/dev-save.deatharena)
     deathLog: [], bossLog: [],                   // Protokoll fuer das Balancing (siehe runstats.js), gilt fuer alle Slots
     imported: { deaths: [], bosses: [] },        // importierte Spieldaten anderer Spieler
+    sr: { kind: 'rush', loadout: JSON.parse(JSON.stringify(CFG.speedrun.loadoutStart)), seedMode: 'random', seedNum: 1, best: {} },       // Speedrun (js/speedrun.js): gewaehlte Karte, Standard-Loadout, Seed-Wahl, Bestzeiten je Karte/Seed
     binds: {} },     // eigene Tastenbelegung (siehe Input.actions)
+  srOn: false,       // true waehrend eines Speedrun-Laufs: Standard-Loadout (keine Upgrades, Stufen, Implants, alle Abilities frei), siehe SpeedRun
   // Geraetedaten, die bei Slot-Wechsel, Reset und Import bleiben (kein Teil eines einzelnen Spielstands)
   LOG_KEYS: ['deathLog', 'bossLog', 'imported'],       // nur diese Geraetedaten (anonyme Balancing-Protokolle, gross) wandern NICHT in Codes/Cloud; Einstellungen, Tasten und Dev-Modus schon
   KEEP: ['lang', 'musicVol', 'sfxVol', 'mouseAim', 'attackMode', 'touch', 'fx', 'binds', 'deathLog', 'bossLog', 'imported'],       // 'dev' gehoert bewusst NICHT dazu: der Dev-Modus gilt nur fuer den Slot, in den die Dev-Datei importiert wurde
 
   // Abilities: frei, wenn Preis 0 oder gekauft
-  isUnlocked(id) { return CFG.loadout.abilities[id].unlock === 0 || !!(this.data.unlocked && this.data.unlocked[id]); },
+  isUnlocked(id) { return this.srOn || CFG.loadout.abilities[id].unlock === 0 || !!(this.data.unlocked && this.data.unlocked[id]); },
   unlock(id) {
     const price = CFG.loadout.abilities[id].unlock;
     if (this.isUnlocked(id) || this.data.souls < price) return false;
@@ -42,7 +44,7 @@ const Save = {
   // Stufe eines Meta-Upgrades und der Gesamtbonus (Stufe * Schritt)
   level(id) { return (this.data.upgrades && this.data.upgrades[id]) || 0; },
   bonus(id) {
-    if (RETIRED_BONUS.includes(id)) return 0;                  // frühere Meilenstein-Waffenboni gibt es nicht mehr (Belohnung = Cores/Cosmetics)
+    if (this.srOn || RETIRED_BONUS.includes(id)) return 0;                // frühere Meilenstein-Waffenboni gibt es nicht mehr (Belohnung = Cores/Cosmetics)
     return this.level(id) * CFG.meta.upgrades[id].step;
   },
 
@@ -64,7 +66,7 @@ const Save = {
 
   // ---- Inventar ----
   owns(id) { return !!this.data.items.owned[id]; },
-  equipped(slot) { return this.data.items.equipped[slot] || null; },
+  equipped(slot) { if (this.srOn) return this.data.sr.loadout[slot] || null; return this.data.items.equipped[slot] || null; },        // Speedrun: Standard-Loadout statt Inventar
   buyItem(id) {
     const I = CFG.items.catalog[id];
     if (!I.impl || this.owns(id) || this.data.souls < I.cost) return false;
@@ -89,13 +91,13 @@ const Save = {
     if (I) return I.slot === 'artifact' ? 'implant' : 'weapon';
     return CFG.loadout.abilities[id].passive ? 'passive' : 'ability';
   },
-  gearLv(id) { return (id && this.data.gear[id] && this.data.gear[id].lv) || 0; },
+  gearLv(id) { return this.srOn ? 0 : (id && this.data.gear[id] && this.data.gear[id].lv) || 0; },
   gearMax() { return CFG.gear.need.length; },
   gearMul(id) { return !id || !this.gearLv(id) ? 1 : 1 + this.gearLv(id) * CFG.gear.step[this.gearKind(id)]; },                // Faktor auf Staerke/Tempo
   gearFrac(id) { const lv = this.gearLv(id); return lv >= this.gearMax() ? 1 : Math.min(1, ((this.data.gear[id] && this.data.gear[id].xp) || 0) / CFG.gear.need[lv]); },
   // XP im Hintergrund sammeln (wird beim Laufende mit gespeichert); im Tutorial nichts
   gearXp(id, n) {
-    if (!id || (typeof Tutorial !== 'undefined' && Tutorial.active)) return;
+    if (!id || this.srOn || (typeof Tutorial !== 'undefined' && Tutorial.active)) return;
     const lv = this.gearLv(id);
     if (lv >= this.gearMax()) return;
     const g = this.data.gear[id] || (this.data.gear[id] = { lv, xp: 0 });

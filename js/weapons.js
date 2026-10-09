@@ -187,6 +187,7 @@ class Shot {
     this.alive = true;
     this.x = x; this.y = y; this.dir = dir;
     this.speed = o.speed || Loadout.shot.speed;
+    if (o.from) this.speed = Math.max(1, this.speed + o.from.velAlong(dir));      // Eigentempo des Spielers in Schussrichtung dazurechnen
     this.growth = ((Loadout.shot.size - 1) * 5) / 15;   // Prozent pro Bild
     this.sizePct = 150;
     this.ghost = 0;
@@ -656,6 +657,7 @@ class PlasmaGrenade {
     this.flightLeft = C.flightFrames;
     this.exploded = false;
     this.blastAge = 0;
+    this.addSpeed = player.velAlong ? player.velAlong(this.dir) : 0;      // Eigentempo des Spielers in Wurfrichtung
   }
   hitsCircle() { return false; }
   update(dt) {
@@ -668,7 +670,7 @@ class PlasmaGrenade {
     this.age += dt;
     if (this.flightLeft > 0) {
       const f = Math.min(framesOf(dt), this.flightLeft);
-      moveForward(this, C.speed * f);
+      moveForward(this, Math.max(1, C.speed + this.addSpeed) * f);
       this.flightLeft -= f;
       const hitEnemy = G.enemies.some((e) => e.alive && circlesOverlap(this.x, this.y, 5, e.x, e.y, e.radius));
       const hitBoss = G.bossList().some((b) => circlesOverlap(this.x, this.y, 5, b.x, b.y, b.radius));

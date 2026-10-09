@@ -152,3 +152,30 @@ I18n.add({
   'YOU HAVE NO ENTRY IN THIS LIST YET': 'DU HAST IN DIESER LISTE NOCH KEINEN EINTRAG', 'JOIN LIST': 'MITMACHEN', 'LEAVE LIST': 'AUSTRETEN', 'REFRESH [R]': 'NEU LADEN [R]',
   'YOUR RANK  #': 'DEIN PLATZ  #',
 });
+
+// Speedrun (js/speedrun.js)
+I18n.add({
+  'SPEEDRUN': 'SPEEDRUN', 'Race the clock: Boss Rush, Gauntlet and Seed Run, each with its own best time.': 'Kämpfe gegen die Uhr: Boss Rush, Gauntlet und Seed Run, jeder mit eigener Bestzeit.',
+  'Same standard loadout for everyone (you only pick your weapons). No credits, no XP. Death ends the run.': 'Für alle das gleiche Standard-Loadout (du wählst nur deine Waffen). Keine Credits, kein XP. Der Tod beendet den Lauf.',
+  'ALL SIX BOSSES, THEN DEATH': 'ALLE SECHS BOSSE, DANN DER TOD', 'RUN THE STRIP, BEAT THE BOSS': 'LAUF DEN STREIFEN, BESIEGE DEN BOSS', 'FIND KEYS, TRADE, OPEN THE PORTAL': 'SCHLÜSSEL FINDEN, HANDELN, PORTAL ÖFFNEN',
+  'Every boss of the regular run, back to back, then Death himself.': 'Jeder Boss des normalen Laufs, direkt hintereinander, dann der Tod selbst.',
+  'No waves in between: only a short breather and your ability pick. The clock stops when Death falls.': 'Keine Wellen dazwischen: nur eine kurze Pause und deine Ability-Wahl. Die Uhr hält an, wenn der Tod fällt.',
+  'A long corridor full of enemies at fixed spots, a boss waits at the end.': 'Ein langer Korridor voller Gegner an festen Stellen, am Ende wartet ein Boss.',
+  'Every enemy still alive when you reach the boss gate adds seconds to your time. Kill or run past: your call.': 'Jeder Gegner, der beim Boss-Tor noch lebt, addiert Sekunden zu deiner Zeit. Kämpfen oder vorbeirennen: deine Entscheidung.',
+  'Endless map built from a seed: collect 3 keys, find the portal, trade for an Ember Core, beat the boss.': 'Endlose Karte aus einem Seed: sammle 3 Schlüssel, finde das Portal, tausche einen Ember Core ein, besiege den Boss.',
+  'Same seed = same world and same trade results. Pick RANDOM, DAILY or a fixed number.': 'Gleicher Seed = gleiche Welt und gleiche Handelsergebnisse. Wähle ZUFALL, TÄGLICH oder eine feste Zahl.',
+  'STANDARD LOADOUT: no upgrades, gear levels, implants or hero. All abilities are free. No credits, no XP, death ends the run.': 'STANDARD-LOADOUT: keine Upgrades, Ausrüstungsstufen, Implants oder Helden. Alle Abilities sind frei. Keine Credits, kein XP, der Tod beendet den Lauf.',
+  'LOCKED: PLAYER LEVEL # (YOU: #)': 'GESPERRT: SPIELERLEVEL # (DU: #)',
+  'A / D: +1 or -1.   Q / E: -100 or +100.': 'A / D: +1 oder -1.   Q / E: -100 oder +100.', 'SPACE: RANDOM / DAILY / FIXED. Same seed = same world.': 'LEERTASTE: ZUFALL / TÄGLICH / FEST. Gleicher Seed = gleiche Welt.',
+  'SEED: RANDOM': 'SEED: ZUFALL', 'SEED: DAILY': 'SEED: TÄGLICH', 'START': 'START', 'BACK': 'ZURÜCK', 'NONE': 'KEINE',
+  'RUN COMPLETE': 'LAUF GESCHAFFT', 'RUN FAILED': 'LAUF GESCHEITERT', 'NEW BEST!': 'NEUE BESTZEIT!', 'FIRST TIME - NEW BEST!': 'ERSTE ZEIT - NEUE BESTZEIT!', 'DEV RUN - NOT RECORDED': 'DEV-LAUF - NICHT GESPEICHERT',
+  'RETRY [R]      BACK [SPACE]': 'NOCHMAL [R]      ZURÜCK [LEERTASTE]', 'MOVE OR ATTACK TO START THE CLOCK': 'BEWEGEN ODER ANGREIFEN STARTET DIE UHR',
+  'ENEMIES LEFT #   PENALTY +#S': 'GEGNER ÜBRIG #   STRAFE +#S', 'LEFT BEHIND #   +#S': 'ÜBRIGGELASSEN #   +#S', 'LEFT BEHIND: #   +#S': 'ÜBRIGGELASSEN: #   +#S', 'CLEAN RUN!': 'SAUBERER LAUF!', 'BOSS GATE': 'BOSS-TOR',
+  'BOSS # / #': 'BOSS # / #', 'NEXT BOSS IN #S': 'NÄCHSTER BOSS IN #S', 'GO!': 'LOS!', 'BOSS DEFEATED!': 'BOSS BESIEGT!',
+  'COLLECT KEYS': 'SCHLÜSSEL SAMMELN', 'FIND THE PORTAL': 'PORTAL FINDEN', 'TRADE FOR AN EMBER CORE': 'EMBER CORE EINTAUSCHEN', 'ENTER THE PORTAL': 'PORTAL BETRETEN', 'KEYS # / #': 'SCHLÜSSEL # / #', 'KEY # / #': 'SCHLÜSSEL # / #',
+  'SCRAP #': 'SCHROTT #', 'SCRAP #   (# PER TRADE)': 'SCHROTT #   (# PRO HANDEL)', 'TRADING ...': 'HANDELT ...', 'NEED # SCRAP': 'BRAUCHE # SCHROTT', 'STAND NEXT TO THE TRADER': 'STELL DICH NEBEN DEN HÄNDLER',
+  'KEY DROPPED!': 'SCHLÜSSEL GEDROPPT!', 'NO KEY HERE': 'HIER KEIN SCHLÜSSEL', 'ALL KEYS! FOLLOW THE ARROW TO THE PORTAL': 'ALLE SCHLÜSSEL! FOLGE DEM PFEIL ZUM PORTAL', 'TRADER FOUND: TRADE SCRAP FOR AN EMBER CORE': 'HÄNDLER GEFUNDEN: TAUSCHE SCHROTT GEGEN EINEN EMBER CORE',
+  'EMBER CORE! THE PORTAL IS OPEN': 'EMBER CORE! DAS PORTAL IST OFFEN', 'EMBER CORE!': 'EMBER CORE!', 'TRADER': 'HÄNDLER', 'PORTAL (SEALED)': 'PORTAL (VERSIEGELT)', 'CARRIER': 'TRÄGER',
+  'TRADE #: HEALING': 'HANDEL #: HEILUNG', 'TRADE #: SPEED': 'HANDEL #: TEMPO', 'TRADE #: RAPID FIRE': 'HANDEL #: SCHNELLFEUER', 'TRADE #: +# SCRAP': 'HANDEL #: +# SCHROTT', 'TRADE #: JUNK': 'HANDEL #: NIETE',
+});
+I18n.phrases([['MELEE: ', 'NAHKAMPF: '], ['RANGED: ', 'FERNKAMPF: '], ['HEAVY: ', 'STARKE WAFFE: '], ['MAP: ', 'KARTE: '], ['SEED: ', 'SEED: '], ['KILLED BY: ', 'GETÖTET VON: ']]);

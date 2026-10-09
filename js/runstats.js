@@ -71,7 +71,7 @@ const Stats = {
   // Nicht protokolliert: Tutorial. Laeufe mit Dev-Cheats (G.cheated) werden mit dv: true markiert (Dev-Lauf) und lassen sich in der Statistik ausblenden (Taste X), standardmaessig sind sie sichtbar.
   CAP: { deaths: 300, bosses: 600, impDeaths: 2000, impBosses: 4000 },
   newId() { return Math.random().toString(36).slice(2, 10); },
-  logging() { return !Tutorial.active; },
+  logging() { return !Tutorial.active && !Save.srOn; },
   devRun() { return !!G.cheated; },
   push(list, entry, cap) { list.push(entry); if (list.length > cap) list.splice(0, list.length - cap); },
   loadout() {

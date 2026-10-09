@@ -114,6 +114,7 @@ class Enemy {
     // im Bosskampf und während Ultimate/Bloodburst verschwinden alle normalen Gegner
     if ((G.clearing || G.bossFight) && !this.minion) { this.alive = false; return; }
     if (this.minion && !G.bossFight) { this.alive = false; return; }       // Minions verschwinden mit dem Boss
+    if (this.dormant && SpeedRun.sleeping(this)) return;                    // Speedrun: schlafende Gegner (Gauntlet-Gruppen, Seed-Traeger) warten, bis der Spieler nah ist
     this.age += dt;
     this.hitFlash = Math.max(0, this.hitFlash - dt);
     let f = framesOf(dt) * (this.blooded ? CFG.bloodMoon.speedFactor : 1) * G.diff.speed * Hero.world().speed * Hero.type(this.type).speed * (this.V && this.V.speed ? this.V.speed : 1);       // Karten-Schwierigkeit, Variante

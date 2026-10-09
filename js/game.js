@@ -9,6 +9,7 @@ canvas.height = STAGE_H * SCALE;
 // Begrenzt eine Position auf die Karte (bei unendlicher Karte unverändert). margin = Abstand zum Rand.
 function clampToMap(x, y, margin = 0) {
   if (CFG.map.infinite) return [x, y];
+  if (G.sr && G.sr.bounds) { const b = G.sr.bounds; return [clamp(x, b.x0 + margin, b.x1 - margin), clamp(y, b.y0 + margin, b.y1 - margin)]; }       // Speedrun-Gauntlet: Streifen, nach dem Tor nur noch die Boss-Arena
   const hw = CFG.map.halfW * G.arenaScale, hh = CFG.map.halfH * G.arenaScale;      // Arena-Boss verkleinert die Karte (G.arenaScale)
   return [clamp(x, -(hw - margin), hw - margin), clamp(y, -(hh - margin), hh - margin)];
 }
@@ -49,8 +50,8 @@ function drawGround(ctx) {
 const MENU_ITEMS = ['play', 'inventory', 'cosmetics', 'upgrades', 'achievements', 'settings'];
 const menuItems = () => MENU_ITEMS;
 const statsOpen = () => !!Save.data.dev;       // der Statistik-Bildschirm (Symbol im Hauptmenue) gehoert zum Dev-Modus und gilt nur im Slot, in den die Dev-Datei importiert wurde (die Daten selbst kommen aus allen Slots, siehe Stats.slotLogs)
-const MODE_ITEMS = ['regular', 'infinite', 'tutorial', 'back'];        // Auswahl nach PLAY
-const MENU_MUSIC_MODES = ['start', 'stats', 'modeselect', 'infsetup', 'mapselect', 'keys', 'binds', 'inventory', 'cosmetics', 'upgrades', 'achievements', 'leaderboard', 'settings'];       // hier läuft die Menümusik (Tasten-Menü aus der Pause heraus nicht)
+const MODE_ITEMS = ['regular', 'infinite', 'speedrun', 'tutorial', 'back'];        // Auswahl nach PLAY
+const MENU_MUSIC_MODES = ['start', 'stats', 'modeselect', 'infsetup', 'srsetup', 'mapselect', 'keys', 'binds', 'inventory', 'cosmetics', 'upgrades', 'achievements', 'leaderboard', 'settings'];       // hier läuft die Menümusik (Tasten-Menü aus der Pause heraus nicht)
 // Upgrade-Menü: drei Reiter. Jede Zeile ist { kind: 'up' | 'ability', id }
 const UPGRADE_TABS = [
   { id: 'stats', label: 'STATS' },
@@ -159,6 +160,8 @@ const G = {
   boss: null,
   finalAt: CFG.finalBoss.at,   // Spielzeit, ab der der finale Boss erscheint (pro Lauf, null = nie)
   infinite: false,        // dieser Lauf ist ein Endlos-Lauf
+  sr: null,               // Speedrun-Lauf (js/speedrun.js): { kind, t (Uhr), splits, ... } oder null
+  srSel: 0,               // gewaehlte Zeile im Speedrun-Setup
   map: CFG.maps[0],       // gewählte Karte (CFG.maps)
   mapIdx: 0,
   diff: CFG.maps[0].diff, // Schwierigkeitsfaktoren der Karte
@@ -220,10 +223,13 @@ const G = {
 
   // withTutorial: Hinweise im Lauf (erster Lauf automatisch, sonst über das Hauptmenü)
   // infinite: Endlos-Modus (unendliche Karte, finaler Boss nach der gewählten Zeit)
-  begin(withTutorial = false, infinite = false) {
+  // srKind: Speedrun-Lauf ('rush' | 'gauntlet' | 'seed', siehe js/speedrun.js); schaltet Save.srOn (Standard-Loadout) fuer die Dauer des Laufs
+  begin(withTutorial = false, infinite = false, srKind = null) {
     setView(false);
     this.mode = 'play';
-    this.infinite = infinite && !withTutorial;
+    this.sr = srKind && !withTutorial ? SpeedRun.create(srKind) : null;
+    Save.srOn = !!this.sr;
+    this.infinite = (infinite || !!(this.sr && this.sr.infinite)) && !withTutorial;
     CFG.map.infinite = this.infinite;                       // die Kartenregeln (Wände, Kamera, Boss-Kamera) hängen an diesem Schalter
     this.seenKeys = true;
     Save.data.seenKeys = true; Save.write();
@@ -241,8 +247,10 @@ const G = {
     const mi = withTutorial || !Save.mapUnlocked(Save.data.mapSel) ? 0 : Save.data.mapSel;          // gewählte Karte (Tutorial immer Karte 1)
     this.mapIdx = mi; this.map = CFG.maps[mi]; this.diff = this.map.diff;
     CFG.map.halfW = this.map.half[0]; CFG.map.halfH = this.map.half[1];
+    if (this.sr) SpeedRun.applyMap();                                                    // Speedrun: eigene Streifenkarte (Gauntlet) bzw. Karte 1
     const fm = CFG.infinite.finalMinutes[Save.data.infSel];
     this.finalAt = this.infinite ? (fm === null || fm === undefined ? null : fm * 60) : CFG.finalBoss.at; this.finalStarted = false; this.victory = 0;
+    if (this.sr) this.finalAt = this.sr.finalAt;                                         // Boss Rush: Death nach dem letzten Boss, sonst kein finaler Boss
     this.bossFight = false; this.bossTimer = 0;
     this.cam = { x: 0, y: 0 };
     this.bossStageOctagon = 1; this.bossStageKite = 3;
@@ -260,22 +268,25 @@ const G = {
     this.director = new Director();
     MapEnv.init(); MapFx.reset(); SafeSpot.reset();                                         // Gefahren der gewählten Karte aufstellen (Karte 2 und 3)
     if (withTutorial) Tutorial.start(); else Tutorial.active = false;
+    if (this.sr) SpeedRun.setup();                                                       // Gegner, Spieler- und Kameraposition des Speedruns
     this.player.hp = this.player.maxHp; this.ultCharge += Hero.mods().startUlt;          // Held-Modifier (im Tutorial neutral, deshalb erst nach dem Tutorial-Flag)
   },
 
   // Finaler Boss besiegt: kurze Siegphase (CFG.ending.victoryDelay) bis zur Ending-Sequenz. In dieser Zeit ist der Spieler unverwundbar,
   // alle Gegner und Geschosse verschwinden und es spawnt nichts mehr, damit man nicht kurz vor dem Sieg noch sterben kann (Todesbildschirm statt Ende).
-  startVictory() {
+  startVictory(text) {
     if (this.victory > 0) return;
+    if (this.sr) SpeedRun.stop();                                                        // Speedrun: die Uhr haelt beim Fall des letzten Bosses an
     this.victory = CFG.ending.victoryDelay;
     this.player.hp = Math.max(this.player.hp, 1);
     for (const list of [this.enemies, this.shots, this.bossShots, this.spawners, this.blasts, this.meteors]) for (const e of list) e.alive = false;
-    this.notice('DEATH IS DEFEATED!', STYLE.pal.yellow, STYLE.type.h1);
+    this.notice(text || 'DEATH IS DEFEATED!', STYLE.pal.yellow, STYLE.type.h1);
   },
 
   die() {
     if (this.mode !== 'play' || this.victory > 0) return;
     if (Tutorial.active) { Tutorial.exit(); return; }                  // Tutorial verlassen: nichts wird gespeichert
+    if (this.sr) { SpeedRun.fail(); return; }                          // Speedrun: Tod = Abbruch, eigener Ergebnisbildschirm
     this.mode = 'dead';
     this.deadAge = 0;
     Cos2.dfx = Cos2.deathStart(this.player) || Cos2.deathPlain(this.player);       // Cosmetic DEATH: Animation vor dem Todesbildschirm (ohne Cosmetic eine kurze neutrale Phase)
@@ -317,6 +328,7 @@ const G = {
   // Sieg (finaler Boss besiegt): kein Todesbildschirm, sondern die Ending-Sequenz (drawEndingScreen)
   win() {
     if (this.mode !== 'play' || Tutorial.active) return;
+    if (this.sr) { SpeedRun.finish(); return; }                        // Speedrun: Ergebnisbildschirm statt Ending, keine Credits/XP
     this.mode = 'ending';
     this.endAge = 0;
     Sfx.play('ultimate');
@@ -404,6 +416,7 @@ const G = {
     if (item !== 'back') { Save.data.lastMode = item; Save.write(); }
     if (item === 'regular') { this.mode = 'mapselect'; Save.data.mapSel = Save.mapUnlocked(Save.data.mapSel) ? Save.data.mapSel : 0; }
     else if (item === 'infinite') { this.mode = 'infsetup'; this.infSel = 0; }
+    else if (item === 'speedrun') { this.mode = 'srsetup'; this.srSel = 0; SpeedRun.openSetup(); }
     else if (item === 'tutorial') this.begin(true);
     else this.mode = 'start';
   },
@@ -767,6 +780,7 @@ const G = {
   },
 
   endBossFight(result = 'win') {       // result fuers Protokoll: 'win' | 'timeout'
+    if (this.sr) SpeedRun.bossEnded(result, this.boss && this.boss.type);       // Speedrun: Zwischenzeit, Pause bis zum naechsten Boss (Boss Rush)
     Stats.bossEnd(result);
     this.bossFight = false;
     this.boss = null;
@@ -813,6 +827,7 @@ const G = {
 
   update(dt) {
     this.realTime += dt;
+    if (this.sr && (this.mode === 'play' || this.mode === 'pick')) SpeedRun.tick(dt);           // Speedrun-Uhr: Echtzeit, auch in Auswahlbildschirmen, nicht im Pausenmenue
     setView(this.isMenuView());
     if (canvas.style) canvas.style.cursor = this.mode === 'play' ? 'none' : '';       // Komfort: im Spiel kein Mauszeiger
     if (this.mode !== 'play' && this.mode !== 'loading') UIHit.update();      // Maus in den Menues
@@ -839,6 +854,10 @@ const G = {
       this.updateCosmetics();
     } else if (this.mode === 'infsetup') {
       this.updateInfSetup();
+    } else if (this.mode === 'srsetup') {
+      SpeedRun.updateSetup();
+    } else if (this.mode === 'srend') {
+      SpeedRun.updateEnd(dt);
     } else if (this.mode === 'mapselect') {
       this.updateMapSelect();
     } else if (this.mode === 'keys') {
@@ -901,9 +920,10 @@ const G = {
     this.clearing = this.attacks.some((a) => a.clearing);
 
     if (this.victory > 0) { this.victory -= dt; if (this.victory <= 0) { this.win(); return; } }     // Siegphase: kein Director, keine neuen Gegner
-    if (!this.bossFight && !Tutorial.active) this.time += dt;
+    if (!this.bossFight && !Tutorial.active && !(this.sr && this.sr.kind === 'rush')) this.time += dt;       // Boss Rush: G.time springt von Boss zu Boss (SpeedRun.update)
     Loadout.updateByTime(this.time);
-    if (!Tutorial.active && !(this.victory > 0)) { this.director.update(dt); this.director.updateBosses(); }       // im Tutorial führt Tutorial.update die Szenarien
+    if (this.sr) { if (!(this.victory > 0)) SpeedRun.update(dt); }                         // Speedrun: kein Director, SpeedRun.update spawnt und steuert die Bosse
+    else if (!Tutorial.active && !(this.victory > 0)) { this.director.update(dt); this.director.updateBosses(); }       // im Tutorial führt Tutorial.update die Szenarien
     MapEnv.update(dt);
     Elite.update();
     SafeSpot.update(dt);
@@ -915,7 +935,7 @@ const G = {
     }
     if (this.boss) {
       if (!Tutorial.active) this.bossTimer += dt;                      // im Tutorial gibt es kein Zeitlimit
-      if (this.bossTimer > CFG.boss.timeout && this.boss.type !== 'reaper') {      // der finale Boss hat kein Zeitlimit
+      if (this.bossTimer > CFG.boss.timeout && this.boss.type !== 'reaper' && !this.sr) {      // der finale Boss hat kein Zeitlimit
         this.later(0.25, () => Loadout.weaponUp(this.time));
         this.endBossFight('timeout');
       } else {
@@ -986,6 +1006,10 @@ const G = {
       drawCosmeticsScreen(ctx);
     } else if (this.mode === 'infsetup') {
       drawInfSetupScreen(ctx);
+    } else if (this.mode === 'srsetup') {
+      SpeedRun.drawSetup(ctx);
+    } else if (this.mode === 'srend') {
+      SpeedRun.drawEnd(ctx);
     } else if (this.mode === 'mapselect') {
       drawMapSelectScreen(ctx);
     } else if (this.mode === 'keys') {
@@ -1020,7 +1044,7 @@ const G = {
       this.drawPlay(ctx);
     }
     if (this.confirm && ['upgrades', 'cosmetics'].includes(this.mode)) drawConfirm(ctx);
-    if (['achievements', 'leaderboard', 'stats', 'modeselect', 'cosmetics', 'infsetup', 'mapselect', 'keys', 'binds', 'inventory', 'upgrades', 'settings', 'swap', 'pause'].includes(this.mode)) drawCloseX(ctx);
+    if (['achievements', 'leaderboard', 'stats', 'modeselect', 'cosmetics', 'infsetup', 'srsetup', 'mapselect', 'keys', 'binds', 'inventory', 'upgrades', 'settings', 'swap', 'pause'].includes(this.mode)) drawCloseX(ctx);
     if (!menuView) ctx.restore();
     Ach.drawToasts(ctx);
   },
@@ -1040,6 +1064,7 @@ const G = {
     Cos2.drawDecals(ctx);                                                          // Cosmetics: Stempel, Spuren, Tinte, Grabsteine am Boden
     for (const e of this.meteors) e.drawGround(ctx);
     Tutorial.drawWorld(ctx);
+    if (this.sr) SpeedRun.drawWorld(ctx);                                          // Speedrun: Start/Tor/Portal/Haendler/Pfeile
     for (const e of this.obstacles) e.draw(ctx);
     for (const e of this.spawners) e.draw(ctx);
     for (const e of this.powerups) e.draw(ctx);

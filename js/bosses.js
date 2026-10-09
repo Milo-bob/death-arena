@@ -455,6 +455,7 @@ class Boss {
     if (this.type !== 'reaper') Xp.bossDefeated();
     G.powerups.push(new PowerUp(this.x, this.y, CFG.boss.killHeal));
     if (this.type === 'reaper') { G.bosses++; G.startVictory(); }   // finaler Boss: Sieg, kein Upgrade
+    else if (G.sr && SpeedRun.lastBoss()) { G.bosses++; G.startVictory('BOSS DEFEATED!'); }       // Speedrun (Gauntlet, Seed Run): dieser Boss beendet den Lauf
     else if (!Tutorial.active) G.later(0.25, () => Loadout.weaponUp(G.time));      // im Tutorial kein Upgrade und keine Ability-Wahl
     Ach.bossDown(this);
     Cos2.vic = Cos2.victoryStart(G.player); if (Cos2.vic) Cos2.vic.live = G.realTime; Cos2.petCheer(Cos2.pet, Juice.particles);          // Cosmetics: Siegerpose und Freude des Begleiters
@@ -624,7 +625,10 @@ class TurretStrike {
 // Spawn-Animation in der Mitte (14 Bilder), danach erscheint der Boss
 class BossIntro {
   // Der Boss erscheint in der Kartenmitte. Auf der unendlichen Karte stattdessen in der Bildmitte (Kamera steht dann still)
-  constructor(type) { this.type = type; this.t = 0; this.alive = true; this.x = CFG.map.infinite ? G.cam.x : 0; this.y = CFG.map.infinite ? G.cam.y : 0; }
+  constructor(type) {
+    this.type = type; this.t = 0; this.alive = true; this.x = CFG.map.infinite ? G.cam.x : 0; this.y = CFG.map.infinite ? G.cam.y : 0;
+    const spot = G.sr && SpeedRun.bossSpot(); if (spot) { this.x = spot[0]; this.y = spot[1]; }       // Speedrun (Gauntlet): Boss steht in der Arena am Ende des Streifens
+  }
   update(dt) {
     this.t += dt;
     if (this.t >= CFG.boss.anim) {

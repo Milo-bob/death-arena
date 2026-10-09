@@ -45,7 +45,7 @@ class XpOrb {
 const Xp = {
   level: 1, xp: 0, total: 0, pending: 0, perks: {}, shown: 0, flash: 0, wait: 0,
 
-  get on() { return !Tutorial.active; },
+  get on() { return !Tutorial.active && !Save.srOn; },       // im Speedrun gibt es keine Level-ups (Standard-Loadout)
   reset() { this.level = 1; this.xp = 0; this.total = 0; this.pending = 0; this.perks = {}; this.shown = 0; this.flash = 0; this.wait = 0; },
   need() { return CFG.xp.base + CFG.xp.step * this.level; },
   stacks(id) { return this.perks[id] || 0; },

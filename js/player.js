@@ -173,8 +173,11 @@ class Player {
     return true;
   }
 
+  // Geschwindigkeit des Spielers (Einheiten pro Bild) in Richtung dir; Projektile addieren sie zu ihrem Tempo
+  velAlong(dir) { return (this.velX || 0) * fwdX(dir) + (this.velY || 0) * fwdY(dir); }
   update(dt) {
     const f = framesOf(dt);
+    const sx0 = this.x, sy0 = this.y;
     this.hitCd = Math.max(0, this.hitCd - dt);
     this.flash = Math.max(0, this.flash - dt);
     this.blinkT = Math.max(0, this.blinkT - dt);
@@ -200,6 +203,7 @@ class Player {
     this.useArtifact();
     this.move(f);
     if (this.dashLeft <= 0) { const [bx, by] = MapEnv.pushAt(this.x, this.y, this.radius); this.x += bx * f; this.y += by * f; Elite.pullPlayer(this, f); }       // Schlackenband schiebt, Magnetar zieht (beides nicht im Dash)
+    this.velX = f > 0 ? (this.x - sx0) / f : 0; this.velY = f > 0 ? (this.y - sy0) / f : 0;       // Eigenbewegung dieses Bildes (fuer Projektile)
     if (this.dashLeft > 0 || this.surgeT > 0) Juice.ghost(this);   // Nachbilder bei Dash und Boost
     this.useWeapon(dt, f);
     this.updateUltimate();
@@ -700,7 +704,7 @@ class Player {
       Sfx.play('stab');
       for (const off of Loadout.lance.offsets) {
         G.attacks.push(new LanceThrust(this, off, aim));
-        if (this.evo('railspear')) G.attacks.push(new Shot(this.x, this.y, aim + off, false, { frames: CFG.evolutions.railspear.frames }));      // Evolution: Begleit-Bolzen
+        if (this.evo('railspear')) G.attacks.push(new Shot(this.x, this.y, aim + off, false, { frames: CFG.evolutions.railspear.frames, from: this }));      // Evolution: Begleit-Bolzen
       }
       this.attackCd = Loadout.lance.cooldown / this.hasteFactor;
     } else if (slotItem === 'impulse') {
@@ -712,7 +716,7 @@ class Player {
       const spread = lvl === 0 ? [0] : lvl === 1 ? [10, -10] : [0, 20, -20];
       const aim = this.aimAssist();
       Sfx.play('shoot');
-      for (const off of spread) { const s = new Shot(this.x, this.y, aim + off); s.seek = this.evo('seeker'); s.stopOnHit = true; s.pierce = Loadout.shotPierce(); G.attacks.push(s); }
+      for (const off of spread) { const s = new Shot(this.x, this.y, aim + off, false, { from: this }); s.seek = this.evo('seeker'); s.stopOnHit = true; s.pierce = Loadout.shotPierce(); G.attacks.push(s); }
       this.attackCd = Loadout.shot.cooldown * (1 - Save.bonus('shot')) / this.hasteFor('shot');
       const R = CFG.shot.reload[lvl];                                                 // Nachladepause nur beim Blaster, ab Doppelschuss; mit dem dritten Schuss etwas laenger
       if (G.realTime - this.lastShotT > CFG.shot.idleRefill) this.shotMag = 0;       // laenger nicht geschossen: Magazin ist wieder voll
@@ -743,7 +747,7 @@ class Player {
       const S = CFG.shotgun, aim = this.aimAssist();
       Sfx.play('shotgun');
       const dd = this.evo('doomspread') ? CFG.evolutions.doomspread : null, np = S.pellets + (dd ? dd.pellets : 0);      // Evolution: mehr Schrote, weiter
-      for (let i = 0; i < np; i++) G.attacks.push(new Shot(this.x, this.y, aim + (np === 1 ? 0 : -S.spread + (2 * S.spread * i) / (np - 1)) + rand(-3, 3), false, { speed: S.speed, frames: S.frames * (dd ? dd.frames : 1) }));
+      for (let i = 0; i < np; i++) G.attacks.push(new Shot(this.x, this.y, aim + (np === 1 ? 0 : -S.spread + (2 * S.spread * i) / (np - 1)) + rand(-3, 3), false, { speed: S.speed, frames: S.frames * (dd ? dd.frames : 1), from: this }));
       this.attackCd = S.cooldown * (1 - Save.bonus('shot')) / this.hasteFactor;
     } else if (slotItem === 'boomerang') {
       if (!G.attacks.some((a) => a.alive && a instanceof Boomerang)) { Sfx.play('throw'); const bAim = this.aimAssist(); if (this.evo('twindisc')) { const ta = CFG.evolutions.twindisc.angle; G.attacks.push(new Boomerang(this, bAim + ta), new Boomerang(this, bAim - ta)); } else G.attacks.push(new Boomerang(this, bAim)); this.attackCd = CFG.boomerang.cooldown * (1 - Save.bonus('shot')) / this.hasteFactor; }
@@ -762,7 +766,7 @@ class Player {
       Sfx.play('shoot');
       const pr = this.evo('prism') ? CFG.evolutions.prism : null;                // Evolution: weiter, zwei Zusatzschuesse
       const offs = pr ? spread.concat([pr.angle, -pr.angle]) : spread;
-      for (const off of offs) G.attacks.push(new Shot(this.x, this.y, aim + off, true, pr ? { frames: CFG.bounce.frames * pr.frames } : {}));
+      for (const off of offs) G.attacks.push(new Shot(this.x, this.y, aim + off, true, pr ? { frames: CFG.bounce.frames * pr.frames, from: this } : { from: this }));
       this.attackCd = Loadout.shot.cooldown * CFG.bounce.cdMul * (1 - Save.bonus('shot')) / this.hasteFor('shot');
     }
     if (this.attackCd > 0) {                                                    // es wurde angegriffen: Waffenstufe verkuerzt die Pause, Hintergrund-XP
