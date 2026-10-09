@@ -213,7 +213,7 @@ const Account = {
         box.appendChild(mk('div', 'color:' + P.grey + ';font-size:13px;line-height:1.4;', 'Your slots are uploaded a few seconds after every save and compared when the game starts. If you play on two devices, the last one to save wins, so let a device finish saving before you switch.'));
         box.appendChild(msg);
         for (const i of Object.keys(this.conflicts).map(Number)) {
-          const c = this.conflicts[i], fmt = (p) => (p ? 'BEST ' + (p.best > 0 ? formatTime(p.best) : '-') + '   RUNS ' + p.runs + '   CORES ' + p.souls + (p.wins ? '   WINS ' + p.wins : '') : '?');
+          const c = this.conflicts[i], fmt = (p) => (p ? 'BEST ' + (p.best > 0 ? formatTime(p.best) : '-') + '   RUNS ' + p.runs + '   CREDITS ' + p.souls + (p.wins ? '   WINS ' + p.wins : '') : '?');
           const card = mk('div', 'border:2px solid ' + P.orange + ';padding:8px;margin:6px 0;');
           card.appendChild(mk('div', 'color:' + P.orange + ';font-size:15px;', 'SLOT ' + (i + 1) + ': THIS DEVICE AND THE CLOUD DIFFER'));
           card.appendChild(mk('div', 'font-size:13px;margin:4px 0;color:' + P.ice + ';', 'THIS DEVICE:  ' + fmt(this.peek(c.local))));

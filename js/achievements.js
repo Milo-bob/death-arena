@@ -72,7 +72,7 @@ const ACH_LIST = [
   { id: 'newskin',   br: 'grow', name: 'NEW SKIN, WHO DIS?',    desc: 'Unlock a new hero.',                             icon: 'heroSpecter',  key: 'heroes',    need: 1,    reward: { cores: 30 } },
   { id: 'evolve',    br: 'grow', name: 'EVOLVE OR DIE',         desc: 'Evolve a weapon in a run.',                      icon: 'bladesIcon',   key: 'evolved',   need: 1,    reward: { cos: 'blade:meteor' } },
   { id: 'maxed',     br: 'grow', name: 'MAXED OUT',             desc: 'Take any gear to its maximum level.',            icon: 'capacitorIcon', key: 'gearLv',   need: 5,    reward: { cos: 'skin:venom' } },
-  { id: 'moneybags', br: 'grow', name: 'MONEYBAGS',             desc: 'Hold 1000 cores at once.',                       icon: 'buffMagnet',   key: 'cores',     need: 1000, reward: { cos: 'skin:lime' } },
+  { id: 'moneybags', br: 'grow', name: 'MONEYBAGS',             desc: 'Hold 1000 credits at once.',                       icon: 'buffMagnet',   key: 'cores',     need: 1000, reward: { cos: 'skin:lime' } },
 
   // ---- DUMB WAYS ----
   { id: 'statue',    br: 'odd', name: 'PROFESSIONAL STATUE',    desc: 'Get hurt for standing still.',                   icon: 'player',       key: 'afk',       need: 1,    reward: { cores: 10 } },
@@ -137,7 +137,7 @@ const ACH_LIST = [
   { id: 'brewmstr',  br: 'hero', name: 'BREWMASTER',            desc: 'Use the Catalyst 10 times.',                     icon: 'catalystIcon', key: 'art_catalyst', need: 10, reward: { cores: 40 } },
   { id: 'timeout',   br: 'hero', name: 'TIME OUT',              desc: 'Use Chrono Lock 10 times.',                      icon: 'chronoIcon',   key: 'art_chrono', need: 10,  reward: { cores: 40 } },
   { id: 'crown',     br: 'hero', name: 'HEAVY IS THE CROWN',    desc: 'Survive 5 minutes as Harbinger.',                icon: 'heroHarbinger', key: 't_harbinger', need: 300, reward: { cores: 100 } },
-  { id: 'greed',     br: 'hero', name: 'GREED IS GOOD',         desc: 'Earn 1000 cores in one run as Harbinger.',       icon: 'buffMagnet',   key: 'earn_harbinger', need: 1000, reward: { cores: 200 } },
+  { id: 'greed',     br: 'hero', name: 'GREED IS GOOD',         desc: 'Earn 1000 credits in one run as Harbinger.',       icon: 'buffMagnet',   key: 'earn_harbinger', need: 1000, reward: { cores: 200 } },
 
   // ---- LOADOUT ----
   { id: 'bladerun',  br: 'gear', name: 'BLADE RUNNER',          desc: 'Defeat 500 enemies with the Plasma Blade.',      icon: 'sword',        key: 'kw_PLASMA BLADE', need: 500, reward: { cores: 30 } },
@@ -313,7 +313,7 @@ const Ach = {
     try { Sfx.play('buy'); } catch (e) { /* kein Ton */ }
   },
   rewardText(a) {
-    if (a.reward.cores) return '+' + a.reward.cores + ' CORES';
+    if (a.reward.cores) return '+' + a.reward.cores + ' CREDITS';
     const [cat, id] = a.reward.cos.split(':'), C = CFG.cosmetics;
     return C.cats.find((c) => c.id === cat).label + ': ' + C.items[cat].find((i) => i.id === id).name;
   },

@@ -61,7 +61,7 @@ class Obstacle {
       const n = randInt(L.coresMin, L.coresMax);
       G.lootCores += n;
       Juice.sparks(this.x, this.y, STYLE.pal.yellow, 8, 3.5);
-      if (G.noticeT <= 0) G.notice('+' + n + ' CORES', STYLE.pal.yellow, STYLE.type.body);
+      if (G.noticeT <= 0) G.notice('+' + n + ' CREDITS', STYLE.pal.yellow, STYLE.type.body);
     } else if (roll < L.none + L.cores + L.heal) G.powerups.push(new PowerUp(this.x, this.y, L.healAmount));
     else G.drops.push(new Drop(this.x, this.y, L.buffs[randInt(0, L.buffs.length - 1)]));
   }

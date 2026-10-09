@@ -707,9 +707,9 @@ const CFG = {
       luck:       { tab: 'stats', name: 'LUCK',           max: 15, cost: 60, step: 0.1,  desc: (v) => '+' + Math.round(v * 100) + '% drop chance', info: 'Enemies drop buffs more often.' },
       buffTime:   { tab: 'stats', name: 'BUFF DURATION',  max: 15, cost: 50, step: 0.1,  desc: (v) => '+' + Math.round(v * 100) + '% buff duration', info: 'Speed, rapid fire and guard buffs last longer.' },
       magnet:     { tab: 'stats', name: 'MAGNET',         max: 15, cost: 40, step: 0.15, desc: (v) => '+' + Math.round(v * 100) + '% pickup range', info: 'You collect healing and buff drops from further away.' },
-      coreDrop: { tab: 'stats', name: 'CORE EMITTER',      max: 15, cost: 90, step: 3,    desc: (v) => 'a core drops every ' + (CFG.coreDrop.base - v) + ' s', info: 'Every few seconds you automatically collect a core during a run.' },
-      bounty:   { tab: 'stats', name: 'KILL BOUNTY',      max: 15, cost: 150, step: 0.02, desc: (v) => Math.round(v * 100) + '% chance of +1 core per kill', info: 'Every kill has a chance to drop an extra core (not from minions). Stacks with weapon perks.' },
-      souls:    { tab: 'stats', name: 'CORE HARVESTER',    max: 15, cost: 45, step: 0.05, desc: (v) => '+' + Math.round(v * 100) + '% cores from runs', info: 'You get more cores after every run.' },
+      coreDrop: { tab: 'stats', name: 'CREDIT EMITTER',      max: 15, cost: 90, step: 3,    desc: (v) => 'a credit drops every ' + (CFG.coreDrop.base - v) + ' s', info: 'Every few seconds you automatically collect a credit during a run.' },
+      bounty:   { tab: 'stats', name: 'KILL BOUNTY',      max: 15, cost: 150, step: 0.02, desc: (v) => Math.round(v * 100) + '% chance of +1 credit per kill', info: 'Every kill has a chance to drop an extra credit (not from minions). Stacks with weapon perks.' },
+      souls:    { tab: 'stats', name: 'CREDIT HARVESTER',    max: 15, cost: 45, step: 0.05, desc: (v) => '+' + Math.round(v * 100) + '% credits from runs', info: 'You get more credits after every run.' },
     },
   },
 
@@ -1365,7 +1365,7 @@ CFG.heroes = {
   // Harbinger: Run-Modifier. Die Welt wird haerter (mehr Gegner, zaeher, schneller, einzelne Typen veraendert), dafuer gibt es einen fetten Bonus.
   // world siehe heroes.js (HERO_WORLD_NEUTRAL). Kein Artefakt, dafuer: x2.5 Cores, x1.6 XP, +50% Drop-Chance, +10% Angriffstempo.
   harbinger: {
-    name: 'HARBINGER', sprite: 'heroHarbinger', cost: 1500, milestone: 'hero_harbinger', modText: 'HARDER FOES  X2.5 CORES  X1.6 XP', blurb: 'HORNED FRAME. THE WORLD HUNTS YOU HARDER, THE LOOT IS HUGE.',
+    name: 'HARBINGER', sprite: 'heroHarbinger', cost: 1500, milestone: 'hero_harbinger', modText: 'HARDER FOES  X2.5 CREDITS  X1.6 XP', blurb: 'HORNED FRAME. THE WORLD HUNTS YOU HARDER, THE LOOT IS HUGE.',
     mod: {
       atk: 1.1, dmgTaken: 1.1, cores: 2.5, xp: 1.6, luck: 1.5,
       world: {
@@ -1419,13 +1419,13 @@ const DEATH_SECRET_AT = 666;                                                    
 // Werte: dropMul / ultMul / xpMul / dmgTaken = Faktor, coreChance = Chance auf +1 Core pro Kill, cdOnKill = Sekunden Abklingzeit-Abzug pro Kill, magnet = Zuschlag auf die Einsammelreichweite.
 // Wirkung: js/xp.js (Objekt Perk), Haken in Enemy.die, Player.hit, pickupRange, Xp.drop.
 CFG.items.perks = {
-  sword:     { name: 'SCAVENGER',   text: 'Each kill has a 7% chance to give +1 core, and buffs drop 40% more often.', coreChance: 0.07, dropMul: 1.4 },
+  sword:     { name: 'SCAVENGER',   text: 'Each kill has a 7% chance to give +1 credit, and buffs drop 40% more often.', coreChance: 0.07, dropMul: 1.4 },
   whip:      { name: 'CHARGER',     text: 'Kills charge your ultimate 30% faster.', ultMul: 1.3 },
   katana:    { name: 'FLOW',        text: 'Every kill shortens all ability cooldowns by 0.25 s.', cdOnKill: 0.25 },
   hammer:    { name: 'BULWARK',     text: 'You take 12% less damage.', dmgTaken: 0.88 },
   lance:     { name: 'MENTOR',      text: 'Enemies drop 25% more XP.', xpMul: 1.25 },
   impulse:   { name: 'CUSHION',     text: 'You take 10% less damage.', dmgTaken: 0.9 },
-  shotgun:   { name: 'BOUNTY',      text: 'Each kill has a 5% chance to give +1 core.', coreChance: 0.05 },
+  shotgun:   { name: 'BOUNTY',      text: 'Each kill has a 5% chance to give +1 credit.', coreChance: 0.05 },
   boomerang: { name: 'MAGNETIC',    text: 'Pickup range +60% (drops, XP, health).', magnet: 0.6 },
   molotov:   { name: 'ARSONIST',    text: 'Kills charge your ultimate 25% faster.', ultMul: 1.25 },
   rocket:    { name: 'BATTLE DATA', text: 'Enemies drop 30% more XP.', xpMul: 1.3 },

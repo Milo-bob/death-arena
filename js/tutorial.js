@@ -104,9 +104,9 @@ const Tutorial = {
       ctx.fillStyle = 'rgba(5,6,15,0.7)'; ctx.fillRect(0, 0, STAGE_W, STAGE_H);
       uiPanel(ctx, STAGE_W / 2 - 170, 100, 340, 140, { color: P.green, fill: P.void, alpha: 0.96, glow: true });
       uiText(ctx, 'TUTORIAL COMPLETE', STAGE_W / 2, 135, { size: T.h1, color: P.green, align: 'center', glow: P.green });
-      uiText(ctx, 'You know every basic now. Spend cores in UPGRADES and', STAGE_W / 2, 160, { size: T.body, color: P.ice, align: 'center' });
+      uiText(ctx, 'You know every basic now. Spend credits in UPGRADES and', STAGE_W / 2, 160, { size: T.body, color: P.ice, align: 'center' });
       uiText(ctx, 'INVENTORY, then take on bosses, events and evolutions.', STAGE_W / 2, 173, { size: T.body, color: P.ice, align: 'center' });
-      if (this.firstTime) uiText(ctx, 'FIRST TIME BONUS: +' + TUT_BONUS_CORES + ' CORES', STAGE_W / 2, 194, { size: T.h2, color: P.yellow, align: 'center' });
+      if (this.firstTime) uiText(ctx, 'FIRST TIME BONUS: +' + TUT_BONUS_CORES + ' CREDITS', STAGE_W / 2, 194, { size: T.h2, color: P.yellow, align: 'center' });
       if (this.newMs.length) uiText(ctx, 'MILESTONE: ' + this.newMs[0].name, STAGE_W / 2, 212, { size: T.small, color: P.cyan, align: 'center' });
       drawPrompt(ctx, 'MENU [SPACE]', 232);
       return;
@@ -242,7 +242,7 @@ const SCENARIOS = [
       for (const [ox, oy] of [[-80, 40], [70, 55], [10, -75]]) { const o = new Obstacle(ox, oy); o.maxHp = o.hp = 4; o.age = 1; G.obstacles.push(o); }
     },
     update: (dt, s) => { s.gone = s.total - G.obstacles.filter((o) => o.alive).length; for (const q of G.powerups) q.age = 0; },
-    lines: () => ['SMASH THE CRATES', 'Barricades hide loot: cores, healing and buffs. Break all three, then grab what drops.'],
+    lines: () => ['SMASH THE CRATES', 'Barricades hide loot: credits, healing and buffs. Break all three, then grab what drops.'],
     progress: (s) => (s.gone || 0) < s.total ? tutCount(s.gone || 0, s.total, 'CRATES') : 'LOOT LEFT ' + G.powerups.length,
     done: (s) => (s.gone || 0) >= s.total && G.powerups.length === 0 && G.drops.length === 0,
   },

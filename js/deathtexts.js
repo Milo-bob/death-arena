@@ -248,7 +248,7 @@ const DEATH_LINES = {
   death9: "The arena has barely woken up.",
   death10: "Five minutes. Even the walls are bored.",
   death11: "Tick tock. The bosses are just warming up.",
-  death12: "Even your cores look disappointed.",
+  death12: "Even your credits look disappointed.",
   death13: "Eleven minutes and still no skill. Impressive.",
   death14: "Now we are getting somewhere. Slowly.",
   death15: "My patience is wearing thin...",
