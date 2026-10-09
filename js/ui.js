@@ -44,7 +44,7 @@ function drawBloodMoonTint(ctx) {
   ctx.fillStyle = 'rgba(110, 0, 25, 0.2)';
   ctx.fillRect(0, 0, STAGE_W, STAGE_H);
   ctx.restore();
-  drawSprite(ctx, 'damageOverlay', 0, 0, 90, 100, { alpha: 0.3 + 0.1 * Math.sin(G.realTime * 2) });
+  drawSprite(ctx, 'damageOverlay', 0, 0, 90, 100, { alpha: 0.3 + 0.1 * Math.sin(G.realTime * 2), stretchX: STAGE_W / 480 });
 }
 
 // HUD fest auf dem Bildschirm: roter Rand, Uhr, Meldung, Hotbar
@@ -57,13 +57,13 @@ function drawHud(ctx) {
   // roter Rand bei wenig Leben
   // Das Pulsieren läuft über die Deckkraft (in player.overlayAlpha). Die Größe bleibt fest, sonst blitzt der Bildrand durch.
   const a = p.overlayAlpha;
-  if (a > 0) drawSprite(ctx, 'damageOverlay', 0, 0, 90, 100, { alpha: a });
+  if (a > 0) drawSprite(ctx, 'damageOverlay', 0, 0, 90, 100, { alpha: a, stretchX: STAGE_W / 480 });
 
   // Uhr oben rechts: zählt hoch, im Bosskampf runter
   let clock;
   if (G.bossFight) clock = G.boss ? Math.max(0, 30 - Math.floor(G.bossTimer / 2)) : 30;
   else clock = Math.min(30, Math.floor((G.time % CFG.waves.length) / 4));
-  drawSprite(ctx, 'clock' + clock, 170, 160, 90, 375);
+  drawSprite(ctx, 'clock' + clock, STAGE_W / 2 - 70, 160, 90, 375);
 
   if (G.noticeT > 0) {
     ctx.save();
@@ -104,7 +104,7 @@ function drawHud(ctx) {
 // ---------- Hotbar unten Mitte (im Stil von Minecraft Dungeons, aber ohne Lebensanzeige) ----------
 // Mitte: Ultimate-Kugel, die sich mit Kills füllt. Links: Waffen-Slots (1 Schwert, 2 Schuss, E Beam).
 // Rechts: Ability-Slots (Q, Shift, siehe CFG.loadout.slots). Abklingzeit = dunkle Abdeckung, die von oben abschmilzt.
-const SLOT = 22, SLOT_GAP = 3, HOTBAR_Y = 329, ORB = { cx: 240, cy: 340, r: 17 };
+const SLOT = 22, SLOT_GAP = 3, HOTBAR_Y = 329, ORB = { cx: 320, cy: 340, r: 17 };       // cx = Mitte der 640 breiten Bühne
 
 // Zeichnet ein Sprite mittig bei (cx, cy) in Canvas-Bühnenkoordinaten (y nach unten), auf die Breite targetW
 function drawIcon(ctx, name, cx, cy, targetW, alpha, gray) {
@@ -201,6 +201,7 @@ function drawHotbar(ctx, p) {
   const lx = cx - r - 6;                                       // rechte Kante der linken Gruppe
   const D = hudSlots(p);
 
+  if (!Save.data.touch) {                                      // Touch-Modus: die Slots unten Mitte entfallen, die Touch-Tasten (touch.js) zeigen dasselbe
   // links: 1 Schwert, 2 Schuss, E Beam
   const slotX = (i) => lx - SLOT - (2 - i) * (SLOT + SLOT_GAP);
   drawSlot(ctx, slotX(0), HOTBAR_Y, D.melee);
@@ -227,6 +228,7 @@ function drawHotbar(ctx, p) {
     drawSlot(ctx, dx, HOTBAR_Y, { icon: 'luckyIcon', iconW: 18, key: '', color: P.greyMid, ready: 1 });
     ctx.save(); ctx.globalAlpha = 0.7; ctx.fillStyle = P.void; ctx.fillRect(dx + 2, HOTBAR_Y + 2, SLOT - 4, SLOT - 4);      // abdunkeln (Filter/Graustufen gehen nicht überall)
     ctx.restore();
+  }
   }
 
   // aktive Drop-Buffs mit Restzeit: oben links (unter dem XP-Balken und der Levelanzeige)
@@ -260,12 +262,28 @@ function drawPrompt(ctx, text, y) {
   ctx.restore();
 }
 
+// Reihe von Knoepfen (Maus/Touch) am Todes-/Endbildschirm: items = [[Beschriftung, Tastencode]], mittig bei cy. Klick = Tastendruck (UIHit, Option key).
+function drawKeyButtons(ctx, items, cy, color) {
+  const P = STYLE.pal, n = items.length, gap = 10, h = 22;
+  const w = Math.min(150, Math.floor((STAGE_W - 24 - (n - 1) * gap) / n));
+  const x0 = STAGE_W / 2 - (n * w + (n - 1) * gap) / 2, m = Input.mouse, col = color || P.red;
+  items.forEach(([label, key], i) => {
+    const x = x0 + i * (w + gap), y = cy - h / 2, hot = m.x >= x && m.x <= x + w && m.y >= y && m.y <= y + h;
+    UIHit.add(x, y, w, h, () => {}, { key });
+    ctx.save();
+    ctx.globalAlpha = hot ? 1 : 0.85;
+    uiPanel(ctx, x, y, w, h, { color: hot ? P.ice : col, fill: hot ? P.greyMid : P.void, glow: hot });
+    ctx.restore();
+    uiText(ctx, label, x + w / 2, y + 15, { size: STYLE.type.h2, color: hot ? P.ice : col, align: 'center' });
+  });
+}
+
 // Maussteuerung in Menues: jede Zeichenfunktion meldet ihre klickbaren Flaechen an (UIHit.add), UIHit.update (einmal pro Bild vor dem Menue-Update)
 // setzt bei Mausbewegung die Auswahl (select) und macht aus einem Klick einen Tastendruck: Leertaste, oder bei Reglern (lr) Pfeil links/rechts je nach Seite.
 // noConfirm = nur auswaehlen (Reiter). Rechtsklick = ESC, Mausrad = hoch/runter. Die Liste wird zu Beginn jedes Zeichnens geleert.
 const UIHit = {
   list: [], hover: null, blocks: [],                                   // blocks = Scrollleisten: dort wird nichts darunter ausgewaehlt oder bestaetigt
-  add(x, y, w, h, select, o = {}) { this.list.push({ x, y, w, h, select, lr: !!o.lr, noConfirm: !!o.noConfirm, esc: !!o.esc }); },
+  add(x, y, w, h, select, o = {}) { this.list.push({ x, y, w, h, select, lr: !!o.lr, noConfirm: !!o.noConfirm, esc: !!o.esc, key: o.key }); },
   under() {
     const m = Input.mouse;
     if (this.blocks.some((b) => m.x >= b.x && m.x <= b.x + b.w && m.y >= b.y && m.y <= b.y + b.h)) return null;
@@ -285,11 +303,17 @@ const UIHit = {
       if (key !== this.hover) { this.hover = key; Sfx.play('tick'); }
       h.select();
     }
-    if (G.mode === 'dead') { if (Input.clicked && G.deadAge > 1) Input.pressedNow.Space = true; return; }
-    if (G.mode === 'ending') { if (Input.clicked) Input.pressedNow.Space = true; return; }
+    if (G.mode === 'dead' || G.mode === 'ending') {                    // Todes-/Endbildschirm: nur die Knoepfe (h.key) loesen die jeweilige Taste aus
+      if (Input.clicked) {
+        if (h && h.key) Input.pressedNow[h.key] = true;
+        else if (G.mode === 'ending' && G.endAge < ENDING_MENU_AT) Input.pressedNow.Space = true;       // Szene ueberspringen
+      }
+      return;
+    }
     if (Input.clicked && h) {
       h.select();
-      if (h.esc) Input.pressedNow.Escape = true;
+      if (h.key) Input.pressedNow[h.key] = true;
+      else if (h.esc) Input.pressedNow.Escape = true;
       else if (!h.noConfirm) Input.pressedNow[h.lr ? (Input.mouse.x > h.x + h.w / 2 ? 'ArrowRight' : 'ArrowLeft') : 'Space'] = true;
     }
     if (Input.rightClicked) Input.pressedNow.Escape = true;
@@ -308,6 +332,24 @@ function drawCloseX(ctx) {
   for (let i = 7; i < s - 7; i++) { ctx.fillRect(x + i - 1, y + i - 1, 3, 3); ctx.fillRect(x + s - i - 2, y + i - 1, 3, 3); }
   ctx.restore();
 }
+// Kaufbestaetigung (G.confirm, siehe G.openConfirm): Fenster mit BUY und CANCEL. Liegt oben, darunter ist nichts klickbar.
+function drawConfirm(ctx) {
+  const P = STYLE.pal, T = STYLE.type, c = G.confirm, w = 280, h = 110, x = STAGE_W / 2 - w / 2, y = 120, m = Input.mouse;
+  UIHit.list.length = 0;
+  ctx.save(); ctx.globalAlpha = 0.75; ctx.fillStyle = P.ink; ctx.fillRect(0, 0, STAGE_W, STAGE_H); ctx.restore();
+  uiPanel(ctx, x, y, w, h, { color: P.yellow, fill: P.void, alpha: 0.98, glow: true });
+  uiText(ctx, 'CONFIRM PURCHASE', STAGE_W / 2, y + 20, { size: T.h2, color: P.yellow, align: 'center' });
+  uiText(ctx, uiFit(ctx, c.name, w - 24, T.h2), STAGE_W / 2, y + 44, { size: T.h2, color: P.ice, align: 'center' });
+  uiText(ctx, c.price + ' CORES', STAGE_W / 2, y + 60, { size: T.body, color: P.yellow, align: 'center' });
+  const bw = 112, by = y + h - 34, btns = [['BUY', 'Space', P.green], ['CANCEL', 'Escape', P.red]];
+  btns.forEach(([label, key, col], i) => {
+    const bx = x + 20 + i * (bw + 16), hot = m.x >= bx && m.x <= bx + bw && m.y >= by && m.y <= by + 24;
+    UIHit.add(bx, by, bw, 24, () => {}, { key });
+    uiPanel(ctx, bx, by, bw, 24, { color: hot ? P.ice : col, fill: hot ? P.greyMid : P.void, glow: hot });
+    uiText(ctx, label, bx + bw / 2, by + 17, { size: T.h2, color: hot ? P.ice : col, align: 'center' });
+  });
+}
+
 // Hintergrundbild eines Menüs über die ganze (16:9-)Breite
 function drawMenuBg(ctx, name, keepRatio) {
   const im = IMG[name];
@@ -689,7 +731,7 @@ function itemFacts(id) {
     blackhole: () => 'PULL ' + s1(CFG.blackhole.life) + ', RADIUS ' + CFG.blackhole.radius + ', COOLDOWN ' + s1(CFG.blackhole.cooldown),
     rocket: () => 'BLAST ' + CFG.rocket.blast + ', EXPLODES ON ENEMIES WITH MORE THAN ' + CFG.rocket.strongHits + ' HP, COOLDOWN ' + s1(CFG.rocket.cooldown),
     bounce: () => 'COOLDOWN x' + CFG.bounce.cdMul + ' OF BLASTER, LIFETIME ' + CFG.bounce.frames + ' FRAMES',
-    beam: () => 'CHARGES UP TO ' + s1(CFG.beam.maxClock / (CFG.beam.loadPerFrame * 30)) + ', YOU STAND STILL',
+    beam: () => 'TAP = SHORT CHARGE (' + s1(CFG.beam.minClock / (CFG.beam.loadPerFrame * 30)) + '), HOLD = UP TO ' + s1(CFG.beam.maxClock / (CFG.beam.loadPerFrame * 30)) + ', YOU ONLY TURN',
     grenade: () => 'RADIUS ' + CFG.grenade.radius + ', COOLDOWN ' + s1(CFG.grenade.cooldown),
     firetrail: () => 'FUEL ' + s1(CFG.fire.burnTime) + ', RECHARGE ' + s1(CFG.fire.rechargeTime),
     armor: () => '-' + Math.round(I.armor.reduce * 100) + '% DAMAGE',
@@ -885,6 +927,7 @@ function drawInventoryScreen(ctx) {
       drawGearMeter(ctx, id, tx, my + 4, tw, col);
       uiText(ctx, uiFit(ctx, gearStepText(id) + '  -  FILLS WHILE YOU PLAY', tw, T.small), tx, my + 32, { size: T.small, color: P.greyMid });
       const up = maxed ? 'MAX LEVEL' : '[U] LEVEL UP  -  ' + price + ' CORES';
+      if (!maxed) UIHit.add(tx - 4, my + 33, 170, 18, () => {}, { key: 'KeyU' });             // Antippen = U (Touch)
       uiText(ctx, up, tx, my + 46, { size: T.body, color: maxed ? P.cyan : afford ? P.yellow : P.red });
       uiText(ctx, '[SPACE] CHANGE', px + pw - 14, my + 46, { size: T.small, color: P.cyan, align: 'right' });
     } else uiText(ctx, '[SPACE] CHOOSE ITEM', px + pw / 2, py + ph - 12, { size: T.body, color: P.cyan, align: 'center' });
@@ -911,8 +954,8 @@ function drawInvPick(ctx) {
   UIHit.list.length = 0;                                           // das Auswahlfenster liegt oben: darunter ist nichts klickbar
   ctx.save(); ctx.globalAlpha = 0.8; ctx.fillStyle = P.ink; ctx.fillRect(0, 0, STAGE_W, STAGE_H); ctx.restore();
   const rows = Math.max(1, Math.min(VIS, K.list.length));
-  uiPanel(ctx, x - 12, y0 - 40, w + 24, 40 + rows * GAP + 26, { color: col, fill: P.void, alpha: 0.97, glow: true });
-  uiCorners(ctx, x - 15, y0 - 43, w + 30, 40 + rows * GAP + 32, col, 7);
+  uiPanel(ctx, x - 12, y0 - 40, w + 24, 40 + rows * GAP + 54, { color: col, fill: P.void, alpha: 0.97, glow: true });
+  uiCorners(ctx, x - 15, y0 - 43, w + 30, 40 + rows * GAP + 60, col, 7);
   uiText(ctx, S.label + ' - CHOOSE', STAGE_W / 2, y0 - 16, { size: T.h2, color: col, align: 'center', glow: col });
   if (!K.list.length) { uiText(ctx, 'NOTHING PURCHASED YET (ITEMS)', STAGE_W / 2, y0 + 22, { size: T.body, color: P.grey, align: 'center' }); return; }
   const off = clamp(K.sel - (VIS - 1), 0, Math.max(0, K.list.length - VIS));
@@ -932,6 +975,14 @@ function drawInvPick(ctx) {
     }
   });
   uiText(ctx, 'W/S = SELECT    SPACE = EQUIP    U = LEVEL UP    X / ESC = BACK', STAGE_W / 2, y0 + rows * GAP + 8, { size: T.small, color: P.grey, align: 'center' });
+  const sid = K.list[K.sel];                                                        // Touch: Knopf fuer die Stufe des markierten Items
+  if (sid) {
+    const maxed = Save.gearLv(sid) >= Save.gearMax(), bw = 200, bx = STAGE_W / 2 - bw / 2, by = y0 + rows * GAP + 18, m = Input.mouse;
+    const hot = !maxed && m.x >= bx && m.x <= bx + bw && m.y >= by && m.y <= by + 22, c = maxed ? P.cyan : Save.data.souls >= Save.gearPrice(sid) ? P.yellow : P.red;
+    if (!maxed) UIHit.add(bx, by, bw, 22, () => {}, { key: 'KeyU' });
+    uiPanel(ctx, bx, by, bw, 22, { color: hot ? P.ice : c, fill: hot ? P.greyMid : P.void, glow: hot });
+    uiText(ctx, maxed ? 'MAX LEVEL' : 'LEVEL UP  -  ' + Save.gearPrice(sid) + ' CORES', STAGE_W / 2, by + 15, { size: T.h2, color: hot ? P.ice : c, align: 'center' });
+  }
 }
 
 // ---------- Cosmetics-Menue: oben die Kategorien, links die Items, rechts eine Live-Vorschau ----------
@@ -1419,7 +1470,7 @@ function drawEndingScreen(ctx) {
   });
   milestoneLines().forEach((l, i) => uiText(ctx, l, STAGE_W / 2, 264 + i * 11, { size: T.small, color: P.cyan, align: 'center' }));
   ctx.restore();
-  if (t > ENDING_MENU_AT) drawPrompt(ctx, 'MENU [SPACE]     DETAILS [TAB]', 322);
+  if (t > ENDING_MENU_AT && !G.deathDetails) drawKeyButtons(ctx, [['MENU [SPACE]', 'Space'], ['DETAILS [TAB]', 'Tab']], 322);
   if (G.deathDetails && Stats.summary) drawRunDetails(ctx, Stats.summary);
 }
 
@@ -1428,11 +1479,8 @@ function drawDeathScreen(ctx) {
   drawMenuBg(ctx, name, true);
   if (G.infinite) uiText(ctx, 'INFINITE MODE', 12, 24, { size: STYLE.type.h2, color: STYLE.deathTints[name] || STYLE.pal.red });
   drawDeathTexts(ctx, name);
-  // "Leertaste zum Neustart" schwebt langsam auf und ab
-  const k = G.realTime % 7;
-  const off = k < 4 ? 2 * (k / 4) : 2 - 4 * ((k - 4) / 3);
   const tint = STYLE.deathTints[name] || STYLE.pal.red;
-  uiText(ctx, 'MENU [SPACE]     RETRY [R]     DETAILS [TAB]', STAGE_W / 2, 340 - off, { size: STYLE.type.h2, color: tint, align: 'center' });
+  if (!G.deathDetails && G.deadAge > 1) drawKeyButtons(ctx, [['MENU [SPACE]', 'Space'], ['RETRY [R]', 'KeyR'], ['DETAILS [TAB]', 'Tab']], 338, tint);
   const sm = Stats.summary, R = STAGE_W - 12;                                  // Layout: Belohnungen oben rechts, Zeit und Killer unten, damit nichts mit dem Spruch überlappt
   uiText(ctx, '+' + G.earned + ' CORES', R, 24, { size: STYLE.type.h2, color: STYLE.pal.yellow, align: 'right' });
   let ry = 36;
@@ -1469,7 +1517,9 @@ function drawRunDetails(ctx, sm) {
   const cw = Math.floor((STAGE_W - 36 - 24) / 2);
   col(18, 'DAMAGE TAKEN', sm.dmg, P.red, (v, tot) => Math.round(v) + ' (' + Math.round(100 * v / tot) + '%)');
   col(18 + cw + 24, 'KILLS BY WEAPON', sm.kills, P.cyan, (v) => String(v));
-  drawPrompt(ctx, G.mode === 'ending' ? 'BACK [TAB]     MENU [SPACE]' : 'BACK [TAB]     MENU [SPACE]     RETRY [R]', 345);
+  const btns = [['BACK [TAB]', 'Tab'], ['MENU [SPACE]', 'Space']];
+  if (G.mode !== 'ending') btns.push(['RETRY [R]', 'KeyR']);
+  drawKeyButtons(ctx, btns, 340);
 }
 
 

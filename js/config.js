@@ -23,13 +23,14 @@
 
 // ---------- [1] Globale Konstanten ----------
 const FPS = 30;
-let STAGE_W = 480;          // Scratch-Bühne: 480 x 360, Mittelpunkt (0,0), y zeigt nach oben
+let STAGE_W = 640;          // Bühne: 640 x 360 (16:9), Mittelpunkt (0,0), y zeigt nach oben (Scratch-Original 480 x 360)
 const STAGE_H = 360;
-let VIEW_PAD = 80;          // aktueller Seitenrand: im Lauf PAD (4:3 mittig), in Menüs 0 (volle 16:9-Breite)
+let VIEW_PAD = 0;        // aktueller Seitenrand: im Lauf PAD (4:3 mittig), in Menüs 0 (volle 16:9-Breite)
 const PAD = 80;              // Menüs: 16:9-Fläche (640 x 360), der Lauf bleibt 4:3 (480 x 360) und sitzt mittig mit je PAD Einheiten Rand
 const CANVAS_W = 480 + 2 * PAD;
 // Ansicht umschalten: Menüs = 640 breit, Lauf = 480 breit (STAGE_W gilt dann im ganzen Zeichen-/Menücode)
-function setView(menu) { STAGE_W = menu ? CANVAS_W : 480; VIEW_PAD = menu ? 0 : PAD; }
+// Seit der 16:9-Umstellung nutzt auch der Lauf die volle Breite (640 x 360, Welt um die Mitte erweitert); das Argument bleibt nur der Aufrufe wegen.
+function setView(menu) { STAGE_W = CANVAS_W; VIEW_PAD = 0; }
 const SCALE = 2;              // Canvas = 960 x 720
 const DEG = Math.PI / 180;
 const WEAPON_NAMES_LIST = ['Blade', 'Blaster'];   // Reihenfolge = Tasten 1, 2 (Leertaste greift mit der gewählten Waffe an). Die starke Waffe liegt separat auf E.
@@ -177,7 +178,8 @@ const CFG = {
 
   // --- Starke Waffe: Beam (halten = laden, loslassen = feuern) ---
   // decayPerSecond: im Original -0.05 pro "warte 0.05" (real ca. 0.066 s) = ca. 0.75 pro Sekunde
-  beam: { loadPerFrame: 0.1, maxClock: 10, decayPerSecond: 0.75, beamSizes: [250, 300, 350] },
+  // minClock = Mindestladung: auch ein kurzer Tipp laedt bis hierhin (0.1 pro Bild x 30 Bilder = 3 pro Sekunde, also ca. 0.9 s) und der Spieler kann sich dabei nur drehen.
+  beam: { loadPerFrame: 0.1, minClock: 2.7, maxClock: 10, decayPerSecond: 0.75, beamSizes: [250, 300, 350] },
 
   // --- Starke Waffe: Plasmagranate (E drücken) ---
   // Fliegt flightFrames Bilder mit speed, explodiert bei Kontakt oder nach fuse Sekunden.
@@ -1265,7 +1267,7 @@ const CFG = {
 
   // Spawnpunkte der Gegner: feste Punkte in der Welt, genau am Rand des Bildausschnitts, den man beim Spielstart sieht
   // (Kamera bei 0,0, Bild +-240 x +-180). Sie bewegen sich nicht mit der Kamera.
-  spawnPoints: [[240, 0], [170, 127], [0, 180], [-170, 127], [-240, 0], [-170, -127], [0, -180], [170, -127]],   // Ellipse (x 240, y 180), alle 45°
+  spawnPoints: [[320, 0], [227, 127], [0, 180], [-227, 127], [-320, 0], [-227, -127], [0, -180], [227, -127]],       // Rand des 16:9-Bildes (+-320 x +-180)   // Ellipse (x 240, y 180), alle 45°
 
 
   // ==========================================================================================
@@ -1327,7 +1329,7 @@ const CFG = {
   // Endlos-Modus: spawnRate = Faktor auf alle Spawn-Wartezeiten (0.6 = ca. 1.7x so viele Gegner, weil Weglaufen auf der freien Karte sonst zu leicht ist), capMul = Faktor auf die Obergrenzen
   // der Sondertypen. spawnPoints = Punkte relativ zur Kamera, ALLE ausserhalb des Bildes (Bild = +-240 x +-180, beim Rauszoomen etwas mehr), rundherum ein Rechteckring.
   infinite: { finalMinutes: [10, 15, 20, 30, 45, 60, null], defaultSel: 3, coreFactor: 0.5, spawnRate: 0.6, capMul: 1.3,
-    spawnPoints: [[300, 0], [300, 130], [300, 240], [150, 255], [0, 255], [-150, 255], [-300, 240], [-300, 130], [-300, 0], [-300, -130], [-300, -240], [-150, -255], [0, -255], [150, -255], [300, -240], [300, -130]] },
+    spawnPoints: [[380, 0], [380, 130], [380, 240], [190, 255], [0, 255], [-190, 255], [-380, 240], [-380, 130], [-380, 0], [-380, -130], [-380, -240], [-190, -255], [0, -255], [190, -255], [380, -240], [380, -130]] },
   ending: { firstWinCores: 500, winCores: 100, victoryDelay: 2.2 },       // Belohnung zusätzlich zu den Cores der Spielzeit: beim ersten Sieg / bei jedem weiteren; victoryDelay = Sekunden Siegphase nach dem finalen Boss
 };
 

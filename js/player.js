@@ -34,7 +34,7 @@ class Player {
     this.swordBase = 0;        // Richtung, in die ein neuer Schwertschlag startet
     this.blades = [];          // aktuell vorhandene Schwertklingen (siehe syncBlades)
     this.shield = null;        // die aktive Schildblase (oder null)
-    this.beam = { state: 'none', clock: 0 };   // none | load | fire
+    this.beam = { state: 'none', clock: 0, t: 0 };   // none | load | fire
     this.grenadeCd = 0;        // Abklingzeit der Plasmagranate
     this.fire = { on: false, fuel: 1, dropT: 0 };   // Feuerpfad: umschaltbar, Brennstoff 0..1
     this.dashLeft = 0;         // verbleibende Dash-Bilder
@@ -221,7 +221,7 @@ class Player {
 
     if (G.bossLock) {
       // Kamera steht still: der Spieler bleibt im Bild und kann nicht vor dem Boss davonlaufen
-      this.x = clamp(this.x, G.cam.x - 235, G.cam.x + 235);
+      this.x = clamp(this.x, G.cam.x - (STAGE_W / 2 - 5), G.cam.x + (STAGE_W / 2 - 5));
       this.y = clamp(this.y, G.cam.y - 175, G.cam.y + 175);
     } else if (!CFG.map.infinite) {
       [this.x, this.y] = clampToMap(this.x, this.y, 12);
@@ -445,7 +445,7 @@ class Player {
     if (this.cds.rift > 0 || this.canMove === 0) return;
     const x0 = this.x, y0 = this.y;
     this.x += fwdX(this.dir) * C.distance; this.y += fwdY(this.dir) * C.distance;
-    if (G.bossLock) { this.x = clamp(this.x, G.cam.x - 235, G.cam.x + 235); this.y = clamp(this.y, G.cam.y - 175, G.cam.y + 175); }
+    if (G.bossLock) { this.x = clamp(this.x, G.cam.x - (STAGE_W / 2 - 5), G.cam.x + (STAGE_W / 2 - 5)); this.y = clamp(this.y, G.cam.y - 175, G.cam.y + 175); }
     else if (!CFG.map.infinite) [this.x, this.y] = clampToMap(this.x, this.y, 12);
     pushOutOfObstacles(this, this.radius);
     for (const e of G.enemies) {
@@ -666,9 +666,12 @@ class Player {
     const beamKey = Input.actDown('beam') && Save.equipped('heavy') === 'beam' && !SafeSpot.inside;     // der Beam ist eine ausruestbare starke Waffe (im Safe Spot gesperrt)
     if (this.shield || this.dashLeft > 0 || (SafeSpot.inside && b.state === 'load')) {
       b.state = 'none';
-    } else if (beamKey) {
-      if (b.state !== 'load') { b.state = 'load'; b.clock = 0; Sfx.play('beamCharge'); }
-      b.clock += CFG.beam.loadPerFrame * f * (1 + Save.bonus('beam')) * Save.gearMul('beam') * (this.evo('overload') ? CFG.evolutions.overload.load : 1);
+    } else if (b.state === 'none' && Input.actPressed('beam') && beamKey) {            // neuer Druck (kein Dauerhalten ueber den letzten Strahl hinweg): Aufladen beginnt
+      b.state = 'load'; b.clock = 0; b.t = 0; Sfx.play('beamCharge');
+    }
+    if (b.state === 'load' && (beamKey || b.clock < CFG.beam.minClock)) {                // Taste halten = laenger laden; kurzes Tippen laedt trotzdem bis zur Mindestladung (Warden-Schallstrahl)
+      b.clock = Math.min(b.clock + CFG.beam.loadPerFrame * f * (1 + Save.bonus('beam')) * Save.gearMul('beam') * (this.evo('overload') ? CFG.evolutions.overload.load : 1), CFG.beam.maxClock);
+      b.t += dt;
     } else if (b.state === 'load') {
       b.state = 'fire';
       b.clock = Math.min(b.clock, CFG.beam.maxClock);
@@ -875,6 +878,21 @@ class Player {
       const bx = Math.round(STAGE_W / 2 + this.x) - 8, by = Math.round(STAGE_H / 2 - this.y) + 15, f = 1 - this.reloadT / this.reloadMax;
       ctx.save(); ctx.globalAlpha = 0.85; ctx.fillStyle = STYLE.pal.greyDark; ctx.fillRect(bx - 1, by - 1, 18, 4);
       ctx.fillStyle = STYLE.pal.yellow; ctx.fillRect(bx, by, Math.round(16 * f), 2); ctx.restore();
+    }
+    if (this.beam.state === 'load') {                       // Beam laedt auf (wie der Schallstrahl des Wardens): Ringe ziehen sich vor dem Schiff zusammen, immer schneller, dazu ein Kern der waechst
+      const b = this.beam, k = clamp(b.clock / CFG.beam.maxClock, 0, 1), P = STYLE.pal, t = b.t;
+      const mx = STAGE_W / 2 + this.x + fwdX(this.dir) * 12, my = STAGE_H / 2 - this.y - fwdY(this.dir) * 12;
+      ctx.save();
+      const rate = 1.6 + 2.4 * k;                           // Takt der Ringe steigt mit der Ladung
+      for (let i = 0; i < 3; i++) {
+        const ph = (t * rate + i / 3) % 1, r = 22 * (1 - ph) + 2;
+        ctx.globalAlpha = 0.25 + 0.6 * ph; ctx.fillStyle = i === 0 ? P.ice : P.cyan;
+        pxRing(ctx, mx, my, r, 1, Math.max(8, Math.round(r)), t * 2);
+      }
+      ctx.globalAlpha = 0.5 + 0.4 * Math.abs(Math.sin(t * (6 + 10 * k))); ctx.fillStyle = P.cyan;
+      pxDisc(ctx, mx, my, 2 + 5 * k);
+      ctx.fillStyle = P.white; pxDisc(ctx, mx, my, 1 + 2.5 * k);
+      ctx.restore();
     }
     if (this.chillT > 0) {                                  // gekuehlt: blasser, gestrichelter Eisring
       const cx = STAGE_W / 2 + this.x, cy = STAGE_H / 2 - this.y;

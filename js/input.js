@@ -33,6 +33,7 @@ const Input = {
   attackOn: false,
   attackToggleMode() { return Save.data.attackMode === 'toggle'; },
   tickAttack() {
+    if (typeof G !== 'undefined' && ['pick', 'pause', 'swap'].includes(G.mode) && this.attackToggleMode()) return;       // Auswahl/Pause mitten im Lauf: Dauerangriff bleibt an
     if (typeof G === 'undefined' || G.mode !== 'play' || !this.attackToggleMode()) { this.attackOn = false; return; }
     if (typeof Tutorial !== 'undefined' && Tutorial.active && (Tutorial.phase === 'brief' || Tutorial.phase === 'end')) { this.attackOn = false; return; }       // dort bestaetigt Leertaste/Klick nur den Text
     if (this.pressedNow[this.code('attack')] || (this.clicked && !!Save.data.mouseAim)) this.attackOn = !this.attackOn;

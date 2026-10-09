@@ -162,6 +162,8 @@ const ACH_LIST = [
   { id: 'hunter',    br: 'grind', name: 'ACHIEVEMENT HUNTER',   desc: 'Unlock 60 achievements.',                        icon: 'phoenixIcon',  key: 'achDone',   need: 60,   reward: { cores: 300 } },
 ];
 
+const ACH_TIME_KEYS = /^(time|timeInf|tm_.*|attackT)$/;       // Zaehler in Sekunden: als m:ss anzeigen
+
 // Zaehler, die direkt aus dem Spielstand folgen (kein eigener Haken noetig)
 const ACH_DERIVED = {
   runs: () => Save.data.runs || 0,
@@ -402,11 +404,15 @@ const Ach = {
 
   // Beschreibung nur fuer den gewaehlten bzw. ueberfahrenen Knoten
   drawTip(ctx, tip) {
-    const P = STYLE.pal, T = STYLE.type, a = tip.a, d = this.done(a.id), w = 200, h = 66;
+    const P = STYLE.pal, T = STYLE.type, a = tip.a, d = this.done(a.id), w = 200, h = 80;
     const x = clamp(tip.x + 14 - w / 2, 8, STAGE_W - w - 8), y = tip.r < 3 ? tip.y + 34 : tip.y - h - 6;
     uiPanel(ctx, x, y, w, h, { color: d ? P.yellow : P.cyan, fill: P.void, alpha: 0.97, glow: true });
     uiText(ctx, uiFit(ctx, a.name, w - 20, T.h2), x + 10, y + 17, { size: T.h2, color: d ? P.yellow : P.ice });
     uiWrap(ctx, a.desc, x + 10, y + 31, w - 20, 11, { size: T.small, color: P.grey });
-    uiText(ctx, d ? 'DONE  -  ' + this.rewardText(a) : 'REWARD  ' + this.rewardText(a), x + 10, y + h - 7, { size: T.small, color: d ? P.cyan : P.yellow });
+    // Fortschritt: Balken unten, daneben Zahl (Aufgaben mit Ziel 1 zeigen 0/1, Zeiten als m:ss)
+    const v = d ? a.need : Math.min(a.need, Math.floor(this.value(a.key))), fmt = ACH_TIME_KEYS.test(a.key) ? formatTime : String;
+    uiText(ctx, d ? 'DONE  -  ' + this.rewardText(a) : 'REWARD  ' + this.rewardText(a), x + 10, y + h - 20, { size: T.small, color: d ? P.cyan : P.yellow, maxW: w - 70 });
+    uiText(ctx, fmt(v) + '/' + fmt(a.need), x + w - 10, y + h - 20, { size: T.small, color: d ? P.cyan : P.ice, align: 'right' });
+    uiBar(ctx, x + 10, y + h - 13, w - 20, 5, a.need > 0 ? v / a.need : 1, d ? P.yellow : P.cyan);
   },
 };

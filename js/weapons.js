@@ -528,6 +528,15 @@ class BeamAttack {
     const p = this.player;
     const img = Math.floor(this.age * FPS) % 2 === 0 ? 'beam1' : 'beam2';
     drawSprite(ctx, img, p.x, p.y, p.dir, this.sizePct, { alpha: 1 - Math.min(1, this.age * FPS * 2 / 100) });
+    // Schallringe laufen vom Schiff den Strahl entlang (wie beim Warden)
+    const P = STYLE.pal, len = 136 * this.sizePct / 100, ox = STAGE_W / 2 + p.x, oy = STAGE_H / 2 - p.y;
+    ctx.save(); ctx.fillStyle = P.ice;
+    for (let i = 0; i < 4; i++) {
+      const d = ((this.age * 260 + i * len / 4) % len), r = 4 + d * 0.07;
+      ctx.globalAlpha = 0.7 * (1 - d / len);
+      pxRing(ctx, ox + fwdX(p.dir) * d, oy - fwdY(p.dir) * d, r, 1);
+    }
+    ctx.restore();
   }
 }
 

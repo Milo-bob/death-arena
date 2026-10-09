@@ -71,7 +71,7 @@ function drawSprite(ctx, name, x, y, dir = 90, size = 100, opts) {
   ctx.translate(STAGE_W / 2 + x, STAGE_H / 2 - y);
   ctx.rotate((dir - 90) * DEG);
   const s = size / 100;
-  ctx.scale(s, s);
+  ctx.scale(opts && opts.stretchX ? s * opts.stretchX : s, s);
   let src = im.img;
   if (opts) {
     if (opts.alpha !== undefined) ctx.globalAlpha = clamp(opts.alpha, 0, 1);

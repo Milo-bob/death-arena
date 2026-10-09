@@ -3,9 +3,17 @@
 
 const RETIRED_BONUS = ['sword', 'shot', 'beam', 'grenade', 'tough', 'soulgain'];
 
+// Mobiles Geraet (Handy/Tablet, auch iPadOS, das sich als Mac meldet): Touch-Steuerung und Angriff-Umschalten sind dort von Anfang an an (nur Standard, die Einstellung bleibt aenderbar)
+const IS_MOBILE = (() => {
+  try {
+    const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches && window.matchMedia('(hover: none)').matches;
+    return coarse || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+  } catch (e) { return false; }
+})();
+
 const Save = {
   KEY: 'deatharena.save.v1',
-  data: { ach: { done: {}, cnt: {}, seen: 0 }, upgradesSeen: false, best: 0, runs: 0, musicVol: 0.5, sfxVol: 0.6, mouseAim: false, attackMode: 'hold', touch: false, tutorialDone: false, wins: 0, last: null, bestInf: 0, infSel: CFG.infinite.defaultSel, mapSel: 0, lastMode: 'regular', mapBest: {}, seenKeys: false, souls: 0, upgrades: {}, unlocked: {},
+  data: { ach: { done: {}, cnt: {}, seen: 0 }, upgradesSeen: false, best: 0, runs: 0, musicVol: 0.5, sfxVol: 0.6, mouseAim: false, attackMode: IS_MOBILE ? 'toggle' : 'hold', touch: IS_MOBILE, tutorialDone: false, wins: 0, last: null, bestInf: 0, infSel: CFG.infinite.defaultSel, mapSel: 0, lastMode: 'regular', mapBest: {}, seenKeys: false, souls: 0, upgrades: {}, unlocked: {},
     items: JSON.parse(JSON.stringify(CFG.items.start)),     // Inventar: besessene und ausgeruestete Items
     gear: {},       // Stufe und XP je Item/Ability
     cosmetics: { owned: {}, equipped: {} },      // gekaufte Cosmetics ("kategorie:id") und ausgeruestete je Kategorie

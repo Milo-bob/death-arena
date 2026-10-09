@@ -182,7 +182,13 @@ const Touch = {
     if (this.built) {
       const cr = document.getElementById('gameCanvas').getBoundingClientRect();
       if (this.hasArt !== !!Hero.artifact() || this.lastSize !== window.innerWidth + 'x' + window.innerHeight + 'x' + Math.round(cr.left) + 'x' + Math.round(cr.height)) this.layout();       // z. B. nach Vollbild
-      this.hint.style.display = want && !this.touched ? 'block' : 'none';
+      const reading = want && Tutorial.active && Tutorial.phase === 'brief';          // Tutorial-Textbox: Joystick-Zone aus, damit ein Tipp links unten "weiter" ist
+      if (reading !== this.reading) {
+        this.reading = reading;
+        this.root.querySelector('.tl').style.pointerEvents = reading ? 'none' : '';
+        if (reading) Input.touch.mv.on = false;
+      }
+      this.hint.style.display = want && !this.touched && !reading ? 'block' : 'none';
       if (want) this.render();
     }
     if (this.built && want !== this.shown) {

@@ -248,7 +248,7 @@ class Director {
     this.meteorT += Math.max(M.everyMin, M.every - wave * M.everyStep);
     let x, y;
     if (Math.random() < M.aimShare) [x, y] = clampToMap(G.player.x + rand(-M.aimJitter, M.aimJitter), G.player.y + rand(-M.aimJitter, M.aimJitter), 20);
-    else [x, y] = clampToMap(G.cam.x + rand(-230, 230), G.cam.y + rand(-170, 170), 20);
+    else [x, y] = clampToMap(G.cam.x + rand(-(STAGE_W / 2 - 10), STAGE_W / 2 - 10), G.cam.y + rand(-170, 170), 20);
     G.meteors.push(new Meteor(x, y));
   }
 
@@ -376,7 +376,7 @@ class Director {
     const P = CFG.powerup;
     const early = G.time < P.earlyUntil + 0.01;
     if (G.time > this.powerT && G.powerups.length === 0) {
-      G.powerups.push(new PowerUp(...clampToMap(G.cam.x + rand(-210, 210), G.cam.y + rand(-150, 150), 20), early ? P.earlyHeal : P.lateHeal));
+      G.powerups.push(new PowerUp(...clampToMap(G.cam.x + rand(-(STAGE_W / 2 - 30), STAGE_W / 2 - 30), G.cam.y + rand(-150, 150), 20), early ? P.earlyHeal : P.lateHeal));
       this.powerT += early ? rand(P.earlyEveryMin, P.earlyEveryMax) : rand(P.lateEveryMin, P.lateEveryMax);
     }
   }

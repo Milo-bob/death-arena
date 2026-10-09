@@ -399,7 +399,20 @@ const G = {
   },
 
   // Cosmetics: A/D wechselt die Kategorie, W/S waehlt, Leertaste kauft (falls noetig) und ruestet aus, letzte Zeile / ESC zurueck
+  // Kaufbestaetigung (Upgrades, Cosmetics): oeffnet ein Fenster "BUY / CANCEL" (im Touch-Modus gibt es kein Hovern, ein Tipp darf nicht gleich kaufen).
+  // Nicht bezahlbar oder kostenlos: fn() direkt (Ablehnungs-Ton bzw. Ausruesten), ohne Fenster.
+  openConfirm(name, price, fn) {
+    if (price <= 0 || Save.data.souls < price) { fn(); return; }
+    this.confirm = { name, price, fn };
+  },
+  updateConfirm() {                                                              // Leertaste/Enter = kaufen, ESC = abbrechen
+    const c = this.confirm;
+    if (Input.pressed('Space') || Input.pressed('Enter')) { this.confirm = null; c.fn(); }
+    else if (Input.pressed('Escape')) { this.confirm = null; Sfx.play('select'); }
+  },
+
   updateCosmetics() {
+    if (this.confirm) { this.updateConfirm(); return; }
     const cats = CFG.cosmetics.cats, cat = cats[this.cosTab], items = Cos.items(cat.id), n = items.length + 1;
     if (Input.pressed('ArrowUp') || Input.pressed('KeyW')) this.cosSel = (this.cosSel + n - 1) % n;
     if (Input.pressed('ArrowDown') || Input.pressed('KeyS')) this.cosSel = (this.cosSel + 1) % n;
@@ -411,7 +424,10 @@ const G = {
     }
     if (Input.pressed('Space') || Input.pressed('Enter')) {
       if (this.cosSel === n - 1) this.mode = 'start';
-      else Sfx.play(Save.cosEquip(cat.id, items[this.cosSel].id) ? 'buy' : 'deny');
+      else {
+        const it = items[this.cosSel], act = () => Sfx.play(Save.cosEquip(cat.id, it.id) ? 'buy' : 'deny');
+        if (!Save.cosOwned(cat.id, it.id) && !it.achOnly && !Save.cosLocked(it)) this.openConfirm(it.name, it.cost, act); else act();
+      }
     }
     if (Input.pressed('Escape')) this.mode = 'start';
     const ck = cat.id + ':' + this.cosSel;                                         // Sound-Pakete: beim Auswaehlen eine Hoerprobe spielen
@@ -420,6 +436,7 @@ const G = {
 
   // Upgrade-Menü: A/D wechselt den Reiter, W/S wählt die Zeile, Leertaste kauft, letzte Zeile (oder ESC) geht zurück
   updateUpgrades() {
+    if (this.confirm) { this.updateConfirm(); return; }
     const rows = upgradeRows(UPGRADE_TABS[this.upgradeTab].id), n = rows.length + 1;
     if (Input.pressed('ArrowUp') || Input.pressed('KeyW')) this.upgradeSel = (this.upgradeSel + n - 1) % n;
     if (Input.pressed('ArrowDown') || Input.pressed('KeyS')) this.upgradeSel = (this.upgradeSel + 1) % n;
@@ -429,11 +446,21 @@ const G = {
     if (ok && this.upgradeSel === n - 1) this.mode = 'start';
     else if (ok) {
       const r = rows[this.upgradeSel];
-      if (r.kind === 'up') Sfx.play(Save.buy(r.id) ? 'buy' : 'deny');
-      else if (r.kind === 'ability') Sfx.play((Save.isUnlocked(r.id) ? Save.gearUp(r.id) : Save.unlock(r.id)) ? 'buy' : 'deny');        // gesperrt: freischalten, sonst Stufe kaufen
+      if (r.kind === 'up') {
+        const U = CFG.meta.upgrades[r.id], act = () => Sfx.play(Save.buy(r.id) ? 'buy' : 'deny');
+        if (Save.level(r.id) >= U.max) act(); else this.openConfirm(U.name, Save.cost(r.id), act);
+      } else if (r.kind === 'ability') {                                              // gesperrt: freischalten, sonst Stufe kaufen
+        const A = CFG.loadout.abilities[r.id], open = Save.isUnlocked(r.id), act = () => Sfx.play((Save.isUnlocked(r.id) ? Save.gearUp(r.id) : Save.unlock(r.id)) ? 'buy' : 'deny');
+        if (!open) this.openConfirm(A.name + ' - UNLOCK', A.unlock, act);
+        else if (Save.gearLv(r.id) >= Save.gearMax()) act();
+        else this.openConfirm(A.name + ' - LEVEL UP', Save.gearPrice(r.id), act);
+      }
       else if (r.kind === 'milestone') { /* nur Anzeige */ }
-      else if (r.kind === 'hero') Sfx.play((Save.heroOwned(r.id) ? Save.heroSelect(r.id) : Save.heroBuy(r.id)) ? 'buy' : 'deny');        // gehoert dir: waehlen, sonst kaufen (Meilenstein + Cores)
-      else if (!Save.owns(r.id)) Sfx.play(Save.buyItem(r.id) ? 'buy' : 'deny');        // Item: erst kaufen, dann mit Leertaste aus-/ablegen
+      else if (r.kind === 'hero') {                                                   // gehoert dir: waehlen, sonst kaufen (Meilenstein + Cores)
+        const Hc = CFG.heroes[r.id], act = () => Sfx.play((Save.heroOwned(r.id) ? Save.heroSelect(r.id) : Save.heroBuy(r.id)) ? 'buy' : 'deny');
+        if (!Save.heroOwned(r.id) && Save.heroOpen(r.id)) this.openConfirm(Hc.name, Hc.cost, act); else act();
+      }
+      else if (!Save.owns(r.id)) this.openConfirm(CFG.items.catalog[r.id].name, CFG.items.catalog[r.id].cost, () => Sfx.play(Save.buyItem(r.id) ? 'buy' : 'deny'));        // Item: erst kaufen, dann mit Leertaste aus-/ablegen
       else Save.equipItem(r.id);
     }
     if (Input.pressed('Escape')) this.mode = 'start';
@@ -921,6 +948,7 @@ const G = {
     } else if (this.mode === 'play') {
       this.drawPlay(ctx);
     }
+    if (this.confirm && ['upgrades', 'cosmetics'].includes(this.mode)) drawConfirm(ctx);
     if (['achievements', 'stats', 'modeselect', 'cosmetics', 'infsetup', 'mapselect', 'keys', 'binds', 'inventory', 'upgrades', 'settings', 'swap', 'pause'].includes(this.mode)) drawCloseX(ctx);
     if (!menuView) ctx.restore();
     Ach.drawToasts(ctx);

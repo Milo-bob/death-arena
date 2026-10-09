@@ -33,7 +33,7 @@ const MapFx = {
     }
   },
   spawn(type) {
-    const c = G.cam, bw = 270, bh = 205, P = STYLE.pal;
+    const c = G.cam, bw = 350, bh = 205, P = STYLE.pal;
     const x = c.x + rand(-bw, bw), y = c.y + rand(-bh, bh), q = { x, y, t: 0, life: 4, type, ph: rand(0, 6.28), s: 1, vx: 0, vy: 0, c: P.cyan };
     if (type === 'mote') { q.vy = rand(5, 14); q.vx = rand(-3, 3); q.life = rand(5, 9); q.c = [P.cyan, P.violet, P.ice, P.cyanMid][randInt(0, 3)]; q.s = Math.random() < 0.25 ? 2 : 1; }
     else if (type === 'ember') { q.vy = rand(22, 48); q.vx = rand(-6, 6); q.life = rand(1.6, 3.4); q.s = Math.random() < 0.3 ? 2 : 1; }
