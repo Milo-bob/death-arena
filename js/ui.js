@@ -506,6 +506,7 @@ function drawSyncIndicator(ctx) {
 
 // ---- Kleine Symbole oben rechts im Hauptmenue: Konto, Musik, Sound, Effekte, Vollbild ----
 const MENU_ICON_ART = {
+  board: ['XXXXXXXXX', 'X.XXXXX.X', 'X.XXXXX.X', '.XXXXXXX.', '..XXXXX..', '...XXX...', '....X....', '...XXX...', '..XXXXX..'],
   stats: ['......X..', '......X..', '..X...X..', '..X...X.X', '..X.X.X.X', 'X.X.X.X.X', 'X.X.X.X.X', 'X.X.X.X.X'],
   install: ['....X....', '....X....', '....X....', '..X.X.X..', '...XXX...', '....X....', 'X.......X', 'XXXXXXXXX'],
   account: ['...XXX...', '..XXXXX..', '..XXXXX..', '...XXX...', '.XXXXXXX.', 'XXXXXXXXX', 'XXXXXXXXX', 'XXXXXXXXX'],
@@ -516,10 +517,11 @@ const MENU_ICON_ART = {
 };
 function drawMenuIcons(ctx) {
   const P = STYLE.pal, T = STYLE.type, t = G.realTime, m = Input.mouse, S = 26, GAP = 4;
-  const ids = (statsOpen() ? ['stats'] : []).concat(['account'], PWA.visible ? ['install'] : [], ['music', 'sfx', 'fx', 'fullscreen']);
+  const ids = (statsOpen() ? ['stats'] : []).concat(['board', 'account'], PWA.visible ? ['install'] : [], ['music', 'sfx', 'fx', 'fullscreen']);
   const pct = (v) => Math.round(v * 100) + '%';
   const info = {
     stats: { name: 'STATISTICS (ALL SLOTS)', lvl: -1 },
+    board: { name: 'LEADERBOARD [B]', lvl: -1 },
     install: { name: 'INSTALL AS APP' + (PWA.offlineReady ? ' (OFFLINE READY)' : ''), lvl: -1 },
     account: { name: Account.on ? 'ACCOUNT: ' + Account.meta.name.toUpperCase() : (Account.configured ? 'NOT LOGGED IN - CLICK TO LOG IN' : 'ACCOUNT (NOT SET UP)'), lvl: -1 },
     music: { name: 'MUSIC ' + pct(Save.data.musicVol), lvl: Save.data.musicVol },
@@ -532,7 +534,7 @@ function drawMenuIcons(ctx) {
   ids.forEach((id, i) => {
     const x = x0 + i * (S + GAP), hot = m.x >= x && m.x <= x + S && m.y >= y && m.y <= y + S + 6;
     const off = (id === 'music' || id === 'sfx') && info[id].lvl <= 0.001 || (id === 'fx' && Juice.level === 0);
-    const col = id === 'stats' ? P.yellow : id === 'install' ? P.green : id === 'account' ? (Account.on ? P.green : P.orange) : off ? P.greyMid : P.cyan;
+    const col = id === 'stats' || id === 'board' ? P.yellow : id === 'install' ? P.green : id === 'account' ? (Account.on ? P.green : P.orange) : off ? P.greyMid : P.cyan;
     UIHit.add(x, y, S, S + 6, () => {}, { act: () => G.menuQuick(id) });
     uiPanel(ctx, x, y, S, S, { color: hot ? P.ice : col, fill: P.void, alpha: 0.9, glow: hot });
     const art = MENU_ICON_ART[id], sc = 2, aw = art[0].length * sc, ah = art.length * sc, ax = x + Math.round((S - aw) / 2), ay = y + Math.round((S - ah) / 2);

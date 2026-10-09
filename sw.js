@@ -6,7 +6,7 @@
 //   - Neue Version: jede Aenderung an einer Datei aendert VERSION, damit auch sw.js selbst -> der Browser installiert den neuen Worker,
 //     der uebernimmt sofort (skipWaiting + claim); die Seite (js/pwa.js) laedt dann im Hauptmenue neu.
 // Nur gleiche Herkunft: Anfragen an Supabase (Konto) und andere Server laufen unveraendert am Worker vorbei.
-const VERSION = 'ae5a063d02';
+const VERSION = 'e246b0bc9e';
 const FILES = [
   "./",
   "assets/fonts/PixelifySans.ttf",
@@ -265,6 +265,7 @@ const FILES = [
   "js/i18n_de3.js",
   "js/input.js",
   "js/juice.js",
+  "js/leaderboard.js",
   "js/mapenv.js",
   "js/mapfx.js",
   "js/mapspecial.js",

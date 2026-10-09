@@ -332,8 +332,8 @@ const Save = {
   // ---- Spielerlevel (CFG.level) ----
   levelNeed(lv) { const N = CFG.level.needs; return lv <= N.length ? N[lv - 1] : N[N.length - 1] + CFG.level.step * (lv - N.length); },          // XP von Level lv zu lv+1
   // Level, XP innerhalb des Levels und XP bis zum naechsten
-  levelInfo() {
-    const L = CFG.level; let xp = Math.max(0, Math.floor(this.data.pxp || 0)), lv = 1;
+  levelInfo(totalXp) {
+    const L = CFG.level; let xp = Math.max(0, Math.floor(totalXp === undefined ? this.data.pxp || 0 : totalXp)), lv = 1;
     while (lv < L.max && xp >= this.levelNeed(lv)) { xp -= this.levelNeed(lv); lv++; }
     return { lv, xp, need: lv >= L.max ? 0 : this.levelNeed(lv) };
   },

@@ -50,7 +50,7 @@ const MENU_ITEMS = ['play', 'inventory', 'cosmetics', 'upgrades', 'achievements'
 const menuItems = () => MENU_ITEMS;
 const statsOpen = () => !!Save.data.dev;       // der Statistik-Bildschirm (Symbol im Hauptmenue) gehoert zum Dev-Modus und gilt nur im Slot, in den die Dev-Datei importiert wurde (die Daten selbst kommen aus allen Slots, siehe Stats.slotLogs)
 const MODE_ITEMS = ['regular', 'infinite', 'tutorial', 'back'];        // Auswahl nach PLAY
-const MENU_MUSIC_MODES = ['start', 'stats', 'modeselect', 'infsetup', 'mapselect', 'keys', 'binds', 'inventory', 'cosmetics', 'upgrades', 'achievements', 'settings'];       // hier läuft die Menümusik (Tasten-Menü aus der Pause heraus nicht)
+const MENU_MUSIC_MODES = ['start', 'stats', 'modeselect', 'infsetup', 'mapselect', 'keys', 'binds', 'inventory', 'cosmetics', 'upgrades', 'achievements', 'leaderboard', 'settings'];       // hier läuft die Menümusik (Tasten-Menü aus der Pause heraus nicht)
 // Upgrade-Menü: drei Reiter. Jede Zeile ist { kind: 'up' | 'ability', id }
 const UPGRADE_TABS = [
   { id: 'stats', label: 'STATS' },
@@ -366,13 +366,14 @@ const G = {
     else if (id === 'fullscreen') { try { if (document.fullscreenElement) document.exitFullscreen(); else (Save.data.touch ? document.documentElement : canvas).requestFullscreen(); } catch (err) { /* Browser verbietet Vollbild */ } }
     else if (id === 'account') Account.open();
     else if (id === 'install') PWA.open();
+    else if (id === 'board') { this.mode = 'leaderboard'; Board.open(); }
     else if (id === 'stats' && statsOpen()) { this.mode = 'stats'; StatsScreen.open(); }
   },
 
   // Hauptmenü: W/S oder Pfeile wählen, Leertaste/Enter bestätigt
   updateMenu() {
     const items = menuItems(), n = items.length;
-    for (const [key, id] of [['KeyM', 'music'], ['KeyN', 'sfx'], ['KeyV', 'fx'], ['KeyF', 'fullscreen'], ['KeyL', 'account'], ['KeyT', 'stats'], ['KeyI', 'install']]) if (Input.pressed(key) && (id !== 'install' || PWA.visible)) this.menuQuick(id);
+    for (const [key, id] of [['KeyM', 'music'], ['KeyN', 'sfx'], ['KeyV', 'fx'], ['KeyF', 'fullscreen'], ['KeyL', 'account'], ['KeyT', 'stats'], ['KeyB', 'board'], ['KeyI', 'install']]) if (Input.pressed(key) && (id !== 'install' || PWA.visible)) this.menuQuick(id);
     if (this.menuSel >= n) this.menuSel = 0;
     if (Input.pressed('ArrowUp') || Input.pressed('KeyW')) this.menuSel = (this.menuSel + n - 1) % n;
     if (Input.pressed('ArrowDown') || Input.pressed('KeyS')) this.menuSel = (this.menuSel + 1) % n;
@@ -828,6 +829,8 @@ const G = {
       this.updateMenu();
     } else if (this.mode === 'achievements') {
       Ach.updateScreen();
+    } else if (this.mode === 'leaderboard') {
+      Board.update();
     } else if (this.mode === 'stats') {
       StatsScreen.update();
     } else if (this.mode === 'modeselect') {
@@ -973,6 +976,8 @@ const G = {
       drawStartScreen(ctx);
     } else if (this.mode === 'achievements') {
       Ach.drawScreen(ctx);
+    } else if (this.mode === 'leaderboard') {
+      Board.draw(ctx);
     } else if (this.mode === 'stats') {
       StatsScreen.draw(ctx);
     } else if (this.mode === 'modeselect') {
@@ -1015,7 +1020,7 @@ const G = {
       this.drawPlay(ctx);
     }
     if (this.confirm && ['upgrades', 'cosmetics'].includes(this.mode)) drawConfirm(ctx);
-    if (['achievements', 'stats', 'modeselect', 'cosmetics', 'infsetup', 'mapselect', 'keys', 'binds', 'inventory', 'upgrades', 'settings', 'swap', 'pause'].includes(this.mode)) drawCloseX(ctx);
+    if (['achievements', 'leaderboard', 'stats', 'modeselect', 'cosmetics', 'infsetup', 'mapselect', 'keys', 'binds', 'inventory', 'upgrades', 'settings', 'swap', 'pause'].includes(this.mode)) drawCloseX(ctx);
     if (!menuView) ctx.restore();
     Ach.drawToasts(ctx);
   },
