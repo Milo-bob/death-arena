@@ -322,7 +322,7 @@ const SpeedRun = {
       if (dir) { S.seedMode = modes[clamp(modes.indexOf(S.seedMode) + dir, 0, 2)]; G.srTyped = false; Save.write(); }
       if (S.seedMode === 'fixed') {
         for (const c of Object.keys(Input.pressedNow)) {
-          const m = /^(?:Digit|Numpad)(d)$/.exec(c);
+          const m = /^(?:Digit|Numpad)([0-9])$/.exec(c);
           if (m) { S.seedNum = G.srTyped ? Math.min(999999999, S.seedNum * 10 + Number(m[1])) : Number(m[1]); G.srTyped = true; Save.write(); }
         }
         if (Input.pressedNow.Backspace) { S.seedNum = Math.floor(S.seedNum / 10); G.srTyped = true; Save.write(); return; }          // Rueckschritt loescht eine Ziffer (nicht "zurueck")

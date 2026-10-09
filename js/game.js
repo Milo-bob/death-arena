@@ -1149,17 +1149,3 @@ const hostMsg = (msg) => { try { if (window.parent !== window) window.parent.pos
 window.addEventListener('message', (e) => { if (e.source === window.parent && e.data && e.data.type === 'fullscreen') G.hostFullscreen = !!e.data.value; });      // Holiday Games meldet, ob der Player im Vollbild ist
 loadAssets(() => { G.mode = 'start'; hostMsg({ type: 'ready', exitFullscreen: true }); });
 requestAnimationFrame(loop);
-
-// Cheat-Code: im Hauptmenue "DEVMODE" tippen schaltet den Dev-Modus fuer den aktiven Slot an/aus (ohne Dev-Datei, ohne Zuruecksetzen)
-{
-  let buf = '';
-  window.addEventListener('keydown', (e) => {
-    if (G.mode !== 'start' || !/^Key[A-Z]$/.test(e.code)) { buf = ''; return; }
-    buf = (buf + e.code.slice(3)).slice(-7);
-    if (buf !== 'DEVMODE') return;
-    buf = '';
-    Save.data.dev = !Save.data.dev;
-    Save.write();
-    Sfx.play('select');
-  });
-}
