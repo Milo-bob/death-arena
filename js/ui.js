@@ -1215,9 +1215,11 @@ function drawPauseScreen(ctx) {
     sfx: 'SOUND FX  ' + '|'.repeat(Math.round(Save.data.sfxVol * 10)) + '.'.repeat(10 - Math.round(Save.data.sfxVol * 10)),
     abilities: 'ABILITIES',
     binds: 'KEYBINDS',
+    exitfs: 'EXIT FULLSCREEN',
     quit: G.pauseConfirm ? 'SURE? [SPACE]' : Tutorial.active ? 'LEAVE TUTORIAL' : 'GIVE UP',
   };
-  PAUSE_ITEMS.forEach((id, i) => drawMenuRow(ctx, 104 + i * 32, rows[id], G.pauseSel === i, { w: 260, hit: () => { if (G.pauseSel !== i) { G.pauseSel = i; G.pauseConfirm = false; } }, lr: id === 'music' || id === 'sfx' }));
+  const pItems = pauseItems(), step = pItems.length > 6 ? 28 : 32;
+  pItems.forEach((id, i) => drawMenuRow(ctx, 104 + i * step, rows[id], G.pauseSel === i, { w: 260, hit: () => { if (G.pauseSel !== i) { G.pauseSel = i; G.pauseConfirm = false; } }, lr: id === 'music' || id === 'sfx' }));
   if (!Tutorial.active) drawPauseEvos(ctx);
   uiText(ctx, 'W/S = SELECT    SPACE = OK    A/D = VOLUME    ESC / P / BACKSPACE = RESUME', STAGE_W / 2, 346, { size: T.small, color: P.grey, align: 'center' });
 }

@@ -117,6 +117,8 @@ const SETTINGS_PAGES = [                      // Einstellungen in Seiten; Zeile 
 ];
 const settingsList = () => ['tabs'].concat(SETTINGS_PAGES[G.settingsPage || 0].items, ['back']);
 const PAUSE_ITEMS = ['resume', 'abilities', 'music', 'sfx', 'binds', 'quit'];
+// Eingebettet auf Holiday Games im Vollbild: zusaetzlich EXIT FULLSCREEN (die Seite blendet dort ihren eigenen Knopf auf Touch-Geraeten aus)
+const pauseItems = () => (G.hostFullscreen ? ['resume', 'abilities', 'music', 'sfx', 'binds', 'exitfs', 'quit'] : PAUSE_ITEMS);
 
 const G = {
   mode: 'loading',
@@ -517,11 +519,12 @@ const G = {
     Input.pressedNow = {};
   },
   updatePause() {
-    const n = PAUSE_ITEMS.length;
+    const items = pauseItems(), n = items.length;
+    if (this.pauseSel >= n) this.pauseSel = n - 1;
     if (Input.pressed('Escape') || Input.pressed('KeyP')) { this.resumeGame(); return; }
     if (Input.pressed('ArrowUp') || Input.pressed('KeyW')) { this.pauseSel = (this.pauseSel + n - 1) % n; this.pauseConfirm = false; }
     if (Input.pressed('ArrowDown') || Input.pressed('KeyS')) { this.pauseSel = (this.pauseSel + 1) % n; this.pauseConfirm = false; }
-    const item = PAUSE_ITEMS[this.pauseSel];
+    const item = items[this.pauseSel];
     const dir = (Input.pressed('ArrowRight') || Input.pressed('KeyD') ? 1 : 0) - (Input.pressed('ArrowLeft') || Input.pressed('KeyA') ? 1 : 0);
     const ok = Input.pressed('Space') || Input.pressed('Enter');
     if (item === 'music' && dir) { setMusicVolume(Math.round((Save.data.musicVol + dir * 0.1) * 10) / 10); Save.write(); }
@@ -529,6 +532,7 @@ const G = {
     else if (item === 'resume' && ok) this.resumeGame();
     else if (item === 'abilities' && ok) { this.mode = 'swap'; this.swapSel = 0; Input.pressedNow = {}; }
     else if (item === 'binds' && ok) { this.mode = 'binds'; this.bindSel = 0; this.bindWait = false; this.bindsBack = 'pause'; }
+    else if (item === 'exitfs' && ok) hostMsg({ type: 'exitFullscreen' });
     else if (item === 'quit' && ok) {
       if (!this.pauseConfirm) this.pauseConfirm = true;          // erst nochmal bestaetigen
       else { this.mode = 'play'; Stats.lastSrc = 'GAVE UP'; this.die(); }                   // Aufgeben zaehlt als Tod (Seelen, Statistik)
@@ -1050,5 +1054,6 @@ function loop(now) {
 // Nachrichten an die Host-Seite (holiday-games.com), wenn das Spiel eingebettet ist
 const hostMsg = (msg) => { try { if (window.parent !== window) window.parent.postMessage(msg, '*'); } catch (e) { /* egal */ } };
 
-loadAssets(() => { G.mode = 'start'; hostMsg({ type: 'ready' }); });
+window.addEventListener('message', (e) => { if (e.source === window.parent && e.data && e.data.type === 'fullscreen') G.hostFullscreen = !!e.data.value; });      // Holiday Games meldet, ob der Player im Vollbild ist
+loadAssets(() => { G.mode = 'start'; hostMsg({ type: 'ready', exitFullscreen: true }); });
 requestAnimationFrame(loop);
