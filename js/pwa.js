@@ -45,7 +45,7 @@ const PWA = {
   open() {
     if (this.el) return;
     try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) { /* egal */ }
-    const P = STYLE.pal, mk = (tag, css, text) => { const e = document.createElement(tag); e.style.cssText = css || ''; if (text) e.textContent = text; return e; };
+    const P = STYLE.pal, mk = (tag, css, text) => { const e = document.createElement(tag); e.style.cssText = css || ''; if (text) e.textContent = I18n.t(text); return e; };
     const root = mk('div', 'position:fixed;inset:0;background:rgba(5,6,15,.88);z-index:10;display:flex;align-items:center;justify-content:center;font-family:"Pixelify Sans",monospace;');
     root.setAttribute('data-nogame', '1');
     const box = mk('div', 'width:min(480px,92vw);max-height:92vh;overflow:auto;box-sizing:border-box;padding:16px;background:' + P.void + ';border:2px solid ' + P.green + ';color:' + P.ice + ';');

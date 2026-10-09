@@ -13,7 +13,7 @@ const IS_MOBILE = (() => {
 
 const Save = {
   KEY: 'deatharena.save.v1',
-  data: { ach: { done: {}, cnt: {}, seen: 0 }, upgradesSeen: false, settingsSeen: false,best: 0, runs: 0, musicVol: 0.5, sfxVol: 0.6, mouseAim: false, attackMode: IS_MOBILE ? 'toggle' : 'hold', touch: IS_MOBILE, tutorialDone: false, wins: 0, last: null, bestInf: 0, infSel: CFG.infinite.defaultSel, mapSel: 0, lastMode: 'regular', mapBest: {}, seenKeys: false, souls: 0, upgrades: {}, unlocked: {},
+  data: { ach: { done: {}, cnt: {}, seen: 0 }, upgradesSeen: false, settingsSeen: false,best: 0, runs: 0, lang: 'en', musicVol: 0.5, sfxVol: 0.6, mouseAim: false, attackMode: IS_MOBILE ? 'toggle' : 'hold', touch: IS_MOBILE, tutorialDone: false, wins: 0, last: null, bestInf: 0, infSel: CFG.infinite.defaultSel, mapSel: 0, lastMode: 'regular', mapBest: {}, seenKeys: false, souls: 0, upgrades: {}, unlocked: {},
     items: JSON.parse(JSON.stringify(CFG.items.start)),     // Inventar: besessene und ausgeruestete Items
     gear: {},       // Stufe und XP je Item/Ability
     cosmetics: { owned: {}, equipped: {} },      // gekaufte Cosmetics ("kategorie:id") und ausgeruestete je Kategorie
@@ -25,7 +25,7 @@ const Save = {
     binds: {} },     // eigene Tastenbelegung (siehe Input.actions)
   // Geraetedaten, die bei Slot-Wechsel, Reset und Import bleiben (kein Teil eines einzelnen Spielstands)
   LOG_KEYS: ['deathLog', 'bossLog', 'imported'],       // nur diese Geraetedaten (anonyme Balancing-Protokolle, gross) wandern NICHT in Codes/Cloud; Einstellungen, Tasten und Dev-Modus schon
-  KEEP: ['musicVol', 'sfxVol', 'mouseAim', 'attackMode', 'touch', 'fx', 'binds', 'deathLog', 'bossLog', 'imported'],       // 'dev' gehoert bewusst NICHT dazu: der Dev-Modus gilt nur fuer den Slot, in den die Dev-Datei importiert wurde
+  KEEP: ['lang', 'musicVol', 'sfxVol', 'mouseAim', 'attackMode', 'touch', 'fx', 'binds', 'deathLog', 'bossLog', 'imported'],       // 'dev' gehoert bewusst NICHT dazu: der Dev-Modus gilt nur fuer den Slot, in den die Dev-Datei importiert wurde
 
   // Abilities: frei, wenn Preis 0 oder gekauft
   isUnlocked(id) { return CFG.loadout.abilities[id].unlock === 0 || !!(this.data.unlocked && this.data.unlocked[id]); },
@@ -197,6 +197,7 @@ const Save = {
       const dev = localStorage.getItem(this.DEVICE_KEY);
       if (dev) { const d = JSON.parse(dev); for (const k of this.KEEP) if (d[k] !== undefined) this.data[k] = d[k]; }
       this.migrate();
+      I18n.set(this.data.lang);
     } catch (e) { /* ohne Speicher weiterspielen */ }
     // Safari/iPad raeumt Speicher sonst eher auf: dauerhaften Speicher anfragen (wird still abgelehnt, wenn nicht moeglich)
     try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { /* ignorieren */ }
@@ -269,7 +270,7 @@ const Save = {
     return out;
   },
   // Einstellungen, die nicht jedes Bild neu gelesen werden (Lautstaerken), nach einem Import/Sync sofort anwenden
-  applySettings() { try { if (typeof setMusicVolume === 'function') setMusicVolume(this.data.musicVol); if (typeof Sfx !== 'undefined' && Sfx.setVolume) Sfx.setVolume(this.data.sfxVol); } catch (err) { /* egal */ } },
+  applySettings() { try { if (typeof I18n !== 'undefined') I18n.set(this.data.lang); if (typeof setMusicVolume === 'function') setMusicVolume(this.data.musicVol); if (typeof Sfx !== 'undefined' && Sfx.setVolume) Sfx.setVolume(this.data.sfxVol); } catch (err) { /* egal */ } },
   checksum(s) { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h.toString(36); },
   // Code/Dateiinhalt prüfen und in den aktiven Slot übernehmen. Gibt { ok, error } zurück. Lautstärken, Effekte und Tastenbelegung dieses Geräts bleiben.
   importCode(text) {

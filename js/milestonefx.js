@@ -166,7 +166,7 @@ const MsFx = {
     const size = 22, nameY = 62, scale = 1 + 0.7 * Math.pow(1 - fadeIn, 2);                 // der Name "schlaegt ein": gross und schnell auf Normalgroesse
     ctx.save();
     ctx.font = uiFont(size);
-    const tw = ctx.measureText(m.name).width * scale;
+    const tw = ctx.measureText(I18n.t(m.name)).width * scale;
     ctx.restore();
     this.half = tw / 2 + 4;
     // Strahlen und Schein hinter allem

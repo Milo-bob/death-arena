@@ -56,11 +56,26 @@ const STYLE = {
 
 // ---------- Zeichenhelfer für Code-UI (Browser) ----------
 
-function uiFont(px) { return px + 'px ' + STYLE.font; }
+// Mindestgröße (Apple HIG: Text nie unter 11 pt): auf Handys/Tablets wird jede Schrift so vergrößert,
+// dass sie auf dem Bildschirm mindestens UI_MIN_CSS_PX CSS-Pixel hoch ist. Am Desktop (große Skalierung) ändert sich nichts.
+const UI_MIN_CSS_PX = 12;
+let uiCssPerUnit = 0, uiCssStamp = 0;
+function uiSize(px) {
+  if (typeof IS_MOBILE === 'undefined' || !IS_MOBILE) return px;
+  const now = performance.now();
+  if (now - uiCssStamp > 500) {               // höchstens zweimal pro Sekunde messen (Drehen, Größe ändern)
+    uiCssStamp = now;
+    const cv = document.getElementById('gameCanvas');
+    uiCssPerUnit = cv && cv.clientHeight ? cv.clientHeight / STAGE_H : 0;
+  }
+  return uiCssPerUnit ? Math.max(px, Math.ceil(UI_MIN_CSS_PX / uiCssPerUnit * 2) / 2) : px;
+}
+function uiFont(px) { return uiSize(px) + 'px ' + STYLE.font; }
 
 // Text mit dunklem Rand. opts: size, color, align ('left'|'center'|'right'), glow (Farbe), baseline
 function uiText(ctx, text, x, y, opts = {}) {
-  const size = opts.size || STYLE.type.body;
+  text = I18n.t(text);
+  const size = uiSize(opts.size || STYLE.type.body);
   ctx.save();
   ctx.font = uiFont(size);
   ctx.textRendering = 'optimizeSpeed';       // schaltet Ligaturen ab (sonst wird "fi" in Pixelify Sans zu einem Zeichen)

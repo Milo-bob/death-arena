@@ -9,7 +9,7 @@ const SaveTransfer = {
   open() {
     if (this.el) return;
     try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) { /* egal */ }       // sonst bleibt der Dialog unsichtbar
-    const P = STYLE.pal, mk = (tag, css, text) => { const e = document.createElement(tag); e.style.cssText = css || ''; if (text) e.textContent = text; return e; };
+    const P = STYLE.pal, mk = (tag, css, text) => { const e = document.createElement(tag); e.style.cssText = css || ''; if (text) e.textContent = I18n.t(text); return e; };
     const font = 'font-family:"Pixelify Sans",monospace;';
     const root = mk('div', 'position:fixed;inset:0;background:rgba(5,6,15,.88);z-index:10;display:flex;align-items:center;justify-content:center;' + font);
     root.setAttribute('data-nogame', '1');                                  // Touches auf den Dialog zaehlen nicht als Spielklick (input.js)
@@ -19,7 +19,7 @@ const SaveTransfer = {
     // eingebetteten Seiten/iframes stillschweigend geblockt). onLoad bekommt den Text der gewaehlten Datei, say meldet Fortschritt und Fehler.
     const fileBtn = (label, color, say, onLoad) => {
       const wrap = mk('div', 'position:relative;flex:1 1 140px;margin:3px;display:flex;'), b = btn(label, color), inp = mk('input', 'position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:0;');
-      b.style.margin = '0'; b.style.flex = '1 1 auto'; inp.type = 'file'; inp.title = label;
+      b.style.margin = '0'; b.style.flex = '1 1 auto'; inp.type = 'file'; inp.title = I18n.t(label);
       const read = (f) => {
         if (!f) return;
         say('READING ' + f.name + ' ...', P.grey);
@@ -40,10 +40,10 @@ const SaveTransfer = {
     ta.value = Save.exportCode(); ta.spellcheck = false;
     box.appendChild(ta);
     const msg = mk('div', 'min-height:20px;margin:6px 2px;font-size:14px;color:' + P.grey + ';');
-    const say = (t, color) => { msg.textContent = t; msg.style.color = color || P.grey; };
+    const say = (t, color) => { msg.textContent = I18n.t(t); msg.style.color = color || P.grey; };
     const row = mk('div', 'display:flex;flex-wrap:wrap;');
     const bCopy = btn('COPY CODE', P.cyan), bDown = btn('DOWNLOAD FILE', P.cyan), bImp = btn('IMPORT', P.orange), bClose = btn('CLOSE', P.grey);
-    const F1 = fileBtn('LOAD FILE...', P.yellow, say, (text) => { ta.value = text; this.confirm = false; bImp.textContent = 'IMPORT'; say('FILE LOADED - PRESS IMPORT', P.teal); });
+    const F1 = fileBtn('LOAD FILE...', P.yellow, say, (text) => { ta.value = text; this.confirm = false; bImp.textContent = I18n.t('IMPORT'); say('FILE LOADED - PRESS IMPORT', P.teal); });
     ta.addEventListener('dragover', (e) => e.preventDefault());                                  // Datei direkt ins Textfeld ziehen geht auch
     ta.addEventListener('drop', (e) => { e.preventDefault(); F1.read(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]); });
 
@@ -62,13 +62,13 @@ const SaveTransfer = {
       } catch (e) { say('DOWNLOAD BLOCKED - USE COPY CODE', P.yellow); }
     };
     bImp.onclick = () => {
-      if (!this.confirm) { this.confirm = true; bImp.textContent = 'SURE? REPLACES SLOT ' + (Save.slot + 1); say('PRESS AGAIN TO CONFIRM', P.orange); return; }
-      this.confirm = false; bImp.textContent = 'IMPORT';
+      if (!this.confirm) { this.confirm = true; bImp.textContent = I18n.t('SURE? REPLACES SLOT ' + (Save.slot + 1)); say('PRESS AGAIN TO CONFIRM', P.orange); return; }
+      this.confirm = false; bImp.textContent = I18n.t('IMPORT');
       const res = Save.importCode(ta.value);
       if (res.ok) { say('IMPORTED! SLOT ' + (Save.slot + 1) + ' IS NOW THE LOADED SAVE', P.teal); ta.value = Save.exportCode(); }
       else say(res.error, P.red);
     };
-    ta.oninput = () => { this.confirm = false; bImp.textContent = 'IMPORT'; };
+    ta.oninput = () => { this.confirm = false; bImp.textContent = I18n.t('IMPORT'); };
     bClose.onclick = () => this.close();
 
     [bCopy, bDown, F1.wrap, bImp, bClose].forEach((b) => row.appendChild(b));
@@ -85,7 +85,7 @@ const SaveTransfer = {
     ta2.value = Stats.exportData(); ta2.spellcheck = false;
     box.appendChild(ta2);
     const msg2 = mk('div', 'min-height:20px;margin:6px 2px;font-size:14px;color:' + P.grey + ';');
-    const say2 = (t, color) => { msg2.textContent = t; msg2.style.color = color || P.grey; };
+    const say2 = (t, color) => { msg2.textContent = I18n.t(t); msg2.style.color = color || P.grey; };
     const row2 = mk('div', 'display:flex;flex-wrap:wrap;');
     const bCopy2 = btn('COPY DATA', P.cyan), bDown2 = btn('DOWNLOAD DATA', P.cyan);
     bCopy2.onclick = () => {

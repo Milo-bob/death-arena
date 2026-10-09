@@ -113,7 +113,7 @@ function upgradeRows(tab) {
 }
 // Einstellungen: zwei Spalten nebeneinander, kein Scrollen. Sound/Video sind kleine Symbole im Hauptmenue (G.menuQuick). W/S geht die Spalten der Reihe nach durch, unten immer 'back'.
 const SETTINGS_COLS = [
-  { label: 'CONTROLS', items: ['controls', 'binds', 'attackmode', 'mouseaim', 'touch'] },
+  { label: 'CONTROLS', items: ['controls', 'binds', 'attackmode', 'mouseaim', 'touch', 'language'] },
   { label: 'SAVE & ACCOUNT', items: ['slot', 'account', 'transfer', 'resetAll'] },
 ];
 const settingsList = () => [].concat(...SETTINGS_COLS.map((c) => c.items), ['back']);
@@ -580,6 +580,7 @@ const G = {
     if (item === 'mouseaim' && (dir || ok)) { Save.data.mouseAim = !Save.data.mouseAim; Save.write(); Sfx.play('select'); }
     else if (item === 'attackmode' && (dir || ok)) { Save.data.attackMode = Save.data.attackMode === 'toggle' ? 'hold' : 'toggle'; Save.write(); Sfx.play('select'); }
     else if (item === 'touch' && (dir || ok)) { Save.data.touch = !Save.data.touch; Save.write(); Sfx.play('select'); }
+    else if (item === 'language' && (dir || ok)) { Save.data.lang = Save.data.lang === 'de' ? 'en' : 'de'; I18n.set(Save.data.lang); Save.write(); Sfx.play('select'); }
     else if (item === 'slot' && (dir || ok)) Save.switchSlot((Save.slot + (dir || 1) + Save.SLOTS) % Save.SLOTS);
     else if (item === 'controls' && ok) this.mode = 'keys';
     else if (item === 'binds' && ok) { this.mode = 'binds'; this.bindSel = 0; this.bindWait = false; this.bindsBack = 'settings'; }

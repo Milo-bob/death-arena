@@ -542,7 +542,7 @@ function drawModeSelectScreen(ctx) {
   const labels = { regular: 'REGULAR', infinite: 'INFINITE MODE', tutorial: 'TUTORIAL', back: 'BACK' };
   const descs = {
     regular: ['The classic run on a walled map. Choose map and difficulty next.', 'Survive the waves and bosses, face Death at the end.'],
-    infinite: ['An endless map without walls. Choose map and final boss time next.', 'Cores x' + CFG.infinite.coreFactor + ', own best time.'],
+    infinite: ['An endless map without walls. Choose map and final boss time next.', 'Credits x' + CFG.infinite.coreFactor + ', own best time.'],
     tutorial: ['A short guided level that teaches the basics.', 'You cannot die. Nothing is saved.'],
     back: ['Back to the main menu.', ''],
   };
@@ -740,7 +740,7 @@ const DETAIL_LH = 12;
 function wrapLines(ctx, text, maxW, size) {
   ctx.save(); ctx.font = uiFont(size);
   const out = []; let line = '';
-  for (const w of String(text).split(' ')) {
+  for (const w of String(I18n.t(text)).split(" ")) {
     const t = line ? line + ' ' + w : w;
     if (ctx.measureText(t).width > maxW && line) { out.push(line); line = w; } else line = t;
   }
@@ -901,7 +901,7 @@ function drawCoreCount(ctx) {
 function uiWrap(ctx, text, x, y, maxW, lineH, opts = {}) {
   ctx.save(); ctx.font = uiFont(opts.size || STYLE.type.body);
   const lines = []; let line = '';
-  for (const w of text.split(' ')) {
+  for (const w of I18n.t(text).split(" ")) {
     const t = line ? line + ' ' + w : w;
     if (ctx.measureText(t).width > maxW && line) { lines.push(line); line = w; } else line = t;
   }
@@ -913,7 +913,7 @@ function uiWrap(ctx, text, x, y, maxW, lineH, opts = {}) {
 // Text auf eine Breite kuerzen ("..")
 function uiFit(ctx, text, maxW, size) {
   ctx.save(); ctx.font = uiFont(size);
-  let t = text;
+  let t = text = I18n.t(text);
   while (t.length > 3 && ctx.measureText(t).width > maxW) t = t.slice(0, -1);
   ctx.restore();
   return t === text ? t : t.trimEnd() + '..';
@@ -1383,7 +1383,8 @@ function drawSettingsScreen(ctx) {
     attackmode: 'ATTACK: ' + (Save.data.attackMode === 'toggle' ? 'TOGGLE' : 'HOLD'),
     mouseaim: 'MOUSE AIMING: ' + (Save.data.mouseAim ? 'ON' : 'OFF'),
     touch: 'TOUCH CONTROLS: ' + (Save.data.touch ? 'ON' : 'OFF'),
-    slot: 'SAVE SLOT  ' + [0, 1, 2].map((i) => i === Save.slot ? '[' + (i + 1) + ']' : ' ' + (i + 1) + ' ').join(' '),
+    language: 'LANGUAGE: ' + (Save.data.lang === 'de' ? 'DEUTSCH' : 'ENGLISH'),
+    slot: 'SLOT  ' + [0, 1, 2].map((i) => i === Save.slot ? '[' + (i + 1) + ']' : ' ' + (i + 1) + ' ').join(' '),
     back: 'BACK',
     controls: 'CONTROLS',
     binds: 'KEYBINDS',
@@ -1405,14 +1406,14 @@ function drawSettingsScreen(ctx) {
   const backI = idx;
   const cw = 150, cg = 6, cx0 = STAGE_W / 2 - (3 * cw + 2 * cg) / 2;                  // die drei Spielstaende als Karten (Klick wechselt den Slot)
   for (let i = 0; i < Save.SLOTS; i++) {
-    const x = cx0 + i * (cw + cg), y = 240, on = i === Save.slot, I = Save.slotInfo(i);
+    const x = cx0 + i * (cw + cg), y = 254, on = i === Save.slot, I = Save.slotInfo(i);
     UIHit.add(x, y, cw, 38, () => { Save.switchSlot(i); G.resetConfirm = false; }, { noConfirm: true });
     uiPanel(ctx, x, y, cw, 38, { color: on ? P.yellow : P.greyMid, fill: on ? P.voidLight : P.void, alpha: 0.92, glow: on });
     uiText(ctx, 'SLOT ' + (i + 1) + (on ? '  - ACTIVE' : ''), x + 8, y + 13, { size: T.small, color: on ? P.yellow : P.grey });
     uiText(ctx, I ? 'BEST ' + (I.best > 0 ? formatTime(I.best) : '-') + '   RUNS ' + I.runs : 'EMPTY', x + 8, y + 25, { size: T.small, color: I ? P.ice : P.greyMid });
     if (I) uiText(ctx, 'CREDITS ' + I.souls + (I.wins ? '   WINS ' + I.wins : ''), x + 8, y + 35, { size: T.small, color: P.yellow });
   }
-  drawMenuRow(ctx, 292, rows.back, G.settingsSel === backI, { w: 190, h: 22, hit: () => { G.settingsSel = backI; } });
+  drawMenuRow(ctx, 308, rows.back, G.settingsSel === backI, { w: 190, h: 22, hit: () => { G.settingsSel = backI; } });
 }
 
 // Controls panel: explains every action in general terms and always shows the CURRENT keys (they can be rebound in Settings > Keybinds)
@@ -1514,14 +1515,14 @@ function drawDeathItem(ctx, t, tint) {
     ctx.translate(t.x + (STAGE_W - 480) / 2, t.y);
     ctx.rotate(t.rot * DEG);
     ctx.textAlign = 'left';
-    ctx.fillText(t.text, 0, 0);
+    ctx.fillText(I18n.t(t.text), 0, 0);
   } else {
     const target = Math.min(480 - 2 * t.x, 480 - 20);
-    const w = ctx.measureText(t.text).width;
+    const w = ctx.measureText(I18n.t(t.text)).width;
     const px = clamp(t.px * target / w, t.px * 0.6, t.px * 1.4);
     ctx.font = px + 'px ' + PIXEL_FONT;
     ctx.textAlign = 'center';
-    ctx.fillText(t.text, STAGE_W / 2, t.y);
+    ctx.fillText(I18n.t(t.text), STAGE_W / 2, t.y);
   }
   ctx.restore();
 }

@@ -81,12 +81,12 @@ const Touch = {
     // Beschriftungen
     const T = STYLE.type, mc = this.octx;
     mc.save(); mc.setTransform(1, 0, 0, 1, 0, 0); mc.font = uiFont(T.small);
-    const lh = (T.small + 2) * u, placed = [];
+    const lh = (uiSize(T.small) + 2) * u, placed = [];
     const hit = (p, q, pad) => p.x < q.x + q.w + pad && p.x + p.w + pad > q.x && p.y < q.y + q.h + pad && p.y + p.h + pad > q.y;
     this.buttons.forEach((b) => {
       b.spot = null;
       if (b.id === 'art' && !this.hasArt) return;
-      for (const text of b.labels) {
+      for (const text of b.labels.map((l) => I18n.t(l))) {
         const lines = text.split('\n'), tw = Math.ceil(Math.max(...lines.map((l) => mc.measureText(l).width)) * u), th = lines.length * lh;
         const mx = b.r.x + b.r.w / 2, my = b.r.y + b.r.h / 2;
         const cands = [['r', b.r.x + b.r.w + 4, my - th / 2, 'left'], ['l', b.r.x - 4 - tw, my - th / 2, 'right'], ['b', mx - tw / 2, b.r.y + b.r.h + 2, 'center'], ['t', mx - tw / 2, b.r.y - 2 - th, 'center']];
@@ -132,7 +132,7 @@ const Touch = {
         else drawSlot(ctx, 0, 0, base({ icon: 'pauseIcon', iconW: 18, color: P.cyan, ready: 1 }, { active: !!b.down }));
         ctx.restore();
         if (b.spot) {
-          const T = STYLE.type, lh = T.small + 2, sp = b.spot, x = sp.align === 'left' ? sp.x : sp.align === 'right' ? sp.x + sp.w : sp.x + sp.w / 2;
+          const T = STYLE.type, lh = uiSize(T.small) + 2, sp = b.spot, x = sp.align === 'left' ? sp.x : sp.align === 'right' ? sp.x + sp.w : sp.x + sp.w / 2;
           sp.lines.forEach((l, i) => uiText(ctx, l, x / u, sp.y / u + T.small + i * lh, { size: T.small, color: P.ice, align: sp.align }));
         }
       }
