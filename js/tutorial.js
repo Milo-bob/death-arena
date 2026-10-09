@@ -7,6 +7,7 @@
 // Neues Szenario: Eintrag in SCENARIOS (name, enter(s) beim Start der Textbox, begin(s) optional nach SPACE, update(dt, s), lines(s) = [Ziel, Erklaerung], progress(s), done(s)). s ist der Zustand des Szenarios.
 
 const TUT_HP_FLOOR = 25;
+const COVER_SPOTS = [[-24, 48], [28, 52]];                           // Barrikaden im Deckungs-Szenario (werden neu aufgestellt, wenn beide zerstoert sind)
 const TUT_BONUS_CORES = 25;
 
 const Tutorial = {
@@ -221,11 +222,16 @@ const SCENARIOS = [
     name: 'COVER',
     rebrief: true,
     enter: (s) => {
-      s.stage = 0;
-      for (const [ox, oy] of [[-24, 48], [28, 52]]) { const o = new Obstacle(ox, oy); o.maxHp = o.hp = 16; o.age = 1; G.obstacles.push(o); }
+      s.stage = 0; s.lost = 0; s.last = 0;
+      for (const [ox, oy] of COVER_SPOTS) { const o = new Obstacle(ox, oy); o.maxHp = o.hp = 16; o.age = 1; G.obstacles.push(o); }
     },
     update: (dt, s) => {
-      const hits = G.obstacles.reduce((a, o) => a + (o.enemyHits || 0), 0);
+      let hits = G.obstacles.reduce((a, o) => a + (o.enemyHits || 0), 0);
+      if (hits < s.last) s.lost += s.last - hits;                      // zerstoerte (entfernte) Barrikaden behalten ihre abgefangenen Treffer
+      s.last = hits; hits += s.lost;
+      if (s.stage === 0 && G.obstacles.filter((o) => o.alive).length < 2) {        // beide Barrikaden zerstoert: neue aufstellen, sonst gaebe es keine Deckung mehr (Softlock)
+        for (const [ox, oy] of COVER_SPOTS) if (!G.obstacles.some((o) => o.alive && dist2(ox, oy, o.x, o.y) < 20)) { const o = new Obstacle(ox, oy); o.maxHp = o.hp = 16; o.age = 1; G.obstacles.push(o); }
+      }
       if (s.stage === 0) { tutKeep('square', 1, 1, 150); s.hits = hits; if (hits >= 3) { s.stage = 1; for (const o of G.obstacles) o.hp = Math.min(o.hp, 3); G.enemies = []; G.shots = []; s.start = G.obstacles.length; } }
       else s.gone = s.start - G.obstacles.filter((o) => o.alive).length;
     },
