@@ -147,7 +147,7 @@ const Touch = {
       #touchUI canvas { position: absolute; inset: 0; width: 100%; height: 100%; background: transparent; pointer-events: none; image-rendering: pixelated; }
       #touchUI .tzone { position: absolute; bottom: 0; left: 0; width: 46%; height: 54%; pointer-events: auto; touch-action: none; }
       #touchUI .tbtn { position: absolute; pointer-events: auto; touch-action: none; border-radius: 50%; }
-      #touchUI .thint { position: absolute; left: 23%; bottom: 27%; width: 120px; height: 120px; margin: 0 0 -60px -60px; border: 2px solid rgba(0,229,255,0.55); border-radius: 50%; pointer-events: none; display: none; animation: thint 1.6s ease-in-out infinite; }
+      #touchUI .thint { position: absolute; left: 14%; bottom: 14%; width: 120px; height: 120px; margin: 0 0 -60px -60px; border: 2px solid rgba(0,229,255,0.55); border-radius: 50%; pointer-events: none; display: none; animation: thint 1.6s ease-in-out infinite; }
       #touchUI .thint::after { content: ''; position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px 0 0 -26px; border-radius: 50%; background: rgba(0,229,255,0.4); }
       @keyframes thint { 0%, 100% { opacity: 0.45; transform: scale(1); } 50% { opacity: 0.9; transform: scale(1.08); } }
     `;
