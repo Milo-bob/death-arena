@@ -24,6 +24,7 @@ const Save = {
     imported: { deaths: [], bosses: [] },        // importierte Spieldaten anderer Spieler
     binds: {} },     // eigene Tastenbelegung (siehe Input.actions)
   // Geraetedaten, die bei Slot-Wechsel, Reset und Import bleiben (kein Teil eines einzelnen Spielstands)
+  LOG_KEYS: ['deathLog', 'bossLog', 'imported'],       // nur diese Geraetedaten (anonyme Balancing-Protokolle, gross) wandern NICHT in Codes/Cloud; Einstellungen, Tasten und Dev-Modus schon
   KEEP: ['musicVol', 'sfxVol', 'mouseAim', 'attackMode', 'touch', 'fx', 'binds', 'deathLog', 'bossLog', 'imported'],       // 'dev' gehoert bewusst NICHT dazu: der Dev-Modus gilt nur fuer den Slot, in den die Dev-Datei importiert wurde
 
   // Abilities: frei, wenn Preis 0 oder gekauft
@@ -248,8 +249,7 @@ const Save = {
   exportCode() {
     this.write();
     const out = Object.assign({}, this.data);
-    delete out.dev;                                       // der Dev-Modus wandert nie mit einem Code mit
-    for (const k of this.KEEP) delete out[k];            // Geraetedaten (Protokolle, Dev-Modus, Tasten) gehoeren nicht in den Code: sonst wird er riesig und beim Kopieren/Senden abgeschnitten
+    for (const k of this.LOG_KEYS) delete out[k];        // alles andere (auch Einstellungen, Tasten, Dev-Modus) ist im Code; nur die grossen Protokolle nicht, sonst wird er riesig
     const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(out))));
     return 'DA1:' + b64 + ':' + this.checksum(b64);
   },
@@ -268,6 +268,8 @@ const Save = {
     out.seen = Math.min(A.seen || 0, B.seen || 0);
     return out;
   },
+  // Einstellungen, die nicht jedes Bild neu gelesen werden (Lautstaerken), nach einem Import/Sync sofort anwenden
+  applySettings() { try { if (typeof setMusicVolume === 'function') setMusicVolume(this.data.musicVol); if (typeof Sfx !== 'undefined' && Sfx.setVolume) Sfx.setVolume(this.data.sfxVol); } catch (err) { /* egal */ } },
   checksum(s) { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h.toString(36); },
   // Code/Dateiinhalt prüfen und in den aktiven Slot übernehmen. Gibt { ok, error } zurück. Lautstärken, Effekte und Tastenbelegung dieses Geräts bleiben.
   importCode(text) {
@@ -280,16 +282,17 @@ const Save = {
       const next = JSON.parse(this.DEFAULTS);
       for (const k of Object.keys(next)) if (src[k] !== undefined && typeof src[k] === typeof next[k]) next[k] = src[k];       // bekannte Felder mit passendem Typ
       for (const k of Object.keys(src)) {                                // Felder, die erst im Lauf entstehen und nicht in DEFAULTS stehen (z. B. devUnlockAll), gingen frueher verloren
-        if (k in next || this.KEEP.includes(k) || k === 'dev' || k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
+        if (k in next || this.LOG_KEYS.includes(k) || k === 'dev' || k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
         if (src[k] !== null && ['string', 'number', 'boolean', 'object'].includes(typeof src[k])) next[k] = src[k];
       }
       // Achievements gehen nie verloren: Fortschritt dieses Geraets und des Codes werden zusammengefuehrt (erreichte Achievements vereinigt, Zaehler = Hoechstwert),
       // auch wenn man einen aelteren Code ueber einen neueren Stand importiert
-      if (src.dev !== true && this.data.ach) next.ach = this.mergeAch(next.ach, this.data.ach);
-      for (const k of this.KEEP) if (this.data[k] !== undefined) next[k] = this.data[k];
+      if (!(src.dev === true && this.data.dev !== true) && this.data.ach) next.ach = this.mergeAch(next.ach, this.data.ach);       // nur die Dev-Datei (schaltet Dev neu frei) ersetzt ohne Zusammenfuehren
+      for (const k of this.KEEP) if (this.data[k] !== undefined && (this.LOG_KEYS.includes(k) || src[k] === undefined || typeof src[k] !== typeof this.data[k])) next[k] = this.data[k];       // Protokolle bleiben lokal, Einstellungen kommen aus dem Code (fehlen sie dort, bleiben die lokalen)
       next.dev = src.dev === true || this.data.dev === true;           // die Dev-Save-Datei schaltet den Dev-Modus fuer diesen Slot frei (bleibt dort auch nach einem normalen Import)
       this.data = next;
       this.migrate();
+      this.applySettings();
       if (typeof Ach !== 'undefined') Ach.scan(true);                  // abgeleitete Achievements sofort neu pruefen, Belohnungs-Cosmetics nachtragen
       this.write();
       return { ok: true };

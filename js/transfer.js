@@ -35,7 +35,7 @@ const SaveTransfer = {
     box.appendChild(mk('div', 'color:' + P.yellow + ';font-size:22px;margin-bottom:6px;', 'SAVE TRANSFER  (SLOT ' + (Save.slot + 1) + ')'));
     box.appendChild(mk('div', 'color:' + P.grey + ';font-size:13px;line-height:1.4;margin-bottom:8px;',
       'EXPORT: copy the code or download the file, then import it on another device. IMPORT: paste a code (or load a file) and press IMPORT. ' +
-      'Importing REPLACES slot ' + (Save.slot + 1) + ', but achievements are merged: nothing you unlocked here or in the code is lost. Volume, effects and keybinds of this device stay.'));
+      'Importing REPLACES slot ' + (Save.slot + 1) + ', but achievements are merged: nothing you unlocked here or in the code is lost. The code includes everything of the slot: progress, settings, keybinds and dev mode (but not the anonymous play-data log below).'));
     const ta = mk('textarea', 'width:100%;height:110px;box-sizing:border-box;resize:vertical;background:' + P.ink + ';color:' + P.ice + ';border:2px solid ' + P.cyanDark + ';padding:6px;font:12px monospace;');
     ta.value = Save.exportCode(); ta.spellcheck = false;
     box.appendChild(ta);

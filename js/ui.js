@@ -464,12 +464,38 @@ function drawStartScreen(ctx) {
     if (dot || (id === 'settings' && !Save.data.settingsSeen)) uiHintDot(ctx, STAGE_W / 2 + 104, y + 11, t);
   });
   drawMenuIcons(ctx);
+  drawSyncIndicator(ctx);
   const best = Save.data.best > 0 ? formatTime(Save.data.best) : '-', L = Save.data.last;
   uiText(ctx, 'BEST ' + best + '    RUNS ' + Save.data.runs + (Save.data.wins ? '    WINS ' + Save.data.wins : '') + '    CORES ' + Save.data.souls, STAGE_W / 2, 316, { size: T.body, color: P.ice, align: 'center' });
   if (L) uiText(ctx, 'LAST RUN ' + formatTime(L.time) + '  -  ' + L.bosses + ' BOSSES  -  ' + L.kills + ' KILLS' + (L.infinite ? '  (INFINITE)' : ''), STAGE_W / 2, 329, { size: T.small, color: P.grey, align: 'center' });
   uiText(ctx, 'W/S OR MOUSE = SELECT    SPACE OR CLICK = OK    L / M / N / V / F = ICONS', STAGE_W / 2, 350, { size: T.small, color: P.grey, align: 'center' });
 }
 
+// Sync-Anzeige oben links im Hauptmenue: drehender Pixelring waehrend des Abgleichs, danach kurz "SAVED" (gruen) oder "SYNC FAILED" / "OFFLINE"
+function drawSyncIndicator(ctx) {
+  if (!Account.on) return;
+  const P = STYLE.pal, T = STYLE.type, now = Date.now(), busy = Account.syncing > 0 || now < Account.spinUntil, since = now - Account.doneAt, x = 36, y = 34;
+  if (!busy && !(since < 2200 && Account.doneAt)) return;
+  ctx.save();
+  if (busy) {
+    const head = Math.floor(G.realTime * 10) % 8;                                  // 8 Pixel im Kreis, der Kopf wandert, der Schweif wird dunkler
+    for (let k = 0; k < 8; k++) {
+      const a = k / 8 * Math.PI * 2, age = (head - k + 8) % 8;
+      ctx.globalAlpha = Math.max(0.15, 1 - age * 0.14); ctx.fillStyle = P.cyan;
+      ctx.fillRect(Math.round(x + Math.sin(a) * 9) - 2, Math.round(y - Math.cos(a) * 9) - 2, 4, 4);
+    }
+    ctx.globalAlpha = 1; uiText(ctx, 'SYNCING', x + 18, y + 4, { size: T.small, color: P.cyan });
+  } else {
+    ctx.globalAlpha = Math.min(1, (2200 - since) / 500);
+    const ok = Account.doneOk, col = ok ? P.green : Account.doneOffline ? P.grey : P.red;
+    ctx.fillStyle = col;
+    if (ok) { [[-6, 0], [-4, 2], [-2, 4], [0, 2], [2, 0], [4, -2], [6, -4]].forEach(([dx, dy]) => ctx.fillRect(x + dx - 1, y + dy - 1, 3, 3)); }       // Haken
+    else { for (let k = -5; k <= 5; k += 2) { ctx.fillRect(x + k - 1, y + k - 1, 3, 3); ctx.fillRect(x + k - 1, y - k - 1, 3, 3); } }                     // Kreuz
+    uiText(ctx, ok ? 'SAVED' : Account.doneOffline ? 'OFFLINE' : 'SYNC FAILED', x + 18, y + 4, { size: T.small, color: col });
+  }
+  ctx.restore();
+}
+
 // ---- Kleine Symbole oben rechts im Hauptmenue: Konto, Musik, Sound, Effekte, Vollbild ----
 const MENU_ICON_ART = {
   account: ['...XXX...', '..XXXXX..', '..XXXXX..', '...XXX...', '.XXXXXXX.', 'XXXXXXXXX', 'XXXXXXXXX', 'XXXXXXXXX'],

@@ -15,6 +15,8 @@ const Account = {
   DELAY: 6000,
 
   meta: null,         // { name, uid, tok, ref, exp, base: { slot: Prüfsumme } } oder null (nicht angemeldet)
+  changed: false,      // seit dem letzten Abgleich wurde etwas gespeichert -> beim naechsten Hauptmenue abgleichen
+  syncing: 0, spinUntil: 0, doneAt: 0, doneOk: true, doneOffline: false, inMenu: false,
   status: '', statusColor: null, busy: false, pushing: false, timer: null, started: false,
   conflicts: {},      // slot -> { local, cloud } (Code-Texte), wartet auf die Wahl des Nutzers
   el: null, refresh: null,
@@ -116,10 +118,11 @@ const Account = {
   // ---- Abgleich aller Slots (nur im Menü aufrufen) ----
   async syncAll() {
     if (!this.on || this.busy) return;
-    this.busy = true; this.say('SYNCING...', 'grey');
+    this.busy = true; this.syncing++; this.spinUntil = Date.now() + 700; this.changed = false; this.say('SYNCING...', 'grey');
+    let ok = false, offline = false;
     try {
       const r = await this.rest('GET', '/rest/v1/saves?select=slot,code');
-      if (!r.ok) { if (this.on) this.say(this.errText(r), 'red'); return; }
+      if (!r.ok) { offline = !!r.offline; if (this.on) this.say(this.errText(r), 'red'); return; }
       const cloud = {}; for (const row of r.json || []) cloud[row.slot] = row.code;
       let up = 0, down = 0;
       this.conflicts = {};
@@ -133,11 +136,12 @@ const Account = {
         else if (base === ch) { res = await this.upload(i, lc); up++; }
         else if (base === lh) { res = await this.download(i, cc); down++; }
         else { this.conflicts[i] = { local: lc, cloud: cc }; continue; }
-        if (res && !res.ok) { this.say(this.errText(res), 'red'); return; }
+        if (res && !res.ok) { offline = !!res.offline; this.say(this.errText(res), 'red'); return; }
       }
+      ok = true;
       const nc = Object.keys(this.conflicts).length;
       this.say(nc ? 'CHOOSE WHICH SAVE TO KEEP (' + nc + ' SLOT' + (nc > 1 ? 'S' : '') + ')' : (up || down ? 'SYNCED: ' + up + ' UPLOADED, ' + down + ' DOWNLOADED' : 'EVERYTHING IS UP TO DATE'), nc ? 'orange' : 'teal');
-    } finally { this.busy = false; if (this.refresh) this.refresh(); }
+    } finally { this.busy = false; this.syncing--; this.doneAt = Date.now(); this.doneOk = ok; this.doneOffline = offline; if (!ok) this.changed = true; if (this.refresh) this.refresh(); }
   },
   async resolve(i, choice) {
     const c = this.conflicts[i]; if (!c || this.busy) return;
@@ -152,6 +156,7 @@ const Account = {
   // ---- Laufendes Hochladen: Save.write meldet jede Änderung, nach DELAY Ruhe wird der aktive Slot gesendet ----
   dirty() {
     if (this.pushing || !this.on) return;
+    this.changed = true;
     clearTimeout(this.timer);
     this.timer = setTimeout(() => this.pushActive(), this.DELAY);
   },
@@ -241,13 +246,14 @@ const Account = {
   },
 };
 Account.load();
-// Beim Start: sobald das Hauptmenü da ist, einmal abgleichen (nie mitten im Lauf, weil Slots ersetzt werden können). Bei Konflikten öffnet sich der Dialog.
-setInterval(() => {
-  try {
-    if (Account.started || !Account.on || !Account.configured) return;
-    if (G.mode !== 'start') return;
-    Account.started = true;
-    Account.syncAll().then(() => { if (Object.keys(Account.conflicts).length) Account.open(); });
-  } catch (e) { /* Spiel noch nicht fertig geladen */ }
-}, 1000);
+// Jedes Bild aus G.update aufgerufen: beim Wechsel ins Hauptmenue (und beim ersten Mal nach dem Start) wird abgeglichen, wenn man angemeldet ist und etwas gespeichert wurde
+// (gekauft, Skin, Einstellung, Lauf ...). Nie mitten im Lauf, weil ein Abgleich Slots ersetzen kann. Konflikte oeffnen den Dialog.
+Account.menuTick = function (mode) {
+  if (mode !== 'start') { this.inMenu = false; return; }
+  if (this.inMenu) return;
+  this.inMenu = true;
+  if (!this.on || !this.configured || (this.started && !this.changed)) return;
+  this.started = true;
+  this.syncAll().then(() => { if (Object.keys(this.conflicts).length) this.open(); });
+};
 document.addEventListener('visibilitychange', () => { if (document.hidden) Account.flush(); });

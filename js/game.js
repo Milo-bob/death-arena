@@ -768,6 +768,7 @@ const G = {
     else if (this.mode === 'dead') playMusic('dead');
     else if (this.mode === 'ending') playMusic(this.endAge < ENDING_SPLIT ? 'dead' : 'menu');
     if (Save.data.dev) this.devKeys();
+    Account.menuTick(this.mode);
     if (this.mode === 'start') {
       this.updateMenu();
     } else if (this.mode === 'achievements') {
