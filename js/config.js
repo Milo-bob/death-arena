@@ -268,14 +268,14 @@ const CFG = {
   // ==========================================================================================
   cosmetics: {
     cats: [
-      { id: 'skin',  label: 'SKIN',  desc: 'Recolor your ship. Some skins also change how it looks and moves.' },
-      { id: 'blade', label: 'GLOW',  desc: 'Color of ALL your weapons: blades, shots, lances, rockets, beams. Some add trails, stars or lightning.' },
-      { id: 'trail', label: 'TRAIL', desc: 'What you leave behind while you run: sparks, bubbles, smoke, or marks on the ground (footprints, paw prints, flowers, ripples).' },
-      { id: 'kill',  label: 'KILLS', desc: 'What happens when an enemy dies: colors, rings, shards, blasts, or a mark left on the ground (stamps, gravestone, ink).' },
+      { id: 'skin',  label: 'SKIN',  desc: 'Your ship. Some skins change how it looks and moves. Any color is free: press [C].' },
+      { id: 'blade', label: 'GLOW',  desc: 'Look of ALL your weapons: blades, shots, lances, rockets, beams. Some add trails, stars or lightning. Any color is free: press [C].' },
+      { id: 'trail', label: 'TRAIL', desc: 'What you leave behind while you run: sparks, bubbles, smoke, or marks on the ground (footprints, paw prints, flowers, ripples). Sparks take any color: press [C].' },
+      { id: 'kill',  label: 'KILLS', desc: 'What happens when an enemy dies: colors, rings, shards, blasts, or a mark left on the ground (stamps, gravestone, ink). Bursts take any color: press [C].' },
       { id: 'aura',  label: 'AURA',  desc: 'An effect that surrounds your ship all the time.' },
       { id: 'gear',  label: 'GEAR',  desc: 'Parts attached to your ship: wings, horns, a crown, a jetpack.' },
-      { id: 'enemy', label: 'FOES',  desc: 'How normal enemies look. Shield enemies and elites keep their colors, but get the effects.' },
-      { id: 'boss',  label: 'BOSSES', desc: 'How bosses look: recolors, glitches, shadows, flames.' },
+      { id: 'enemy', label: 'FOES',  desc: 'How normal enemies look. Shield enemies and elites keep their colors, but get the effects. Any color is free: press [C].' },
+      { id: 'boss',  label: 'BOSSES', desc: 'How bosses look: glitches, shadows, flames, crowns. Any color is free: press [C].' },
       { id: 'endless', label: 'ENDLESS', desc: 'Only shown in Infinite Mode: floor effects and markers for the wall-less map. Some need an Endless survival time.' },
       // Neu: gelten immer fuer die ganze Kategorie (alle Waffen, alle Kills, alle Treffer ...), nie nur fuer eine einzelne Waffe oder Faehigkeit
       { id: 'proj',  label: 'SHOTS',  desc: 'The look of ALL your projectiles: shots, pellets, rockets, discs, grenades. Uses your Glow color.' },
@@ -289,7 +289,7 @@ const CFG = {
       { id: 'death', label: 'DEATH',  desc: 'How your ship goes down when you die.' },
       { id: 'intro', label: 'INTRO',  desc: 'The title card that appears when a boss shows up. Works for every boss.' },
       { id: 'victory', label: 'WIN',  desc: 'A little celebration after every boss you defeat.' },
-      { id: 'revive', label: 'REVIVE', desc: 'The animation when the Revival Core saves you.' },
+      // 'revive' (Totem of Undying) ist absichtlich KEINE Shop-Kategorie: geheimes Cosmetic, nur ueber das Achievement POSTMORTAL, gewaehlt im Inventar (Revival Core)
     ],
     items: {
       // fx am Skin: glitch (versetzte Farbkopien, Ruckeln), holo (flackernd durchscheinend mit Scan-Linie)
@@ -342,7 +342,7 @@ const CFG = {
       blade: [
         { id: 'default', name: 'PLASMA CYAN', cost: 0,   color: STYLE.pal.cyan,   filter: '' },
         { id: 'violet',  name: 'VOID VIOLET', cost: 100, color: STYLE.pal.purple, filter: 'hue-rotate(80deg) saturate(2.2)' },
-        { id: 'inferno', name: 'INFERNO',     cost: 160, color: STYLE.pal.red,    filter: 'hue-rotate(170deg) saturate(2.2)' },
+        { id: 'inferno', name: 'INFERNO',     cost: 160, color: STYLE.pal.red,    filter: 'hue-rotate(170deg) saturate(3) brightness(0.85)' },
         { id: 'toxic',   name: 'TOXIC GREEN', cost: 120, color: STYLE.pal.green,  filter: 'hue-rotate(-55deg) saturate(2.2)' },
         { id: 'gold',    name: 'GOLDEN',      cost: 160, color: STYLE.pal.yellow, filter: 'hue-rotate(-145deg) saturate(2.2)' },
         { id: 'rose',    name: 'ROSE QUARTZ', cost: 100, color: STYLE.pal.pink,   filter: 'hue-rotate(130deg) saturate(2.2)' },
@@ -365,7 +365,8 @@ const CFG = {
       // shape am Trail: ring (steigende Blasen), plus (Sternenstaub), smoke (wachsende Rauchquadrate), echo (Nachbilder des Schiffs)
       trail: [
         { id: 'none',    name: 'NO TRAIL',    cost: 0,   color: STYLE.pal.greyMid, colors: null },
-        { id: 'ember',   name: 'EMBERS',      cost: 120, color: STYLE.pal.orange, colors: [STYLE.pal.yellow, STYLE.pal.orange, STYLE.pal.red], style: 'pick' },
+        { id: 'sparks',  name: 'SPARKS',      cost: 120, color: STYLE.pal.orange, colors: [STYLE.pal.yellow, STYLE.pal.orange, STYLE.pal.red], style: 'pick', base: true },       // base = bleibt ein eigenes Item (Grundform der Funken-Spur), die Farben EMBERS/FROST/TOXIC sind Farbwahl
+        { id: 'ember',  name: 'EMBERS',      cost: 120, color: STYLE.pal.orange, colors: [STYLE.pal.yellow, STYLE.pal.orange, STYLE.pal.red], style: 'pick' },
         { id: 'frost',   name: 'FROST DUST',  cost: 120, color: STYLE.pal.ice,    colors: [STYLE.pal.ice, STYLE.pal.cyan, STYLE.pal.cyanMid], style: 'pick' },
         { id: 'toxic',   name: 'TOXIC SPORES', cost: 150, color: STYLE.pal.green, colors: [STYLE.pal.green, STYLE.pal.teal, STYLE.pal.greenMid], style: 'pick' },
         { id: 'glitch',  name: 'GLITCH',      cost: 200, color: STYLE.pal.purple, colors: [STYLE.pal.cyan, STYLE.pal.purple, STYLE.pal.white, STYLE.pal.red], style: 'glitch' },
@@ -463,7 +464,7 @@ const CFG = {
         { id: 'cryoking', name: 'FROST KING',  cost: 380, color: STYLE.pal.cyan,   filter: 'hue-rotate(170deg) brightness(1.1)', fx: 'crown' },
         { id: 'blizzard', name: 'BLIZZARD',    cost: 340, color: STYLE.pal.white,  filter: 'grayscale(1) brightness(1.4)', fx: 'orbit' },
       ],
-      // Endlos-Modus (wirken nur im Endlos-Lauf, die Karte hat dort keine Waende). needInf = Minuten Endlos-Bestzeit, die man zum Kaufen braucht.
+      // Endlos-Modus (wirken nur im Endlos-Lauf, die Karte hat dort keine Waende).
       // fx: beacon (Pfeil zum Startpunkt), sonar (Ping-Ringe), chrono (Siegel = 1 pro 5 Min Laufzeit), warp (Tempolinien),
       //     grid (Bodenraster, Farbe = color), stars (Sternenfeld mit Tiefe)
       endless: [
@@ -471,10 +472,10 @@ const CFG = {
         { id: 'beacon',  name: 'HOME BEACON',    cost: 150, color: STYLE.pal.green,   fx: 'beacon' },
         { id: 'sonar',   name: 'SONAR PING',     cost: 200, color: STYLE.pal.cyan,    fx: 'sonar' },
         { id: 'grid',    name: 'NEON GRID',      cost: 220, color: STYLE.pal.cyan,    fx: 'grid' },
-        { id: 'stars',   name: 'DEEP SPACE',     cost: 300, color: STYLE.pal.ice,     fx: 'stars',  needInf: 10 },
-        { id: 'bloodgrid', name: 'BLOOD GRID',   cost: 280, color: STYLE.pal.red,     fx: 'grid',   needInf: 10 },
-        { id: 'chrono',  name: 'CHRONO SIGILS',  cost: 340, color: STYLE.pal.yellow,  fx: 'chrono', needInf: 20 },
-        { id: 'warp',    name: 'WARP LINES',     cost: 380, color: STYLE.pal.violet,  fx: 'warp',   needInf: 30 },
+        { id: 'stars',   name: 'DEEP SPACE',     cost: 300, color: STYLE.pal.ice,     fx: 'stars' },
+        { id: 'bloodgrid', name: 'BLOOD GRID',   cost: 280, color: STYLE.pal.red,     fx: 'grid' },
+        { id: 'chrono',  name: 'CHRONO SIGILS',  cost: 340, color: STYLE.pal.yellow,  fx: 'chrono' },
+        { id: 'warp',    name: 'WARP LINES',     cost: 380, color: STYLE.pal.violet,  fx: 'warp' },
       ],
 
       // ---- Neue Kategorien (Umsetzung: js/cosmetics2.js, Objekt Cos2). Standard ist immer das erste Item. ----
@@ -553,10 +554,9 @@ const CFG = {
         { id: 'flag',    name: 'PLANT A FLAG', cost: 260, color: STYLE.pal.red,   pose: 'flag' },
         { id: 'dance',   name: 'VICTORY SPIN', cost: 280, color: STYLE.pal.cyan,  pose: 'dance' },
       ],
-      // achOnly = nicht kaeuflich, nur als Belohnung (Achievement)
       revive: [
         { id: 'default', name: 'REVIVAL RING', cost: 0,  color: STYLE.pal.yellow, anim: null },
-        { id: 'totem',   name: 'TOTEM OF UNDYING', cost: 999, color: STYLE.pal.green, anim: 'totem', achOnly: 'Trigger the Revival Core 64 times' },
+        { id: 'totem',   name: 'TOTEM OF UNDYING', cost: 0, color: STYLE.pal.green, anim: 'totem', secret: true },
       ],
     },
   },
@@ -689,7 +689,8 @@ const CFG = {
     perBoss: 25,              // Seelen pro besiegtem Boss (6 Bosse pro Lauf statt bis zu 13)
     // Starter-Bonus: in den ersten Laeufen (Lauf 1, 2, ...) werden die Lauf-Cores mit mult multipliziert und steigen mindestens auf min, damit man frueh etwas Erstes kaufen kann
     // (Stats kosten ab ca. 25-30 Cores). Danach normal. Tutorial zaehlt nicht als Lauf. Eintraege = Anzahl der Laeufe.
-    starter: { mult: [3, 2.5, 2, 1.75, 1.5], min: [60, 50, 40, 35, 30] },
+    // Lauf 1 muss zusammen mit dem Tutorial-Bonus (25) fuer die gefuehrten ersten Kaeufe reichen: Beam (1) + Health (50) + Credit Harvester (45) = 96 (siehe guideStep in game.js).
+    starter: { mult: [3, 2.5, 2, 1.75, 1.5], min: [75, 50, 40, 35, 30] },
     upgrades: {
       health:   { tab: 'stats', name: 'HEALTH',            max: 15, cost: 50, step: 10,   desc: (v) => '+' + v + ' max health', info: 'More maximum health (base 100), the health bar adapts.' },
       speed:    { tab: 'stats', name: 'SPEED',        max: 15, cost: 30, step: 0.02, desc: (v) => '+' + Math.round(v * 100) + '% move speed', info: 'You move faster permanently.' },
@@ -1279,6 +1280,17 @@ const CFG = {
   // Standardmodus: 6 Bosse (alle 120 s: 120 ... 720), der finale Boss folgt direkt danach bei steps x (6 + 1) = 840 s (14:00) Spielzeit. Die Uhr steht in Bosskämpfen,
   // ein Lauf dauert real also etwas länger (Bosskämpfe + Endkampf, ca. 15-16 Minuten auf der Spieluhr inkl. Endboss).
   finalBoss: { at: 840 },
+  // Spielerlevel (Konto-Level, pro Spielstand): jeder Lauf bringt XP, das Level schaltet Menüpunkte frei (Save.plevel, Save.gateOpen).
+  // XP pro Lauf = Zeit x perSecond + Bosse x perBoss + Kills x perKill (+ winBonus beim Sieg), Endlos-Modus x infiniteFactor. Kein XP im Tutorial und bei Cheat-Läufen.
+  // Level n -> n+1 kostet needs[n-1] XP; über die Liste hinaus needs.last + step x (Abstand). gates: Menüpunkt -> nötiges Level (Level 1 = von Anfang an).
+  // Ziel (geschätzt: früher Lauf ca. 150 XP, guter Lauf ca. 300 XP): Lv 2 = Tutorial (tutorialXp), Lv 3 nach ca. 1 Lauf, Lv 4 nach dem 2. Lauf wenn er gut war,
+  // Lv 5 (= Infinite Mode) nach ca. 6-7 Läufen (kumuliert 1600 XP).
+  level: {
+    perSecond: 0.5, perBoss: 40, perKill: 0.15, winBonus: 200, infiniteFactor: 0.75,
+    tutorialXp: 100, needs: [100, 150, 250, 1100], step: 200, max: 50,
+    gates: { cosmetics: 3, infinite: 5 },
+    seedFromOldSave: true,               // bestehende Spielstände bekommen XP aus ihrer bisherigen Statistik, damit sie nicht plötzlich gesperrt sind
+  },
   // Endlos-Modus (Hauptmenü > INFINITE MODE): unendliche Karte ohne Wände (CFG.map.infinite wird pro Lauf gesetzt), Spawnpunkte und Barrikaden folgen dem Spieler.
   // Vor dem Start wählbar: wann der finale Boss kommt (finalMinutes, null = nie, endlos). Cores nur zu coreFactor, die Bestzeit wird getrennt geführt (Save.data.bestInf).
   // Karten (Auswahl nach PLAY): Boden (Bild in img_new), Rahmenfarbe, Größe (halbe Breite/Höhe), Schwierigkeit (diff) und Freischaltung.
@@ -1401,6 +1413,69 @@ const DEATH_SCREENS = [
 ];
 for (const s of DEATH_SCREENS) s[0] = Math.round(s[0] * CFG.finalBoss.at / 2000);       // auf die tatsächliche Lauflänge skalieren
 const DEATH_SECRET_AT = 666;                                                            // Geheimscreen (Teufelszahl, ein kleiner Joke): genau in Sekunde 666 sterben. Bleibt fest, auch wenn sich die Lauflänge ändert (muss unter CFG.finalBoss.at liegen)
+
+// Farben statt Farb-Skins: Alles, was ein Cosmetic NUR umfaerbt, ist kein eigenes Item mehr, sondern eine kostenlose Farbwahl der Kategorie
+// (CFG.cosmetics.colors[kategorie]). Die gewaehlte Farbe gilt fuer das ausgeruestete Item (auch fuer die Standard-Items), sofern es Farben unterstuetzt
+// (kein noColor). Filter-Kategorien (skin, blade, enemy, boss) tauschen den Sprite-Filter, Paletten-Kategorien (trail, kill) die Partikelfarben.
+// Entfernte Items stehen in CFG.cosmetics.retired ("kategorie:id" -> { cost, color }), damit alte Spielstaende und Belohnungen sie noch zuordnen koennen.
+(function extractColors() {
+  const C = CFG.cosmetics, KIND = { skin: 'filter', blade: 'filter', enemy: 'filter', boss: 'filter', trail: 'palette', kill: 'palette' };
+  const BASE_NAME = { enemy: 'CLASSIC RED', boss: 'CLASSIC RED' };
+  const rich = (it) => !!(it.special || it.fx || it.shape || it.anim || it.pack || it.theme || it.card || it.pose || it.bg || it.base);
+  C.colors = {}; C.retired = {};
+  for (const cat of Object.keys(KIND)) {
+    const list = C.items[cat], first = list[0], colors = [];
+    if (KIND[cat] === 'filter') colors.push({ id: 'base', name: BASE_NAME[cat] || first.name, color: first.color, filter: '' });
+    else if (cat === 'kill') colors.push({ id: 'base', name: first.name, color: first.color, colors: null });
+    const keep = [first];
+    for (const it of list.slice(1)) {
+      const pure = !rich(it) && (KIND[cat] === 'filter' ? !!it.filter : !!it.colors && (!it.style || it.style === 'pick'));
+      if (!pure) { keep.push(it); continue; }
+      C.retired[cat + ':' + it.id] = { cost: it.cost, color: it.id };
+      colors.push(KIND[cat] === 'filter' ? { id: it.id, name: it.name, color: it.color, filter: it.filter } : { id: it.id, name: it.name, color: it.color, colors: it.colors });
+    }
+    // Items, die keine Farbwahl vertragen (mehrfarbig oder ohne Farbe): noColor
+    for (const it of keep) {
+      if (KIND[cat] === 'filter') it.noColor = it.fx === 'rainbow';
+      else if (cat === 'trail') it.noColor = !it.colors || it.style === 'cycle' || it.style === 'glitch' || it.shape === 'echo';       // "no trail" und Boden-Marken haben keine Partikelfarben
+      else it.noColor = it.id === 'confetti';
+    }
+    C.items[cat] = keep; C.colors[cat] = colors;
+  }
+  C.colorLabel = { skin: 'SHIP COLOR', blade: 'GLOW COLOR', enemy: 'FOE COLOR', boss: 'BOSS COLOR', trail: 'SPARK COLOR', kill: 'BURST COLOR' };
+})();
+// Dopplungen aufgeraeumt (2026-10-09). (1) Farben, die zu aehnlich zu einer anderen aussahen, sind ganz weg.
+// (2) Items, die nur "Effekt X in Farbe Y" waren, sind weg, weil jede Farbe jetzt auf jedes Item passt: merged[key] = { to: Item, cost } fuer alte Spielstaende
+// (Besitz wird in Save.migrate erstattet, ein ausgeruestetes Item wird durch to ersetzt). Die Preise stehen auch in retired (fuer Belohnungen).
+(function pruneCosmetics() {
+  const C = CFG.cosmetics;
+  const colors = { skin: ['mint', 'lime', 'venom', 'sakura', 'iceberg', 'tangerine', 'sunset'], blade: ['rose', 'sunset', 'magenta', 'arctic'], enemy: ['bubble', 'frost'] };
+  const merged = {
+    skin: { aurora: 'holo', permafrost: 'holo', scorch: 'ember', inferno2: 'ember' },
+    blade: { glacier: 'comet', meteor: 'sparkle', tesla: 'volt', echogold: 'echo' },
+    enemy: { frostbite: 'outline', hex: 'sats' },
+    boss: { cryoking: 'king', blizzard: 'sats', permafrost: 'storm' },
+  };
+  C.merged = {};
+  for (const cat of Object.keys(colors)) C.colors[cat] = C.colors[cat].filter((q) => colors[cat].indexOf(q.id) < 0);
+  for (const cat of Object.keys(merged)) {
+    C.items[cat] = C.items[cat].filter((it) => {
+      const to = merged[cat][it.id];
+      if (!to) return true;
+      C.merged[cat + ':' + it.id] = { to, cost: it.cost }; C.retired[cat + ':' + it.id] = { cost: it.cost };
+      return false;
+    });
+  }
+})();
+// Preis eines (auch entfernten) Cosmetics, z. B. fuer Belohnungen, die frueher ein Cosmetic gaben ("kategorie:id")
+function cosRewardCredits(key) {
+  const R = CFG.cosmetics.retired[key];
+  if (R) return R.cost;
+  const [cat, id] = key.split(':'), it = CFG.cosmetics.items[cat] && CFG.cosmetics.items[cat].find((i) => i.id === id);
+  return it ? it.cost : 100;
+}
+// Cosmetics gibt es nur noch fuer Credits (keine Sperren, keine Belohnungs-Cosmetics): Meilensteine zahlen stattdessen den Wert des Cosmetics in Credits.
+for (const m of CFG.milestones) if (m.reward && m.reward.cos) m.reward = { cores: cosRewardCredits(m.reward.cos) };
 
 // Cosmetics sortieren (Menue-Reihenfolge): Standard-Item zuerst, dann einfache Umfaerbungen, unten die speziellen Items (mit Effekt, Form oder Verhalten).
 // Innerhalb der Gruppen nach Preis. Ein Item kann mit special: true von Hand zu den speziellen gezaehlt werden (z. B. Skin OBSIDIAN).

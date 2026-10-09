@@ -197,7 +197,7 @@ const Cos2 = {
     return (a.kind === 'shot' || a.kind === 'rocket' || a.kind === 'grenade' || a.kind === 'molotov') && typeof a.x === 'number' && !a.exploded && a.alive !== false;
   },
   drawProj(ctx, a, pj, blade) {
-    const P = STYLE.pal, col = blade && blade.id !== 'default' ? blade.color : pj.color, t = G.realTime;
+    const P = STYLE.pal, col = blade && (blade.id !== 'default' || blade.colored) ? blade.color : pj.color, t = G.realTime;
     const base = a.kind === 'rocket' ? 1.8 : a.kind === 'grenade' ? 1.5 : a.kind === 'molotov' ? 1.4 : clamp((a.sizePct || 150) / 150, 0.7, 1.6);
     const sx = Math.round(STAGE_W / 2 + a.x), sy = Math.round(STAGE_H / 2 - a.y);
     ctx.save(); ctx.translate(sx, sy);
@@ -924,7 +924,7 @@ const Cos2 = {
   // ---------------------------------------------------------------------------------------------
   reviveStart() {
     const it = Cos.cur('revive');
-    if (!it || it.anim !== 'totem') { this.rev = null; return; }
+    if (!it || it.anim !== 'totem' || !Save.cosOwned('revive', 'totem')) { this.rev = null; return; }
     this.rev = { t: 0, list: [], emit: 0 };
     Sfx.play('totem');
   },

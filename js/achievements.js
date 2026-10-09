@@ -28,7 +28,7 @@ const ACH_VISIBLE = 6;          // Zweige gleichzeitig auf dem Bildschirm
 const ACH_FAST_BOSS = 25;       // Sekunden fuer "Speedrun Strats"
 const ACH_QUICK_DEATH = 30;     // Sekunden fuer "Skill Issue"
 
-// reward: { cores: n } oder { cos: 'kategorie:id' }
+// reward: { cores: n } oder { secret: 'kategorie:id' } (geheimes Cosmetic, nur ueber das Achievement, gewaehlt im Inventar)
 const ACH_LIST = [
   // ---- SURVIVAL ----
   { id: 'student',   br: 'run', name: 'STUDENT OF PAIN',        desc: 'Complete the tutorial.',                         icon: 'shot',         key: 'tutorial',  need: 1,    reward: { cores: 10 } },
@@ -81,7 +81,7 @@ const ACH_LIST = [
   { id: 'acid',      br: 'odd', name: 'EW, CHEMISTRY',          desc: 'Be killed by an acid pool.',                     icon: 'molotovIcon',  key: 'killAcid',  need: 1,    reward: { cores: 15 } },
   { id: 'meteor',    br: 'odd', name: 'WELL, THAT HAPPENED',    desc: 'Be killed by a meteor.',                         icon: 'bombardIcon',  key: 'killMeteor', need: 1,   reward: { cores: 15 } },
   { id: 'notoday',   br: 'odd', name: 'NOT TODAY',              desc: 'Get saved by the Revival Core.',                 icon: 'phoenixIcon',  key: 'revive',    need: 1,    reward: { cores: 25 } },
-  { id: 'postmortal', br: 'odd', name: 'POSTMORTAL',            desc: 'Get saved by the Revival Core 64 times.',        icon: 'phoenixIcon',  key: 'revive',    need: 64,   reward: { cos: 'revive:totem' } },
+  { id: 'postmortal', br: 'odd', name: 'POSTMORTAL',            desc: 'Get saved by the Revival Core 64 times.',        icon: 'phoenixIcon',  key: 'revive',    need: 64,   reward: { secret: 'revive:totem' } },
   { id: 'crates',    br: 'odd', name: "PANDORA'S BOX",          desc: 'Smash 25 crates.',                               icon: 'spawner',      key: 'crates',    need: 25,   reward: { cores: 20 } },
   { id: 'thread',    br: 'odd', name: 'HANGING BY A THREAD',    desc: 'Spend 10 seconds under 10 HP in one run.',       icon: 'aegisIcon',    key: 'edge',      need: 10,   reward: { cores: 30 } },
 
@@ -161,6 +161,8 @@ const ACH_LIST = [
   { id: 'lvl20',     br: 'grind', name: 'OVER NINE... TEEN',    desc: 'Reach level 20 in one run.',                     icon: 'surgeIcon',    key: 'lvl',       need: 20,   reward: { cores: 75 } },
   { id: 'hunter',    br: 'grind', name: 'ACHIEVEMENT HUNTER',   desc: 'Unlock 60 achievements.',                        icon: 'phoenixIcon',  key: 'achDone',   need: 60,   reward: { cores: 300 } },
 ];
+// Cosmetics gibt es nur noch fuer Credits: Belohnungen, die frueher ein Cosmetic waren, zahlen dessen Wert in Credits aus (cosRewardCredits in config.js)
+for (const a of ACH_LIST) if (a.reward && a.reward.cos) a.reward = { cores: cosRewardCredits(a.reward.cos) };
 
 const ACH_TIME_KEYS = /^(time|timeInf|tm_.*|attackT)$/;       // Zaehler in Sekunden: als m:ss anzeigen
 
@@ -297,9 +299,8 @@ const Ach = {
   // ---- Pruefen und freischalten ----
   scan() {
     for (const a of ACH_LIST) {
-      if (this.done(a.id)) {                                  // erreicht: Belohnungs-Cosmetic muss auch wirklich gehoeren (z. B. nach einem Import ohne dieses Cosmetic)
-        if (a.reward.cos && !Save.data.cosmetics.owned[a.reward.cos]) { Save.data.cosmetics.owned[a.reward.cos] = true; this.dirty2 = true; }
-      } else if (this.value(a.key) >= a.need) this.unlock(a);
+      if (this.done(a.id)) { if (a.reward.secret && !Save.data.cosmetics.owned[a.reward.secret]) { Save.data.cosmetics.owned[a.reward.secret] = true; this.dirty2 = true; } }       // erreicht, aber das geheime Cosmetic fehlt (z. B. nach einem Import)
+      else if (this.value(a.key) >= a.need) this.unlock(a);
     }
     if (this.dirty2) { this.dirty2 = false; Save.write(); }
   },
@@ -307,15 +308,13 @@ const Ach = {
     const d = this.data();
     d.done[a.id] = true;
     if (a.reward.cores) Save.data.souls += a.reward.cores;
-    else if (a.reward.cos) Save.data.cosmetics.owned[a.reward.cos] = true;
+    else if (a.reward.secret) Save.data.cosmetics.owned[a.reward.secret] = true;
     Save.write();
     this.toasts.push({ a, age: 0 });
     try { Sfx.play('buy'); } catch (e) { /* kein Ton */ }
   },
   rewardText(a) {
-    if (a.reward.cores) return '+' + a.reward.cores + ' CREDITS';
-    const [cat, id] = a.reward.cos.split(':'), C = CFG.cosmetics;
-    return C.cats.find((c) => c.id === cat).label + ': ' + C.items[cat].find((i) => i.id === id).name;
+    return a.reward.secret ? 'SECRET: TOTEM OF UNDYING' : '+' + a.reward.cores + ' CREDITS';
   },
 
   // Jedes Bild (auch in Menues): Pruefung bei Aenderung bzw. einmal pro Sekunde, Hinweise ablaufen lassen

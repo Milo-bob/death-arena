@@ -90,6 +90,18 @@ function upgradeGroup(r) {
   return { idx: i, label: CFG.items.slots[i].label };
 }
 
+// Gefuehrte ersten Kaeufe (subtil, nur pulsierende Hinweispunkte): erst der Beam, dann je eine Stufe Health und Credit Harvester.
+// Rein aus dem Spielstand abgeleitet (nichts gespeichert): nur in den ersten Laeufen, nur fuer das, was man gerade bezahlen kann.
+// Gibt { tab, kind, id } fuer den naechsten Schritt zurueck oder null.
+const GUIDE_BUYS = [{ tab: 'weapons', kind: 'item', id: 'beam' }, { tab: 'stats', kind: 'up', id: 'health' }, { tab: 'stats', kind: 'up', id: 'souls' }];
+function guideStep() {
+  if (!Save.data.tutorialDone || Save.data.runs > 3 || Save.data.wins) return null;
+  const owned = (s) => (s.kind === 'item' ? Save.owns(s.id) : Save.level(s.id) >= 1);
+  const price = (s) => (s.kind === 'item' ? CFG.items.catalog[s.id].cost : Save.cost(s.id));
+  if (!owned(GUIDE_BUYS[0])) return Save.data.souls >= price(GUIDE_BUYS[0]) ? GUIDE_BUYS[0] : null;      // Beam zuerst
+  return GUIDE_BUYS.slice(1).find((s) => !owned(s) && Save.data.souls >= price(s)) || null;
+}
+
 function upgradeRows(tab) {
   let rows;
   if (tab === 'abilities') {
@@ -216,7 +228,7 @@ const G = {
     this.seenKeys = true;
     Save.data.seenKeys = true; Save.write();
     this.newBest = false;
-    this.bosses = 0; this.kills = 0; this.earned = 0; this.newMilestones = [];
+    this.bosses = 0; this.kills = 0; this.earned = 0; this.newMilestones = []; this.levelRes = null;
     Ach.beginRun(); Stats.reset(); this.deathDetails = false; this.cheated = !!this.god;       // Cheat-Laeufe werden als Dev-Lauf markiert (Statistik kann sie ausblenden)
     Xp.reset(); this.xpOrbs = [];                                              // XP und Perks beginnen jeden Lauf von vorn
     this.time = 0;
@@ -292,7 +304,14 @@ const G = {
       run = boosted;
     }
     this.earned = run + bonus + this.lootCores;
-    Save.data.souls += this.earned; Save.write();
+    Save.data.souls += this.earned;
+    const L = CFG.level;                                                     // Spielerlevel: XP aus Zeit, Bossen, Kills (+ Sieg), nicht im Tutorial und bei Cheat-Laeufen
+    this.levelRes = null;
+    if (!Tutorial.active && !this.cheated) {
+      const xp = (this.time * L.perSecond + this.bosses * L.perBoss + this.kills * L.perKill + (this.victory > 0 || this.mode === 'ending' ? L.winBonus : 0)) * (this.infinite ? L.infiniteFactor : 1);
+      this.levelRes = Save.addPlayerXp(Math.floor(xp));
+    }
+    Save.write();
   },
 
   // Sieg (finaler Boss besiegt): kein Todesbildschirm, sondern die Ending-Sequenz (drawEndingScreen)
@@ -359,10 +378,14 @@ const G = {
     if (Input.pressed('ArrowDown') || Input.pressed('KeyS')) this.menuSel = (this.menuSel + 1) % n;
     if (!(Input.pressed('Space') || Input.pressed('Enter'))) return;
     const item = items[this.menuSel];
+    if (CFG.level.gates[item] && !Save.gateOpen(item)) { Sfx.play('deny'); return; }          // gesperrt bis zum noetigen Spielerlevel
     if (item === 'play') { this.mode = 'modeselect'; this.modeSel = 0; }        // REGULAR ist immer vorgewählt (nur markiert, nicht gestartet); die Infobox rechts zeigt dessen Text
     else if (item === 'inventory') { this.mode = 'inventory'; this.invSel = 0; this.invPick = null; }
-    else if (item === 'cosmetics') { this.mode = 'cosmetics'; this.cosTab = 0; this.cosSel = Math.max(0, Cos.items('skin').findIndex((q) => q.id === Save.cosEquipped('skin'))); }
-    else if (item === 'upgrades') { Save.data.upgradesSeen = true; Save.write(); this.mode = 'upgrades'; this.upgradeSel = 0; this.upgradeTab = 0; }
+    else if (item === 'cosmetics') { this.mode = 'cosmetics'; this.colorPick = null; this.cosTab = 0; this.cosSel = Math.max(0, Cos.items('skin').findIndex((q) => q.id === Save.cosEquipped('skin'))); }
+    else if (item === 'upgrades') { Save.data.upgradesSeen = true; Save.write(); this.mode = 'upgrades'; this.upgradeSel = 0; this.upgradeTab = 0;
+      const gs = guideStep();                                                  // gefuehrter Kauf: Reiter und Zeile schon vorgewaehlt
+      if (gs) { this.upgradeTab = UPGRADE_TABS.findIndex((t) => t.id === gs.tab); this.upgradeSel = Math.max(0, upgradeRows(gs.tab).findIndex((r) => r.id === gs.id)); }
+    }
     else if (item === 'achievements') { this.mode = 'achievements'; Ach.open(); }
     else if (item === 'settings') { Save.data.settingsSeen = true; Save.write(); this.mode = 'settings'; this.settingsSel = 0; }
     else if (item === 'stats') { this.mode = 'stats'; StatsScreen.open(); }
@@ -376,6 +399,7 @@ const G = {
     if (Input.pressed('Escape')) { this.mode = 'start'; return; }
     if (!(Input.pressed('Space') || Input.pressed('Enter'))) return;
     const item = MODE_ITEMS[this.modeSel];
+    if (CFG.level.gates[item] && !Save.gateOpen(item)) { Sfx.play('deny'); return; }          // Endlos-Modus erst ab dem noetigen Spielerlevel
     if (item !== 'back') { Save.data.lastMode = item; Save.write(); }
     if (item === 'regular') { this.mode = 'mapselect'; Save.data.mapSel = Save.mapUnlocked(Save.data.mapSel) ? Save.data.mapSel : 0; }
     else if (item === 'infinite') { this.mode = 'infsetup'; this.infSel = 0; }
@@ -418,17 +442,23 @@ const G = {
   // Nicht bezahlbar oder kostenlos: fn() direkt (Ablehnungs-Ton bzw. Ausruesten), ohne Fenster.
   openConfirm(name, price, fn) {
     if (price <= 0 || Save.data.souls < price) { fn(); return; }
-    this.confirm = { name, price, fn };
+    this.confirm = { name, price, fn, sel: 0 };                                  // sel: 0 = BUY, 1 = CANCEL
   },
-  updateConfirm() {                                                              // Leertaste/Enter = kaufen, ESC = abbrechen
+  updateConfirm() {                                                              // A/D bzw. Pfeile waehlen BUY/CANCEL, Leertaste/Enter bestaetigt, ESC = abbrechen
     const c = this.confirm;
-    if (Input.pressed('Space') || Input.pressed('Enter')) { this.confirm = null; c.fn(); }
+    if (Input.pressed('KeyA') || Input.pressed('ArrowLeft')) { c.sel = 0; Sfx.play('tick'); }
+    if (Input.pressed('KeyD') || Input.pressed('ArrowRight')) { c.sel = 1; Sfx.play('tick'); }
+    if (Input.pressed('Space') || Input.pressed('Enter')) {
+      this.confirm = null;
+      if (c.sel === 0) c.fn(); else Sfx.play('select');
+    }
     else if (Input.pressed('Escape')) { this.confirm = null; Sfx.play('select'); }
   },
 
   updateCosmetics() {
     if (this.confirm) { this.updateConfirm(); return; }
     const cats = CFG.cosmetics.cats, cat = cats[this.cosTab], items = Cos.items(cat.id), n = items.length + 1;
+    if (this.colorPick) { this.updateColorPick(cat, items); return; }
     if (Input.pressed('ArrowUp') || Input.pressed('KeyW')) this.cosSel = (this.cosSel + n - 1) % n;
     if (Input.pressed('ArrowDown') || Input.pressed('KeyS')) this.cosSel = (this.cosSel + 1) % n;
     const dir = (Input.pressed('ArrowRight') || Input.pressed('KeyD') ? 1 : 0) - (Input.pressed('ArrowLeft') || Input.pressed('KeyA') ? 1 : 0);
@@ -437,16 +467,33 @@ const G = {
       this.cosSel = Math.max(0, Cos.items(cats[this.cosTab].id).findIndex((q) => q.id === Save.cosEquipped(cats[this.cosTab].id)));
       return;
     }
+    if (Input.pressed('KeyC') && this.cosSel < items.length && Cos.canColor(cat.id, items[this.cosSel])) {      // Farbwahl oeffnen (Overlay mit allen Farben der Kategorie)
+      const cur = Save.cosColor(cat.id), idx = Cos.colorEntries(cat.id, items[this.cosSel]).findIndex((q) => q.id === cur);
+      this.colorPick = { sel: Math.max(0, idx) }; Sfx.play('select');
+      return;
+    }
     if (Input.pressed('Space') || Input.pressed('Enter')) {
       if (this.cosSel === n - 1) this.mode = 'start';
       else {
         const it = items[this.cosSel], act = () => Sfx.play(Save.cosEquip(cat.id, it.id) ? 'buy' : 'deny');
-        if (!Save.cosOwned(cat.id, it.id) && !it.achOnly && !Save.cosLocked(it)) this.openConfirm(it.name, it.cost, act); else act();
+        if (!Save.cosOwned(cat.id, it.id)) this.openConfirm(it.name, it.cost, act); else act();
       }
     }
     if (Input.pressed('Escape')) this.mode = 'start';
     const ck = cat.id + ':' + this.cosSel;                                         // Sound-Pakete: beim Auswaehlen eine Hoerprobe spielen
     if (ck !== this.cosKey) { this.cosKey = ck; if (cat.id === 'sound' && items[this.cosSel]) Cos2.sample(items[this.cosSel]); }
+  },
+  // Farbwahl-Overlay im Cosmetics-Menue: Pfeile/WASD bewegen im Raster (3 Spalten), Leertaste waehlt die Farbe (gilt fuer das ausgeruestete Item der Kategorie), ESC schliesst
+  updateColorPick(cat, items) {
+    const cp = this.colorPick, it = items[this.cosSel], COLS = 3;
+    if (!it || !Cos.canColor(cat.id, it)) { this.colorPick = null; return; }
+    const entries = Cos.colorEntries(cat.id, it), n = entries.length;
+    const dx = (Input.pressed('ArrowRight') || Input.pressed('KeyD') ? 1 : 0) - (Input.pressed('ArrowLeft') || Input.pressed('KeyA') ? 1 : 0);
+    const dy = (Input.pressed('ArrowDown') || Input.pressed('KeyS') ? 1 : 0) - (Input.pressed('ArrowUp') || Input.pressed('KeyW') ? 1 : 0);
+    if (dx) cp.sel = clamp(cp.sel + dx, 0, n - 1);
+    if (dy) { const t = cp.sel + dy * COLS; if (t >= 0 && t < n) cp.sel = t; else if (dy > 0 && Math.floor(cp.sel / COLS) < Math.floor((n - 1) / COLS)) cp.sel = n - 1; }
+    if (Input.pressed('Space') || Input.pressed('Enter')) { Save.cosSetColor(cat.id, entries[cp.sel].id); this.colorPick = null; Sfx.play('buy'); }
+    else if (Input.pressed('Escape') || Input.pressed('KeyC')) { this.colorPick = null; Sfx.play('select'); }
   },
 
   // Upgrade-Menü: A/D wechselt den Reiter, W/S wählt die Zeile, Leertaste kauft, letzte Zeile (oder ESC) geht zurück
@@ -491,6 +538,9 @@ const G = {
     if (Input.pressed('KeyU') && this.invSel < n - 1) {                       // U = Stufe der ausgeruesteten Waffe kaufen
       const id = Save.equipped(CFG.items.slots[this.invSel].id);
       if (id) { const ok = Save.gearUp(id); Sfx.play(ok ? 'buy' : 'deny'); if (ok) this.invFlashAt = this.realTime; }
+    }
+    if (Input.pressed('KeyT') && this.invSel < n - 1 && Save.equipped(CFG.items.slots[this.invSel].id) === 'phoenix' && Save.cosOwned('revive', 'totem')) {       // geheimes Cosmetic: Totem of Undying statt Revival Ring
+      Save.cosEquip('revive', Save.cosEquipped('revive') === 'totem' ? 'default' : 'totem'); Sfx.play('select');
     }
     if (ok && this.invSel === n - 1) this.mode = 'start';
     else if (ok) {

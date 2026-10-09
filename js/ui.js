@@ -344,8 +344,8 @@ function drawConfirm(ctx) {
   uiText(ctx, c.price + ' CREDITS', STAGE_W / 2, y + 60, { size: T.body, color: P.yellow, align: 'center' });
   const bw = 112, by = y + h - 34, btns = [['BUY', 'Space', P.green], ['CANCEL', 'Escape', P.red]];
   btns.forEach(([label, key, col], i) => {
-    const bx = x + 20 + i * (bw + 16), hot = m.x >= bx && m.x <= bx + bw && m.y >= by && m.y <= by + 24;
-    UIHit.add(bx, by, bw, 24, () => {}, { key });
+    const bx = x + 20 + i * (bw + 16), hot = c.sel === i || (m.x >= bx && m.x <= bx + bw && m.y >= by && m.y <= by + 24);
+    UIHit.add(bx, by, bw, 24, () => { c.sel = i; }, { key: 'Space' });
     uiPanel(ctx, bx, by, bw, 24, { color: hot ? P.ice : col, fill: hot ? P.greyMid : P.void, glow: hot });
     uiText(ctx, label, bx + bw / 2, by + 17, { size: T.h2, color: hot ? P.ice : col, align: 'center' });
   });
@@ -406,9 +406,22 @@ const UIScroll = {
 function drawMenuRow(ctx, y, text, sel, opts = {}) {
   const P = STYLE.pal, T = STYLE.type, w = opts.w || 190, h = opts.h || 24, cx = opts.cx === undefined ? STAGE_W / 2 : opts.cx, x = cx - w / 2, ty = y + Math.round(h / 2) + 5;
   if (opts.hit) UIHit.add(x, y, w, h, opts.hit, { lr: opts.lr });
-  uiPanel(ctx, x, y, w, h, { color: sel ? P.cyan : P.greyMid, fill: P.void, alpha: 0.9, glow: sel });
-  uiText(ctx, text, cx, ty, { size: T.h2, color: sel ? P.ice : P.grey, align: 'center' });
-  if (sel) uiText(ctx, '>', x + 10, ty, { size: T.h2, color: P.cyan });
+  uiPanel(ctx, x, y, w, h, { color: opts.locked ? P.greyDark : sel ? P.cyan : P.greyMid, fill: P.void, alpha: 0.9, glow: sel && !opts.locked });
+  uiText(ctx, text, cx, ty, { size: T.h2, color: opts.locked ? P.greyMid : sel ? P.ice : P.grey, align: 'center' });
+  if (opts.locked) uiText(ctx, 'LV ' + opts.locked, x + w - 10, ty, { size: T.small, color: P.orange, align: 'right' });       // gesperrt bis zu diesem Spielerlevel
+  if (sel) uiText(ctx, '>', x + 10, ty, { size: T.h2, color: opts.locked ? P.grey : P.cyan });
+}
+
+// Spielerlevel-Leiste: "LV n" und ein Balken bis zum naechsten Level (Hauptmenue, Todesbildschirm)
+function drawLevelBar(ctx, x, y, w, info) {
+  const P = STYLE.pal, T = STYLE.type, I = info || Save.levelInfo(), f = I.need ? I.xp / I.need : 1;
+  uiText(ctx, 'LV ' + I.lv, x, y, { size: T.h2, color: P.yellow });
+  const bx = x + 34, bw = w - 34;
+  ctx.save();
+  ctx.fillStyle = P.greyDark; ctx.fillRect(bx, y - 7, bw, 7);
+  ctx.fillStyle = P.yellow; ctx.fillRect(bx, y - 7, Math.round(bw * f), 7);
+  ctx.restore();
+  uiText(ctx, I.need ? I.xp + ' / ' + I.need + ' XP' : 'MAX', bx + bw, y + 10, { size: T.small, color: P.grey, align: 'right' });
 }
 
 // Glühende Funken, die im Hauptmenü aufsteigen (reine Formel aus Zeit und Nummer, kein Zustand nötig)
@@ -452,12 +465,14 @@ function drawStartScreen(ctx) {
   const labels = { play: 'PLAY', inventory: 'INVENTORY', cosmetics: 'COSMETICS', upgrades: 'UPGRADES', achievements: 'ACHIEVEMENTS', settings: 'SETTINGS', stats: 'STATISTICS' };
   menuItems().forEach((id, i) => {
     const y = 134 + i * 28;
-    drawMenuRow(ctx, y, labels[id], G.menuSel === i, { h: 22, hit: () => { G.menuSel = i; } });
-    const dot = (id === 'play' && !Save.data.tutorialDone) || (id === 'upgrades' && Save.data.tutorialDone && !Save.data.upgradesSeen);          // Hinweispunkt: erst das Tutorial, danach einmal die Upgrades (weg, sobald man dort war)
+    const lock = CFG.level.gates[id] && !Save.gateOpen(id) ? CFG.level.gates[id] : 0;
+    drawMenuRow(ctx, y, labels[id], G.menuSel === i, { h: 22, hit: () => { G.menuSel = i; }, locked: lock });
+    const dot = (id === 'play' && !Save.data.tutorialDone) || (id === 'upgrades' && ((Save.data.tutorialDone && !Save.data.upgradesSeen) || guideStep()));          // Hinweispunkt: erst das Tutorial, danach einmal die Upgrades (weg, sobald man dort war)
     if (dot || (id === 'settings' && !Save.data.settingsSeen)) uiHintDot(ctx, STAGE_W / 2 + 104, y + 11, t);
   });
   drawMenuIcons(ctx);
   drawSyncIndicator(ctx);
+  uiText(ctx, 'LV ' + Save.plevel(), 12, 346, { size: T.h2, color: P.yellow });          // Hauptmenü: nur die Zahl, der Balken ist im Inventar
   const best = Save.data.best > 0 ? formatTime(Save.data.best) : '-', L = Save.data.last;
   uiText(ctx, 'BEST ' + best + '    RUNS ' + Save.data.runs + (Save.data.wins ? '    WINS ' + Save.data.wins : '') + '    CREDITS ' + Save.data.souls, STAGE_W / 2, 316, { size: T.body, color: P.ice, align: 'center' });
   if (L) uiText(ctx, 'LAST RUN ' + formatTime(L.time) + '  -  ' + L.bosses + ' BOSSES  -  ' + L.kills + ' KILLS' + (L.infinite ? '  (INFINITE)' : ''), STAGE_W / 2, 329, { size: T.small, color: P.grey, align: 'center' });
@@ -552,7 +567,8 @@ function drawModeSelectScreen(ctx) {
   const lw = 300, lcx = 40 + lw / 2, PX = 40 + lw + 24, PW = STAGE_W - 40 - PX, top = 90, GAP = 46;          // links die Modi, rechts das Info-Feld
   MODE_ITEMS.forEach((id, i) => {
     const y = top + i * GAP;
-    drawMenuRow(ctx, y, labels[id], G.modeSel === i, { w: lw, h: 36, cx: lcx, hit: () => { G.modeSel = i; } });
+    const lock = CFG.level.gates[id] && !Save.gateOpen(id) ? CFG.level.gates[id] : 0;
+    drawMenuRow(ctx, y, labels[id], G.modeSel === i, { w: lw, h: 36, cx: lcx, hit: () => { G.modeSel = i; }, locked: lock });
     if (id === 'tutorial' && !Save.data.tutorialDone) uiHintDot(ctx, 40 + lw + 8, y + 18, t);
   });
   const id = MODE_ITEMS[G.modeSel], d = descs[id], mc = { regular: P.yellow, infinite: P.cyan, tutorial: P.green }[id] || P.ice;
@@ -560,7 +576,8 @@ function drawModeSelectScreen(ctx) {
   uiText(ctx, labels[id], PX + 14, top + 24, { size: T.h1, color: mc });
   let ty = top + 48;
   ty += 13 * uiWrap(ctx, d[0], PX + 14, ty, PW - 28, 13, { size: T.body, color: P.ice }) + 6;
-  uiWrap(ctx, d[1], PX + 14, ty, PW - 28, 13, { size: T.body, color: P.grey });
+  ty += 13 * uiWrap(ctx, d[1], PX + 14, ty, PW - 28, 13, { size: T.body, color: P.grey }) + 6;
+  if (CFG.level.gates[id] && !Save.gateOpen(id)) uiWrap(ctx, 'LOCKED: reach player level ' + CFG.level.gates[id] + ' (you are level ' + Save.plevel() + '). Every run earns XP.', PX + 14, ty, PW - 28, 13, { size: T.body, color: P.orange });
 }
 
 // Endlos-Modus vor dem Start: Zeitpunkt des finalen Bosses wählen
@@ -616,6 +633,7 @@ function drawUpgradesScreen(ctx) {
   drawMenuBg(ctx, 'keysettings');
   uiText(ctx, 'UPGRADES', STAGE_W / 2, 40, { size: T.h1, color: P.yellow, align: 'center' });
   uiText(ctx, 'CREDITS: ' + Save.data.souls, STAGE_W / 2, 58, { size: T.h2, color: P.yellow, align: 'center' });
+  const guide = guideStep();
   // Reiter
   const tw = Math.min(130, (STAGE_W - 40) / UPGRADE_TABS.length);
   UPGRADE_TABS.forEach((t, i) => {
@@ -623,6 +641,7 @@ function drawUpgradesScreen(ctx) {
     UIHit.add(tx + 2, 66, tw - 4, 18, () => { if (G.upgradeTab !== i) { G.upgradeTab = i; G.upgradeSel = 0; } }, { noConfirm: true });
     uiPanel(ctx, tx + 2, 66, tw - 4, 18, { color: on ? P.yellow : P.greyMid, fill: P.void, alpha: 0.9, glow: on });
     uiText(ctx, t.label, tx + tw / 2, 79, { size: T.small, color: on ? P.yellow : P.grey, align: 'center' });
+    if (guide && guide.tab === t.id && !on) uiHintDot(ctx, tx + tw - 9, 75, G.realTime);          // gefuehrter Kauf: Punkt am Reiter
   });
   const rows = upgradeRows(UPGRADE_TABS[G.upgradeTab].id).concat([{ kind: 'back' }]);
   const GROUP_COLORS = [P.cyan, P.yellow, P.orange, P.green, P.purple];
@@ -644,6 +663,7 @@ function drawUpgradesScreen(ctx) {
     const g = upgradeGroup(r);                                          // farbiger Streifen links = Gruppe, wechselt die Farbe, beginnt eine neue Gruppe
     ctx.fillStyle = GROUP_COLORS[g.idx % GROUP_COLORS.length]; ctx.fillRect(x + 1, y + 3, 3, H - 6);
     const nameCol = sel ? P.ice : P.grey;
+    if (guide && guide.kind === r.kind && guide.id === r.id) uiHintDot(ctx, x - 9, y + H / 2, G.realTime);        // gefuehrter Kauf: Punkt an der Zeile
     if (r.kind === 'up') {
       const U = CFG.meta.upgrades[r.id], lvl = Save.level(r.id), maxed = lvl >= U.max, afford = Save.data.souls >= Save.cost(r.id);
       uiText(ctx, U.name, x + 10, y + 14, { size: T.h2, color: nameCol });
@@ -768,7 +788,7 @@ function upgradeDetail(r) {
   }
   if (r.kind === 'milestone') {
     const m = CFG.milestones.find((q) => q.id === r.id);
-    return [m.name + '  ->  ' + milestoneRewardText(m), m.reward.cores ? 'PAID OUT ONCE AS CREDITS WHEN REACHED.' : m.reward.hero ? 'LETS YOU BUY THIS HERO IN THE HEROES TAB (COSTS CREDITS TOO).' : 'A BASIC COSMETIC, UNLOCKED FOR FREE WHEN REACHED (SEE COSMETICS).'];
+    return [m.name + '  ->  ' + milestoneRewardText(m), m.reward.cores ? 'PAID OUT ONCE AS CREDITS WHEN REACHED.' : m.reward.hero ? 'LETS YOU BUY THIS HERO IN THE HEROES TAB (COSTS CREDITS TOO).' : ''];
   }
   const I = CFG.items.catalog[r.id], slot = CFG.items.slots.find((s) => s.id === I.slot);
   const own = Save.owns(r.id) ? (Save.equipped(I.slot) === r.id ? 'EQUIPPED' : 'OWNED') : I.cost + ' CREDITS';
@@ -952,6 +972,7 @@ function drawInventoryScreen(ctx) {
   drawEmbers(ctx);
   uiText(ctx, 'INVENTORY', 24, 40, { size: T.h1, color: P.yellow, glow: P.yellow });
   drawCoreCount(ctx);
+  drawLevelBar(ctx, 190, 38, 150);                                   // Spielerlevel mit Fortschrittsbalken
 
   // links: die vier Slots
   const lx = 24, lw = 170, H = 52, GAP = 6, Y0 = 56;
@@ -999,6 +1020,14 @@ function drawInventoryScreen(ctx) {
       ty += 11 * uiWrap(ctx, I.desc, tx, ty, tw, 11, { size: T.body, color: P.grey });
       const f = itemFacts(id);
       if (f) ty += 2 + 10 * uiWrap(ctx, f, tx, ty + 1, tw, 10, { size: T.small, color: P.cyan });
+      if (id === 'phoenix' && Save.cosOwned('revive', 'totem')) {                              // geheimes Cosmetic (Achievement POSTMORTAL): Animation der Wiederbelebung waehlen
+        const on = Save.cosEquipped('revive') === 'totem', m = Input.mouse, hot = m.x >= tx && m.x <= tx + tw && m.y >= ty + 4 && m.y <= ty + 24;
+        UIHit.add(tx, ty + 4, tw, 20, () => {}, { key: 'KeyT' });
+        uiPanel(ctx, tx, ty + 4, tw, 20, { color: hot ? P.ice : on ? P.green : P.greyMid, fill: hot ? P.voidLight : P.void, alpha: 0.95, glow: on || hot });
+        uiText(ctx, 'REVIVE ANIMATION: ' + (on ? 'TOTEM OF UNDYING' : 'REVIVAL RING'), tx + 8, ty + 18, { size: T.small, color: on ? P.green : P.grey });
+        uiText(ctx, '[T] SWITCH', tx + tw - 8, ty + 18, { size: T.small, color: P.yellow, align: 'right' });
+        ty += 28;
+      }
     } else uiText(ctx, 'Nothing equipped. Press SPACE to choose an item.', tx, ty, { size: T.body, color: P.grey });
     // Evolutions-Rezepte dieses Items: so viele, wie zwischen Beschreibung und Stufenblock wirklich Platz haben (nie darueber hinaus)
     const my = py + ph - 58;                                                                  // Oberkante des Stufenblocks (Linie bei my - 14)
@@ -1102,13 +1131,15 @@ function drawCosmeticsScreen(ctx) {
 
   // Liste links
   const lx = 24, lw = 232, H = 28, GAP = 4, Y0 = 80, VIS = 7;
+  const selIt = items[Math.min(G.cosSel, items.length - 1)];
+  if (G.colorPick && (G.cosSel >= items.length || !Cos.canColor(cat.id, selIt))) G.colorPick = null;
   const lmax = Math.max(0, items.length - VIS), lkey = G.cosTab + ':' + G.cosSel;
   if (G.cosListSeen !== lkey) {                                                                       // Auswahl (oder Reiter) hat sich geaendert: Ausschnitt nachfuehren
     G.cosListOff = clamp(G.cosListSeen && G.cosListSeen.split(':')[0] === '' + G.cosTab ? G.cosListOff : 0, G.cosSel - (VIS - 1), G.cosSel); G.cosListSeen = lkey;
   }
   const off = clamp(G.cosListOff, 0, lmax);
-  UIScroll.bar(ctx, 'cosList', lx + lw + 3, Y0, 5, VIS * (H + GAP) - GAP, true, items.length, VIS, off, (v) => { G.cosListOff = v; });
-  items.slice(off, off + VIS).forEach((it, k) => {
+  if (!G.colorPick) UIScroll.bar(ctx, 'cosList', lx + lw + 3, Y0, 5, VIS * (H + GAP) - GAP, true, items.length, VIS, off, (v) => { G.cosListOff = v; });
+  (G.colorPick ? [] : items.slice(off, off + VIS)).forEach((it, k) => {
     const i = off + k, sel = G.cosSel === i, y = Y0 + k * (H + GAP), owned = Save.cosOwned(cat.id, it.id), eq = Save.cosEquipped(cat.id) === it.id, afford = Save.data.souls >= it.cost;
     UIHit.add(lx, y, lw, H, () => { G.cosSel = i; }, { noConfirm: true });          // Klick waehlt nur aus, gekauft wird ueber den Knopf in der Vorschau
     const x = lx + (sel ? 5 : 0), w = lw - (sel ? 5 : 0);
@@ -1117,33 +1148,64 @@ function drawCosmeticsScreen(ctx) {
     ctx.fillRect(x + 8, y + 7, 14, 14); ctx.restore();                                           // Farbfeld des Items
     ctx.strokeStyle = P.ink; ctx.strokeRect(x + 8.5, y + 7.5, 13, 13);
     uiText(ctx, it.name, x + 30, y + 18, { size: T.body, color: sel ? P.ice : P.grey });
-    const lock = !owned && Save.cosLocked(it);
-    const st = eq ? 'EQUIPPED' : owned ? 'OWNED' : it.achOnly ? 'ACHIEVEMENT' : lock ? 'ENDLESS ' + it.needInf + ' MIN' : it.cost + ' CREDITS';
-    uiText(ctx, st, x + w - 8, y + 18, { size: T.small, color: eq ? P.cyan : owned ? P.ice : it.achOnly || lock ? P.red : afford ? P.yellow : P.red, align: 'right' });
+    const st = eq ? 'EQUIPPED' : owned ? 'OWNED' : it.cost + ' CREDITS';
+    uiText(ctx, st, x + w - 8, y + 18, { size: T.small, color: eq ? P.cyan : owned ? P.ice : afford ? P.yellow : P.red, align: 'right' });
   });
-  if (items.length > VIS) uiText(ctx, (off > 0 ? '^ ' : '') + (off + VIS < items.length ? 'v' : ''), lx + lw - 6, Y0 - 3, { size: T.small, color: P.grey, align: 'right' });
+  if (items.length > VIS && !G.colorPick) uiText(ctx, (off > 0 ? '^ ' : '') + (off + VIS < items.length ? 'v' : ''), lx + lw - 6, Y0 - 3, { size: T.small, color: P.grey, align: 'right' });
   const by = Y0 + VIS * (H + GAP) + 2, backSel = G.cosSel === items.length;
-  UIHit.add(lx, by, lw, 22, () => { G.cosSel = items.length; });
-  uiPanel(ctx, lx, by, lw, 22, { color: backSel ? P.cyan : P.greyMid, fill: P.void, alpha: 0.9, glow: backSel });
-  uiText(ctx, 'BACK', lx + lw / 2, by + 15, { size: T.h2, color: backSel ? P.ice : P.grey, align: 'center' });
-  if (backSel) uiText(ctx, '>', lx + 10, by + 15, { size: T.h2, color: P.cyan });
+  if (G.colorPick) drawColorPick(ctx, cat, selIt, lx, Y0 - 2, lw, by + 22 - Y0 + 2);
+  else {
+    UIHit.add(lx, by, lw, 22, () => { G.cosSel = items.length; });
+    uiPanel(ctx, lx, by, lw, 22, { color: backSel ? P.cyan : P.greyMid, fill: P.void, alpha: 0.9, glow: backSel });
+    uiText(ctx, 'BACK', lx + lw / 2, by + 15, { size: T.h2, color: backSel ? P.ice : P.grey, align: 'center' });
+    if (backSel) uiText(ctx, '>', lx + 10, by + 15, { size: T.h2, color: P.cyan });
+  }
 
-  // Vorschau rechts
+  // Vorschau rechts (zeigt die gewaehlte Farbe; bei offener Farbwahl die Farbe, auf der der Cursor steht)
   const px = 268, pw = STAGE_W - 24 - px, py = 80, ph = by + 22 - py;
-  const it = items[Math.min(G.cosSel, items.length - 1)];
+  const ents = backSel || !Cos.canColor(cat.id, selIt) ? null : Cos.colorEntries(cat.id, selIt);
+  const it = backSel ? selIt : Cos.colored(cat.id, selIt, G.colorPick && ents ? ents[Math.min(G.colorPick.sel, ents.length - 1)].id : undefined);
   uiPanel(ctx, px, py, pw, ph, { color: backSel ? P.greyMid : it.color, fill: P.void, alpha: 0.92, glow: !backSel });
   if (!backSel) {
     drawCosmeticPreview(ctx, cat.id, it, px + 8, py + 8, pw - 16, 118);
     uiText(ctx, it.name, px + pw / 2, py + 146, { size: T.h2, color: P.ice, align: 'center', glow: it.color });
     uiWrap(ctx, cat.desc, px + 12, py + 162, pw - 24, 11, { size: T.small, color: P.grey });
     const owned = Save.cosOwned(cat.id, it.id), eq = Save.cosEquipped(cat.id) === it.id, afford = Save.data.souls >= it.cost;
-    const lock = !owned && Save.cosLocked(it);
-    const msg = eq ? 'EQUIPPED' : owned ? '[SPACE] EQUIP' : it.achOnly ? 'ACHIEVEMENT REWARD' : lock ? 'SURVIVE ' + it.needInf + ' MIN IN ENDLESS TO UNLOCK' : '[SPACE] BUY  -  ' + it.cost + ' CREDITS';
-    if (it.achOnly && !owned) uiWrap(ctx, 'Locked: ' + it.achOnly + '.', px + 12, py + ph - 38, pw - 24, 11, { size: T.small, color: P.red });
-    const canAct = !eq && !(it.achOnly && !owned) && !lock;
-    if (canAct) drawActionButton(ctx, px + pw / 2 - 120, py + ph - 34, 240, 24, { label: owned ? 'EQUIP' : 'BUY - ' + it.cost + ' CREDITS', color: owned ? P.cyan : afford ? P.yellow : P.red });
-    else uiText(ctx, msg, px + pw / 2, py + ph - 14, { size: T.body, color: eq ? P.cyan : owned ? P.cyan : it.achOnly || lock ? P.red : afford ? P.yellow : P.red, align: 'center' });
+    const msg = eq ? 'EQUIPPED' : owned ? '[SPACE] EQUIP' : '[SPACE] BUY  -  ' + it.cost + ' CREDITS';
+    if (CFG.cosmetics.colors[cat.id]) {                                                 // Farbwahl: nur bei Items, die Farben vertragen
+      const cy = py + ph - 62;
+      if (ents) {
+        const cur = ents.find((q) => q.id === Save.cosColor(cat.id)) || ents[0], bw = 240, bx = px + pw / 2 - bw / 2, m = Input.mouse, hot = !G.colorPick && m.x >= bx && m.x <= bx + bw && m.y >= cy && m.y <= cy + 20;
+        if (!G.colorPick) UIHit.add(bx, cy, bw, 20, () => {}, { key: 'KeyC' });
+        uiPanel(ctx, bx, cy, bw, 20, { color: hot ? P.ice : P.greyMid, fill: hot ? P.voidLight : P.void, alpha: 0.95, glow: hot });
+        ctx.fillStyle = cur.color; pxDisc(ctx, bx + 14, cy + 10, 5);
+        uiText(ctx, CFG.cosmetics.colorLabel[cat.id] + ': ' + uiFit(ctx, cur.name, bw - 130, T.small), bx + 26, cy + 14, { size: T.small, color: hot ? P.ice : P.grey });
+        uiText(ctx, '[C]', bx + bw - 8, cy + 14, { size: T.small, color: P.yellow, align: 'right' });
+      } else uiText(ctx, 'THIS ONE KEEPS ITS OWN COLORS', px + pw / 2, cy + 14, { size: T.small, color: P.greyMid, align: 'center' });
+    }
+    if (!eq && !G.colorPick) drawActionButton(ctx, px + pw / 2 - 120, py + ph - 34, 240, 24, { label: owned ? 'EQUIP' : 'BUY - ' + it.cost + ' CREDITS', color: owned ? P.cyan : afford ? P.yellow : P.red });
+    else uiText(ctx, G.colorPick ? '[SPACE] PICK COLOR   [ESC] CANCEL' : msg, px + pw / 2, py + ph - 14, { size: T.body, color: G.colorPick ? P.yellow : eq || owned ? P.cyan : afford ? P.yellow : P.red, align: 'center' });
   } else uiText(ctx, 'BACK TO MAIN MENU', px + pw / 2, py + ph / 2, { size: T.h2, color: P.greyMid, align: 'center' });
+}
+
+// Farbwahl-Overlay (ersetzt die Item-Liste): Farben als Kreise mit Namen im Raster. Cursor/Hover waehlt (die Vorschau rechts zeigt sie sofort), Klick/Leertaste uebernimmt.
+function drawColorPick(ctx, cat, it, x, y, w, h) {
+  const P = STYLE.pal, T = STYLE.type, cp = G.colorPick, entries = Cos.colorEntries(cat.id, it), n = entries.length, COLS = 3, RH = 48, gy = y + 24, VISR = Math.floor((h - 24 - 4) / RH);
+  const cw = Math.floor((w - 12) / COLS), gx = x + 6, rows = Math.ceil(n / COLS), active = Save.cosColor(cat.id);
+  const SW = UIScroll.win('colorPick', 0, Math.floor(cp.sel / COLS), VISR, rows);
+  uiPanel(ctx, x, y, w, h, { color: P.cyan, fill: P.void, alpha: 0.96, glow: true });
+  uiText(ctx, CFG.cosmetics.colorLabel[cat.id], x + w / 2, y + 16, { size: T.h2, color: P.ice, align: 'center' });
+  UIScroll.bar(ctx, 'colorPick', x + w + 3, gy, 5, VISR * RH, true, rows, VISR, SW.off, (v) => { SW.off = v; });
+  entries.forEach((c, i) => {
+    const r = Math.floor(i / COLS) - SW.off;
+    if (r < 0 || r >= VISR) return;
+    const cx0 = gx + (i % COLS) * cw, cy0 = gy + r * RH, sel = i === cp.sel, isActive = (c.id || null) === (active || null);
+    UIHit.add(cx0, cy0, cw, RH - 2, () => { cp.sel = i; });
+    if (sel) uiPanel(ctx, cx0 + 1, cy0, cw - 2, RH - 2, { color: P.cyan, fill: P.voidLight, alpha: 0.9, glow: true });
+    ctx.fillStyle = c.color; pxDisc(ctx, cx0 + cw / 2, cy0 + 16, 10);
+    ctx.fillStyle = isActive ? P.yellow : sel ? P.ice : P.greyMid; pxRing(ctx, cx0 + cw / 2, cy0 + 16, 14, 1);
+    uiText(ctx, uiFit(ctx, c.name, cw - 4, T.small), cx0 + cw / 2, cy0 + 40, { size: T.small, color: sel ? P.ice : isActive ? P.yellow : P.grey, align: 'center' });
+  });
 }
 
 // Live-Vorschau eines Cosmetics im Kasten (x, y, w, h in Buehnenpixeln). Benutzt dieselben Zeichenfunktionen wie das Spiel (Cos.*) in einem
@@ -1496,8 +1558,7 @@ function outlinedText(ctx, text, x, y, size, color) {
 function milestoneRewardText(m) {
   if (m.reward.cores) return '+' + m.reward.cores + ' CREDITS';
   if (m.reward.hero) return 'HERO: ' + CFG.heroes[m.reward.hero].name;
-  const [cat, id] = m.reward.cos.split(':'), C = CFG.cosmetics;
-  return C.cats.find((c) => c.id === cat).label + ': ' + C.items[cat].find((i) => i.id === id).name;
+  return '';
 }
 function milestoneLines() {
   const list = G.newMilestones, lines = list.slice(0, 3).map((m) => 'MILESTONE: ' + m.name + '  (' + milestoneRewardText(m) + ')');
@@ -1561,10 +1622,26 @@ function drawEndingScreen(ctx) {
     uiText(ctx, a, STAGE_W / 2 - 70, 190 + i * 18, { size: T.h2, color: P.grey });
     uiText(ctx, b, STAGE_W / 2 + 70, 190 + i * 18, { size: T.h2, color: P.ice, align: 'right' });
   });
-  milestoneLines().forEach((l, i) => uiText(ctx, l, STAGE_W / 2, 264 + i * 11, { size: T.small, color: P.cyan, align: 'center' }));
+  if (G.levelRes) uiText(ctx, '+' + G.levelRes.xp + ' XP   -   LV ' + G.levelRes.to + (G.levelRes.to > G.levelRes.from ? '   LEVEL UP!' : ''), STAGE_W / 2, 264, { size: T.small, color: P.yellow, align: 'center' });
+  milestoneLines().forEach((l, i) => uiText(ctx, l, STAGE_W / 2, 275 + i * 11, { size: T.small, color: P.cyan, align: 'center' }));
   ctx.restore();
   if (t > ENDING_MENU_AT && !G.deathDetails) drawKeyButtons(ctx, [['MENU [SPACE]', 'Space'], ['DETAILS [TAB]', 'Tab']], 322);
   if (G.deathDetails && Stats.summary) drawRunDetails(ctx, Stats.summary);
+}
+
+// Spielerlevel nach einem Lauf: "+N XP" und bei Aufstieg "LEVEL UP! LV a -> b" mit dem, was freigeschaltet wurde. Gibt die naechste freie y-Zeile zurueck.
+function drawLevelResult(ctx, R, ry) {
+  const r = G.levelRes, T = STYLE.type, P = STYLE.pal;
+  if (!r) return ry;
+  uiText(ctx, '+' + r.xp + ' XP   (LV ' + r.to + ')', R, ry, { size: T.small, color: P.yellow, align: 'right' }); ry += 11;
+  if (r.to > r.from) {
+    uiText(ctx, 'LEVEL UP!  LV ' + r.from + ' > ' + r.to, R, ry, { size: T.small, color: P.green, align: 'right', glow: P.green }); ry += 11;
+    for (const id of Object.keys(CFG.level.gates)) {
+      const g = CFG.level.gates[id];
+      if (g > r.from && g <= r.to) { uiText(ctx, 'UNLOCKED: ' + id.toUpperCase(), R, ry, { size: T.small, color: P.green, align: 'right' }); ry += 11; }
+    }
+  }
+  return ry;
 }
 
 function drawDeathScreen(ctx) {
@@ -1577,6 +1654,7 @@ function drawDeathScreen(ctx) {
   const sm = Stats.summary, R = STAGE_W - 12;                                  // Layout: Belohnungen oben rechts, Zeit und Killer unten, damit nichts mit dem Spruch überlappt
   uiText(ctx, '+' + G.earned + ' CREDITS', R, 24, { size: STYLE.type.h2, color: STYLE.pal.yellow, align: 'right' });
   let ry = 36;
+  ry = drawLevelResult(ctx, R, ry);
   if (G.starterBonus && G.starterBonus.extra > 0) { uiText(ctx, 'STARTER BONUS +' + G.starterBonus.extra + '  (RUN ' + G.starterBonus.run + '/' + G.starterBonus.of + ')', R, ry, { size: STYLE.type.small, color: STYLE.pal.green, align: 'right' }); ry += 11; }
   milestoneLines().forEach((l, i) => uiText(ctx, l, R, ry + i * 11, { size: STYLE.type.small, color: STYLE.pal.cyan, align: 'right' }));
   if (G.newBest) uiText(ctx, 'NEW BEST TIME!', STAGE_W / 2, 24, { size: STYLE.type.h2, color: STYLE.pal.yellow, align: 'center', glow: STYLE.pal.yellow });

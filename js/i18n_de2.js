@@ -28,6 +28,12 @@ I18n.add({
   'When you are hit, nearby enemies take damage.': 'Wirst du getroffen, nehmen Gegner in der Nähe Schaden.',
   'Every defeated enemy heals a little extra.': 'Jeder besiegte Gegner heilt ein wenig extra.', 'Enemies drop buffs much more often.': 'Gegner lassen viel öfter Buffs fallen.',
   // --- Kosmetik-Kategorien ---
+  'Your ship. Some skins change how it looks and moves. Any color is free: press [C].': 'Dein Schiff. Manche Skins ändern Aussehen und Bewegung. Jede Farbe ist kostenlos: drücke [C].',
+  'Look of ALL your weapons: blades, shots, lances, rockets, beams. Some add trails, stars or lightning. Any color is free: press [C].': 'Aussehen ALLER deiner Waffen: Klingen, Schüsse, Lanzen, Raketen, Strahlen. Manche fügen Spuren, Sterne oder Blitze hinzu. Jede Farbe ist kostenlos: drücke [C].',
+  'What you leave behind while you run: sparks, bubbles, smoke, or marks on the ground (footprints, paw prints, flowers, ripples). Sparks take any color: press [C].': 'Was du beim Laufen hinterlässt: Funken, Blasen, Rauch oder Spuren am Boden (Fußabdrücke, Pfoten, Blumen, Wellen). Funken nehmen jede Farbe an: drücke [C].',
+  'What happens when an enemy dies: colors, rings, shards, blasts, or a mark left on the ground (stamps, gravestone, ink). Bursts take any color: press [C].': 'Was passiert, wenn ein Gegner stirbt: Farben, Ringe, Scherben, Explosionen oder eine Markierung am Boden (Stempel, Grabstein, Tinte). Explosionen nehmen jede Farbe an: drücke [C].',
+  'How normal enemies look. Shield enemies and elites keep their colors, but get the effects. Any color is free: press [C].': 'Wie normale Gegner aussehen. Schild-Gegner und Elite behalten ihre Farben, bekommen aber die Effekte. Jede Farbe ist kostenlos: drücke [C].',
+  'How bosses look: glitches, shadows, flames, crowns. Any color is free: press [C].': 'Wie Bosse aussehen: Glitches, Schatten, Flammen, Kronen. Jede Farbe ist kostenlos: drücke [C].',
   'Recolor your ship. Some skins also change how it looks and moves.': 'Färbe dein Schiff um. Manche Skins ändern auch Aussehen und Bewegung.',
   'Color of ALL your weapons: blades, shots, lances, rockets, beams. Some add trails, stars or lightning.': 'Farbe ALLER deiner Waffen: Klingen, Schüsse, Lanzen, Raketen, Strahlen. Manche fügen Spuren, Sterne oder Blitze hinzu.',
   'What you leave behind while you run: sparks, bubbles, smoke, or marks on the ground (footprints, paw prints, flowers, ripples).': 'Was du beim Laufen hinterlässt: Funken, Blasen, Rauch oder Spuren am Boden (Fußabdrücke, Pfoten, Blumen, Wellen).',

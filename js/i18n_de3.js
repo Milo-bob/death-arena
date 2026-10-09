@@ -1,6 +1,9 @@
 // Deutsch, Teil 3: Erfolge, Tutorial, Todessprueche, Dialoge (Konto, Spielstand-Transfer, App), Touch-Tasten, Fehlermeldungen.
 // Erfolgs-Namen bleiben englisch (Wortspiele), nur die Beschreibungen sind uebersetzt. Siehe js/i18n.js.
 I18n.add({
+  // --- Spielerlevel ---
+  'LEVEL UP!': 'LEVEL AUFSTIEG!', 'UNLOCKED: ': 'FREIGESCHALTET: ', ' XP': ' XP',
+  'LOCKED: reach player level #': 'GESPERRT: erreiche Spielerlevel #',
   // --- Erfolge: Zweige ---
   'DUMB WAYS': 'DUMME ARTEN', 'DUMB DEATHS': 'DUMME TODE', 'DUMB HABITS': 'DUMME GEWOHNHEITEN', 'GROWTH': 'WACHSTUM', 'WORLD': 'WELT', 'MAPS': 'KARTEN', 'LOADOUT': 'AUSRÜSTUNG', 'GRIND': 'GRIND',
   'ACHIEVEMENT MADE!': 'ERFOLG GESCHAFFT!', 'DONE  -  ': 'ERLEDIGT  -  ', 'REWARD  ': 'BELOHNUNG  ', 'DONE': 'ERLEDIGT',
@@ -121,13 +124,13 @@ I18n.phrases([
   [' MINUTES SURVIVED', ' MINUTEN ÜBERLEBT'], ['READING ', 'LESE '], ['SLOT ', 'SLOT '], ['LOGGED IN AS ', 'ANGEMELDET ALS '], ['Importing REPLACES slot ', 'Der Import ERSETZT Slot '],
   ['SAVE TRANSFER  (SLOT ', 'SPIELSTAND-TRANSFER  (SLOT '], ['SURE? REPLACES SLOT ', 'SICHER? ERSETZT SLOT '], ['IMPORTED! SLOT ', 'IMPORTIERT! SLOT '], ['MERGED: ', 'ZUSAMMENGEFÜHRT: '],
   [' RUNS, ', ' RUNS, '], ['CHOOSE WHICH SAVE TO KEEP (', 'WÄHLE, WELCHER SPIELSTAND BLEIBT ('], ['ERROR ', 'FEHLER '], ['ABILITY', 'ABILITY'],
-  ['SKIN: ', 'SKIN: '], ['GLOW: ', 'GLOW: '], ['TRAIL: ', 'SPUR: '], ['KILL: ', 'KILL: '], ['BOSS: ', 'BOSS: '],
+  ['REVIVE ANIMATION: ', 'WIEDERBELEBUNGS-ANIMATION: '], ['SKIN: ', 'SKIN: '], ['GLOW: ', 'GLOW: '], ['TRAIL: ', 'SPUR: '], ['KILL: ', 'KILL: '], ['BOSS: ', 'BOSS: '],
 ]);
 
 // Eigennamen, die nie uebersetzt werden (Waffen, Abilities, Helden, Karten, Evolutionen, Kosmetik, Perks, Erfolge, Gegner, Bosse, Events)
 I18n.protectFrom(() => {
   const out = [], walk = (o) => { if (o && typeof o === 'object') { if (typeof o.name === 'string') out.push(o.name); for (const k in o) walk(o[k]); } };
-  walk(CFG.items); walk(CFG.loadout); walk(CFG.heroes); walk(CFG.maps); walk(CFG.evolutions); walk(CFG.cosmetics.items); walk(CFG.xp.perks);
+  walk(CFG.items); walk(CFG.loadout); walk(CFG.heroes); walk(CFG.maps); walk(CFG.evolutions); walk(CFG.cosmetics.items); walk(CFG.cosmetics.colors); walk(CFG.xp.perks);
   if (typeof ACH_LIST !== 'undefined') for (const a of ACH_LIST) out.push(a.name);
   return out;
 });

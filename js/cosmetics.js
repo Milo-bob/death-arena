@@ -10,7 +10,19 @@ const Cos = {
   items(cat) { return CFG.cosmetics.items[cat]; },
   item(cat, id) { return this.items(cat).find((i) => i.id === id); },
   over: null,                                                       // Vorschau: { kategorie: item } ueberschreibt das ausgeruestete Item (siehe previewStep)
-  cur(cat) { if (this.over && this.over[cat]) return this.over[cat]; return this.item(cat, Save.cosEquipped(cat)) || this.items(cat)[0]; },
+  cur(cat) { if (this.over && this.over[cat]) return this.over[cat]; return this.colored(cat, this.item(cat, Save.cosEquipped(cat)) || this.items(cat)[0]); },
+  // Item mit der gewaehlten Farbe der Kategorie (CFG.cosmetics.colors): gleiche Daten, aber Filter bzw. Partikelfarben ausgetauscht (Kopie wird gemerkt)
+  colored(cat, it, colorId) {
+    const list = CFG.cosmetics.colors[cat], cid = colorId === undefined ? Save.cosColor(cat) : colorId;
+    if (!list || !it || it.noColor || it.colored || !cid) return it;
+    const c = list.find((q) => q.id === cid);
+    if (!c) return it;
+    const key = cat + ':' + it.id + ':' + cid, cache = this._cc || (this._cc = {});
+    return cache[key] || (cache[key] = Object.assign({}, it, 'filter' in c ? { filter: c.filter } : { colors: c.colors }, { color: c.color, colored: true }));
+  },
+  // Eintraege der Farbwahl im Menue: zuerst die eigenen Farben des Items, dann alle Farben der Kategorie
+  colorEntries(cat, it) { return [{ id: null, name: 'ITEM DEFAULT', color: it.color }].concat(CFG.cosmetics.colors[cat] || []); },
+  canColor(cat, it) { return !!CFG.cosmetics.colors[cat] && !!it && !it.noColor; },
 
   // Sprite-Name einer eingefaerbten Kopie von base (wird beim ersten Bedarf erzeugt). Ohne Filter oder ohne Canvas: das Original.
   tinted(base, filter) {
@@ -474,7 +486,7 @@ const Cos = {
     const pj = this.cur('proj');
     if (pj && pj.shape && Cos2.isProj(a)) { Cos2.drawProj(ctx, a, pj, it); return; }          // SHOTS: Form fuer alle Projektile
     if (!it || (!it.filter && !it.fx) || !this.isWeapon(a)) { a.draw(ctx); return; }
-    const warm = a.kind === 'fire' || a.kind === 'molotov', restore = it.id !== 'default' ? this.remapPalette(it, warm) : null, f = a.kind === 'beam' && it.filter ? it.filter : '';
+    const warm = a.kind === 'fire' || a.kind === 'molotov', restore = it.id !== 'default' || it.colored ? this.remapPalette(it, warm) : null, f = a.kind === 'beam' && it.filter ? it.filter : '';
     try {
       if (it.fx === 'comet') this.cometGhosts(ctx, a, f);
       ctx.save();

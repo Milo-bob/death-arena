@@ -16,9 +16,10 @@ const Save = {
   data: { ach: { done: {}, cnt: {}, seen: 0 }, upgradesSeen: false, settingsSeen: false,best: 0, runs: 0, lang: 'en', musicVol: 0.5, sfxVol: 0.6, mouseAim: false, attackMode: IS_MOBILE ? 'toggle' : 'hold', touch: IS_MOBILE, tutorialDone: false, wins: 0, last: null, bestInf: 0, infSel: CFG.infinite.defaultSel, mapSel: 0, lastMode: 'regular', mapBest: {}, seenKeys: false, souls: 0, upgrades: {}, unlocked: {},
     items: JSON.parse(JSON.stringify(CFG.items.start)),     // Inventar: besessene und ausgeruestete Items
     gear: {},       // Stufe und XP je Item/Ability
-    cosmetics: { owned: {}, equipped: {} },      // gekaufte Cosmetics ("kategorie:id") und ausgeruestete je Kategorie
+    cosmetics: { owned: {}, equipped: {}, color: {} },      // gekaufte Cosmetics ("kategorie:id"), ausgeruestete je Kategorie und gewaehlte Farbe je Kategorie (CFG.cosmetics.colors)
     hero: 'vanguard', heroes: {},               // gewaehlter Held und gekaufte Helden (CFG.heroes)
     stats: { bosses: 0, kills: 0 }, milestones: {}, msPaid: {},
+    pxp: 0, pxpSeeded: false,                    // Spielerlevel: gesammelte XP gesamt (CFG.level), pxpSeeded = alter Spielstand wurde einmal umgerechnet
     dev: false,                                  // Dev-Modus (Cheat-Tasten + Statistik-Bildschirm), wird mit der Dev-Save-Datei freigeschaltet (tools/dev-save.deatharena)
     deathLog: [], bossLog: [],                   // Protokoll fuer das Balancing (siehe runstats.js), gilt fuer alle Slots
     imported: { deaths: [], bosses: [] },        // importierte Spieldaten anderer Spieler
@@ -56,7 +57,6 @@ const Save = {
       if (this.data.milestones[m.id] && !paid[m.id]) {                     // Belohnung einmalig auszahlen (auch fuer Meilensteine aus alten Spielstaenden)
         paid[m.id] = true;
         if (m.reward.cores) this.data.souls += m.reward.cores;
-        else if (m.reward.cos) { const [cat, id] = m.reward.cos.split(':'); this.data.cosmetics.owned[cat + ':' + id] = true; }
       }
     }
     return got;
@@ -118,15 +118,23 @@ const Save = {
 
   // ---- Cosmetics (siehe CFG.cosmetics und js/cosmetics.js) ----
   cosEquipped(cat) { return (this.data.cosmetics.equipped && this.data.cosmetics.equipped[cat]) || CFG.cosmetics.items[cat][0].id; },
-  cosOwned(cat, id) { const it = CFG.cosmetics.items[cat].find((i) => i.id === id); return !!it && (it.cost === 0 || !!this.data.cosmetics.owned[cat + ':' + id]); },
-  // Endlos-Cosmetics brauchen eine Mindest-Bestzeit im Endlos-Modus (Item.needInf in Minuten)
-  cosLocked(it) { return !!it.needInf && (this.data.bestInf || 0) < it.needInf * 60; },
+  cosOwned(cat, id) { const it = CFG.cosmetics.items[cat].find((i) => i.id === id); return !!it && ((it.cost === 0 && !it.secret) || !!this.data.cosmetics.owned[cat + ':' + id]); },
+  // Farbwahl je Kategorie (kostenlos, siehe CFG.cosmetics.colors): null = die eigenen Farben des Items
+  cosColor(cat) { const c = this.data.cosmetics.color && this.data.cosmetics.color[cat], list = CFG.cosmetics.colors[cat]; return c && list && list.some((q) => q.id === c) ? c : null; },
+  cosSetColor(cat, id) {
+    const list = CFG.cosmetics.colors[cat];
+    if (!list || (id && !list.some((q) => q.id === id))) return false;
+    const c = this.data.cosmetics, col = c.color || (c.color = {});
+    if (id) col[cat] = id; else delete col[cat];
+    this.write();
+    return true;
+  },
   // Kaufen (falls noetig, genug Cores) und ausruesten
   cosEquip(cat, id) {
     const it = CFG.cosmetics.items[cat].find((i) => i.id === id);
     if (!it) return false;
     if (!this.cosOwned(cat, id)) {
-      if (it.achOnly || this.cosLocked(it) || this.data.souls < it.cost) return false;          // achOnly = nur als Achievement-Belohnung
+      if (it.secret || this.data.souls < it.cost) return false;                                                // Cosmetics gibt es nur fuer Credits
       this.data.souls -= it.cost; this.data.cosmetics.owned[cat + ':' + id] = true;
       if (typeof Ach !== 'undefined') Ach.add('cosBuy', 1, true);
     }
@@ -161,7 +169,7 @@ const Save = {
     this.write();
   },
   resetPurchases() {
-    this.data.souls = 0; this.data.upgrades = {}; this.data.unlocked = {}; this.data.gear = {}; this.data.cosmetics = { owned: {}, equipped: {} }; this.data.heroes = {}; this.data.hero = 'vanguard';
+    this.data.souls = 0; this.data.upgrades = {}; this.data.unlocked = {}; this.data.gear = {}; this.data.cosmetics = { owned: {}, equipped: {}, color: {} }; this.data.heroes = {}; this.data.hero = 'vanguard';
     this.data.items = JSON.parse(JSON.stringify(CFG.items.start));
     this.write();
   },
@@ -205,11 +213,32 @@ const Save = {
   // Alte Spielstaende: die Bestzeit aus der Zeit vor den Karten gehoert zu Karte 1
   migrate() {
     const d = this.data;
+    if (!d.pxpSeeded) {                                              // Spielerlevel gibt es erst seit kurzem: alte Spielstaende bekommen XP aus ihrer Statistik
+      d.pxpSeeded = true;
+      const L = CFG.level, s = d.stats || {};
+      if (L.seedFromOldSave && d.runs > 0) d.pxp = Math.max(d.pxp || 0, Math.floor((d.best || 0) * L.perSecond * Math.max(1, d.runs / 3) + (s.bosses || 0) * L.perBoss + (s.kills || 0) * L.perKill));
+      if (L.seedFromOldSave && d.tutorialDone) d.pxp = (d.pxp || 0) + L.tutorialXp;
+    }
     if (!d.mapBest) d.mapBest = {};
     if (!Object.keys(d.mapBest).length && d.best > 0) d.mapBest[CFG.maps[0].id] = d.best;
     // Cosmetics umgezogen: Stempel von HITS nach KILLS, Boden-Spuren von FLOOR nach TRAIL (gekaufte und ausgeruestete Items mitnehmen)
     const c = d.cosmetics;
+    if (c && !c.color) c.color = {};
     if (c && c.owned) {
+      // Farb-Skins gibt es nicht mehr als Items: ausgeruestete werden zur Farbwahl, gekaufte Funken-Spuren schalten das Item SPARKS frei
+      const R = CFG.cosmetics.retired, eq0 = c.equipped || (c.equipped = {}), Mg = CFG.cosmetics.merged;
+      // Effekt+Farbe-Items, die es nicht mehr gibt: ausgeruestetes wird zum Basis-Item (oder zum Standard, falls das nicht gekauft ist), gekauftes wird in Credits erstattet
+      for (const cat of Object.keys(eq0)) {
+        const m = Mg[cat + ':' + eq0[cat]];
+        if (m) eq0[cat] = c.owned[cat + ':' + m.to] ? m.to : CFG.cosmetics.items[cat][0].id;
+      }
+      for (const k of Object.keys(c.owned)) if (Mg[k]) { this.data.souls += Mg[k].cost; delete c.owned[k]; }
+      for (const cat of Object.keys(CFG.cosmetics.colors)) {
+        const id = eq0[cat];
+        if (id && R[cat + ':' + id]) { c.color[cat] = R[cat + ':' + id].color; eq0[cat] = cat === 'trail' ? 'sparks' : CFG.cosmetics.items[cat][0].id; }
+      }
+      if (Object.keys(c.owned).some((k) => k.startsWith('trail:') && R[k])) c.owned['trail:sparks'] = true;
+      for (const k of Object.keys(c.owned)) if (R[k]) delete c.owned[k];
       const MOVED = { 'hit:claws': 'kill:claws', 'hit:skulls': 'kill:skulls', 'hit:stars': 'kill:stars', 'floor:boots': 'trail:boots', 'floor:paws': 'trail:paws', 'floor:flowers': 'trail:flowers', 'floor:ripple': 'trail:ripple' };
       for (const k of Object.keys(MOVED)) if (c.owned[k]) { c.owned[MOVED[k]] = true; delete c.owned[k]; }
       const eq = c.equipped || (c.equipped = {});
@@ -298,6 +327,24 @@ const Save = {
       this.write();
       return { ok: true };
     } catch (e) { return { ok: false, error: 'CODE COULD NOT BE READ' }; }
+  },
+
+  // ---- Spielerlevel (CFG.level) ----
+  levelNeed(lv) { const N = CFG.level.needs; return lv <= N.length ? N[lv - 1] : N[N.length - 1] + CFG.level.step * (lv - N.length); },          // XP von Level lv zu lv+1
+  // Level, XP innerhalb des Levels und XP bis zum naechsten
+  levelInfo() {
+    const L = CFG.level; let xp = Math.max(0, Math.floor(this.data.pxp || 0)), lv = 1;
+    while (lv < L.max && xp >= this.levelNeed(lv)) { xp -= this.levelNeed(lv); lv++; }
+    return { lv, xp, need: lv >= L.max ? 0 : this.levelNeed(lv) };
+  },
+  plevel() { return this.levelInfo().lv; },
+  // Ist ein Menuepunkt (CFG.level.gates) frei? Dev-Modus umgeht alle Sperren.
+  gateOpen(id) { return this.data.dev === true || this.plevel() >= (CFG.level.gates[id] || 1); },
+  gateLevel(id) { return CFG.level.gates[id] || 1; },
+  // XP eines Laufs gutschreiben, gibt { xp, from, to } zurueck (Level vorher/nachher)
+  addPlayerXp(n) {
+    const from = this.plevel(); this.data.pxp = Math.floor((this.data.pxp || 0) + n);
+    return { xp: n, from, to: this.plevel() };
   },
 
   // Lauf zu Ende: gibt true zurück, wenn es eine neue Bestzeit ist
