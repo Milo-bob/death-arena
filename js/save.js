@@ -221,6 +221,7 @@ const Save = {
   write() {
     try { localStorage.setItem(this.keyFor(this.slot), JSON.stringify(this.data)); } catch (e) { /* ignorieren */ }
     try { const d = {}; for (const k of this.KEEP) d[k] = this.data[k]; localStorage.setItem(this.DEVICE_KEY, JSON.stringify(d)); } catch (e) { /* ignorieren */ }
+    if (typeof Account !== 'undefined') Account.dirty();       // Cloud-Konto: nach kurzer Ruhe hochladen (account.js)
   },
   // Zusammenfassung eines Slots fuer die Anzeige (null = leer)
   slotInfo(i) {

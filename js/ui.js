@@ -1301,6 +1301,7 @@ function drawSettingsScreen(ctx) {
     back: 'BACK',
     controls: 'CONTROLS',
     binds: 'KEYBINDS',
+    account: 'ACCOUNT: ' + (Account.on ? Account.meta.name.toUpperCase() : 'NOT LOGGED IN'),
     transfer: 'EXPORT / IMPORT SAVE',
     resetAll: G.resetConfirm ? 'SURE? DELETE SLOT ' + (Save.slot + 1) : 'RESET SAVE FILE (SLOT ' + (Save.slot + 1) + ')',
   };

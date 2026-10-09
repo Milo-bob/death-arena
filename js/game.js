@@ -113,7 +113,7 @@ function upgradeRows(tab) {
 const SETTINGS_PAGES = [                      // Einstellungen in Seiten; Zeile 0 jeder Seite ist die Seitenwahl ('tabs', A/D wechselt), unten immer 'back'
   { label: 'SOUND & VIDEO', items: ['music', 'sfx', 'fx', 'fullscreen'] },
   { label: 'GAME', items: ['mouseaim', 'attackmode', 'touch', 'slot', 'controls', 'binds'] },
-  { label: 'DATA', items: ['transfer', 'resetAll'] },
+  { label: 'DATA', items: ['account', 'transfer', 'resetAll'] },
 ];
 const settingsList = () => ['tabs'].concat(SETTINGS_PAGES[G.settingsPage || 0].items, ['back']);
 const PAUSE_ITEMS = ['resume', 'abilities', 'music', 'sfx', 'binds', 'quit'];
@@ -575,6 +575,7 @@ const G = {
     else if (item === 'slot' && (dir || ok)) Save.switchSlot((Save.slot + (dir || 1) + Save.SLOTS) % Save.SLOTS);
     else if (item === 'controls' && ok) this.mode = 'keys';
     else if (item === 'binds' && ok) { this.mode = 'binds'; this.bindSel = 0; this.bindWait = false; this.bindsBack = 'settings'; }
+    else if (item === 'account' && ok) Account.open();
     else if (item === 'transfer' && ok) SaveTransfer.open();
     else if (item === 'resetAll' && ok) {
       if (!this.resetConfirm) this.resetConfirm = true;           // erst nochmal bestaetigen
