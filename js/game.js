@@ -356,7 +356,7 @@ const G = {
     if (Input.pressed('ArrowDown') || Input.pressed('KeyS')) this.menuSel = (this.menuSel + 1) % n;
     if (!(Input.pressed('Space') || Input.pressed('Enter'))) return;
     const item = items[this.menuSel];
-    if (item === 'play') { this.mode = 'modeselect'; this.modeSel = Save.data.tutorialDone ? Math.max(0, MODE_ITEMS.indexOf(Save.data.lastMode)) : 2; }        // merkt sich den zuletzt gewaehlten Modus        // vor dem ersten Mal ist das Tutorial vorgewählt
+    if (item === 'play') { this.mode = 'modeselect'; this.modeSel = 0; }        // REGULAR ist immer vorgewählt (nur markiert, nicht gestartet); die Infobox rechts zeigt dessen Text
     else if (item === 'inventory') { this.mode = 'inventory'; this.invSel = 0; this.invPick = null; }
     else if (item === 'cosmetics') { this.mode = 'cosmetics'; this.cosTab = 0; this.cosSel = Math.max(0, Cos.items('skin').findIndex((q) => q.id === Save.cosEquipped('skin'))); }
     else if (item === 'upgrades') { Save.data.upgradesSeen = true; Save.write(); this.mode = 'upgrades'; this.upgradeSel = 0; this.upgradeTab = 0; }
