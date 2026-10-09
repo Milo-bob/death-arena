@@ -106,8 +106,24 @@ const Stats = {
   // ---------- Auswertung ----------
   filterList() { return [{ id: 'all', label: 'ALL MAPS' }].concat(CFG.maps.map((m) => ({ id: m.id, label: m.name || m.id }))).concat([{ id: 'inf', label: 'ENDLESS' }]); },
   // Eintraege (eigene + importierte) passend zum Filter: 'all' = Standardmodus aller Karten, Karten-ID = diese Karte, 'inf' = Endlos
+  // Protokolle aus ALLEN Slots dieses Geraets (auch aelteren, die das Protokoll noch im Slot-Spielstand selbst trugen, und Slots, in die importiert wurde),
+  // ohne Duplikate (Eintrags-ID). Das aktive Slot-Objekt zaehlt aus dem Speicher, nicht von der Platte.
+  slotLogs(kind, imported = false) {
+    const key = kind === 'deaths' ? 'deathLog' : 'bossLog', out = [], seen = new Set();
+    const add = (list) => { if (Array.isArray(list)) for (const e of list) if (e && !seen.has(e.i)) { seen.add(e.i); out.push(e); } };
+    if (imported) add(Save.data.imported && Save.data.imported[kind]); else add(Save.data[key]);
+    try {
+      for (let i = 0; i < Save.SLOTS; i++) {
+        const raw = localStorage.getItem(Save.keyFor(i)); if (!raw) continue;
+        const d = JSON.parse(raw); if (imported) add(d.imported && d.imported[kind]); else add(d[key]);
+      }
+      const dev = localStorage.getItem(Save.DEVICE_KEY);
+      if (dev) { const d = JSON.parse(dev); add(d[key]); if (d.imported) add(d.imported[kind]); }
+    } catch (e) { /* unlesbaren Slot ueberspringen */ }
+    return out;
+  },
   pick(kind, filter, ownOnly, showDev = true) {
-    const D = Save.data, own = (kind === 'deaths' ? D.deathLog : D.bossLog) || [], imp = ownOnly ? [] : ((D.imported && D.imported[kind]) || []);
+    const D = Save.data, own = this.slotLogs(kind), ownIds = new Set(own.map((e) => e.i)), imp = ownOnly ? [] : this.slotLogs(kind, true).filter((e) => !ownIds.has(e.i));
     return own.concat(imp).filter((e) => (showDev || !e.dv) && (filter === 'inf' ? e.inf : filter === 'all' ? !e.inf : !e.inf && e.map === filter));
   },
   pct(sorted, p) { return sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor(p * sorted.length))] : 0; },

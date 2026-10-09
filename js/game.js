@@ -48,7 +48,7 @@ function drawGround(ctx) {
 
 const MENU_ITEMS = ['play', 'inventory', 'cosmetics', 'upgrades', 'achievements', 'settings'];
 const menuItems = () => MENU_ITEMS;
-const statsOpen = () => !!(Save.data.dev || Save.data.devStats);       // der Statistik-Bildschirm (Symbol im Hauptmenue) gehoert zum Dev-Modus, gilt aber fuer alle Slots dieses Geraets
+const statsOpen = () => !!Save.data.dev;       // der Statistik-Bildschirm (Symbol im Hauptmenue) gehoert zum Dev-Modus und gilt nur im Slot, in den die Dev-Datei importiert wurde (die Daten selbst kommen aus allen Slots, siehe Stats.slotLogs)
 const MODE_ITEMS = ['regular', 'infinite', 'tutorial', 'back'];        // Auswahl nach PLAY
 const MENU_MUSIC_MODES = ['start', 'stats', 'modeselect', 'infsetup', 'mapselect', 'keys', 'binds', 'inventory', 'cosmetics', 'upgrades', 'achievements', 'settings'];       // hier läuft die Menümusik (Tasten-Menü aus der Pause heraus nicht)
 // Upgrade-Menü: drei Reiter. Jede Zeile ist { kind: 'up' | 'ability', id }
@@ -346,13 +346,14 @@ const G = {
     else if (id === 'fx') { Save.data.fx = (Juice.level + 1) % 3; Save.write(); }
     else if (id === 'fullscreen') { try { if (document.fullscreenElement) document.exitFullscreen(); else (Save.data.touch ? document.documentElement : canvas).requestFullscreen(); } catch (err) { /* Browser verbietet Vollbild */ } }
     else if (id === 'account') Account.open();
+    else if (id === 'install') PWA.open();
     else if (id === 'stats' && statsOpen()) { this.mode = 'stats'; StatsScreen.open(); }
   },
 
   // Hauptmenü: W/S oder Pfeile wählen, Leertaste/Enter bestätigt
   updateMenu() {
     const items = menuItems(), n = items.length;
-    for (const [key, id] of [['KeyM', 'music'], ['KeyN', 'sfx'], ['KeyV', 'fx'], ['KeyF', 'fullscreen'], ['KeyL', 'account'], ['KeyT', 'stats']]) if (Input.pressed(key)) this.menuQuick(id);
+    for (const [key, id] of [['KeyM', 'music'], ['KeyN', 'sfx'], ['KeyV', 'fx'], ['KeyF', 'fullscreen'], ['KeyL', 'account'], ['KeyT', 'stats'], ['KeyI', 'install']]) if (Input.pressed(key) && (id !== 'install' || PWA.visible)) this.menuQuick(id);
     if (this.menuSel >= n) this.menuSel = 0;
     if (Input.pressed('ArrowUp') || Input.pressed('KeyW')) this.menuSel = (this.menuSel + n - 1) % n;
     if (Input.pressed('ArrowDown') || Input.pressed('KeyS')) this.menuSel = (this.menuSel + 1) % n;
@@ -771,6 +772,7 @@ const G = {
     else if (this.mode === 'ending') playMusic(this.endAge < ENDING_SPLIT ? 'dead' : 'menu');
     if (Save.data.dev) this.devKeys();
     Account.menuTick(this.mode);
+    PWA.tick(this.mode);
     if (this.mode === 'start') {
       this.updateMenu();
     } else if (this.mode === 'achievements') {
