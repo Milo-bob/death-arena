@@ -317,13 +317,16 @@ const SpeedRun = {
     const dir = (Input.pressed('ArrowRight') || Input.pressed('KeyD') ? 1 : 0) - (Input.pressed('ArrowLeft') || Input.pressed('KeyA') ? 1 : 0);
     const ok = Input.pressed('Space') || Input.pressed('Enter'), row = rows[G.srSel];
     if (row === 'kind' && (dir || ok)) { const o = CFG.speedrun.order; S.kind = o[(o.indexOf(S.kind) + (dir || 1) + o.length) % o.length]; Save.write(); }
-    else if (row === 'seed') {
+    else if (row === 'seed') {                                   // drei Knoepfe nebeneinander: A/D waehlt, bei ENTER SEED tippt man die Zahl (Ziffern, Rueckschritt) oder Leertaste/Klick fragt danach
       const modes = ['random', 'daily', 'fixed'];
-      if (ok || (dir && S.seedMode !== 'fixed')) { S.seedMode = modes[(modes.indexOf(S.seedMode) + (dir || 1) + modes.length) % modes.length]; Save.write(); }
-      else if (dir && S.seedMode === 'fixed') { S.seedNum = Math.max(1, S.seedNum + dir); Save.write(); }
+      if (dir) { S.seedMode = modes[clamp(modes.indexOf(S.seedMode) + dir, 0, 2)]; G.srTyped = false; Save.write(); }
       if (S.seedMode === 'fixed') {
-        if (Input.pressed('KeyQ')) { S.seedNum = Math.max(1, S.seedNum - 100); Save.write(); }
-        if (Input.pressed('KeyE')) { S.seedNum += 100; Save.write(); }
+        for (const c of Object.keys(Input.pressedNow)) {
+          const m = /^(?:Digit|Numpad)(d)$/.exec(c);
+          if (m) { S.seedNum = G.srTyped ? Math.min(999999999, S.seedNum * 10 + Number(m[1])) : Number(m[1]); G.srTyped = true; Save.write(); }
+        }
+        if (Input.pressedNow.Backspace) { S.seedNum = Math.floor(S.seedNum / 10); G.srTyped = true; Save.write(); return; }          // Rueckschritt loescht eine Ziffer (nicht "zurueck")
+        if (ok) this.askSeed();
       }
     }
     else if (CFG.speedrun.loadoutSlots.includes(row) && (dir || ok)) {
@@ -336,6 +339,16 @@ const SpeedRun = {
     }
     else if ((row === 'back' && ok) || Input.pressed('Escape')) G.mode = 'modeselect';
   },
+  // Seed per Eingabefenster (fuer Touch/Maus); Abbruch oder Unsinn aendert nichts
+  askSeed() {
+    const S = Save.data.sr;
+    try {
+      const v = window.prompt(I18n.t('ENTER A SEED NUMBER'), String(S.seedNum));
+      const n = Math.floor(Number(String(v === null ? '' : v).trim()));
+      if (n >= 0 && n <= 999999999 && String(v).trim() !== '') { S.seedNum = n; G.srTyped = true; Save.write(); }
+    } catch (e) { /* kein Eingabefenster (eingebettet): Ziffern per Tastatur */ }
+  },
+  seedLabel(S) { return S.seedMode === 'fixed' ? 'SEED ' + Math.max(1, S.seedNum) : 'ENTER SEED'; },
   drawSetup(ctx) {
     const P = STYLE.pal, T = STYLE.type, S = Save.data.sr, K = CFG.speedrun.kinds[S.kind], col = this.color(S.kind);
     drawMenuBg(ctx, 'keysettings');
@@ -345,25 +358,41 @@ const SpeedRun = {
     const name = (id) => (id ? CFG.items.catalog[id].name : 'NONE');
     const label = (r) => {
       if (r === 'kind') return 'MAP: ' + K.name;
-      if (r === 'seed') return S.seedMode === 'random' ? 'SEED: RANDOM' : S.seedMode === 'daily' ? 'SEED: DAILY' : 'SEED: ' + S.seedNum;
       if (r === 'melee') return 'MELEE: ' + name(S.loadout.melee);
       if (r === 'ranged') return 'RANGED: ' + name(S.loadout.ranged);
       if (r === 'heavy') return 'HEAVY: ' + name(S.loadout.heavy);
       return r === 'start' ? 'START' : 'BACK';
     };
-    rows.forEach((r, i) => drawMenuRow(ctx, top + i * GAP, label(r), G.srSel === i, { w: lw, h: 30, cx: 40 + lw / 2, hit: () => { G.srSel = i; }, lr: r !== 'start' && r !== 'back', locked: r === 'kind' && !this.unlocked(S.kind) ? K.level : 0 }));
+    rows.forEach((r, i) => {
+      if (r === 'seed') { this.drawSeedRow(ctx, top + i * GAP, 40, lw, 30, i); return; }
+      drawMenuRow(ctx, top + i * GAP, label(r), G.srSel === i, { w: lw, h: 30, cx: 40 + lw / 2, hit: () => { G.srSel = i; }, lr: r !== 'start' && r !== 'back', locked: r === 'kind' && !this.unlocked(S.kind) ? K.level : 0 });
+    });
     const h = 7 * GAP - 8;
     uiPanel(ctx, PX, top, PW, h, { color: col, fill: P.void, alpha: 0.92, glow: true });
     uiText(ctx, K.name, PX + 14, top + 22, { size: T.h1, color: col });
     uiText(ctx, K.short, PX + 14, top + 38, { size: T.small, color: P.grey });
     let ty = top + 56;
     for (const t of K.info) ty += 12 * uiWrap(ctx, t, PX + 14, ty, PW - 28, 12, { size: T.body, color: P.ice }) + 5;
-    const B = this.best(S.kind === 'seed' ? (S.seedMode === 'fixed' ? 'seed:' + S.seedNum : null) : S.kind);
+    const B = this.best(S.kind === 'seed' ? (S.seedMode === 'fixed' ? 'seed:' + Math.max(1, S.seedNum) : S.seedMode === 'daily' ? 'seed:' + Number(new Date().toISOString().slice(0, 10).replace(/-/g, '')) : null) : S.kind);
     uiText(ctx, 'BEST: ' + (B ? srFmt(B.time) : '-'), PX + 14, ty + 4, { size: T.h2, color: P.yellow });
     ty += 22;
-    if (S.kind === 'seed') ty += 12 * uiWrap(ctx, S.seedMode === 'fixed' ? 'A / D: +1 or -1.   Q / E: -100 or +100.' : 'SPACE: RANDOM / DAILY / FIXED. Same seed = same world.', PX + 14, ty, PW - 28, 12, { size: T.small, color: P.grey }) + 4;
+    if (S.kind === 'seed') ty += 12 * uiWrap(ctx, S.seedMode === 'fixed' ? 'TYPE DIGITS (BACKSPACE DELETES) OR PRESS SPACE.' : S.seedMode === 'daily' ? 'DAILY SEED: the same world for everyone today.' : 'A / D: RANDOM, DAILY OR YOUR OWN SEED.', PX + 14, ty, PW - 28, 12, { size: T.small, color: P.grey }) + 4;
     uiWrap(ctx, 'STANDARD LOADOUT: no upgrades, gear levels, implants or hero. All abilities are free. No credits, no XP, death ends the run.', PX + 14, ty + 4, PW - 28, 11, { size: T.small, color: P.orange });
     if (!this.unlocked(S.kind)) uiText(ctx, 'LOCKED: PLAYER LEVEL ' + K.level + ' (YOU: ' + Save.plevel() + ')', PX + 14, top + h - 10, { size: T.body, color: P.red });
+  },
+
+  // Seed-Zeile: RANDOM SEED | DAILY SEED | ENTER SEED nebeneinander (Klick waehlt, ein zweiter Klick auf ENTER SEED oeffnet die Eingabe)
+  drawSeedRow(ctx, y, x, w, h, i) {
+    const P = STYLE.pal, T = STYLE.type, S = Save.data.sr, sel = G.srSel === i, gap = 6, bw = Math.floor((w - 2 * gap) / 3);
+    const btn = [{ id: 'random', text: 'RANDOM SEED' }, { id: 'daily', text: 'DAILY SEED' }, { id: 'fixed', text: this.seedLabel(S) }];
+    btn.forEach((b, k) => {
+      const bx = x + k * (bw + gap), on = S.seedMode === b.id;
+      UIHit.add(bx, y, bw, h, () => { G.srSel = i; if (b.id === 'fixed' && S.seedMode === 'fixed') this.askSeed(); S.seedMode = b.id; G.srTyped = false; Save.write(); });
+      uiPanel(ctx, bx, y, bw, h, { color: on ? (sel ? P.cyan : P.yellow) : P.greyMid, fill: P.void, alpha: 0.9, glow: on && sel });
+      const caret = b.id === 'fixed' && on && sel && Math.floor(G.realTime * 2) % 2 === 0 ? '_' : '';
+      uiText(ctx, uiFit(ctx, b.text, bw - 8, T.small) + caret, bx + bw / 2, y + h / 2 + 4, { size: T.small, color: on ? P.ice : P.grey, align: 'center' });
+    });
+    if (sel) uiText(ctx, '>', x - 12, y + h / 2 + 5, { size: T.h2, color: P.cyan });
   },
 
   // ---------- Ergebnis-Bildschirm ----------
@@ -461,8 +490,8 @@ const SpeedRun = {
   },
   drawHud(ctx) {
     const sr = G.sr, P = STYLE.pal, T = STYLE.type, X = STAGE_W - 10, col = this.color(sr.kind);
-    uiText(ctx, srFmt(sr.done && sr.ok ? sr.t : sr.t), X, 26, { size: T.title, color: sr.started ? P.ice : P.grey, align: 'right', glow: col });
-    let y = 40;
+    uiText(ctx, srFmt(sr.t), X, 38, { size: T.title, color: sr.started ? P.ice : P.grey, align: 'right', glow: col });
+    let y = 54;
     const line = (txt, c) => { uiText(ctx, txt, X, y, { size: T.small, color: c || P.grey, align: 'right' }); y += 11; };
     if (!sr.started) { line('MOVE OR ATTACK TO START THE CLOCK', P.yellow); return; }
     if (G.cheated) line('DEV RUN - NOT RECORDED', P.yellow);
