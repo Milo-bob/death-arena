@@ -49,26 +49,32 @@ const PWA = {
     const root = mk('div', 'position:fixed;inset:0;background:rgba(5,6,15,.88);z-index:10;display:flex;align-items:center;justify-content:center;font-family:"Pixelify Sans",monospace;');
     root.setAttribute('data-nogame', '1');
     const box = mk('div', 'width:min(480px,92vw);max-height:92vh;overflow:auto;box-sizing:border-box;padding:16px;background:' + P.void + ';border:2px solid ' + P.green + ';color:' + P.ice + ';');
-    const btnCss = (color) => 'display:block;box-sizing:border-box;width:100%;text-align:center;text-decoration:none;padding:12px 8px;margin:6px 0;cursor:pointer;background:' + P.voidLight + ';color:' + color + ';border:2px solid ' + color + ';font:inherit;font-size:16px;';
+    // Install-Knopf unter dem Beschreibungskasten: App-Symbol + Text, was er tut (button oder Link, je nach Lage)
+    const installBtn = (tag, label, sub) => {
+      const b = mk(tag, 'display:flex;align-items:center;gap:14px;box-sizing:border-box;width:100%;text-align:left;text-decoration:none;padding:10px 14px;margin:10px 0 6px;cursor:pointer;background:' + P.voidLight + ';color:' + P.green + ';border:2px solid ' + P.green + ';font:inherit;');
+      const im = mk('img', 'width:56px;height:56px;image-rendering:pixelated;flex:none;border:2px solid ' + P.green + ';'); im.src = 'icons/icon-192.png'; im.alt = '';
+      const t = mk('div', 'flex:1;'); t.appendChild(mk('div', 'font-size:18px;color:' + P.ice + ';', label)); t.appendChild(mk('div', 'font-size:12px;color:' + P.grey + ';margin-top:3px;line-height:1.3;', sub));
+      b.appendChild(im); b.appendChild(t);
+      return b;
+    };
     const render = () => {
       box.textContent = '';
-      box.appendChild(mk('div', 'color:' + P.yellow + ';font-size:22px;margin-bottom:6px;', 'INSTALL DEATHARENA AS AN APP'));
-      box.appendChild(mk('div', 'color:' + P.grey + ';font-size:13px;line-height:1.5;margin-bottom:8px;',
-        'Own icon and window, works fully offline, always the same version as the website (it updates itself when you are online). Your saves and your account stay the same.'));
-      box.appendChild(mk('div', 'font-size:14px;margin:4px 0 8px;color:' + (this.offlineReady ? P.green : P.grey) + ';', this.offlineReady ? 'OFFLINE: READY' : 'OFFLINE: PREPARING... (OPEN THE GAME ONCE WHILE ONLINE)'));
+      box.appendChild(mk('div', 'color:' + P.yellow + ';font-size:22px;margin-bottom:8px;', 'DEATHARENA APP'));
+      const info = mk('div', 'border:2px solid ' + P.cyanDark + ';background:' + P.ink + ';padding:10px 12px;');
+      info.appendChild(mk('div', 'color:' + P.ice + ';font-size:14px;line-height:1.5;', 'Own icon and window, works fully offline and is always the same version as the website (it updates itself when you are online). Your saves and your account stay the same.'));
+      info.appendChild(mk('div', 'font-size:14px;margin-top:8px;color:' + (this.offlineReady ? P.green : P.grey) + ';', this.offlineReady ? 'OFFLINE: READY' : 'OFFLINE: PREPARING... (OPEN THE GAME ONCE WHILE ONLINE)'));
+      if (!this.embedded && !this.prompt) info.appendChild(mk('div', 'color:' + P.yellow + ';font-size:14px;line-height:1.6;margin-top:8px;', this.ios
+        ? 'On iPhone / iPad: tap the SHARE button of Safari (square with an arrow), then "Add to Home Screen". Open the game from the new icon.'
+        : 'Use your browser menu: "Install DeathArena" / "Install app" (Chrome, Edge) or "Add to Home Screen" (mobile). If nothing is offered, the app is probably installed already.'));
+      box.appendChild(info);
       if (this.embedded) {
-        box.appendChild(mk('div', 'color:' + P.ice + ';font-size:14px;line-height:1.4;', 'An app can only be installed from the game\'s own page. Open it in a new tab and press INSTALL there.'));
-        const a = mk('a', btnCss(P.green), 'OPEN GAME PAGE TO INSTALL'); a.href = location.origin + '/?install=1'; a.target = '_blank'; a.rel = 'noopener'; box.appendChild(a);
+        const a = installBtn('a', 'INSTALL THE APP', 'Opens the game page in a new tab, where you can install it.'); a.href = location.origin + '/?install=1'; a.target = '_blank'; a.rel = 'noopener'; box.appendChild(a);
       } else if (this.prompt) {
-        const b = mk('button', btnCss(P.green), 'INSTALL');
+        const b = installBtn('button', 'INSTALL THE APP', 'Adds DeathArena to your device as an app.');
         b.onclick = async () => { try { this.prompt.prompt(); await this.prompt.userChoice; } catch (e) { /* abgebrochen */ } this.prompt = null; this.close(); };
         box.appendChild(b);
-      } else if (this.ios) {
-        box.appendChild(mk('div', 'color:' + P.ice + ';font-size:14px;line-height:1.6;', 'On iPhone / iPad: tap the SHARE button of Safari (square with an arrow), then "Add to Home Screen". Open the game from the new icon.'));
-      } else {
-        box.appendChild(mk('div', 'color:' + P.ice + ';font-size:14px;line-height:1.6;', 'Use your browser menu: "Install DeathArena" / "Install app" (Chrome, Edge) or "Add to Home Screen" (mobile). If nothing is offered, the app is probably installed already.'));
       }
-      const c = mk('button', btnCss(P.grey), 'CLOSE'); c.onclick = () => this.close(); box.appendChild(c);
+      const c = mk('button', 'display:block;box-sizing:border-box;width:100%;text-align:center;padding:10px 8px;margin:6px 0 0;cursor:pointer;background:' + P.voidLight + ';color:' + P.grey + ';border:2px solid ' + P.grey + ';font:inherit;font-size:15px;', 'CLOSE'); c.onclick = () => this.close(); box.appendChild(c);
     };
     this.refresh = render; render();
     root.appendChild(box);
