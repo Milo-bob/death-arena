@@ -283,7 +283,7 @@ function drawKeyButtons(ctx, items, cy, color) {
 // noConfirm = nur auswaehlen (Reiter). Rechtsklick = ESC, Mausrad = hoch/runter. Die Liste wird zu Beginn jedes Zeichnens geleert.
 const UIHit = {
   list: [], hover: null, blocks: [],                                   // blocks = Scrollleisten: dort wird nichts darunter ausgewaehlt oder bestaetigt
-  add(x, y, w, h, select, o = {}) { this.list.push({ x, y, w, h, select, lr: !!o.lr, noConfirm: !!o.noConfirm, esc: !!o.esc, key: o.key }); },
+  add(x, y, w, h, select, o = {}) { this.list.push({ x, y, w, h, select, lr: !!o.lr, noConfirm: !!o.noConfirm, esc: !!o.esc, key: o.key, act: o.act }); },
   under() {
     const m = Input.mouse;
     if (this.blocks.some((b) => m.x >= b.x && m.x <= b.x + b.w && m.y >= b.y && m.y <= b.y + b.h)) return null;
@@ -312,7 +312,8 @@ const UIHit = {
     }
     if (Input.clicked && h) {
       h.select();
-      if (h.key) Input.pressedNow[h.key] = true;
+      if (h.act) h.act();
+      else if (h.key) Input.pressedNow[h.key] = true;
       else if (h.esc) Input.pressedNow.Escape = true;
       else if (!h.noConfirm) Input.pressedNow[h.lr ? (Input.mouse.x > h.x + h.w / 2 ? 'ArrowRight' : 'ArrowLeft') : 'Space'] = true;
     }
@@ -460,12 +461,56 @@ function drawStartScreen(ctx) {
     const y = 134 + i * 28;
     drawMenuRow(ctx, y, labels[id], G.menuSel === i, { h: 22, hit: () => { G.menuSel = i; } });
     const dot = (id === 'play' && !Save.data.tutorialDone) || (id === 'upgrades' && Save.data.tutorialDone && !Save.data.upgradesSeen);          // Hinweispunkt: erst das Tutorial, danach einmal die Upgrades (weg, sobald man dort war)
-    if (dot) uiHintDot(ctx, STAGE_W / 2 + 104, y + 11, t);
+    if (dot || (id === 'settings' && !Save.data.settingsSeen)) uiHintDot(ctx, STAGE_W / 2 + 104, y + 11, t);
   });
+  drawMenuIcons(ctx);
   const best = Save.data.best > 0 ? formatTime(Save.data.best) : '-', L = Save.data.last;
   uiText(ctx, 'BEST ' + best + '    RUNS ' + Save.data.runs + (Save.data.wins ? '    WINS ' + Save.data.wins : '') + '    CORES ' + Save.data.souls, STAGE_W / 2, 316, { size: T.body, color: P.ice, align: 'center' });
   if (L) uiText(ctx, 'LAST RUN ' + formatTime(L.time) + '  -  ' + L.bosses + ' BOSSES  -  ' + L.kills + ' KILLS' + (L.infinite ? '  (INFINITE)' : ''), STAGE_W / 2, 329, { size: T.small, color: P.grey, align: 'center' });
-  uiText(ctx, 'W/S OR MOUSE = SELECT    SPACE OR CLICK = OK', STAGE_W / 2, 350, { size: T.small, color: P.grey, align: 'center' });
+  uiText(ctx, 'W/S OR MOUSE = SELECT    SPACE OR CLICK = OK    L / M / N / V / F = ICONS', STAGE_W / 2, 350, { size: T.small, color: P.grey, align: 'center' });
+}
+
+// ---- Kleine Symbole oben rechts im Hauptmenue: Konto, Musik, Sound, Effekte, Vollbild ----
+const MENU_ICON_ART = {
+  account: ['...XXX...', '..XXXXX..', '..XXXXX..', '...XXX...', '.XXXXXXX.', 'XXXXXXXXX', 'XXXXXXXXX', 'XXXXXXXXX'],
+  music: ['....XXXX', '....XXXX', '....X..X', '....X...', '....X...', '..XXX...', '.XXXX...', '.XXXX...', '..XX....'],
+  sfx: ['...X.....', '..XX...X.', 'XXXX....X', 'XXXX..X.X', 'XXXX..X.X', 'XXXX....X', '..XX...X.', '...X.....'],
+  fx: ['....X....', '....X....', '...XXX...', '..XXXXX..', 'XXXXXXXXX', '..XXXXX..', '...XXX...', '....X....', '....X....'],
+  fullscreen: ['XXX...XXX', 'X.......X', 'X.......X', '.........', '.........', '.........', 'X.......X', 'X.......X', 'XXX...XXX'],
+};
+function drawMenuIcons(ctx) {
+  const P = STYLE.pal, T = STYLE.type, t = G.realTime, m = Input.mouse, S = 26, GAP = 4;
+  const ids = ['account', 'music', 'sfx', 'fx', 'fullscreen'];
+  const pct = (v) => Math.round(v * 100) + '%';
+  const info = {
+    account: { name: Account.on ? 'ACCOUNT: ' + Account.meta.name.toUpperCase() : (Account.configured ? 'NOT LOGGED IN - CLICK TO LOG IN' : 'ACCOUNT (NOT SET UP)'), lvl: -1 },
+    music: { name: 'MUSIC ' + pct(Save.data.musicVol), lvl: Save.data.musicVol },
+    sfx: { name: 'SOUND FX ' + pct(Save.data.sfxVol), lvl: Save.data.sfxVol },
+    fx: { name: 'EFFECTS: ' + ['OFF', 'REDUCED', 'FULL'][Juice.level], lvl: Juice.level / 2 },
+    fullscreen: { name: 'FULLSCREEN: ' + (document.fullscreenElement ? 'ON' : 'OFF'), lvl: -1 },
+  };
+  const x0 = STAGE_W - 8 - ids.length * S - (ids.length - 1) * GAP, y = 8;
+  let tip = null;
+  ids.forEach((id, i) => {
+    const x = x0 + i * (S + GAP), hot = m.x >= x && m.x <= x + S && m.y >= y && m.y <= y + S + 6;
+    const off = (id === 'music' || id === 'sfx') && info[id].lvl <= 0.001 || (id === 'fx' && Juice.level === 0);
+    const col = id === 'account' ? (Account.on ? P.green : P.orange) : off ? P.greyMid : P.cyan;
+    UIHit.add(x, y, S, S + 6, () => {}, { act: () => G.menuQuick(id) });
+    uiPanel(ctx, x, y, S, S, { color: hot ? P.ice : col, fill: P.void, alpha: 0.9, glow: hot });
+    const art = MENU_ICON_ART[id], sc = 2, aw = art[0].length * sc, ah = art.length * sc, ax = x + Math.round((S - aw) / 2), ay = y + Math.round((S - ah) / 2);
+    ctx.save(); ctx.fillStyle = hot ? P.ice : col;
+    art.forEach((row, ry) => { for (let rx = 0; rx < row.length; rx++) if (row[rx] === 'X') ctx.fillRect(ax + rx * sc, ay + ry * sc, sc, sc); });
+    if (off) { ctx.fillStyle = P.red; for (let k = 3; k < S - 3; k++) ctx.fillRect(x + k, y + S - 1 - k, 3, 3); }             // durchgestrichen = aus
+    if (info[id].lvl >= 0) { const n = id === 'fx' ? 3 : 4, on = id === 'fx' ? Juice.level + 1 : Math.round(info[id].lvl * 3) + (info[id].lvl > 0.001 ? 1 : 0); for (let k = 0; k < n; k++) { ctx.fillStyle = k < on ? col : P.greyDark; ctx.fillRect(x + 3 + k * Math.floor((S - 6) / n), y + S + 2, Math.floor((S - 6) / n) - 2, 3); } }
+    if (id === 'account') {                                                         // Anzeige: gruener Punkt = angemeldet, roter blinkender Punkt = nicht angemeldet
+      const c = !Account.configured ? P.greyMid : Account.on ? P.green : P.red, blink = Account.on || !Account.configured ? 1 : 0.5 + 0.5 * Math.sin(t * 6) ** 2;
+      ctx.globalAlpha = 1; ctx.fillStyle = P.void; ctx.fillRect(x + S - 8, y - 5, 12, 12);
+      ctx.globalAlpha = blink; ctx.fillStyle = c; ctx.fillRect(x + S - 6, y - 3, 8, 8);
+    }
+    ctx.restore();
+    if (hot) tip = info[id].name;
+  });
+  if (tip) uiText(ctx, tip, STAGE_W - 8, y + S + 18, { size: T.small, color: P.ice, align: 'right' });
 }
 
 // Modus-Auswahl nach PLAY: Regular / Infinite / Tutorial, darunter eine Kurzbeschreibung des gewählten Modus
@@ -1285,15 +1330,11 @@ function drawSwapScreen(ctx) {
 }
 
 function drawSettingsScreen(ctx) {
-  const P = STYLE.pal, T = STYLE.type, page = G.settingsPage || 0, list = settingsList();
+  const P = STYLE.pal, T = STYLE.type;
   drawMenuBg(ctx, 'keysettings');
-  uiText(ctx, 'SETTINGS', STAGE_W / 2, 44, { size: T.h1, color: P.yellow, align: 'center' });
-  const vol = Save.data.musicVol, bars = Math.round(vol * 10), sv = Math.round(Save.data.sfxVol * 10);
+  uiText(ctx, 'SETTINGS', STAGE_W / 2, 40, { size: T.h1, color: P.yellow, align: 'center' });
+  uiText(ctx, 'SOUND, EFFECTS AND FULLSCREEN: ICONS IN THE MAIN MENU', STAGE_W / 2, 54, { size: T.small, color: P.greyMid, align: 'center' });
   const rows = {
-    music: 'MUSIC  ' + '|'.repeat(bars) + '.'.repeat(10 - bars) + '  ' + Math.round(vol * 100) + '%',
-    sfx: 'SOUND FX  ' + '|'.repeat(sv) + '.'.repeat(10 - sv) + '  ' + Math.round(Save.data.sfxVol * 100) + '%',
-    fx: 'EFFECTS  ' + ['OFF', 'REDUCED', 'FULL'][Juice.level],
-    fullscreen: 'FULLSCREEN: ' + (document.fullscreenElement ? 'ON' : 'OFF'),
     attackmode: 'ATTACK: ' + (Save.data.attackMode === 'toggle' ? 'TOGGLE' : 'HOLD'),
     mouseaim: 'MOUSE AIMING: ' + (Save.data.mouseAim ? 'ON' : 'OFF'),
     touch: 'TOUCH CONTROLS: ' + (Save.data.touch ? 'ON' : 'OFF'),
@@ -1305,31 +1346,29 @@ function drawSettingsScreen(ctx) {
     transfer: 'EXPORT / IMPORT SAVE',
     resetAll: G.resetConfirm ? 'SURE? DELETE SLOT ' + (Save.slot + 1) : 'RESET SAVE FILE (SLOT ' + (Save.slot + 1) + ')',
   };
-  // Seitenwahl: drei Reiter, A/D (oder Klick) wechselt
-  const tw = 128, tg = 6, tx0 = STAGE_W / 2 - (3 * tw + 2 * tg) / 2, tabSel = G.settingsSel === 0;
-  SETTINGS_PAGES.forEach((pg, i) => {
-    const x = tx0 + i * (tw + tg), on = i === page;
-    UIHit.add(x, 56, tw, 22, () => { G.settingsPage = i; G.settingsSel = 0; G.resetConfirm = false; }, { noConfirm: true });
-    uiPanel(ctx, x, 56, tw, 22, { color: on ? (tabSel ? P.cyan : P.yellow) : P.greyMid, fill: on ? P.voidLight : P.void, alpha: 0.92, glow: on && tabSel });
-    uiText(ctx, pg.label, x + tw / 2, 71, { size: T.body, color: on ? P.ice : P.grey, align: 'center' });
+  const colW = 300, gap = 20, ROW = 28;
+  let idx = 0;
+  SETTINGS_COLS.forEach((col, ci) => {
+    const cx = STAGE_W / 2 + (ci === 0 ? -1 : 1) * (colW / 2 + gap / 2), accent = ci === 0 ? P.cyan : P.orange;
+    uiText(ctx, col.label, cx, 76, { size: T.h2, color: accent, align: 'center' });
+    col.items.forEach((id, k) => {
+      const i = idx++, y = 84 + k * ROW;
+      drawMenuRow(ctx, y, rows[id], G.settingsSel === i, { w: colW, h: 24, cx, hit: () => { G.settingsSel = i; }, lr: id === 'slot' });
+      if (id === 'account' && Account.configured && !Account.on) uiHintDot(ctx, cx + colW / 2 - 12, y + 12, G.realTime);
+    });
   });
-  uiText(ctx, 'A/D', tx0 - 8, 71, { size: T.small, color: tabSel ? P.cyan : P.greyMid, align: 'right' });
-  list.slice(1).forEach((id, k) => {
-    const i = k + 1, y = 96 + k * 30;
-    drawMenuRow(ctx, y, rows[id], G.settingsSel === i, { w: 300, h: 24, hit: () => { G.settingsSel = i; }, lr: id === 'music' || id === 'sfx' || id === 'slot' });
-  });
-  if (list.includes('slot')) {                                                    // die drei Spielstaende als Karten (Klick wechselt den Slot)
-    const cw = 150, cg = 6, cx0 = STAGE_W / 2 - (3 * cw + 2 * cg) / 2;
-    for (let i = 0; i < Save.SLOTS; i++) {
-      const x = cx0 + i * (cw + cg), y = 284, on = i === Save.slot, I = Save.slotInfo(i);
-      UIHit.add(x, y, cw, 38, () => { Save.switchSlot(i); G.resetConfirm = false; }, { noConfirm: true });
-      uiPanel(ctx, x, y, cw, 38, { color: on ? P.yellow : P.greyMid, fill: on ? P.voidLight : P.void, alpha: 0.92, glow: on });
-      uiText(ctx, 'SLOT ' + (i + 1) + (on ? '  - ACTIVE' : ''), x + 8, y + 13, { size: T.small, color: on ? P.yellow : P.grey });
-      uiText(ctx, I ? 'BEST ' + (I.best > 0 ? formatTime(I.best) : '-') + '   RUNS ' + I.runs : 'EMPTY', x + 8, y + 25, { size: T.small, color: I ? P.ice : P.greyMid });
-      if (I) uiText(ctx, 'CORES ' + I.souls + (I.wins ? '   WINS ' + I.wins : ''), x + 8, y + 35, { size: T.small, color: P.yellow });
-    }
+  const backI = idx;
+  const cw = 150, cg = 6, cx0 = STAGE_W / 2 - (3 * cw + 2 * cg) / 2;                  // die drei Spielstaende als Karten (Klick wechselt den Slot)
+  for (let i = 0; i < Save.SLOTS; i++) {
+    const x = cx0 + i * (cw + cg), y = 240, on = i === Save.slot, I = Save.slotInfo(i);
+    UIHit.add(x, y, cw, 38, () => { Save.switchSlot(i); G.resetConfirm = false; }, { noConfirm: true });
+    uiPanel(ctx, x, y, cw, 38, { color: on ? P.yellow : P.greyMid, fill: on ? P.voidLight : P.void, alpha: 0.92, glow: on });
+    uiText(ctx, 'SLOT ' + (i + 1) + (on ? '  - ACTIVE' : ''), x + 8, y + 13, { size: T.small, color: on ? P.yellow : P.grey });
+    uiText(ctx, I ? 'BEST ' + (I.best > 0 ? formatTime(I.best) : '-') + '   RUNS ' + I.runs : 'EMPTY', x + 8, y + 25, { size: T.small, color: I ? P.ice : P.greyMid });
+    if (I) uiText(ctx, 'CORES ' + I.souls + (I.wins ? '   WINS ' + I.wins : ''), x + 8, y + 35, { size: T.small, color: P.yellow });
   }
-  uiText(ctx, 'W/S = SELECT    A/D = CHANGE / PAGE    SPACE = OK    X / ESC = BACK', STAGE_W / 2, 352, { size: T.small, color: P.grey, align: 'center' });
+  drawMenuRow(ctx, 292, rows.back, G.settingsSel === backI, { w: 190, h: 22, hit: () => { G.settingsSel = backI; } });
+  uiText(ctx, 'W/S = SELECT    A/D = CHANGE    SPACE = OK    X / ESC = BACK', STAGE_W / 2, 352, { size: T.small, color: P.grey, align: 'center' });
 }
 
 // Controls panel: explains every action in general terms and always shows the CURRENT keys (they can be rebound in Settings > Keybinds)

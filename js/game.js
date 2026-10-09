@@ -110,12 +110,12 @@ function upgradeRows(tab) {
   }
   return rows;
 }
-const SETTINGS_PAGES = [                      // Einstellungen in Seiten; Zeile 0 jeder Seite ist die Seitenwahl ('tabs', A/D wechselt), unten immer 'back'
-  { label: 'SOUND & VIDEO', items: ['music', 'sfx', 'fx', 'fullscreen'] },
-  { label: 'GAME', items: ['mouseaim', 'attackmode', 'touch', 'slot', 'controls', 'binds'] },
-  { label: 'DATA', items: ['account', 'transfer', 'resetAll'] },
+// Einstellungen: zwei Spalten nebeneinander, kein Scrollen. Sound/Video sind kleine Symbole im Hauptmenue (G.menuQuick). W/S geht die Spalten der Reihe nach durch, unten immer 'back'.
+const SETTINGS_COLS = [
+  { label: 'CONTROLS', items: ['controls', 'binds', 'attackmode', 'mouseaim', 'touch'] },
+  { label: 'SAVE & ACCOUNT', items: ['slot', 'account', 'transfer', 'resetAll'] },
 ];
-const settingsList = () => ['tabs'].concat(SETTINGS_PAGES[G.settingsPage || 0].items, ['back']);
+const settingsList = () => [].concat(...SETTINGS_COLS.map((c) => c.items), ['back']);
 const PAUSE_ITEMS = ['resume', 'abilities', 'music', 'sfx', 'binds', 'quit'];
 // Eingebettet auf Holiday Games im Vollbild: zusaetzlich EXIT FULLSCREEN (die Seite blendet dort ihren eigenen Knopf auf Touch-Geraeten aus)
 const pauseItems = () => (G.hostFullscreen ? ['resume', 'abilities', 'music', 'sfx', 'binds', 'exitfs', 'quit'] : PAUSE_ITEMS);
@@ -201,7 +201,6 @@ const G = {
   kills: 0,               // in diesem Lauf besiegte Gegner
   newMilestones: [],      // im letzten Lauf neu erreichte Meilensteine
   earned: 0,              // Seelen, die der letzte Lauf gebracht hat
-  settingsPage: 0,        // aktuelle Seite der Einstellungen (SETTINGS_PAGES)
   settingsSel: 0,         // gewählte Zeile in den Einstellungen
   newBest: false,         // aktueller Tod war eine neue Bestzeit
   god: false,             // unsterblich (nur noch für Tests/Smoke-Test, keine Taste mehr)
@@ -338,9 +337,20 @@ const G = {
     this.mode = 'pick';
   },
 
+  // Kleine Symbole im Hauptmenue (frueher Settings > Sound & Video, dazu das Konto): Klick oder Taste schaltet weiter
+  menuQuick(id) {
+    const STEPS = [0, 0.3, 0.6, 1], next = (v) => { const q = STEPS.find((x) => x > v + 0.01); return q === undefined ? 0 : q; };
+    if (id === 'music') { setMusicVolume(next(Save.data.musicVol)); Save.write(); }
+    else if (id === 'sfx') { Sfx.setVolume(next(Save.data.sfxVol)); Save.write(); Sfx.play('select'); }
+    else if (id === 'fx') { Save.data.fx = (Juice.level + 1) % 3; Save.write(); }
+    else if (id === 'fullscreen') { try { if (document.fullscreenElement) document.exitFullscreen(); else (Save.data.touch ? document.documentElement : canvas).requestFullscreen(); } catch (err) { /* Browser verbietet Vollbild */ } }
+    else if (id === 'account') Account.open();
+  },
+
   // Hauptmenü: W/S oder Pfeile wählen, Leertaste/Enter bestätigt
   updateMenu() {
     const items = menuItems(), n = items.length;
+    for (const [key, id] of [['KeyM', 'music'], ['KeyN', 'sfx'], ['KeyV', 'fx'], ['KeyF', 'fullscreen'], ['KeyL', 'account']]) if (Input.pressed(key)) this.menuQuick(id);
     if (this.menuSel >= n) this.menuSel = 0;
     if (Input.pressed('ArrowUp') || Input.pressed('KeyW')) this.menuSel = (this.menuSel + n - 1) % n;
     if (Input.pressed('ArrowDown') || Input.pressed('KeyS')) this.menuSel = (this.menuSel + 1) % n;
@@ -351,7 +361,7 @@ const G = {
     else if (item === 'cosmetics') { this.mode = 'cosmetics'; this.cosTab = 0; this.cosSel = Math.max(0, Cos.items('skin').findIndex((q) => q.id === Save.cosEquipped('skin'))); }
     else if (item === 'upgrades') { Save.data.upgradesSeen = true; Save.write(); this.mode = 'upgrades'; this.upgradeSel = 0; this.upgradeTab = 0; }
     else if (item === 'achievements') { this.mode = 'achievements'; Ach.open(); }
-    else if (item === 'settings') { this.mode = 'settings'; this.settingsSel = 0; this.settingsPage = 0; }
+    else if (item === 'settings') { Save.data.settingsSeen = true; Save.write(); this.mode = 'settings'; this.settingsSel = 0; }
     else if (item === 'stats') { this.mode = 'stats'; StatsScreen.open(); }
   },
 
@@ -564,12 +574,7 @@ const G = {
     const item = settingsList()[this.settingsSel];
     const dir = (Input.pressed('ArrowRight') || Input.pressed('KeyD') ? 1 : 0) - (Input.pressed('ArrowLeft') || Input.pressed('KeyA') ? 1 : 0);
     const ok = Input.pressed('Space') || Input.pressed('Enter');
-    if (item === 'tabs' && (dir || ok)) { this.settingsPage = (this.settingsPage + (dir || 1) + SETTINGS_PAGES.length) % SETTINGS_PAGES.length; this.resetConfirm = false; }
-    else if (item === 'music' && dir) { setMusicVolume(Math.round((Save.data.musicVol + dir * 0.1) * 10) / 10); Save.write(); }
-    else if (item === 'sfx' && dir) { Sfx.setVolume(Math.round((Save.data.sfxVol + dir * 0.1) * 10) / 10); Save.write(); Sfx.play('select'); }
-    else if (item === 'fx' && (dir || ok)) { Save.data.fx = (Juice.level + (dir || 1) + 3) % 3; Save.write(); }       // OFF / REDUCED / FULL
-    else if (item === 'fullscreen' && (ok || dir)) { try { if (document.fullscreenElement) document.exitFullscreen(); else (Save.data.touch ? document.documentElement : canvas).requestFullscreen(); } catch (e) { /* Browser verbietet Vollbild */ } }
-    else if (item === 'mouseaim' && (dir || ok)) { Save.data.mouseAim = !Save.data.mouseAim; Save.write(); Sfx.play('select'); }
+    if (item === 'mouseaim' && (dir || ok)) { Save.data.mouseAim = !Save.data.mouseAim; Save.write(); Sfx.play('select'); }
     else if (item === 'attackmode' && (dir || ok)) { Save.data.attackMode = Save.data.attackMode === 'toggle' ? 'hold' : 'toggle'; Save.write(); Sfx.play('select'); }
     else if (item === 'touch' && (dir || ok)) { Save.data.touch = !Save.data.touch; Save.write(); Sfx.play('select'); }
     else if (item === 'slot' && (dir || ok)) Save.switchSlot((Save.slot + (dir || 1) + Save.SLOTS) % Save.SLOTS);
