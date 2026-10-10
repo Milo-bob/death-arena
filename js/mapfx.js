@@ -8,7 +8,7 @@ const MapFx = {
   parts: [], t: 0, boss: 0, pre: 0, acc: 0, pingT: 0, pings: [], edgeAcc: 0,
 
   reset() { this.parts = []; this.t = 0; this.boss = 0; this.pre = 0; this.acc = 0; this.pingT = 1.5; this.pings = []; this.edgeAcc = 0; },
-  get kind() { return (G.map && G.map.fx && G.map.fx.kind) || null; },
+  get kind() { return G.pvp ? null : (G.map && G.map.fx && G.map.fx.kind) || null; },       // PvP-Arena hat eigene Optik: kein Gitter, keine Partikel
   get level() { return Juice.scale; },                                // 0 aus, 0.5 reduziert, 1 voll
 
   // Naht ein Boss (letzte 12 s vor dem Zeitplan oder dem finalen Boss)?

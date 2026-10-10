@@ -7,7 +7,7 @@ const PvpArena = {
   cv: null, S: 0, torches: [],
 
   build() {
-    const R = CFG.pvp.radius, S = (R + 100) * 2, c = S / 2;
+    const R = CFG.pvp.radius, S = (R + 100) * 2, c = S / 2, K = (R / 180) ** 2;       // K: gleiche Koernung bei groesserer Arena
     this.S = S; this.torches = [];
     let cv;
     try { cv = document.createElement('canvas'); } catch (e) { return; }
@@ -29,7 +29,7 @@ const PvpArena = {
     // Zuschauerränge: sechs Stufen, jede etwas heller als die aeussere
     const seats = ['#14070c', '#1b0a10', '#150709', '#220b13', '#190810', '#2a0e17'];
     seats.forEach((col, i) => { x.fillStyle = col; pxDisc(x, c, c, R + 98 - i * 13); });
-    speck(R + 34, R + 98, ['rgba(255,90,100,0.10)', 'rgba(0,0,0,0.22)', 'rgba(255,150,80,0.07)'], 5200);
+    speck(R + 34, R + 98, ['rgba(255,90,100,0.10)', 'rgba(0,0,0,0.22)', 'rgba(255,150,80,0.07)'], Math.round(5200 * K));
     x.fillStyle = '#07020a';                                                 // Gaenge (Treppen) zwischen den Tribuenen
     for (let k = 0; k < 16; k++) { const a = (k / 16) * 6.2832 + 0.1, [x0, y0] = polar(R + 36, a), [x1, y1] = polar(R + 98, a); pxLine(x, x0, y0, x1, y1, 3); }
     x.fillStyle = 'rgba(255,90,60,0.35)';                                    // Stufenkanten als gestrichelte Neonringe
@@ -60,7 +60,7 @@ const PvpArena = {
 
     // Sandboden
     x.fillStyle = '#3d121a'; pxDisc(x, c, c, R);
-    speck(0, R - 3, ['#47161f', '#34101a', '#521b24', '#2c0d15', '#3a1018'], 7000);
+    speck(0, R - 3, ['#47161f', '#34101a', '#521b24', '#2c0d15', '#3a1018'], Math.round(7000 * K));
     x.fillStyle = '#2a0c13'; pxRing(x, c, c, R - 4, 2);                      // dunklerer Rand am Wandfuss
     // futuristisches Raster: Ringe und Speichen
     x.fillStyle = 'rgba(255,100,60,0.30)';

@@ -866,7 +866,7 @@ class Player {
   }
 
   updateAfk(dt) {
-    if (SafeSpot.inside || this.anyMoveKey()) { this.afk = 0; this.afkTick = 0; return; }
+    if (G.pvp || SafeSpot.inside || this.anyMoveKey()) { this.afk = 0; this.afkTick = 0; return; }       // PvP: kein AFK-Schaden
     this.afk += dt;
     if (this.afk > CFG.player.afkSeconds) {
       this.afkTick -= dt;
