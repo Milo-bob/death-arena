@@ -66,10 +66,8 @@ const Board = {
   key() { return Save.data.dev === true && typeof Save.data.devKey === 'string' && Save.data.devKey.length >= 16 ? Save.data.devKey : null; },
   async loadAdmin() {
     const k = this.key();
-    this.adminErr = '';
     if (!k || !Account.configured) { this.admin = false; return; }
     const r = await Account.http('POST', '/rest/v1/rpc/lb_is_admin', { p_key: k }, null);
-    this.adminErr = r.ok ? 'KEY NOT KNOWN TO THE SERVER' : r.offline ? 'NO CONNECTION' : 'RUN THE LEADERBOARD SQL FIRST';
     const was = this.admin;
     this.admin = !!(r.ok && r.json === true);
     if (this.admin && !was) { this.pages = {}; this.load(this.cur().id, true); }          // erste Liste war ohne Schluessel geladen: jetzt mit Spieler-IDs fuer BAN
@@ -128,10 +126,6 @@ const Board = {
     drawMenuBg(ctx, 'keysettings');
     drawEmbers(ctx);
     uiText(ctx, 'LEADERBOARD', 24, 40, { size: T.h1, color: P.yellow, glow: P.yellow });
-    if (Save.data.dev === true) {                                                        // Diagnose fuer den Dev-Slot: ist der Schluessel da und kennt ihn der Server?
-      const k = this.key(), t = this.admin ? 'MODERATOR' : !k ? 'NO MODERATOR KEY IN THIS SLOT' : this.adminErr || 'CHECKING KEY...';
-      uiText(ctx, t, STAGE_W - 24, 40, { size: T.small, color: this.admin ? P.green : P.orange, align: 'right' });
-    }
     // Listenauswahl: < NAME >
     UIHit.add(cx - 200, 52, 40, 24, () => {}, { act: () => this.step(-1) });
     UIHit.add(cx + 160, 52, 40, 24, () => {}, { act: () => this.step(1) });
