@@ -8,7 +8,7 @@ const PvpArena = {
 
   build() {
     const R = CFG.pvp.radius, S = (R + 100) * 2, c = S / 2, K = (R / 180) ** 2;       // K: gleiche Koernung bei groesserer Arena
-    this.S = S; this.torches = [];
+    this.S = S; this.R = R; this.torches = [];
     let cv;
     try { cv = document.createElement('canvas'); } catch (e) { return; }
     cv.width = cv.height = S;
@@ -78,7 +78,7 @@ const PvpArena = {
 
   // Boden unter allem (wird von drawGround in game.js statt der Kachelkarte gerufen). ctx steht noch auf Bildschirmkoordinaten, Kamera = G.cam.
   drawGround(ctx) {
-    if (!this.cv) this.build();
+    if (!this.cv || this.R !== CFG.pvp.radius) this.build();
     const P = STYLE.pal, c = G.cam, [mx, my] = Juice.margin;
     ctx.fillStyle = '#07020a'; ctx.fillRect(-mx, -my, STAGE_W + 2 * mx, STAGE_H + 2 * my);
     if (!this.cv) return;

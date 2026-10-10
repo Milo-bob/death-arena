@@ -1725,7 +1725,7 @@ function drawPickScreen(ctx) {
     drawIcon(ctx, A.icon, x + w / 2, yy + 36, A.iconW * 2.2, 1);
     uiText(ctx, A.name, x + w / 2, yy + 80, { size: T.h2, color: sel ? P.ice : P.grey, align: 'center' });
     // Beschreibung grob umbrechen
-    const words = A.desc.split(' '); let line = '', ly = yy + 100;
+    const words = I18n.t(A.desc).split(' '); let line = '', ly = yy + 100;
     for (const wd of words) {
       if ((line + ' ' + wd).length > 20 && line) { uiText(ctx, line, x + w / 2, ly, { size: T.small, color: P.grey, align: 'center' }); line = wd; ly += 11; }
       else line = line ? line + ' ' + wd : wd;

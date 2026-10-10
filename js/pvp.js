@@ -40,12 +40,14 @@ const Pvp = {
   roundStart(info) {
     if (info && info.order && this.ch && !info.order.includes(this.ch.id)) { this.say('A ROUND IS RUNNING - YOU JOIN THE NEXT ONE', STYLE.pal.orange); return; }        // spaet beigetreten
     this.st = 'lobby';
+    // Der Host bestimmt die Arena-Groesse: ein Geraet mit aelterem Spielstand (App noch nicht aktualisiert) soll sonst keine andere Arena haben
+    if (info && !this.isHost && Number.isFinite(info.radius) && info.radius >= 100 && info.radius <= 1000) CFG.pvp.radius = info.radius;
     if (PvpMatch.begin(info)) Sfx.play('levelUp'); else this.say('CONNECTION FAILED', STYLE.pal.red);
   },
   startRound() {
     if (!this.isHost || !this.ch) return;
     if (this.players.length < 2) { this.say('YOU NEED AT LEAST 2 PLAYERS', STYLE.pal.orange); Sfx.play('deny'); return; }
-    const info = { mode: this.mode, order: this.players.slice(0, Net.MAX_PLAYERS).map((p) => p.id) };
+    const info = { mode: this.mode, order: this.players.slice(0, Net.MAX_PLAYERS).map((p) => p.id), radius: CFG.pvp.radius };
     this.ch.send('start', info); this.roundStart(info);
   },
   // Modus: der Host waehlt (jeder gegen jeden / Teams), alle sehen ihn ueber die Anwesenheit des Hosts
@@ -161,14 +163,29 @@ const Pvp = {
     } else if (this.st === 'join') {
       uiText(ctx, 'ENTER THE LOBBY CODE', cx, 96, { size: T.h2, color: P.ice, align: 'center' });
       const bw = 36, gap = 8, x0 = cx - (Net.CODE_LEN * bw + (Net.CODE_LEN - 1) * gap) / 2;
-      UIHit.add(x0, 108, Net.CODE_LEN * (bw + gap), 44, () => { this.sel = 0; });
       for (let i = 0; i < Net.CODE_LEN; i++) {
         const x = x0 + i * (bw + gap), cur = i === this.input.length;
-        uiPanel(ctx, x, 108, bw, 44, { color: cur && Math.floor(G.realTime * 2) % 2 ? P.yellow : this.sel === 0 ? P.cyan : P.greyMid, fill: P.void, alpha: 0.95 });
-        if (this.input[i]) uiText(ctx, this.input[i], x + bw / 2, 140, { size: T.h1, color: P.ice, align: 'center' });
+        uiPanel(ctx, x, 106, bw, 38, { color: cur && Math.floor(G.realTime * 2) % 2 ? P.yellow : P.cyan, fill: P.void, alpha: 0.95 });
+        if (this.input[i]) uiText(ctx, this.input[i], x + bw / 2, 134, { size: T.h1, color: P.ice, align: 'center' });
       }
-      uiText(ctx, 'TYPE THE CODE (CTRL+V PASTES)', cx, 170, { size: T.small, color: P.grey, align: 'center' });
-      ['JOIN', 'BACK'].forEach((l, i) => drawMenuRow(ctx, 190 + i * 44, l, this.sel === i + 1 || (i === 0 && this.sel === 0), { w: 220, h: 34, cx, hit: () => { this.sel = i + 1; } }));
+      uiText(ctx, 'TAP THE LETTERS BELOW (OR TYPE, CTRL+V PASTES)', cx, 158, { size: T.small, color: P.grey, align: 'center' });
+      // Bildschirmtastatur (fuer Handy/Tablet ohne Tastatur): 8 Tasten pro Reihe, nur die erlaubten Code-Zeichen
+      const chars = Net.CODE_CHARS.split(''), cols = 8, kw = 34, kh = 22, kg = 4, kx0 = cx - (cols * kw + (cols - 1) * kg) / 2, m = Input.mouse;
+      chars.forEach((ch, i) => {
+        const x = kx0 + (i % cols) * (kw + kg), y = 166 + Math.floor(i / cols) * (kh + kg), hot = m.x >= x && m.x <= x + kw && m.y >= y && m.y <= y + kh;
+        UIHit.add(x, y, kw, kh, () => {}, { act: () => { if (this.input.length < Net.CODE_LEN) { this.input += ch; Sfx.play('tick'); } } });
+        uiPanel(ctx, x, y, kw, kh, { color: hot ? P.ice : P.cyan, fill: hot ? P.greyMid : P.void, alpha: 0.95 });
+        uiText(ctx, ch, x + kw / 2, y + 16, { size: T.h2, color: hot ? P.ice : P.cyan, align: 'center' });
+      });
+      const by = 166 + 4 * (kh + kg) + 6, bw2 = 100, bg = 10, bx0 = cx - (3 * bw2 + 2 * bg) / 2;
+      [['DEL', () => { this.input = this.input.slice(0, -1); Sfx.play('tick'); }, P.orange],
+        ['JOIN', () => { if (this.input.length === Net.CODE_LEN) this.connect(this.input, false); else { this.say('A CODE HAS ' + Net.CODE_LEN + ' CHARACTERS', P.orange); Sfx.play('deny'); } }, P.green || P.cyan],
+        ['BACK', () => { this.st = 'menu'; this.sel = 1; }, P.red]].forEach(([l, fn, col], i) => {
+        const x = bx0 + i * (bw2 + bg), hot = m.x >= x && m.x <= x + bw2 && m.y >= by && m.y <= by + 30;
+        UIHit.add(x, by, bw2, 30, () => {}, { act: fn });
+        uiPanel(ctx, x, by, bw2, 30, { color: hot ? P.ice : col, fill: hot ? P.greyMid : P.void, alpha: 0.95, glow: hot });
+        uiText(ctx, l, x + bw2 / 2, by + 21, { size: T.h2, color: hot ? P.ice : col, align: 'center' });
+      });
     } else if (this.st === 'loadout') {
       this.drawLoadout(ctx);
     } else {
@@ -231,7 +248,7 @@ const Pvp = {
 
 if (typeof I18n !== 'undefined' && I18n.add) I18n.add({
   'PVP ARENA': 'PVP-ARENA', 'CREATE LOBBY': 'LOBBY ERSTELLEN', 'JOIN LOBBY': 'LOBBY BEITRETEN', 'JOIN': 'BEITRETEN', 'LEAVE LOBBY': 'LOBBY VERLASSEN', 'COPY CODE': 'CODE KOPIEREN', 'COPIED!': 'KOPIERT!',
-  'LOBBY CODE': 'LOBBY-CODE', 'ENTER THE LOBBY CODE': 'LOBBY-CODE EINGEBEN', 'TYPE THE CODE (CTRL+V PASTES)': 'CODE TIPPEN (STRG+V FÜGT EIN)',
+  'LOBBY CODE': 'LOBBY-CODE', 'ENTER THE LOBBY CODE': 'LOBBY-CODE EINGEBEN', 'TYPE THE CODE (CTRL+V PASTES)': 'CODE TIPPEN (STRG+V FÜGT EIN)', 'TAP THE LETTERS BELOW (OR TYPE, CTRL+V PASTES)': 'BUCHSTABEN UNTEN ANTIPPEN (ODER TIPPEN, STRG+V FÜGT EIN)', 'DEL': 'LÖSCHEN',
   'CONNECTING...': 'VERBINDE...', 'JOINING...': 'TRETE BEI...', 'HOST': 'HOST', '(YOU)': '(DU)', 'CONNECTION FAILED': 'VERBINDUNG FEHLGESCHLAGEN',
   'THE HOST CLOSED THE LOBBY': 'DER HOST HAT DIE LOBBY GESCHLOSSEN', 'THE LOBBY IS FULL': 'DIE LOBBY IST VOLL', 'NO LOBBY WITH THIS CODE': 'KEINE LOBBY MIT DIESEM CODE',
   'NO CONNECTION POSSIBLE ON THIS DEVICE': 'AUF DIESEM GERÄT IST KEINE VERBINDUNG MÖGLICH',
