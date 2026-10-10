@@ -85,7 +85,7 @@ const Stats = {
   bossEnd(result) {
     const f = this.fight; this.fight = null;
     if (!f || !this.logging()) return;
-    this.push(Save.data.bossLog, Object.assign({ i: this.newId(), ty: f.ty, at: f.at, d: Math.round(G.bossTimer * 10) / 10, r: result, dm: Math.round(this.taken - f.dmg0), n: G.bossCount, map: G.map.id, inf: !!G.infinite }, this.devRun() ? { dv: true } : {}, this.loadout()), this.CAP.bosses);
+    this.push(Save.data.bossLog, Object.assign({ i: this.newId(), ty: f.ty, at: f.at, d: Math.round(G.bossTimer * 10) / 10, r: result, dm: Math.round(this.taken - f.dmg0), n: G.bossCount, map: G.map.id, inf: !!G.infinite, sl: Save.slot }, this.devRun() ? { dv: true } : {}, this.loadout()), this.CAP.bosses);
   },
 
   // Lauf zu Ende (Tod, Aufgeben oder Sieg). Gibt die Zusammenfassung zurueck und merkt sie fuer den Todesbildschirm.
@@ -95,7 +95,7 @@ const Stats = {
     const fy = this.fight ? this.fight.ty : null;
     this.bossEnd(win ? 'win' : 'died');
     if (this.logging()) {
-      const e = { i: this.newId(), t: Math.round(time), b: bosses, by: killer, map: mapId, inf: !!infinite, k: G.kills, dm: Math.round(this.taken), h: this.hitCount, lv: Xp.level, win: !!win };
+      const e = { i: this.newId(), t: Math.round(time), b: bosses, by: killer, map: mapId, inf: !!infinite, k: G.kills, dm: Math.round(this.taken), h: this.hitCount, lv: Xp.level, win: !!win, sl: Save.slot };
       if (fy) e.fy = fy;
       if (this.devRun()) e.dv = true;
       this.push(Save.data.deathLog, Object.assign(e, this.loadout()), this.CAP.deaths);

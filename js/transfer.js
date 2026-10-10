@@ -35,7 +35,7 @@ const SaveTransfer = {
     box.appendChild(mk('div', 'color:' + P.yellow + ';font-size:22px;margin-bottom:6px;', 'SAVE TRANSFER  (SLOT ' + (Save.slot + 1) + ')'));
     box.appendChild(mk('div', 'color:' + P.grey + ';font-size:13px;line-height:1.4;margin-bottom:8px;',
       'EXPORT: copy the code or download the file, then import it on another device. IMPORT: paste a code (or load a file) and press IMPORT. ' +
-      'Importing REPLACES slot ' + (Save.slot + 1) + ', but achievements are merged: nothing you unlocked here or in the code is lost. The code includes everything of the slot: progress, settings, keybinds and dev mode (but not the anonymous play-data log below).'));
+      'Importing REPLACES slot ' + (Save.slot + 1) + ', but achievements are merged: nothing you unlocked here or in the code is lost. The code includes everything of the slot: progress, settings, keybinds and dev mode.'));
     const ta = mk('textarea', 'width:100%;height:110px;box-sizing:border-box;resize:vertical;background:' + P.ink + ';color:' + P.ice + ';border:2px solid ' + P.cyanDark + ';padding:6px;font:12px monospace;');
     ta.value = Save.exportCode(); ta.spellcheck = false;
     box.appendChild(ta);
@@ -74,44 +74,6 @@ const SaveTransfer = {
     [bCopy, bDown, F1.wrap, bImp, bClose].forEach((b) => row.appendChild(b));
     box.appendChild(msg); box.appendChild(row);
 
-    // Spieldaten (anonymes Protokoll fuers Balancing, siehe runstats.js): jeder kann sein Protokoll als Code weitergeben,
-    // im Dev-Modus fuehrt MERGE die Codes anderer Spieler mit dem eigenen Protokoll zusammen (Statistik-Bildschirm).
-    const dev = !!Save.data.dev;
-    box.appendChild(mk('div', 'color:' + P.yellow + ';font-size:18px;margin:14px 0 4px;', 'PLAY DATA (ANONYMOUS)'));
-    box.appendChild(mk('div', 'color:' + P.grey + ';font-size:13px;line-height:1.4;margin-bottom:6px;',
-      'Your run log: how long you survived, what killed you, which boss fights you won, which gear you used. No names and no save content. ' +
-      (dev ? 'Paste codes from other players and press MERGE to add them to your statistics.' : 'Send the code to the developer to help balance the game.')));
-    const ta2 = mk('textarea', 'width:100%;height:70px;box-sizing:border-box;resize:vertical;background:' + P.ink + ';color:' + P.ice + ';border:2px solid ' + P.cyanDark + ';padding:6px;font:12px monospace;');
-    ta2.value = Stats.exportData(); ta2.spellcheck = false;
-    box.appendChild(ta2);
-    const msg2 = mk('div', 'min-height:20px;margin:6px 2px;font-size:14px;color:' + P.grey + ';');
-    const say2 = (t, color) => { msg2.textContent = I18n.t(t); msg2.style.color = color || P.grey; };
-    const row2 = mk('div', 'display:flex;flex-wrap:wrap;');
-    const bCopy2 = btn('COPY DATA', P.cyan), bDown2 = btn('DOWNLOAD DATA', P.cyan);
-    bCopy2.onclick = () => {
-      ta2.value = Stats.exportData(); ta2.focus(); ta2.select();
-      try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(ta2.value).then(() => say2('DATA COPIED', P.teal), () => { document.execCommand('copy'); say2('DATA COPIED', P.teal); }); else { document.execCommand('copy'); say2('DATA COPIED', P.teal); } }
-      catch (e) { say2('SELECT THE TEXT AND COPY IT BY HAND', P.yellow); }
-    };
-    bDown2.onclick = () => {
-      try {
-        const blob = new Blob([Stats.exportData()], { type: 'text/plain' }), a = mk('a'), d = new Date();
-        a.href = URL.createObjectURL(blob); a.download = 'deatharena-playdata-' + d.toISOString().slice(0, 10) + '.txt';
-        document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-        say2('FILE SAVED (CHECK YOUR DOWNLOADS)', P.teal);
-      } catch (e) { say2('DOWNLOAD BLOCKED - USE COPY DATA', P.yellow); }
-    };
-    row2.appendChild(bCopy2); row2.appendChild(bDown2);
-    if (dev) {
-      const bMerge = btn('MERGE', P.orange), F2 = fileBtn('LOAD FILE...', P.yellow, say2, (text) => { ta2.value = text; say2('FILE LOADED - PRESS MERGE', P.teal); });
-      bMerge.onclick = () => {
-        const res = Stats.mergeData(ta2.value);
-        if (res.ok) { say2('MERGED: ' + res.deaths + ' RUNS, ' + res.bosses + ' BOSS FIGHTS ADDED', P.teal); ta2.value = Stats.exportData(); }
-        else say2(res.error, P.red);
-      };
-      row2.appendChild(F2.wrap); row2.appendChild(bMerge);
-    }
-    box.appendChild(msg2); box.appendChild(row2);
     root.appendChild(box);
     // Tasten im Dialog gehören dem Dialog, nicht dem Spiel (sonst steuert Tippen im Textfeld die Menüs)
     root.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Escape') this.close(); });

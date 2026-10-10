@@ -55,7 +55,7 @@ const Account = {
   setSession(j, name) {
     const prev = this.meta;
     this.meta = { name: name || (prev && prev.name) || '', uid: j.user.id, tok: j.access_token, ref: j.refresh_token, exp: Date.now() + (j.expires_in || 3600) * 1000,
-      base: prev && prev.name === name ? prev.base || {} : {} };
+      base: prev && prev.name === name ? prev.base || {} : {}, sent: prev && prev.name === name ? prev.sent || [] : [] };
     this.saveMeta();
   },
   async auth(kind, name, pw) {
@@ -115,6 +115,40 @@ const Account = {
     return { ok: true };
   },
 
+  // ---- Lauf-Protokolle hochladen (fuer die Admin-Statistik ueber alle Spielstaende) und Admin-Geschenke abholen ----
+  // Protokoll-Eintraege (Save.data.deathLog/bossLog, ohne Cheat-Laeufe) gehen einmal hoch; meta.sent merkt sich die schon gesendeten IDs.
+  async uploadLogs() {
+    if (typeof Stats === 'undefined' || !this.on) return;
+    const sent = new Set(this.meta.sent || []), rows = [], ids = [];
+    for (const [kind, key] of [['death', 'deaths'], ['boss', 'bosses']]) {
+      for (const e of Stats.slotLogs(key)) {
+        if (!e || !e.i || e.dv || sent.has(e.i)) continue;
+        rows.push({ user_id: this.meta.uid, id: String(e.i), kind, slot: typeof e.sl === 'number' ? e.sl : null, data: e }); ids.push(String(e.i));
+      }
+    }
+    for (let i = 0; i < rows.length; i += 150) {
+      const r = await this.rest('POST', '/rest/v1/play_logs?on_conflict=user_id,id', rows.slice(i, i + 150), { Prefer: 'resolution=ignore-duplicates,return=minimal' });
+      if (!r.ok) return;                                    // Tabelle fehlt, offline ...: beim naechsten Abgleich nochmal
+      this.meta.sent = (this.meta.sent || []).concat(ids.slice(i, i + 150)).slice(-3000); this.saveMeta();
+    }
+  },
+  // Geschenke (Credits) des Admins abholen: erst als abgeholt markieren (nur der erste Client gewinnt), dann dem Slot gutschreiben und hochladen.
+  // Gibt die Summe der gutgeschriebenen Credits zurueck.
+  async claimGifts() {
+    const r = await this.rest('GET', '/rest/v1/admin_gifts?select=id,slot,credits&claimed_at=is.null&order=id');
+    if (!r.ok || !Array.isArray(r.json)) return 0;
+    let total = 0;
+    for (const g of r.json) {
+      if (this.conflicts[g.slot] || !(g.slot >= 0 && g.slot < Save.SLOTS) || !Number.isFinite(g.credits)) continue;
+      const c = await this.rest('PATCH', '/rest/v1/admin_gifts?id=eq.' + g.id + '&claimed_at=is.null', { claimed_at: new Date().toISOString() }, { Prefer: 'return=representation' });
+      if (!c.ok || !Array.isArray(c.json) || !c.json.length) continue;
+      this.withSlot(g.slot, () => { Save.data.souls = Math.max(0, (Save.data.souls || 0) + g.credits); Save.write(); });
+      total += g.credits;
+      const code = this.localCode(g.slot); if (code) await this.upload(g.slot, code);
+    }
+    return total;
+  },
+
   // ---- Abgleich aller Slots (nur im Menü aufrufen) ----
   async syncAll() {
     if (!this.on || this.busy) return;
@@ -139,8 +173,10 @@ const Account = {
         if (res && !res.ok) { offline = !!res.offline; this.say(this.errText(res), 'red'); return; }
       }
       ok = true;
+      let gift = 0;
+      try { gift = await this.claimGifts(); await this.uploadLogs(); } catch (e) { /* Zusatzfunktionen duerfen den Abgleich nie stoeren */ }
       const nc = Object.keys(this.conflicts).length;
-      this.say(nc ? 'CHOOSE WHICH SAVE TO KEEP (' + nc + ' SLOT' + (nc > 1 ? 'S' : '') + ')' : (up || down ? 'SYNCED: ' + up + ' UPLOADED, ' + down + ' DOWNLOADED' : 'EVERYTHING IS UP TO DATE'), nc ? 'orange' : 'teal');
+      this.say(gift ? 'GIFT FROM THE ADMIN: ' + (gift > 0 ? '+' : '') + gift + ' CREDITS' : nc ? 'CHOOSE WHICH SAVE TO KEEP (' + nc + ' SLOT' + (nc > 1 ? 'S' : '') + ')' : (up || down ? 'SYNCED: ' + up + ' UPLOADED, ' + down + ' DOWNLOADED' : 'EVERYTHING IS UP TO DATE'), gift ? 'yellow' : nc ? 'orange' : 'teal');
     } finally { this.busy = false; this.syncing--; this.doneAt = Date.now(); this.doneOk = ok; this.doneOffline = offline; if (!ok) this.changed = true; if (this.refresh) this.refresh(); }
   },
   async resolve(i, choice) {
@@ -211,6 +247,7 @@ const Account = {
         nameIn = null; pwIn = null;
         box.appendChild(mk('div', 'color:' + P.teal + ';font-size:16px;margin-bottom:4px;', 'LOGGED IN AS ' + this.meta.name.toUpperCase()));
         box.appendChild(mk('div', 'color:' + P.grey + ';font-size:13px;line-height:1.4;', 'Your slots are uploaded a few seconds after every save and compared when the game starts. If you play on two devices, the last one to save wins, so let a device finish saving before you switch.'));
+        box.appendChild(mk('div', 'color:' + P.grey + ';font-size:12px;line-height:1.4;margin-top:6px;', 'Your run statistics (how and when you died, bosses, loadout) are uploaded with your account to help balance the game.'));
         box.appendChild(msg);
         for (const i of Object.keys(this.conflicts).map(Number)) {
           const c = this.conflicts[i], fmt = (p) => (p ? 'BEST ' + (p.best > 0 ? formatTime(p.best) : '-') + '   RUNS ' + p.runs + '   CREDITS ' + p.souls + (p.wins ? '   WINS ' + p.wins : '') : '?');
