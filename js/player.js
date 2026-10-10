@@ -826,7 +826,7 @@ class Player {
   updateUltimate() {
     // Aufgeladen: einmalig heilen, schneller laufen
     if (G.ultCharge > CFG.ult.readyAt && !this.boosted) {
-      this.boosted = true;
+      this.boosted = true; this.ultPingAt = G.realTime;       // Ring-Impuls beim Aufladen (siehe draw)
       Sfx.play('ultReady');
       if (CFG.ult.boostHeal > 0 && !this.ultHealed) { this.ultHealed = true; this.heal(CFG.ult.boostHeal); }      // nur beim ersten Aufladen im Lauf (Heal-Meta)
     } else if (G.ultCharge <= CFG.ult.readyAt && this.boosted) {
@@ -881,7 +881,7 @@ class Player {
   }
 
   draw(ctx) {
-    const hue = (this.flash > 0 ? 90 : 0) + (this.boosted ? -90 : 0);
+    const hue = this.flash > 0 ? 90 : 0;                    // Ultimate bereit aendert die Schiffsfarbe nicht mehr (Anzeige: Bodenring, siehe unten)
     const brightness = this.levelFlash > 0 ? 1.5 : 0;
     if (this.decoyT > 0 && this.decoy) {                    // Koeder: durchsichtiges Trugbild, blinkt kurz vor dem Ende
       const blink = this.decoyT < 1 && Math.floor(this.decoyT * 8) % 2 === 0;
@@ -933,6 +933,23 @@ class Player {
       ctx.restore();
     }
     const t = G.realTime, gear = Cos.cur('gear');
+    if (this.boosted || t - (this.ultPingAt || -9) < 0.6) {  // Ultimate bereit: ruhiger, langsam drehender Bodenring mit aufsteigenden Funken; beim Aufladen einmal ein Ring nach aussen
+      const P = STYLE.pal, cx = STAGE_W / 2 + this.x, cy = STAGE_H / 2 - this.y + 2;
+      ctx.save();
+      if (this.boosted) {
+        ctx.globalAlpha = 0.1; ctx.fillStyle = P.teal; pxGlow(ctx, cx, cy, 14);
+        ctx.globalAlpha = 0.75; pxRing(ctx, cx, cy, 13, 1, 12, t * 0.5);
+        ctx.globalAlpha = 0.3; pxRing(ctx, cx, cy, 11, 1, 20, -t * 0.3);
+        for (let i = 0; i < 5; i++) {
+          const ph = (t * 0.9 + i / 5) % 1, a = (i * 72 + t * 40) * Math.PI / 180;
+          ctx.globalAlpha = (1 - ph) * 0.9; ctx.fillStyle = i % 2 ? P.ice : P.teal;
+          pxFill(ctx, Math.round(cx + Math.cos(a) * 11), Math.round(cy + Math.sin(a) * 5 - ph * 16), 1);
+        }
+      }
+      const k = (t - (this.ultPingAt || -9)) / 0.6;
+      if (k >= 0 && k < 1) { ctx.globalAlpha = (1 - k) * 0.9; ctx.fillStyle = P.white; pxRing(ctx, cx, cy, 8 + k * 34, 1, Math.max(8, Math.round(8 + k * 20))); }
+      ctx.restore();
+    }
     Cos.drawAura(ctx, Cos.cur('aura'), this.x, this.y, t);
     if (G.infinite) Cos.drawEndless(ctx, Cos.cur('endless'), this.x, this.y, t, { homeX: 0, homeY: 0, mins: G.time / 60 });
     Cos.drawGear(ctx, gear, this.x, this.y, this.dir, t, 'back');
