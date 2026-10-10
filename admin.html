@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>DeathArena Admin</title>
+<style>
+  :root { --ink:#05060f; --void:#070914; --panel:#0e1430; --line:#1f3a66; --cyan:#3de8ff; --cyanDark:#0d5a78; --ice:#e6fdff; --grey:#7f8fb0; --yellow:#ffd91f; --orange:#ff8a1f; --red:#ff2d3d; --green:#39ff6e; --violet:#8a4bff; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--void); color:var(--ice); font:14px/1.45 "Segoe UI", system-ui, sans-serif; }
+  h1 { font-size:20px; margin:0; color:var(--yellow); letter-spacing:1px; }
+  h2 { font-size:16px; margin:18px 0 8px; color:var(--cyan); }
+  h3 { font-size:14px; margin:0 0 6px; color:var(--yellow); }
+  a { color:var(--cyan); }
+  .wrap { max-width:1180px; margin:0 auto; padding:14px 16px 60px; }
+  header { display:flex; align-items:center; gap:14px; flex-wrap:wrap; border-bottom:2px solid var(--line); padding:12px 16px; background:var(--ink); position:sticky; top:0; z-index:5; }
+  header .sp { flex:1; }
+  nav { display:flex; gap:6px; flex-wrap:wrap; }
+  button, select, input, textarea { font:inherit; color:var(--ice); background:var(--ink); border:1px solid var(--cyanDark); padding:6px 10px; border-radius:3px; }
+  textarea { width:100%; font:12px/1.4 Consolas, monospace; }
+  input[type=text], input[type=password], input[type=number], input[type=search] { min-width:0; }
+  button { cursor:pointer; border-color:var(--cyan); color:var(--cyan); }
+  button:hover { background:var(--cyanDark); color:var(--ice); }
+  button.on { background:var(--cyan); color:var(--ink); }
+  button.warn { border-color:var(--orange); color:var(--orange); } button.warn:hover { background:#5a2a05; color:var(--ice); }
+  button.bad { border-color:var(--red); color:var(--red); } button.bad:hover { background:#4a0a12; color:var(--ice); }
+  button:disabled { opacity:.4; cursor:default; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:4px; padding:12px; margin:10px 0; }
+  .grid { display:grid; gap:10px; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:6px 0; }
+  .muted { color:var(--grey); } .ok { color:var(--green); } .err { color:var(--red); } .yel { color:var(--yellow); }
+  table { width:100%; border-collapse:collapse; }
+  th, td { text-align:left; padding:5px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--grey); font-weight:600; font-size:12px; white-space:nowrap; cursor:default; }
+  th.s { cursor:pointer; } th.s:hover { color:var(--cyan); }
+  tr.pick { cursor:pointer; } tr.pick:hover td { background:#13204a; }
+  tr.sel td { background:#1a2c63; }
+  .tag { display:inline-block; font-size:11px; padding:0 6px; border:1px solid currentColor; border-radius:9px; margin-right:4px; }
+  .kpis { display:grid; gap:10px; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); }
+  .kpi { background:var(--ink); border:1px solid var(--line); padding:8px 10px; border-radius:4px; } .kpi b { display:block; font-size:20px; color:var(--cyan); } .kpi span { color:var(--grey); font-size:12px; }
+  .bar { height:10px; background:var(--cyanDark); border-radius:2px; min-width:1px; }
+  .login { max-width:420px; margin:12vh auto; }
+  .login input { width:100%; margin:8px 0; }
+  pre { background:var(--ink); border:1px solid var(--line); padding:10px; overflow:auto; max-height:420px; font:12px/1.4 Consolas, monospace; white-space:pre-wrap; word-break:break-all; }
+  #toast { position:fixed; right:16px; bottom:16px; max-width:360px; padding:10px 14px; background:var(--panel); border:1px solid var(--cyan); border-radius:4px; display:none; z-index:40; }
+  #toast.bad { border-color:var(--red); }
+  .chart { width:100%; height:220px; background:var(--ink); border:1px solid var(--line); border-radius:4px; }
+  @media (max-width:640px) { th, td { padding:4px 5px; font-size:13px; } }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast"></div>
+<script>
+'use strict';
+// ====== Konfiguration: dieselbe Supabase-URL und derselbe (oeffentliche) anon-Key wie im Spiel (js/account.js) ======
+// Der Schutz liegt NICHT in dieser Seite, sondern im Server: jede Funktion in tools/supabase_admin.sql prueft das Admin-Passwort (Hash in lb_admin_key).
+const URL_ = 'https://kqtjtagbhaaddfqibaxh.supabase.co';
+const KEY_ = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtxdGp0YWdiaGFhZGRmcWliYXhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1NTAzMDQsImV4cCI6MjEwNzEyNjMwNH0.dqw0HzW7UNdr_xW7BzauWXzAMJaP7M8TcUQwe5IjC78';
+// Namen wie im Spiel (js/runstats.js, config.js), nur zur Anzeige
+const BOSS_NAMES = { octagon:'OCTAGON', kite:'KITE', summoner:'SUMMONER', turret:'LASER TURRET', twin:'TWINS', arena:'ARENA BOSS', reaper:'DEATH', forge:'FORGE WARDEN', colossus:'SLAG COLOSSUS', plague:'PLAGUE DRONE', spore:'SPORE MOTHER', frost:'FROST SENTINEL', wraith:'FROST WRAITH' };
+const MAP_NAMES = { void:'NEON VOID', foundry:'EMBER FOUNDRY', toxic:'TOXIC CORE', cryo:'CRYO STATION' };
+const WINDOW = 120;          // Sekunden je Zeitfenster (CFG.boss.steps)
+
+// ====== Hilfen ======
+const $ = (s, r) => (r || document).querySelector(s);
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+const fmtT = (t) => { t = Math.round(t || 0); const h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = t % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s).padStart(2, '0'); };
+const fmtD = (d) => (d ? new Date(d).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }) : '-');
+const fmtN = (n) => Math.round(n || 0).toLocaleString('de-DE');
+const pct = (x) => Math.round(x * 100) + '%';
+const avg = (a) => (a.length ? a.reduce((s, x) => s + x, 0) / a.length : 0);
+const quant = (sorted, p) => (sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor(p * sorted.length))] : 0);
+function toast(msg, bad) { const t = $('#toast'); t.textContent = msg; t.className = bad ? 'bad' : ''; t.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => { t.style.display = 'none'; }, bad ? 6000 : 3500); }
+const checksum = (s) => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h.toString(36); };
+function decodeCode(code) {
+  const m = /^DA1:([A-Za-z0-9+/=]+):([0-9a-z]+)$/i.exec(String(code || '').trim());
+  if (!m) return null;
+  try { return JSON.parse(decodeURIComponent(escape(atob(m[1])))); } catch (e) { return null; }
+}
+function levelOf(xp) {        // wie Save.levelInfo in js/save.js (needs: 80/120/180/500, danach +200 je Level, max 50)
+  const N = [80, 120, 180, 500]; let lv = 1; xp = Math.max(0, Math.floor(xp || 0));
+  const need = (l) => (l <= N.length ? N[l - 1] : N[N.length - 1] + 200 * (l - N.length));
+  while (lv < 50 && xp >= need(lv)) { xp -= need(lv); lv++; }
+  return lv;
+}
+function randomPw() { const a = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789', b = crypto.getRandomValues(new Uint8Array(12)); return Array.from(b, (x) => a[x % a.length]).join(''); }
+
+// ====== Server ======
+let KEY = '';                                         // Admin-Passwort (nur im Speicher, optional sessionStorage)
+async function rpc(fn, args) {
+  const res = await fetch(URL_ + '/rest/v1/rpc/' + fn, { method: 'POST', headers: { apikey: KEY_, Authorization: 'Bearer ' + KEY_, 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ p_key: KEY }, args || {})) });
+  let json = null; try { json = await res.json(); } catch (e) { /* leer */ }
+  if (!res.ok) {
+    const m = (json && (json.message || json.hint || json.error)) || ('HTTP ' + res.status);
+    throw new Error(/not allowed/.test(m) ? 'Wrong admin password.' : /Could not find the function|schema cache/i.test(m) ? 'Server not set up: run tools/supabase_admin.sql in Supabase first.' : m);
+  }
+  return json;
+}
+async function act(label, fn, args, after) {
+  try { await rpc(fn, args); toast(label); if (after) await after(); } catch (e) { toast(e.message, true); }
+}
+
+// ====== Zustand ======
+const S = { tab: 'players', users: null, sel: null, saves: {}, gifts: [], filter: '', sort: { k: 'created_at', d: -1 }, logs: null, logsFor: null, stat: { user: '', slot: '', map: 'all', sub: 'overview', dev: false } };
+
+// ====== Login ======
+function renderLogin(msg) {
+  $('#app').innerHTML = '<div class="login card"><h1>DEATHARENA ADMIN</h1><p class="muted">Enter the admin password (your dev key).</p>' +
+    '<input type="password" id="pw" placeholder="Admin password" autocomplete="current-password" autofocus>' +
+    '<label class="muted"><input type="checkbox" id="rem" style="min-width:0"> stay logged in in this tab</label>' +
+    '<div class="row"><button id="go" class="on">LOG IN</button></div><div class="err" id="lm">' + esc(msg || '') + '</div></div>';
+  const go = async () => {
+    KEY = $('#pw').value.trim(); if (!KEY) return;
+    $('#lm').textContent = 'Checking...';
+    try { S.users = await rpc('adm_users'); } catch (e) { KEY = ''; $('#lm').textContent = e.message; return; }
+    try { if ($('#rem').checked) sessionStorage.setItem('da.admin', KEY); } catch (e) { /* egal */ }
+    renderMain();
+  };
+  $('#go').onclick = go; $('#pw').addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
+}
+function logout() { KEY = ''; try { sessionStorage.removeItem('da.admin'); } catch (e) { /* egal */ } S.users = null; S.sel = null; S.logs = null; renderLogin(); }
+
+// ====== Rahmen ======
+function renderMain() {
+  const tabs = [['players', 'PLAYERS'], ['create', 'CREATE ACCOUNTS'], ['stats', 'STATISTICS'], ['gifts', 'GIFTS'], ['audit', 'ACTION LOG']];
+  $('#app').innerHTML = '<header><h1>DEATHARENA ADMIN</h1><nav>' + tabs.map(([id, l]) => '<button data-t="' + id + '" class="' + (S.tab === id ? 'on' : '') + '">' + l + '</button>').join('') + '</nav><span class="sp"></span><span class="muted">' + (S.users ? S.users.length + ' accounts' : '') + '</span><button id="rl">RELOAD</button><button id="lo" class="warn">LOG OUT</button></header><div class="wrap" id="main"></div>';
+  document.querySelectorAll('nav button').forEach((b) => { b.onclick = () => { S.tab = b.dataset.t; renderMain(); }; });
+  $('#lo').onclick = logout;
+  $('#rl').onclick = async () => { try { S.users = await rpc('adm_users'); S.logs = null; if (S.sel) await loadSel(); toast('Reloaded'); renderMain(); } catch (e) { toast(e.message, true); } };
+  ({ players: viewPlayers, create: viewCreate, stats: viewStats, gifts: viewGifts, audit: viewAudit }[S.tab])();
+}
+
+// ====== Spieler ======
+function viewPlayers() {
+  const m = $('#main');
+  m.innerHTML = '<div class="row"><input type="search" id="q" placeholder="Search name..." value="' + esc(S.filter) + '"><span class="muted">click a row for details</span></div><div class="card" style="overflow:auto"><table id="ut"></table></div><div id="detail"></div>';
+  $('#q').oninput = (e) => { S.filter = e.target.value; drawUsers(); };
+  drawUsers(); if (S.sel) loadSel().then(drawDetail);
+}
+function drawUsers() {
+  const cols = [['name', 'NAME'], ['created_at', 'CREATED'], ['last_sign_in', 'LAST LOGIN'], ['slots', 'SLOTS'], ['saved_at', 'LAST SAVE'], ['logs', 'RUNS LOGGED'], ['gifts', 'GIFTS PENDING']];
+  const q = S.filter.toLowerCase(), k = S.sort.k, d = S.sort.d;
+  const list = (S.users || []).filter((u) => !q || u.name.toLowerCase().includes(q)).sort((a, b) => { const x = a[k] == null ? '' : a[k], y = b[k] == null ? '' : b[k]; return (x > y ? 1 : x < y ? -1 : 0) * d; });
+  $('#ut').innerHTML = '<tr>' + cols.map(([c, l]) => '<th class="s" data-c="' + c + '">' + l + (S.sort.k === c ? (d > 0 ? ' ▲' : ' ▼') : '') + '</th>').join('') + '<th>STATUS</th><th>QUICK</th></tr>' +
+    list.map((u) => '<tr class="pick ' + (S.sel === u.user_id ? 'sel' : '') + '" data-u="' + u.user_id + '"><td><b>' + esc(u.name) + '</b></td><td>' + fmtD(u.created_at) + '</td><td>' + fmtD(u.last_sign_in) + '</td><td>' + u.slots + '</td><td>' + fmtD(u.saved_at) + '</td><td>' + u.logs + '</td><td>' + (u.gifts || '') + '</td><td>' + (u.blocked ? '<span class="tag err">BLOCKED</span>' : '') + (u.banned ? '<span class="tag err">LB-BANNED</span>' : '') + (u.optin ? '<span class="tag ok">LEADERBOARD</span>' : '') + '</td><td style="white-space:nowrap"><button data-q="lb" data-u="' + u.user_id + '" class="' + (u.banned ? '' : 'warn') + '">' + (u.banned ? 'LB UNBAN' : 'LB BAN') + '</button> <button data-q="block" data-u="' + u.user_id + '" class="' + (u.blocked ? '' : 'bad') + '">' + (u.blocked ? 'UNBLOCK' : 'BLOCK') + '</button></td></tr>').join('') +
+    (list.length ? '' : '<tr><td colspan="9" class="muted">No accounts.</td></tr>');
+  document.querySelectorAll('#ut th.s').forEach((th) => { th.onclick = () => { S.sort = { k: th.dataset.c, d: S.sort.k === th.dataset.c ? -S.sort.d : 1 }; drawUsers(); }; });
+  document.querySelectorAll('#ut button[data-q]').forEach((b) => { b.onclick = (e) => { e.stopPropagation(); quick(b.dataset.q, b.dataset.u); }; });
+  document.querySelectorAll('#ut tr.pick').forEach((tr) => { tr.onclick = async () => { S.sel = tr.dataset.u; drawUsers(); await loadSel(); drawDetail(); $('#detail').scrollIntoView({ behavior: 'smooth' }); }; });
+}
+function quick(kind, id) {
+  const u = (S.users || []).find((x) => x.user_id === id); if (!u) return;
+  if (kind === 'lb') act(u.banned ? u.name + ' unbanned from leaderboards' : u.name + ' banned from leaderboards', 'adm_ban', { p_user: id, p_on: !u.banned }, reloadUsers);
+  else if (u.blocked) act(u.name + ' unblocked', 'adm_block', { p_user: id, p_on: false }, reloadUsers);
+  else { const why = prompt('Block account ' + u.name + ' completely (no login, removed from all leaderboards)?\nReason (optional):', 'inappropriate name'); if (why === null) return; act(u.name + ' blocked', 'adm_block', { p_user: id, p_on: true, p_reason: why }, reloadUsers); }
+}
+async function loadSel() {
+  try {
+    const [saves, gifts] = await Promise.all([rpc('adm_saves', { p_user: S.sel }), rpc('adm_gifts', { p_user: S.sel })]);
+    S.saves = {}; for (const r of saves) S.saves[r.slot] = r; S.gifts = gifts;
+  } catch (e) { toast(e.message, true); }
+}
+const user = () => (S.users || []).find((u) => u.user_id === S.sel);
+function slotCard(i) {
+  const r = S.saves[i];
+  if (!r) return '<div class="card"><h3>SLOT ' + (i + 1) + '</h3><span class="muted">empty</span></div>';
+  const d = decodeCode(r.code);
+  if (!d) return '<div class="card"><h3>SLOT ' + (i + 1) + '</h3><span class="err">code unreadable</span> <button data-a="json" data-s="' + i + '">RAW</button></div>';
+  const ach = Object.values((d.ach && d.ach.done) || {}).filter(Boolean).length;
+  const rows = [['Credits', fmtN(d.souls)], ['Player level', levelOf(d.pxp) + ' (' + fmtN(d.pxp) + ' XP)'], ['Best time', fmtT(d.best)], ['Best endless', fmtT(d.bestInf)], ['Runs / wins', fmtN(d.runs) + ' / ' + fmtN(d.wins)],
+    ['Bosses / kills', fmtN(d.stats && d.stats.bosses) + ' / ' + fmtN(d.stats && d.stats.kills)], ['Achievements', ach], ['Hero', d.hero || '-'], ['Language', d.lang || '-'], ['Saved', fmtD(r.updated_at)]];
+  return '<div class="card"><h3>SLOT ' + (i + 1) + (d.dev ? ' <span class="tag yel">DEV</span>' : '') + '</h3><table>' + rows.map(([a, b]) => '<tr><td class="muted">' + a + '</td><td>' + esc(b) + '</td></tr>').join('') + '</table>' +
+    '<div class="row"><input type="number" id="g' + i + '" placeholder="credits (+/-)" style="width:120px"><button data-a="gift" data-s="' + i + '" class="on">GIVE</button></div>' +
+    '<div class="row"><button data-a="stats" data-s="' + i + '">STATS</button><button data-a="json" data-s="' + i + '">DATA</button><button data-a="copy" data-s="' + i + '">COPY CODE</button><button data-a="restore" data-s="' + i + '" class="warn">RESTORE</button><button data-a="del" data-s="' + i + '" class="bad">DELETE</button></div></div>';
+}
+function drawDetail() {
+  const u = user(), el = $('#detail'); if (!el) return; if (!u) { el.innerHTML = ''; return; }
+  const gh = S.gifts.length ? '<table><tr><th>WHEN</th><th>SLOT</th><th>CREDITS</th><th>NOTE</th><th>STATE</th><th></th></tr>' + S.gifts.map((g) => '<tr><td>' + fmtD(g.created_at) + '</td><td>' + (g.slot + 1) + '</td><td>' + (g.credits > 0 ? '+' : '') + g.credits + '</td><td>' + esc(g.note) + '</td><td>' + (g.claimed_at ? '<span class="ok">collected ' + fmtD(g.claimed_at) + '</span>' : '<span class="yel">waiting</span>') + '</td><td>' + (g.claimed_at ? '' : '<button data-a="cancelgift" data-id="' + g.id + '" class="warn">CANCEL</button>') + '</td></tr>').join('') + '</table>' : '<span class="muted">No gifts yet.</span>';
+  el.innerHTML = '<h2>' + esc(u.name) + ' <span class="muted" style="font-size:12px">' + u.user_id + '</span></h2>' +
+    '<div class="grid">' + [0, 1, 2].map(slotCard).join('') + '</div>' +
+    '<div class="card"><h3>ACCOUNT</h3><div class="row"><input type="text" id="npw" placeholder="new password (6+)" style="width:200px"><button id="rnd">RANDOM</button><button id="setpw" class="warn">SET PASSWORD</button></div>' +
+    '<div class="muted">Takes effect immediately; the player is logged out everywhere. Tell them the new password.</div>' +
+    '<div class="row"><button data-a="stats" data-s="">ALL STATS OF THIS PLAYER</button><button id="ban" class="' + (u.banned ? '' : 'warn') + '">' + (u.banned ? 'UNBAN FROM LEADERBOARDS' : 'BAN FROM LEADERBOARDS') + '</button><button id="bk" class="' + (u.blocked ? '' : 'bad') + '">' + (u.blocked ? 'UNBLOCK ACCOUNT' : 'BLOCK ACCOUNT') + '</button><button id="du" class="bad">DELETE ACCOUNT</button></div>' +
+    '<div class="row"><input type="text" id="nn" placeholder="new name" style="width:200px"><button id="rn" class="warn">RENAME</button><span class="muted">3-20 lowercase letters, numbers or _ (the login name changes too)</span></div></div>' +
+    '<div class="card"><h3>GIFTS</h3><div class="muted" style="margin-bottom:6px">Gifts are collected when the player is in the main menu and online; they are never overwritten by their own progress.</div>' + gh + '</div>';
+  $('#rnd').onclick = () => { $('#npw').value = randomPw(); };
+  $('#setpw').onclick = () => { const pw = $('#npw').value; if (pw.length < 6) return toast('Password needs 6+ characters', true); if (!confirm('Set a new password for ' + u.name + '?')) return; act('Password set for ' + u.name + ': ' + pw, 'adm_set_password', { p_user: u.user_id, p_pw: pw }); };
+  $('#ban').onclick = () => act(u.banned ? 'Unbanned' : 'Banned', 'adm_ban', { p_user: u.user_id, p_on: !u.banned }, reloadUsers);
+  $('#bk').onclick = () => quick('block', u.user_id);
+  $('#rn').onclick = () => { const n = $('#nn').value.trim().toLowerCase(); if (!/^[a-z0-9_]{3,20}$/.test(n)) return toast('Name: 3-20 letters, numbers or _', true); if (confirm('Rename ' + u.name + ' to ' + n + '? They must log in with the new name.')) act('Renamed to ' + n, 'adm_rename', { p_user: u.user_id, p_name: n }, reloadUsers); };
+  $('#du').onclick = () => { const n = prompt('Delete account ' + u.name + ' with all saves? Type the name to confirm:'); if (n !== u.name) return; act('Account deleted', 'adm_delete_user', { p_user: u.user_id }, async () => { S.sel = null; await reloadUsers(); }); };
+  el.querySelectorAll('[data-a]').forEach((b) => { b.onclick = () => detailAction(b.dataset.a, b.dataset.s === '' || b.dataset.s === undefined ? null : +b.dataset.s, b); });
+}
+async function reloadUsers() { S.users = await rpc('adm_users'); renderMain(); if (S.sel && S.tab === 'players') { await loadSel(); drawDetail(); } }
+function detailAction(a, i, btn) {
+  const u = user(), r = i == null ? null : S.saves[i];
+  const refresh = async () => { await loadSel(); S.users = await rpc('adm_users'); drawUsers(); drawDetail(); };
+  if (a === 'gift') {
+    const n = parseInt($('#g' + i).value, 10); if (!n) return toast('Enter an amount', true);
+    if (!confirm((n > 0 ? 'Give ' : 'Take away ') + Math.abs(n) + ' credits ' + (n > 0 ? 'to ' : 'from ') + u.name + ' (slot ' + (i + 1) + ')?')) return;
+    act('Gift queued: ' + n + ' credits for slot ' + (i + 1), 'adm_gift', { p_user: u.user_id, p_slot: i, p_credits: n, p_note: 'admin' }, refresh);
+  } else if (a === 'cancelgift') act('Gift cancelled', 'adm_cancel_gift', { p_id: +btn.dataset.id }, refresh);
+  else if (a === 'json') showText('Slot ' + (i + 1) + ' data', JSON.stringify(decodeCode(r.code) || r.code, null, 2));
+  else if (a === 'copy') { navigator.clipboard.writeText(r.code).then(() => toast('Code copied (' + r.code.length + ' chars)'), () => showText('Save code (copy manually)', r.code)); }
+  else if (a === 'del') { if (confirm('Delete slot ' + (i + 1) + ' of ' + u.name + ' from the cloud? (A copy stays on the player\'s device and may come back on the next sync.)')) act('Slot deleted', 'adm_delete_save', { p_user: u.user_id, p_slot: i }, refresh); }
+  else if (a === 'restore') {
+    const code = prompt('Paste a save code (DA1:...) to put into slot ' + (i + 1) + ' of ' + u.name + ':'); if (!code) return;
+    const c = code.replace(/\s+/g, ''), m = /^DA1:([A-Za-z0-9+/=]+):([0-9a-z]+)$/i.exec(c);
+    if (!m || checksum(m[1]) !== m[2].toLowerCase()) return toast('Not a valid save code', true);
+    if (confirm('Replace slot ' + (i + 1) + ' in the cloud?')) act('Slot written', 'adm_put_save', { p_user: u.user_id, p_slot: i, p_code: c }, refresh);
+  } else if (a === 'stats') { S.stat.user = u.user_id; S.stat.slot = i == null ? '' : String(i); S.tab = 'stats'; renderMain(); }
+}
+function showText(title, text) {
+  const o = document.createElement('div');
+  o.style.cssText = 'position:fixed;inset:0;background:rgba(5,6,15,.9);z-index:30;overflow:auto;padding:20px;';
+  o.innerHTML = '<div class="card" style="max-width:900px;margin:0 auto"><div class="row"><h3 style="flex:1">' + esc(title) + '</h3><button id="cl">CLOSE</button></div><pre>' + esc(text) + '</pre></div>';
+  o.onclick = (e) => { if (e.target === o || e.target.id === 'cl') o.remove(); }; document.body.appendChild(o);
+}
+
+// ====== Konten und Bots anlegen ======
+// Anlegen laeuft wie im Spiel ueber die normale Anmeldung (signup, Name wird zu <name>@players.holiday-games.com); der Spielstand wird danach per Admin-Funktion gesetzt.
+const DOMAIN = 'players.holiday-games.com';
+function xpForLevel(lv) { const N = [80, 120, 180, 500], need = (l) => (l <= N.length ? N[l - 1] : N[N.length - 1] + 200 * (l - N.length)); let x = 0; for (let l = 1; l < lv; l++) x += need(l); return x; }
+function starterCode(credits, level) {
+  const o = { tutorialDone: true, souls: credits, pxp: xpForLevel(level), pxpSeeded: true, runs: 1 };
+  const b = btoa(unescape(encodeURIComponent(JSON.stringify(o)))); return 'DA1:' + b + ':' + checksum(b);
+}
+async function signup(name, pw) {
+  const res = await fetch(URL_ + '/auth/v1/signup', { method: 'POST', headers: { apikey: KEY_, Authorization: 'Bearer ' + KEY_, 'Content-Type': 'application/json' }, body: JSON.stringify({ email: name + '@' + DOMAIN, password: pw }) });
+  let j = null; try { j = await res.json(); } catch (e) { /* leer */ }
+  if (!res.ok) { const m = String((j && (j.msg || j.message || j.error_description)) || res.status); throw new Error(/already/i.test(m) ? 'name taken' : /rate/i.test(m) ? 'rate limit, wait a minute' : m); }
+  return (j && ((j.user && j.user.id) || j.id)) || null;
+}
+async function makeAccount(name, pw, opt) {
+  let id = await signup(name, pw);
+  if (!id) { S.users = await rpc('adm_users'); const u = S.users.find((x) => x.name === name); id = u && u.user_id; }
+  if (!id) throw new Error('created, but id not found');
+  if (opt && (opt.credits > 0 || opt.level > 1)) await rpc('adm_put_save', { p_user: id, p_slot: 0, p_code: starterCode(opt.credits, opt.level) });
+  return id;
+}
+function viewCreate() {
+  $('#main').innerHTML = '<div class="card"><h3>NEW ACCOUNT</h3><div class="row"><input type="text" id="cn" placeholder="name" style="width:180px"><input type="text" id="cp" placeholder="password (6+)" style="width:180px"><button id="cr">RANDOM PW</button></div>' +
+    '<div class="row"><label>Start credits <input type="number" id="cc" value="0" min="0" style="width:110px"></label><label>Player level <input type="number" id="cl" value="1" min="1" max="50" style="width:70px"></label><button id="cm" class="on">CREATE</button></div>' +
+    '<div class="muted">Name: 3-20 letters, numbers or _ . With credits/level above the default, slot 1 gets a starter save (tutorial done).</div></div>' +
+    '<div class="card"><h3>BOT / TEST ACCOUNTS</h3><div class="muted" style="margin-bottom:6px">Normal accounts for testing (e.g. the PvP arena needs several logins; log in with them in other browsers or private windows). Level 7+ unlocks PvP.</div>' +
+    '<div class="row"><label>Prefix <input type="text" id="bp" value="bot" style="width:110px"></label><label>Count <input type="number" id="bn" value="3" min="1" max="20" style="width:70px"></label><label>Password <input type="text" id="bw" style="width:150px"></label><button id="br">RANDOM PW</button></div>' +
+    '<div class="row"><label>Start credits <input type="number" id="bc" value="1000" min="0" style="width:110px"></label><label>Player level <input type="number" id="bl" value="8" min="1" max="50" style="width:70px"></label><button id="bm" class="on">CREATE BOTS</button></div></div><pre id="cout" style="display:none"></pre>';
+  $('#bw').value = randomPw();
+  $('#cr').onclick = () => { $('#cp').value = randomPw(); }; $('#br').onclick = () => { $('#bw').value = randomPw(); };
+  const out = (t) => { const e = $('#cout'); e.style.display = 'block'; e.textContent = t; };
+  $('#cm').onclick = async () => {
+    const n = $('#cn').value.trim().toLowerCase(), pw = $('#cp').value; if (!/^[a-z0-9_]{3,20}$/.test(n)) return toast('Name: 3-20 letters, numbers or _', true); if (pw.length < 6) return toast('Password needs 6+ characters', true);
+    $('#cm').disabled = true;
+    try { await makeAccount(n, pw, { credits: +$('#cc').value || 0, level: +$('#cl').value || 1 }); out('Created: ' + n + ' / ' + pw); toast('Account created'); S.users = await rpc('adm_users'); }
+    catch (e) { toast(e.message, true); } $('#cm').disabled = false;
+  };
+  $('#bm').onclick = async () => {
+    const pre = $('#bp').value.trim().toLowerCase(), cnt = Math.min(20, Math.max(1, +$('#bn').value || 1)), pw = $('#bw').value; if (!/^[a-z0-9_]{1,16}$/.test(pre)) return toast('Prefix: letters, numbers or _', true); if (pw.length < 6) return toast('Password needs 6+ characters', true);
+    $('#bm').disabled = true; const lines = [];
+    try { S.users = await rpc('adm_users'); } catch (e) { /* egal */ }
+    let k = 1;
+    for (let made = 0; made < cnt && k < 200; k++) {
+      const n = pre + String(k).padStart(2, '0'); if ((S.users || []).some((u) => u.name === n)) continue;
+      try { await makeAccount(n, pw, { credits: +$('#bc').value || 0, level: +$('#bl').value || 1 }); lines.push(n + ' / ' + pw); made++; out(lines.join('\n')); }
+      catch (e) { lines.push(n + ': FAILED (' + e.message + ')'); out(lines.join('\n')); if (/rate/.test(e.message)) break; }
+      await new Promise((r) => setTimeout(r, 400));
+    }
+    toast(lines.length + ' bot accounts processed'); try { S.users = await rpc('adm_users'); } catch (e) { /* egal */ } $('#bm').disabled = false;
+  };
+}
+
+// ====== Statistik (Auswertung wie Stats.analyze in js/runstats.js, auf den hochgeladenen Protokollen aller Spieler) ======
+async function ensureLogs(userId) {
+  const key = userId || '*';
+  if (S.logs && S.logsFor === key) return;
+  const out = []; let off = 0;
+  for (;;) {
+    const part = await rpc('adm_logs', { p_user: userId || null, p_limit: 1000, p_offset: off });
+    out.push(...part); if (part.length < 1000) break; off += 1000;
+    if (off > 200000) break;
+  }
+  S.logs = out; S.logsFor = key;
+}
+function statSets() {
+  const f = S.stat, rows = (S.logs || []).filter((r) => (f.slot === '' || r.slot === +f.slot) && (f.dev || !(r.data && r.data.dv)));
+  const mapOk = (e) => (f.map === 'inf' ? e.inf : f.map === 'all' ? !e.inf : !e.inf && e.map === f.map);
+  const deaths = rows.filter((r) => r.kind === 'death').map((r) => Object.assign({ _u: r.name, _at: r.created_at, _sl: r.slot }, r.data)).filter(mapOk);
+  const bosses = rows.filter((r) => r.kind === 'boss').map((r) => Object.assign({ _u: r.name }, r.data)).filter(mapOk);
+  return { deaths, bosses };
+}
+function analyze(all) {
+  const runs = all.filter((r) => r.by !== 'GAVE UP'), n = runs.length, times = runs.map((r) => r.t).sort((a, b) => a - b), killers = {};
+  for (const r of runs) if (!r.win) (killers[r.by] = killers[r.by] || []).push(r.t);
+  const killList = Object.keys(killers).map((k) => { const t = killers[k].sort((a, b) => a - b); return { name: k, n: t.length, med: quant(t, .5) }; }).sort((a, b) => b.n - a.n);
+  const maxT = times.length ? times[times.length - 1] : 0, windows = [];
+  for (let lo = 0; lo <= maxT; lo += WINDOW) {
+    const risk = runs.filter((r) => r.win || r.t >= lo).length, dead = runs.filter((r) => !r.win && r.t >= lo && r.t < lo + WINDOW).length;
+    windows.push({ lo, risk, dead, hazard: risk ? dead / risk : 0 });
+  }
+  return { n, gaveUp: all.length - n, wins: runs.filter((r) => r.win).length, times, killList, windows, runs, median: quant(times, .5), p25: quant(times, .25), p75: quant(times, .75), avg: avg(times), best: maxT, bossAvg: avg(runs.map((r) => r.b || 0)), lvAvg: avg(runs.filter((r) => typeof r.lv === 'number').map((r) => r.lv)) };
+}
+function analyzeBosses(list) {
+  const by = {}; for (const b of list) (by[b.ty] = by[b.ty] || []).push(b);
+  return Object.keys(by).map((ty) => { const a = by[ty], c = (r) => a.filter((b) => b.r === r).length; return { ty, n: a.length, win: c('win'), died: c('died'), timeout: c('timeout'), dur: avg(a.map((b) => b.d)), dm: avg(a.map((b) => b.dm)), at: avg(a.map((b) => b.at)) }; }).sort((x, y) => x.at - y.at);
+}
+function analyzeBuilds(runs) {
+  const items = {};
+  for (const r of runs) { if (!r.w) continue; const ids = new Set(); (r.w || []).forEach((x) => x && ids.add('w:' + x)); (r.ab || []).forEach((x) => x && ids.add('a:' + x)); for (const id of ids) (items[id] = items[id] || []).push(r.t); }
+  return Object.keys(items).map((id) => { const t = items[id].sort((a, b) => a - b); return { id, n: t.length, med: quant(t, .5), avg: avg(t) }; });
+}
+function bars(rows) {      // rows: [label, value, text]
+  const mx = Math.max(1, ...rows.map((r) => r[1]));
+  return '<table>' + rows.map((r) => '<tr><td style="width:170px">' + esc(r[0]) + '</td><td style="width:45%"><div class="bar" style="width:' + (r[1] / mx * 100) + '%"></div></td><td>' + esc(r[2]) + '</td></tr>').join('') + '</table>';
+}
+function chart(a) {
+  const W = 1000, H = 220, pad = 28, w = a.windows; if (!w.length) return '';
+  const mx = Math.max(1, ...w.map((x) => x.dead)), bw = (W - pad * 2) / w.length;
+  let svg = '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">';
+  w.forEach((x, i) => { const h = (H - pad * 2) * x.dead / mx; svg += '<rect x="' + (pad + i * bw + 1) + '" y="' + (H - pad - h) + '" width="' + Math.max(1, bw - 2) + '" height="' + h + '" fill="#3de8ff"><title>' + fmtT(x.lo) + ' - ' + fmtT(x.lo + WINDOW) + ': ' + x.dead + ' deaths of ' + x.risk + ' (' + pct(x.hazard) + ')</title></rect>'; });
+  let line = ''; w.forEach((x, i) => { line += (i ? 'L' : 'M') + (pad + i * bw + bw / 2) + ',' + (H - pad - (H - pad * 2) * x.hazard) + ' '; });
+  svg += '<path d="' + line + '" fill="none" stroke="#ff2d3d" stroke-width="2"/>';
+  w.forEach((x, i) => { if (i % Math.ceil(w.length / 10) === 0) svg += '<text x="' + (pad + i * bw) + '" y="' + (H - 8) + '" fill="#7f8fb0" font-size="12">' + fmtT(x.lo) + '</text>'; });
+  return svg + '</svg><div class="muted">Bars = deaths per ' + WINDOW + ' s window, red line = chance to die in that window (of the runs that reached it).</div>';
+}
+function viewStats() {
+  const m = $('#main'), f = S.stat;
+  const ul = (S.users || []).slice().sort((a, b) => a.name.localeCompare(b.name));
+  m.innerHTML = '<div class="card"><div class="row"><label>Player <select id="su"><option value="">ALL PLAYERS</option>' + ul.map((u) => '<option value="' + u.user_id + '"' + (f.user === u.user_id ? ' selected' : '') + '>' + esc(u.name) + ' (' + u.logs + ')</option>').join('') + '</select></label>' +
+    '<label>Slot <select id="ss"><option value="">ALL</option>' + [0, 1, 2].map((i) => '<option value="' + i + '"' + (f.slot === String(i) ? ' selected' : '') + '>SLOT ' + (i + 1) + '</option>').join('') + '</select></label>' +
+    '<label>Map <select id="sm"><option value="all">ALL MAPS (regular)</option>' + Object.keys(MAP_NAMES).map((k) => '<option value="' + k + '"' + (f.map === k ? ' selected' : '') + '>' + MAP_NAMES[k] + '</option>').join('') + '<option value="inf"' + (f.map === 'inf' ? ' selected' : '') + '>ENDLESS</option></select></label>' +
+    '<label><input type="checkbox" id="sd" style="min-width:0"' + (f.dev ? ' checked' : '') + '> include dev/cheat runs</label></div>' +
+    '<div class="row">' + [['overview', 'OVERVIEW'], ['killers', 'KILLERS'], ['bosses', 'BOSSES'], ['builds', 'BUILDS'], ['players', 'PLAYERS'], ['recent', 'RECENT']].map(([id, l]) => '<button data-s="' + id + '" class="' + (f.sub === id ? 'on' : '') + '">' + l + '</button>').join('') + '</div></div><div id="sbody"><span class="muted">Loading...</span></div>';
+  $('#su').onchange = (e) => { f.user = e.target.value; viewStats(); }; $('#ss').onchange = (e) => { f.slot = e.target.value; drawStats(); }; $('#sm').onchange = (e) => { f.map = e.target.value; drawStats(); }; $('#sd').onchange = (e) => { f.dev = e.target.checked; drawStats(); };
+  m.querySelectorAll('button[data-s]').forEach((b) => { b.onclick = () => { f.sub = b.dataset.s; viewStats(); }; });
+  ensureLogs(f.user).then(drawStats, (e) => { const el = $('#sbody'); if (el) el.innerHTML = '<span class="err">' + esc(e.message) + '</span>'; });
+}
+function drawStats() {
+  const f = S.stat, el = $('#sbody'); if (!el || !S.logs) return;
+  const { deaths, bosses } = statSets(), a = analyze(deaths);
+  let h = '<div class="muted" style="margin-bottom:8px">' + fmtN(S.logs.length) + ' log entries loaded, ' + a.n + ' runs and ' + bosses.length + ' boss fights match the filter. Only runs of logged-in players are uploaded.</div>';
+  if (!deaths.length && !bosses.length) h += '<div class="card muted">No data for this filter yet. Players upload their runs when they are in the main menu while logged in (needs the updated game).</div>';
+  else if (f.sub === 'overview') {
+    h += '<div class="kpis">' + [['Runs', a.n], ['Wins', a.wins], ['Gave up', a.gaveUp], ['Median time', fmtT(a.median)], ['25% / 75%', fmtT(a.p25) + ' / ' + fmtT(a.p75)], ['Average', fmtT(a.avg)], ['Best', fmtT(a.best)], ['Avg bosses', a.bossAvg.toFixed(1)], ['Avg level', a.lvAvg ? a.lvAvg.toFixed(1) : '-']].map(([l, v]) => '<div class="kpi"><b>' + v + '</b><span>' + l + '</span></div>').join('') + '</div>' +
+      '<h2>Deaths over time</h2>' + chart(a);
+    const worst = a.windows.filter((w) => w.risk >= 5).sort((x, y) => y.hazard - x.hazard)[0];
+    const kb = a.killList[0], bb = analyzeBosses(bosses).filter((b) => b.n >= 3).sort((x, y) => (x.win / x.n) - (y.win / y.n))[0];
+    h += '<h2>In words</h2><div class="card"><ul>' + (worst ? '<li>Riskiest window: <b>' + fmtT(worst.lo) + ' - ' + fmtT(worst.lo + WINDOW) + '</b> (' + pct(worst.hazard) + ' of the runs that got there die in it).</li>' : '') +
+      (kb ? '<li>Most deaths: <b>' + esc(kb.name) + '</b> (' + kb.n + ' of ' + (a.n - a.wins) + ', median ' + fmtT(kb.med) + ').</li>' : '') +
+      (bb ? '<li>Hardest boss: <b>' + esc(BOSS_NAMES[bb.ty] || bb.ty) + '</b> (' + pct(bb.win / bb.n) + ' win rate over ' + bb.n + ' fights).</li>' : '') +
+      '<li>Balance values live in <code>js/config.js</code> (enemy, boss, waves).</li></ul></div>';
+  } else if (f.sub === 'killers') {
+    h += '<div class="card">' + (a.killList.length ? bars(a.killList.map((k) => [k.name, k.n, k.n + ' deaths (' + pct(k.n / Math.max(1, a.n - a.wins)) + '), median ' + fmtT(k.med)])) : '<span class="muted">No deaths.</span>') + '</div>';
+  } else if (f.sub === 'bosses') {
+    const b = analyzeBosses(bosses);
+    h += '<div class="card" style="overflow:auto"><table><tr><th>BOSS</th><th>FIGHTS</th><th>WIN RATE</th><th>WON</th><th>DIED</th><th>TIMEOUT</th><th>AVG DURATION</th><th>AVG DAMAGE TAKEN</th><th>STARTS AT</th></tr>' +
+      b.map((x) => '<tr><td><b>' + esc(BOSS_NAMES[x.ty] || x.ty) + '</b></td><td>' + x.n + '</td><td>' + pct(x.win / x.n) + '</td><td>' + x.win + '</td><td>' + x.died + '</td><td>' + x.timeout + '</td><td>' + x.dur.toFixed(1) + ' s</td><td>' + Math.round(x.dm) + '</td><td>' + fmtT(x.at) + '</td></tr>').join('') + '</table></div>';
+  } else if (f.sub === 'builds') {
+    const b = analyzeBuilds(a.runs).sort((x, y) => y.n - x.n), part = (p, t) => '<div class="card"><h3>' + t + '</h3><table><tr><th>ITEM</th><th>RUNS</th><th>MEDIAN SURVIVAL</th><th>AVERAGE</th></tr>' + b.filter((x) => x.id.startsWith(p)).map((x) => '<tr><td>' + esc(x.id.slice(2).toUpperCase()) + '</td><td>' + x.n + '</td><td>' + fmtT(x.med) + '</td><td>' + fmtT(x.avg) + '</td></tr>').join('') + '</table></div>';
+    h += part('w:', 'WEAPONS AND IMPLANTS') + part('a:', 'ABILITIES') + '<div class="muted">Hint only: better players pick other gear, so this shows correlation, not cause.</div>';
+  } else if (f.sub === 'players') {
+    const by = {}; for (const r of a.runs) (by[r._u] = by[r._u] || []).push(r);
+    const rows = Object.keys(by).map((n) => { const x = by[n], t = x.map((r) => r.t).sort((p, q) => p - q); return { n, runs: x.length, wins: x.filter((r) => r.win).length, med: quant(t, .5), best: t[t.length - 1] || 0, lv: avg(x.filter((r) => typeof r.lv === 'number').map((r) => r.lv)) }; }).sort((x, y) => y.runs - x.runs);
+    h += '<div class="card" style="overflow:auto"><table><tr><th>PLAYER</th><th>RUNS</th><th>WINS</th><th>MEDIAN</th><th>BEST</th><th>AVG LEVEL</th></tr>' + rows.map((x) => '<tr><td><b>' + esc(x.n) + '</b></td><td>' + x.runs + '</td><td>' + x.wins + '</td><td>' + fmtT(x.med) + '</td><td>' + fmtT(x.best) + '</td><td>' + (x.lv ? x.lv.toFixed(1) : '-') + '</td></tr>').join('') + '</table></div>';
+  } else if (f.sub === 'recent') {
+    const rec = deaths.slice().sort((x, y) => String(y._at).localeCompare(String(x._at))).slice(0, 60);
+    h += '<div class="card" style="overflow:auto"><table><tr><th>WHEN</th><th>PLAYER</th><th>SLOT</th><th>TIME</th><th>BOSSES</th><th>LV</th><th>RESULT</th><th>KILLS</th><th>GEAR</th></tr>' + rec.map((r) => '<tr><td>' + fmtD(r._at) + '</td><td>' + esc(r._u) + '</td><td>' + (r._sl == null ? '-' : r._sl + 1) + '</td><td>' + fmtT(r.t) + '</td><td>' + (r.b || 0) + '</td><td>' + (r.lv || '-') + '</td><td>' + (r.win ? '<span class="ok">WIN</span>' : esc(r.by) + (r.fy ? ' <span class="muted">(' + esc(BOSS_NAMES[r.fy] || r.fy) + ')</span>' : '')) + '</td><td>' + (r.k || 0) + '</td><td class="muted">' + esc([].concat(r.w || [], r.ab || []).filter(Boolean).join(', ')) + '</td></tr>').join('') + '</table></div>';
+  }
+  el.innerHTML = h;
+}
+
+// ====== Geschenke / Aktionsprotokoll ======
+async function viewGifts() {
+  const m = $('#main'); m.innerHTML = '<span class="muted">Loading...</span>';
+  let list; try { list = await rpc('adm_gifts', { p_user: null }); } catch (e) { m.innerHTML = '<span class="err">' + esc(e.message) + '</span>'; return; }
+  m.innerHTML = '<div class="card" style="overflow:auto"><table><tr><th>WHEN</th><th>PLAYER</th><th>SLOT</th><th>CREDITS</th><th>NOTE</th><th>STATE</th></tr>' + list.map((g) => '<tr><td>' + fmtD(g.created_at) + '</td><td>' + esc(g.name) + '</td><td>' + (g.slot + 1) + '</td><td>' + (g.credits > 0 ? '+' : '') + g.credits + '</td><td>' + esc(g.note) + '</td><td>' + (g.claimed_at ? '<span class="ok">collected ' + fmtD(g.claimed_at) + '</span>' : '<span class="yel">waiting</span>') + '</td></tr>').join('') + (list.length ? '' : '<tr><td colspan="6" class="muted">No gifts yet. Give credits from a player\'s slot card.</td></tr>') + '</table></div>';
+}
+async function viewAudit() {
+  const m = $('#main'); m.innerHTML = '<span class="muted">Loading...</span>';
+  let list; try { list = await rpc('adm_audit'); } catch (e) { m.innerHTML = '<span class="err">' + esc(e.message) + '</span>'; return; }
+  m.innerHTML = '<div class="card" style="overflow:auto"><table><tr><th>WHEN</th><th>ACTION</th><th>PLAYER</th><th>DETAIL</th></tr>' + list.map((r) => '<tr><td>' + fmtD(r.at) + '</td><td>' + esc(r.action) + '</td><td>' + esc(r.name) + '</td><td>' + esc(r.detail) + '</td></tr>').join('') + (list.length ? '' : '<tr><td colspan="4" class="muted">Nothing yet.</td></tr>') + '</table></div>';
+}
+
+// ====== Start ======
+(async function () {
+  let k = '';
+  // Auto-Login: admin.html#password=<Schluessel> (der Teil nach # geht nie an den Server) oder admin.html?password=<Schluessel>; danach verschwindet er aus der Adressleiste
+  try {
+    const m = /[#?&]password=([^&#]+)/.exec(location.hash + '&' + location.search);
+    if (m) { k = decodeURIComponent(m[1]).trim(); history.replaceState(null, '', location.pathname); }
+  } catch (e) { /* egal */ }
+  if (!k) { try { k = sessionStorage.getItem('da.admin') || ''; } catch (e) { /* egal */ } }
+  if (k) { KEY = k; try { S.users = await rpc('adm_users'); try { sessionStorage.setItem('da.admin', k); } catch (e2) { /* egal */ } return renderMain(); } catch (e) { KEY = ''; try { sessionStorage.removeItem('da.admin'); } catch (e2) { /* egal */ } return renderLogin(e.message); } }
+  renderLogin();
+})();
+</script>
+</body>
+</html>
