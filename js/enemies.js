@@ -250,8 +250,7 @@ class Enemy {
   // stun = false: Dauerschaden (Feuer) betaeubt nicht. Artefakt Schadensboost: mit etwas Chance doppelter Schaden
   // src = Art des Angriffs (der Tank nimmt je nach Art unterschiedlich viel Schaden, siehe CFG.enemy.tank.dmg)
   takeHit(stun = true, src = null) {
-    const dc = (Save.equipped('artifact') === 'damage' ? CFG.items.damage.chance * Save.gearMul('damage') : 0) + Save.bonus('power') + Xp.val('power', 'chance') + (G.player.buffs.power > 0 ? CFG.drops.types.power.chance : 0);       // Chance auf doppelten Treffer (Implant + Meta-Upgrade Power)
-    let n = Math.random() < dc ? 2 : 1;
+    let n = this.hitUnits();
     this.killSrc = src;                                     // Run-Statistik: womit wurde zuletzt getroffen
     if (this.type === 'tank') {
       const T = CFG.enemy.tank;
@@ -272,6 +271,12 @@ class Enemy {
       Juice.sparks(this.x, this.y, this.hitFx === 'glitch' ? STYLE.pal.cyan : STYLE.pal.yellow, 3, 2);
       Sfx.play(this.hitFx === 'cracks' ? 'crack' : 'hit');
     }
+  }
+
+  // Treffer-Einheiten eines Schlags: 1, mit der Chance auf einen doppelten Treffer (Implant Schadensverstaerker + Meta-Upgrade Power + Perk + Buff). Auch der PvP-Gegner nutzt das.
+  hitUnits() {
+    const dc = (Save.equipped('artifact') === 'damage' ? CFG.items.damage.chance * Save.gearMul('damage') : 0) + Save.bonus('power') + Xp.val('power', 'chance') + (G.player.buffs.power > 0 ? CFG.drops.types.power.chance : 0);
+    return Math.random() < dc ? 2 : 1;
   }
 
   // Art der Treffer-Anzeige (siehe CFG.enemy.hitFx) oder null, wenn der Gegner nur 1 Leben hat bzw. Quadrat/Raute ist

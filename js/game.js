@@ -9,6 +9,7 @@ canvas.height = STAGE_H * SCALE;
 // Begrenzt eine Position auf die Karte (bei unendlicher Karte unverändert). margin = Abstand zum Rand.
 function clampToMap(x, y, margin = 0) {
   if (CFG.map.infinite) return [x, y];
+  if (G.pvp) { const R = CFG.pvp.radius - margin, d = Math.hypot(x, y); return d > R ? [x * R / d, y * R / d] : [x, y]; }       // PvP-Arena: Kreis
   if (G.sr && G.sr.bounds) { const b = G.sr.bounds; return [clamp(x, b.x0 + margin, b.x1 - margin), clamp(y, b.y0 + margin, b.y1 - margin)]; }       // Speedrun-Gauntlet: Streifen, nach dem Tor nur noch die Boss-Arena
   const hw = CFG.map.halfW * G.arenaScale, hh = CFG.map.halfH * G.arenaScale;      // Arena-Boss verkleinert die Karte (G.arenaScale)
   return [clamp(x, -(hw - margin), hw - margin), clamp(y, -(hh - margin), hh - margin)];
@@ -17,6 +18,7 @@ function clampToMap(x, y, margin = 0) {
 // Hintergrund: eine Kachel (assets/img_new/ground.png), die sich wiederholt und mit der Kamera mitscrollt,
 // plus bei endlicher Karte der Rand (außerhalb dunkel, Rahmenlinie)
 function drawGround(ctx) {
+  if (G.pvp) { PvpArena.drawGround(ctx); return; }                // PvP: runde Kolosseum-Arena statt der Kachelkarte
   const im = IMG[G.map.ground], c = G.cam;
   if (!im || !im.ok) return;
   const tile = im.w / im.res;                                   // Kachelgröße in Bühneneinheiten
@@ -50,7 +52,7 @@ function drawGround(ctx) {
 const MENU_ITEMS = ['play', 'inventory', 'cosmetics', 'upgrades', 'achievements', 'settings'];
 const menuItems = () => MENU_ITEMS;
 const statsOpen = () => !!Save.data.dev;       // der Statistik-Bildschirm (Symbol im Hauptmenue) gehoert zum Dev-Modus und gilt nur im Slot, in den die Dev-Datei importiert wurde (die Daten selbst kommen aus allen Slots, siehe Stats.slotLogs)
-const MODE_ITEMS = ['regular', 'infinite', 'speedrun', 'tutorial', 'back'];        // Auswahl nach PLAY
+const MODE_ITEMS = ['regular', 'infinite', 'speedrun', 'pvp', 'tutorial', 'back'];        // Auswahl nach PLAY
 const MENU_MUSIC_MODES = ['start', 'stats', 'modeselect', 'infsetup', 'srsetup', 'mapselect', 'keys', 'binds', 'inventory', 'cosmetics', 'upgrades', 'achievements', 'leaderboard', 'settings'];       // hier läuft die Menümusik (Tasten-Menü aus der Pause heraus nicht)
 // Upgrade-Menü: drei Reiter. Jede Zeile ist { kind: 'up' | 'ability', id }
 const UPGRADE_TABS = [
@@ -227,7 +229,8 @@ const G = {
   begin(withTutorial = false, infinite = false, srKind = null) {
     setView(false);
     this.mode = 'play';
-    this.sr = srKind && !withTutorial ? SpeedRun.create(srKind) : null;
+    this.pvp = null;                                                                       // PvP-Kampf: setzt PvpMatch.begin nach diesem Aufruf
+    this.sr = srKind && srKind !== 'pvp' && !withTutorial ? SpeedRun.create(srKind) : null;
     Save.srOn = !!this.sr;
     this.infinite = (infinite || !!(this.sr && this.sr.infinite)) && !withTutorial;
     CFG.map.infinite = this.infinite;                       // die Kartenregeln (Wände, Kamera, Boss-Kamera) hängen an diesem Schalter
@@ -244,7 +247,7 @@ const G = {
     this.spawners = []; this.powerups = []; this.drops = []; this.texts = []; this.events = [];
     this.boss = null; this.intro = null; this.bossShots = [];
     this.arenaScale = 1; this.arenaTarget = 1; this.bossCount = 0; this.eliteUp = false;
-    const mi = withTutorial || !Save.mapUnlocked(Save.data.mapSel) ? 0 : Save.data.mapSel;          // gewählte Karte (Tutorial immer Karte 1)
+    const mi = withTutorial || srKind === 'pvp' || !Save.mapUnlocked(Save.data.mapSel) ? 0 : Save.data.mapSel;          // gewählte Karte (Tutorial immer Karte 1)
     this.mapIdx = mi; this.map = CFG.maps[mi]; this.diff = this.map.diff;
     CFG.map.halfW = this.map.half[0]; CFG.map.halfH = this.map.half[1];
     if (this.sr) SpeedRun.applyMap();                                                    // Speedrun: eigene Streifenkarte (Gauntlet) bzw. Karte 1
@@ -285,6 +288,7 @@ const G = {
 
   die() {
     if (this.mode !== 'play' || this.victory > 0) return;
+    if (this.pvp) { PvpMatch.localDeath(); return; }                   // PvP: Runde verloren, kein Todesbildschirm/keine Abrechnung
     if (Tutorial.active) { Tutorial.exit(); return; }                  // Tutorial verlassen: nichts wird gespeichert
     if (this.sr) { SpeedRun.fail(); return; }                          // Speedrun: Tod = Abbruch, eigener Ergebnisbildschirm
     this.mode = 'dead';
@@ -417,6 +421,7 @@ const G = {
     if (item === 'regular') { this.mode = 'mapselect'; Save.data.mapSel = Save.mapUnlocked(Save.data.mapSel) ? Save.data.mapSel : 0; }
     else if (item === 'infinite') { this.mode = 'infsetup'; this.infSel = 0; }
     else if (item === 'speedrun') { this.mode = 'srsetup'; this.srSel = 0; SpeedRun.openSetup(); }
+    else if (item === 'pvp') { this.mode = 'pvp'; Pvp.open(); }
     else if (item === 'tutorial') this.begin(true);
     else this.mode = 'start';
   },
@@ -583,7 +588,7 @@ const G = {
 
   // Pause: ESC / P im Spiel, oder automatisch beim Verlassen des Fensters. Alles steht still, die Musik haelt an.
   pauseGame() {
-    if (this.mode !== 'play') return;
+    if (this.mode !== 'play' || this.pvp) return;                       // online gibt es keine Pause (der Gegner spielt weiter)
     this.mode = 'pause';
     this.pauseSel = 0;
     this.pauseConfirm = false;
@@ -854,6 +859,10 @@ const G = {
       this.updateCosmetics();
     } else if (this.mode === 'infsetup') {
       this.updateInfSetup();
+    } else if (this.mode === 'pvp') {
+      Pvp.update();
+    } else if (this.mode === 'pvpend') {
+      PvpMatch.updateEnd();
     } else if (this.mode === 'srsetup') {
       SpeedRun.updateSetup();
     } else if (this.mode === 'srend') {
@@ -892,7 +901,8 @@ const G = {
     } else if (this.mode === 'pause') {
       this.updatePause();
     } else if (this.mode === 'play') {
-      if (Input.pressed('Escape') || Input.pressed('KeyP')) { Ach.add('pauses'); this.pauseGame(); }
+      if (this.pvp) { if (Input.pressed('Escape')) PvpMatch.escape(); if (Juice.hs > 0) Juice.hs -= dt; else this.updatePlay(dt); }
+      else if (Input.pressed('Escape') || Input.pressed('KeyP')) { Ach.add('pauses'); this.pauseGame(); }
       else if (Juice.hs > 0) Juice.hs -= dt;                      // Impact-Frame: die Welt steht kurz still
       else this.updatePlay(dt);
     }
@@ -904,12 +914,13 @@ const G = {
 
     this.noticeT = Math.max(0, (this.noticeT || 0) - dt);
     this.flashT = Math.max(0, (this.flashT || 0) - dt);
+    if (this.pvp && PvpMatch.frozen(dt)) { Juice.update(dt); return; }                // PvP-Zaehler vor dem Start: alle stehen still
     if (Tutorial.active && Tutorial.phase === 'brief') { Juice.update(dt); Tutorial.update(dt); return; }       // Tutorial-Textbox: das Spiel steht still, bis SPACE gedrueckt wird
     Juice.update(dt);
     Cos2.tick(dt);                                              // Cosmetics: Bodenmarken, Echos, Titelkarte, Siegerpose, Wiederbelebung
     MsFx.update(dt);
     Ach.update(dt);
-    this.player.update(dt);
+    if (this.pvp && this.pvp.out) { this.attacks = []; } else this.player.update(dt);          // PvP: wer ausgeschieden ist, schaut nur noch zu
     if (this.mode !== 'play') return;
     Tutorial.update(dt);
     if (this.player.blinkT <= 0) pushOutOfObstacles(this.player, this.player.radius);      // unsichtbar (Phase) = man geht hindurch
@@ -920,9 +931,10 @@ const G = {
     this.clearing = this.attacks.some((a) => a.clearing);
 
     if (this.victory > 0) { this.victory -= dt; if (this.victory <= 0) { this.win(); return; } }     // Siegphase: kein Director, keine neuen Gegner
-    if (!this.bossFight && !Tutorial.active && !(this.sr && this.sr.kind === 'rush')) this.time += dt;       // Boss Rush: G.time springt von Boss zu Boss (SpeedRun.update)
+    if (!this.bossFight && !Tutorial.active && !this.pvp && !(this.sr && this.sr.kind === 'rush')) this.time += dt;       // Boss Rush: G.time springt von Boss zu Boss (SpeedRun.update)
     Loadout.updateByTime(this.time);
     if (this.sr) { if (!(this.victory > 0)) SpeedRun.update(dt); }                         // Speedrun: kein Director, SpeedRun.update spawnt und steuert die Bosse
+    else if (this.pvp) PvpMatch.update(dt);                                                    // PvP: kein Director, nur der Fernspieler
     else if (!Tutorial.active && !(this.victory > 0)) { this.director.update(dt); this.director.updateBosses(); }       // im Tutorial führt Tutorial.update die Szenarien
     MapEnv.update(dt);
     Elite.update();
@@ -977,7 +989,7 @@ const G = {
   },
 
   // Menü-Ansicht (16:9): alles außer dem Lauf samt Pause/Wahl-Bildschirmen (4:3)
-  isMenuView() { return !['play', 'pause', 'pick', 'swap', 'loading'].includes(this.mode) && !(this.mode === 'dead' && Cos2.deathActive()); },
+  isMenuView() { return !['play', 'pause', 'pick', 'swap', 'loading', 'pvpend'].includes(this.mode) && !(this.mode === 'dead' && Cos2.deathActive()); },
 
   draw(ctx) {
     UIHit.blocks.length = 0; UIHit.list.length = 0;                  // klickbare Flächen werden beim Zeichnen neu gesammelt
@@ -1006,6 +1018,11 @@ const G = {
       drawCosmeticsScreen(ctx);
     } else if (this.mode === 'infsetup') {
       drawInfSetupScreen(ctx);
+    } else if (this.mode === 'pvp') {
+      Pvp.draw(ctx);
+    } else if (this.mode === 'pvpend') {
+      this.drawPlay(ctx);
+      PvpMatch.drawEnd(ctx);
     } else if (this.mode === 'srsetup') {
       SpeedRun.drawSetup(ctx);
     } else if (this.mode === 'srend') {
@@ -1054,10 +1071,20 @@ const G = {
     Juice.begin(ctx);                       // Zoom-Puls und Wackeln um die Bildmitte (HUD bleibt fest)
     drawGround(ctx);
     if (this.infinite) { const [mx, my] = Juice.margin; Cos.drawEndlessGround(ctx, Cos.cur('endless'), this.cam, STAGE_W / 2 + mx, STAGE_H / 2 + my, this.realTime); }      // Endlos-Cosmetics: Raster/Sterne
+    const dying = this.mode === 'dead' && Cos2.dfx, posing = !dying && Cos2.vic && this.victory > 0;
+    if (dying || posing) {            // Todes-/Siegeranimation: nur Kartenhintergrund und Spieler/Animation, keine Waffen, Gegner, Lebens- und Schadensanzeigen
+      ctx.save();
+      ctx.translate(-this.cam.x, this.cam.y);
+      if (dying) Cos2.deathDraw(ctx, Cos2.dfx);
+      else { Cos2.victoryDraw(ctx, Cos2.vic); this.player.draw(ctx); }
+      ctx.restore();
+      ctx.restore();                        // Ende von Juice.begin
+      return;
+    }
     // Alles in der Welt wird um die Kamera verschoben gezeichnet, das HUD danach fest auf dem Bildschirm
     ctx.save();
     ctx.translate(-this.cam.x, this.cam.y);
-    if (!CFG.map.infinite) for (const [x, y] of this.spawnPointList()) drawSprite(ctx, 'spawnPoint', x, y, 90, 200, { alpha: 0.8 });      // im Endlos-Modus sind die Spawnpunkte unsichtbar
+    if (!CFG.map.infinite && !this.pvp) for (const [x, y] of this.spawnPointList()) drawSprite(ctx, 'spawnPoint', x, y, 90, 200, { alpha: 0.8 });      // im Endlos-Modus sind die Spawnpunkte unsichtbar
     MapFx.drawBelow(ctx);
     MapEnv.draw(ctx);
     SafeSpot.draw(ctx);
@@ -1084,7 +1111,7 @@ const G = {
     Cos2.petDraw(ctx, Cos2.pet, Cos.cur('pet'), this.realTime);                    // Cosmetic PET
     Cos2.victoryDraw(ctx, Cos2.vic);                                               // Cosmetic WIN (Fanfare, Flagge)
     if (this.mode === 'dead' && Cos2.dfx) Cos2.deathDraw(ctx, Cos2.dfx);           // Cosmetic DEATH: statt des Spielers
-    else this.player.draw(ctx);
+    else if (!(this.pvp && this.pvp.out)) this.player.draw(ctx);
     for (const a of this.attacks) if (overlay(a)) a.draw(ctx);
     MapFx.drawAbove(ctx);
     for (const e of this.meteors) e.drawSky(ctx);
@@ -1096,6 +1123,7 @@ const G = {
     if (this.bloodMoon) drawBloodMoonTint(ctx);
     MapFx.drawScreen(ctx);                  // Beleuchtung, Boss-Vignette, Blizzard (js/mapfx.js)
     if (this.mode !== 'dead') { Cos2.hudBegin(); try { drawHud(ctx); } finally { Cos2.hudEnd(); } }              // Cosmetic HUD-Theme
+    if (this.pvp) PvpMatch.drawOverlay(ctx);                                       // PvP: Punktestand, Zaehler, Ergebnis
     if (Cos2.intro) Cos2.introDraw(ctx, Cos2.intro, STAGE_W / 2, 96, 1);           // Cosmetic INTRO: Boss-Titelkarte
     if (Cos2.rev) Cos2.reviveDraw(ctx, Cos2.rev, STAGE_W / 2, STAGE_H / 2 - 10, 1);       // Cosmetic REVIVE: Totem of Undying
     if (Save.data.dev) uiText(ctx, 'DEV' + (this.god ? '  GOD' : '') + (this.cheated ? '  (DEV RUN)' : ''), 6, 10, { size: STYLE.type.small, color: STYLE.pal.yellow });

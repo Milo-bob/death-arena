@@ -557,26 +557,27 @@ function drawMenuIcons(ctx) {
 // Modus-Auswahl nach PLAY: Regular / Infinite / Tutorial, darunter eine Kurzbeschreibung des gewählten Modus
 function drawModeSelectScreen(ctx) {
   const P = STYLE.pal, T = STYLE.type, t = G.realTime;
-  const labels = { regular: 'REGULAR', infinite: 'INFINITE MODE', speedrun: 'SPEEDRUN', tutorial: 'TUTORIAL', back: 'BACK' };
+  const labels = { regular: 'REGULAR', infinite: 'INFINITE MODE', speedrun: 'SPEEDRUN', pvp: 'PVP ARENA', tutorial: 'TUTORIAL', back: 'BACK' };
   const descs = {
     regular: ['The classic run on a walled map. Choose map and difficulty next.', 'Survive the waves and bosses, face Death at the end.'],
     infinite: ['An endless map without walls. Choose map and final boss time next.', 'Credits x' + CFG.infinite.coreFactor + ', own best time.'],
     speedrun: ['Race the clock: Boss Rush, Gauntlet and Seed Run, each with its own best time.', 'Same standard loadout for everyone (you only pick your weapons). No credits, no XP. Death ends the run.'],
+    pvp: ['Fight other players in an arena. Create a lobby and share the code, or join a friend with their code.', 'Lobbies already work, the matches themselves are coming in the next update.'],
     tutorial: ['A short guided level that teaches the basics.', 'You cannot die. Nothing is saved.'],
     back: ['Back to the main menu.', ''],
   };
   drawMenuBg(ctx, 'keysettings');
   drawEmbers(ctx);
   uiText(ctx, 'CHOOSE A MODE', STAGE_W / 2, 56, { size: T.h1, color: P.yellow, align: 'center', glow: P.yellow });
-  const lw = 300, lcx = 40 + lw / 2, PX = 40 + lw + 24, PW = STAGE_W - 40 - PX, top = 90, GAP = 46;          // links die Modi, rechts das Info-Feld
+  const lw = 300, lcx = 40 + lw / 2, PX = 40 + lw + 24, PW = STAGE_W - 40 - PX, top = 90, GAP = 38, RH = 30;          // 6 Modi, zusammen so hoch wie das Info-Feld          // links die Modi, rechts das Info-Feld
   MODE_ITEMS.forEach((id, i) => {
     const y = top + i * GAP;
     const lock = CFG.level.gates[id] && !Save.gateOpen(id) ? CFG.level.gates[id] : 0;
-    drawMenuRow(ctx, y, labels[id], G.modeSel === i, { w: lw, h: 36, cx: lcx, hit: () => { G.modeSel = i; }, locked: lock });
+    drawMenuRow(ctx, y, labels[id], G.modeSel === i, { w: lw, h: RH, cx: lcx, hit: () => { G.modeSel = i; }, locked: lock });
     if (id === 'tutorial' && !Save.data.tutorialDone) uiHintDot(ctx, 40 + lw + 8, y + 18, t);
   });
-  const id = MODE_ITEMS[G.modeSel], d = descs[id], mc = { regular: P.yellow, infinite: P.cyan, speedrun: P.orange, tutorial: P.green }[id] || P.ice;
-  uiPanel(ctx, PX, top, PW, MODE_ITEMS.length * GAP - 10, { color: mc, fill: P.void, alpha: 0.92, glow: true });
+  const id = MODE_ITEMS[G.modeSel], d = descs[id], mc = { regular: P.yellow, infinite: P.cyan, speedrun: P.orange, pvp: P.red, tutorial: P.green }[id] || P.ice;
+  uiPanel(ctx, PX, top, PW, MODE_ITEMS.length * GAP - (GAP - RH), { color: mc, fill: P.void, alpha: 0.92, glow: true });
   uiText(ctx, labels[id], PX + 14, top + 24, { size: T.h1, color: mc });
   let ty = top + 48;
   ty += 13 * uiWrap(ctx, d[0], PX + 14, ty, PW - 28, 13, { size: T.body, color: P.ice }) + 6;

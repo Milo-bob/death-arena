@@ -20,6 +20,7 @@ const Save = {
     hero: 'vanguard', heroes: {},               // gewaehlter Held und gekaufte Helden (CFG.heroes)
     stats: { bosses: 0, kills: 0 }, milestones: {}, msPaid: {},
     pxp: 0, pxpSeeded: false,                    // Spielerlevel: gesammelte XP gesamt (CFG.level), pxpSeeded = alter Spielstand wurde einmal umgerechnet
+    pvpName: '', pvpLoadout: {},                 // PvP: Anzeigename des Gasts, gewaehlte Abilities je Gruppe { weak, medium, strong }
     devKey: '',                                  // geheimer Schluessel aus der Dev-Save-Datei: erlaubt Spieler in den Ranglisten zu sperren (Server prueft den Hash)
     dev: false,                                  // Dev-Modus (Cheat-Tasten + Statistik-Bildschirm), wird mit der Dev-Save-Datei freigeschaltet (tools/dev-save.deatharena)
     deathLog: [], bossLog: [],                   // Protokoll fuer das Balancing (siehe runstats.js), gilt fuer alle Slots

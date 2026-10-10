@@ -200,7 +200,7 @@ class Shot {
       const S = CFG.evolutions.seeker;
       let best = null, bd = S.range * S.range;
       for (const e of G.enemies.concat(G.bossList())) {
-        if (!e.alive) continue;
+        if (!e.alive || e.friendly || e.dead) continue;                 // PvP: nicht auf Teamkameraden lenken
         const d = dist2(this.x, this.y, e.x, e.y);
         if (d < bd) { bd = d; best = e; }
       }

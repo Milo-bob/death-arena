@@ -458,7 +458,11 @@ class Boss {
     else if (G.sr && SpeedRun.lastBoss()) { G.bosses++; G.startVictory('BOSS DEFEATED!'); }       // Speedrun (Gauntlet, Seed Run): dieser Boss beendet den Lauf
     else if (!Tutorial.active) G.later(0.25, () => Loadout.weaponUp(G.time));      // im Tutorial kein Upgrade und keine Ability-Wahl
     Ach.bossDown(this);
-    Cos2.vic = Cos2.victoryStart(G.player); if (Cos2.vic) Cos2.vic.live = G.realTime; Cos2.petCheer(Cos2.pet, Juice.particles);          // Cosmetics: Siegerpose und Freude des Begleiters
+    if (G.victory > 0) {                                        // Siegerpose (WIN-Cosmetic) nur nach dem letzten Boss; Siegphase dauert mindestens so lang wie die Pose
+      Cos2.vic = Cos2.victoryStart(G.player);
+      if (Cos2.vic) { Cos2.vic.live = G.realTime; G.victory = Math.max(G.victory, VICTORY_DUR[Cos2.vic.type] + 0.2); }
+    }
+    Cos2.petCheer(Cos2.pet, Juice.particles);                   // Cosmetics: Freude des Begleiters
     G.endBossFight();
   }
 

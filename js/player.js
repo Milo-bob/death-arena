@@ -45,6 +45,7 @@ class Player {
     this.ultHealed = false;    // Heilung beim ersten Aufladen des Ultimates schon bekommen?
     this.afk = 0;
     this.afkTick = 0;
+    this.stunT = 0; this.stunImm = 0;   // PvP: betaeubt (kann sich nicht bewegen/angreifen), danach kurz immun gegen neue Betaeubung
     this.chillT = 0;           // > 0: gekuehlt (Frost-Gegner, Karte 4): Lauftempo x CFG.chill.slow
     this.slideX = 0; this.slideY = 0;       // Eis: Geschwindigkeit pro Bild
     this.curseT = 0;           // > 0: von einem Fluch-Unterstützer gebremst
@@ -73,7 +74,7 @@ class Player {
   get canMove() {
     const locked = this.dashLeft > 0 || (this.ult && this.ult.alive && this.ult.locksPlayer) ||
                    (this.blood && this.blood.alive && this.blood.locksPlayer);
-    if (locked) return 0;
+    if (locked || G.victory > 0) return 0;                  // in der Siegphase steht der Spieler still
     return this.beam.state !== 'none' ? 2 : 1;
   }
 
@@ -127,7 +128,7 @@ class Player {
   // Zuschlag auf den Schadensfaktor nach Spielzeit (CFG.player.ramp): ab 5 / 10 / 15 Min. Wellenzeit machen Gegner mehr Schaden. Bosskaempfe zaehlen nicht zur Zeit, der Zuschlag bleibt aber.
   // Gesamtfaktor = G.diff.damage (Karte) + dmgRamp() (Zeit).
   dmgRamp() {
-    if (Tutorial.active) return 0;
+    if (Tutorial.active || G.pvp) return 0;                          // PvP: kein Zeitzuschlag (die Spielzeit steht auf dem Endboss-Wert)
     const R = CFG.player.ramp; let m = 0;
     R.marks.forEach((t, i) => { if (G.time >= t) m = R.add[i]; });
     return m;
@@ -135,7 +136,7 @@ class Player {
 
   // kind: 'touch' | 'shoot' | 'higher'
   hit(kind, mul = 1, src = null) {          // mul: zusätzlicher Schadensfaktor (Bosse: CFG.boss.power.dmg); src: Name der Quelle fuer die Run-Statistik
-    if (G.god || this.hitCd > 0 || this.invincibleBase || this.shield) return false;     // die Schildblase blockt alle Treffer
+    if (G.god || this.hitCd > 0 || this.invincibleBase || this.shield || (G.pvp && G.pvp.out)) return false;     // die Schildblase blockt alle Treffer
     if (SafeSpot.inside) {                                        // Safe Spot: Treffer abgefangen, fuer die Statistik mit geschaetztem Schaden
       const est = kind === 'higher' ? CFG.player.kiteBaseDamage + G.bossStageKite : (CFG.player.hitDamageMin + CFG.player.hitDamageMax) / 2 * this.damageFactor;
       SafeSpot.blocked(src, est * (G.diff.damage + this.dmgRamp()) * mul);
@@ -173,6 +174,13 @@ class Player {
     return true;
   }
 
+  // PvP: Betaeubung von einem Gegner-Effekt (hoechstens CFG.pvp.maxStun, danach CFG.pvp.stunImmune Sekunden immun)
+  pvpStun(sec) {
+    if (this.stunT > 0 || this.stunImm > 0 || this.shield || this.invincibleT > 0 || this.blinkT > 0) return;
+    this.stunT = Math.min(sec, CFG.pvp.maxStun); this.stunImm = this.stunT + CFG.pvp.stunImmune;
+    Sfx.play('crack'); Juice.sparks(this.x, this.y, STYLE.pal.ice, 8, 3);
+  }
+
   // Geschwindigkeit des Spielers (Einheiten pro Bild) in Richtung dir; Projektile addieren sie zu ihrem Tempo
   velAlong(dir) { return (this.velX || 0) * fwdX(dir) + (this.velY || 0) * fwdY(dir); }
   update(dt) {
@@ -190,6 +198,7 @@ class Player {
     this.attackCd = Math.max(0, this.attackCd - dt);
     this.reloadT = Math.max(0, this.reloadT - dt);
     this.chillT = Math.max(0, this.chillT - dt);
+    this.stunT = Math.max(0, this.stunT - dt); this.stunImm = Math.max(0, this.stunImm - dt);
     const cdDt = dt * this.cdRate;          // Meta-Upgrade: Abklingzeiten laufen schneller ab
     this.dashCd = Math.max(0, this.dashCd - cdDt * Save.gearMul('dash'));          // Ability-Stufe: Abklingzeit laeuft schneller ab
     this.pulseCd = Math.max(0, this.pulseCd - cdDt * Save.gearMul('pulse'));
@@ -199,9 +208,8 @@ class Player {
     this.curseT = Math.max(0, this.curseT - dt);
 
     this.selectWeapon();
-    this.useAbilities(dt);
-    this.useArtifact();
-    this.move(f);
+    if (!(this.stunT > 0)) { this.useAbilities(dt); this.useArtifact(); this.move(f); }       // betaeubt: keine Bewegung, keine Abilities
+
     if (this.dashLeft <= 0) { const [bx, by] = MapEnv.pushAt(this.x, this.y, this.radius); this.x += bx * f; this.y += by * f; Elite.pullPlayer(this, f); }       // Schlackenband schiebt, Magnetar zieht (beides nicht im Dash)
     this.velX = f > 0 ? (this.x - sx0) / f : 0; this.velY = f > 0 ? (this.y - sy0) / f : 0;       // Eigenbewegung dieses Bildes (fuer Projektile)
     if (this.dashLeft > 0 || this.surgeT > 0) Juice.ghost(this);   // Nachbilder bei Dash und Boost
@@ -662,12 +670,12 @@ class Player {
   }
 
   useWeapon(dt, f) {
-    const space = Input.actDown('attack') && !SafeSpot.inside;          // im Safe Spot kein Angriff
+    const space = Input.actDown('attack') && !SafeSpot.inside && !(this.stunT > 0);          // im Safe Spot und betaeubt kein Angriff
     if (!space) this.swordBase = this.dir;
 
     // Beam (Taste E): laden bei gehaltener Taste, nach dem Loslassen feuern
     const b = this.beam;
-    const beamKey = Input.actDown('beam') && Save.equipped('heavy') === 'beam' && !SafeSpot.inside;     // der Beam ist eine ausruestbare starke Waffe (im Safe Spot gesperrt)
+    const beamKey = Input.actDown('beam') && Save.equipped('heavy') === 'beam' && !SafeSpot.inside && !(this.stunT > 0);     // der Beam ist eine ausruestbare starke Waffe (im Safe Spot gesperrt)
     if (this.shield || this.dashLeft > 0 || (SafeSpot.inside && b.state === 'load')) {
       b.state = 'none';
     } else if (b.state === 'none' && Input.actPressed('beam') && beamKey) {            // neuer Druck (kein Dauerhalten ueber den letzten Strahl hinweg): Aufladen beginnt
@@ -804,6 +812,7 @@ class Player {
     let best = null, bestScore = Infinity;
     const targets = G.enemies.concat(G.bossList(), G.spawners);
     for (const t of targets) {
+      if (t.friendly || t.dead) continue;                            // PvP: Teamkameraden und Ausgeschiedene nicht anvisieren
       const d = Math.sqrt(dist2(this.x, this.y, t.x, t.y));
       if (d > S.aimAssistRange || d < 1) continue;
       const diff = Math.abs(angleDiff(dirTo(this.x, this.y, t.x, t.y), this.dir));
@@ -898,7 +907,7 @@ class Player {
       ctx.fillStyle = P.white; pxDisc(ctx, mx, my, 1 + 2.5 * k);
       ctx.restore();
     }
-    if (this.chillT > 0) {                                  // gekuehlt: blasser, gestrichelter Eisring
+    if (this.chillT > 0 || this.stunT > 0) {                // gekuehlt / betaeubt: blasser, gestrichelter Eisring
       const cx = STAGE_W / 2 + this.x, cy = STAGE_H / 2 - this.y;
       ctx.save(); ctx.globalAlpha = 0.85; ctx.fillStyle = STYLE.pal.ice; pxRing(ctx, cx, cy, 13, 1, 10, G.realTime * 0.4); ctx.restore();
     }

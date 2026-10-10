@@ -197,7 +197,7 @@ const Ach = {
     return d.ach;
   },
   running() { return G.mode === 'play' && this.ok(); },
-  ok() { return !(typeof Tutorial !== 'undefined' && Tutorial.active) && !G.cheated && !Save.srOn; },       // Tutorial, Cheat-Laeufe und Speedruns zaehlen nicht
+  ok() { return !(typeof Tutorial !== 'undefined' && Tutorial.active) && !G.cheated && !Save.srOn && !G.pvp; },       // Tutorial, Cheat-Laeufe, Speedruns und PvP zaehlen nicht
   done(id) { return !!this.data().done[id]; },
   total() { return ACH_LIST.length; },
   doneCount() { return ACH_LIST.filter((a) => this.done(a.id)).length; },

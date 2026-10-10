@@ -1562,3 +1562,11 @@ CFG.speedrun = {
     bosses: ['octagon', 'kite', 'summoner', 'twin', 'turret', 'arena'], bossStage: 3,
   },
 };
+
+// ---- [14] PvP-Arena (js/pvp.js Lobby, js/pvpmatch.js Kampf, js/net.js Verbindung) ----
+// startTime/weaponUps: Waffenstufe zu Beginn = wie im Kampf gegen Death (finaler Boss: Spielzeit finalBoss.at und alle Bosse davor besiegt, Klingenzahl, Doppelschuss usw. sind am Maximum).
+// radius: die Kampffläche ist ein Kreis (Kolosseum, js/pvparena.js); camHalf: nur fuer die Kamera (Begrenzung ist der Kreis).
+// dmgMul: Schaden je Treffer-Einheit am Getroffenen (nach seiner Ruestung); hitGap: Pause zwischen zwei Treffern desselben Angriffs auf den Gegner.
+CFG.pvp = { startTime: CFG.finalBoss.at, weaponUps: CFG.boss.order.length, radius: 180, camHalf: [250, 200], spawnX: 120, countdown: 3, sendHz: 15, sendHzMany: 10, dmgMul: 0.8, hitGap: 0.25, maxUnits: 12, dieUnits: 6, maxGhosts: 16, endDelay: 2.2,
+  maxPlayers: 4, maxStun: 1.2, stunImmune: 3, maxPush: 36, fxHz: 8 };
+// maxStun/stunImmune: Betaeubung durch Gegner-Abilities (Sekunden) und die Schonfrist danach; maxPush: groesster Rueckstoss pro Nachricht; fxHz: wie oft Rueckstoss/Betaeubung gesendet werden; sendHzMany: Zustandsrate ab 3 Spielern.
