@@ -1287,8 +1287,8 @@ const CFG = {
   // Lv 5 (= Infinite Mode) nach ca. 6-7 Läufen (kumuliert 1600 XP).
   level: {
     perSecond: 0.5, perBoss: 40, perKill: 0.15, winBonus: 200, infiniteFactor: 0.75,
-    tutorialXp: 100, needs: [100, 150, 250, 1100], step: 200, max: 50,
-    gates: { cosmetics: 3, infinite: 5 },
+    tutorialXp: 100, needs: [80, 120, 180, 500], step: 200, max: 50,       // schneller als vorher (100/150/250/1100, Schritt 200): Lv 5 ab 880 XP, Lv 7 ab 2180 XP (ca. 10 Laeufe)
+    gates: { cosmetics: 3, infinite: 5, pvp: 7 },
     seedFromOldSave: true,               // bestehende Spielstände bekommen XP aus ihrer bisherigen Statistik, damit sie nicht plötzlich gesperrt sind
   },
   // Endlos-Modus (Hauptmenü > INFINITE MODE): unendliche Karte ohne Wände (CFG.map.infinite wird pro Lauf gesetzt), Spawnpunkte und Barrikaden folgen dem Spieler.

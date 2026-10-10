@@ -319,7 +319,8 @@ const UIHit = {
       else if (!h.noConfirm) Input.pressedNow[h.lr ? (Input.mouse.x > h.x + h.w / 2 ? 'ArrowRight' : 'ArrowLeft') : 'Space'] = true;
     }
     if (Input.rightClicked) Input.pressedNow.Escape = true;
-    if (Input.wheel) Input.pressedNow[G.mode === 'pick' ? (Input.wheel > 0 ? 'ArrowRight' : 'ArrowLeft') : (Input.wheel > 0 ? 'ArrowDown' : 'ArrowUp')] = true;
+    const wheel = Input.wheel || Input.takeSwipe();                    // Mausrad oder Wischen mit dem Finger
+    if (wheel) Input.pressedNow[G.mode === 'pick' ? (wheel > 0 ? 'ArrowRight' : 'ArrowLeft') : (wheel > 0 ? 'ArrowDown' : 'ArrowUp')] = true;
   },
 };
 
@@ -562,7 +563,7 @@ function drawModeSelectScreen(ctx) {
     regular: ['The classic run on a walled map. Choose map and difficulty next.', 'Survive the waves and bosses, face Death at the end.'],
     infinite: ['An endless map without walls. Choose map and final boss time next.', 'Credits x' + CFG.infinite.coreFactor + ', own best time.'],
     speedrun: ['Race the clock: Boss Rush, Gauntlet and Seed Run, each with its own best time.', 'Same standard loadout for everyone (you only pick your weapons). No credits, no XP. Death ends the run.'],
-    pvp: ['Fight other players in an arena. Create a lobby and share the code, or join a friend with their code.', 'Lobbies already work, the matches themselves are coming in the next update.'],
+    pvp: ['Fight other players in an arena. Create a lobby and share the code, or join a friend with their code.', 'Up to 4 players, all vs all or in teams. Your own weapons, abilities and upgrades count. Needs an internet connection.'],
     tutorial: ['A short guided level that teaches the basics.', 'You cannot die. Nothing is saved.'],
     back: ['Back to the main menu.', ''],
   };

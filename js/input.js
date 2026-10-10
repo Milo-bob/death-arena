@@ -102,6 +102,17 @@ let lastTouchAt = -1e9, lastTapAt = -1e9;
 const fromTouch = () => performance.now() - lastTouchAt < 1000;
 const inTouchUI = (e) => !!(e.target && e.target.closest && e.target.closest('#touchUI, [data-nogame], input, textarea, button'));
 const touchPos = (e) => { const t = e.touches[0] || e.changedTouches[0]; if (t) Input.setMouse(t); };
+// Wischen in Menues: In Menues (nicht im Spiel) zaehlt ein Tipp erst beim Loslassen, und nur wenn der Finger kaum gewandert ist; wandert er, scrollt die Liste
+// (wie das Mausrad: ein Schritt je SWIPE_STEP Buehneneinheiten, Finger nach oben = runter, in der Ability-Wahl links/rechts). Auf Scrollleisten gilt der Tipp sofort (Ziehen am Griff).
+const SWIPE_STEP = 26, SWIPE_SLOP = 8;                  // Buehneneinheiten
+let pendingTap = null;
+const stageDelta = (dx, dy) => { const r = document.getElementById('gameCanvas').getBoundingClientRect(); return [dx / r.width * CANVAS_W, dy / r.height * STAGE_H]; };
+Input.swipeX = 0; Input.swipeY = 0;
+Input.takeSwipe = function () {                          // hoechstens ein Schritt (-1, 0, 1) pro Bild, wie das Mausrad
+  const horiz = G.mode === 'pick', k = horiz ? 'swipeX' : 'swipeY';
+  if (Math.abs(this[k]) < SWIPE_STEP) return 0;
+  const s = Math.sign(this[k]); this[k] -= s * SWIPE_STEP; return s;
+};
 window.addEventListener('touchstart', (e) => {
   lastTouchAt = performance.now(); Input.touchSeen = true;
   if (inTouchUI(e)) return;
@@ -109,10 +120,33 @@ window.addEventListener('touchstart', (e) => {
   Input.mouse.moved = true;
   const now = performance.now();
   if (now - lastTapAt < TAP_LOCK) return;               // zu schnell nach dem letzten Tipp: ignorieren
+  const onBar = typeof UIHit !== 'undefined' && UIHit.blocks.some((b) => Input.mouse.x >= b.x && Input.mouse.x <= b.x + b.w && Input.mouse.y >= b.y && Input.mouse.y <= b.y + b.h);
+  if (G.mode !== 'play' && !onBar) {                    // Menue: Tipp erst beim Loslassen entscheiden
+    const t = e.touches[0]; pendingTap = { x: t.clientX, y: t.clientY, px: t.clientX, py: t.clientY, moved: false }; Input.swipeX = 0; Input.swipeY = 0; return;
+  }
   lastTapAt = now; Input.clicked = true; Input.mouseHeld = true;
 }, { passive: true });
-window.addEventListener('touchmove', (e) => { lastTouchAt = performance.now(); if (inTouchUI(e)) return; touchPos(e); if (Input.mouseHeld) Input.mouse.moved = true; }, { passive: true });
-const touchEnd = (e) => { lastTouchAt = performance.now(); if (!inTouchUI(e)) Input.mouseHeld = false; };
+window.addEventListener('touchmove', (e) => {
+  lastTouchAt = performance.now(); if (inTouchUI(e)) return; touchPos(e);
+  if (pendingTap) {
+    const t = e.touches[0]; if (!t) return;
+    const [dx, dy] = stageDelta(t.clientX - pendingTap.px, t.clientY - pendingTap.py), [tx, ty] = stageDelta(t.clientX - pendingTap.x, t.clientY - pendingTap.y);
+    pendingTap.px = t.clientX; pendingTap.py = t.clientY;
+    if (Math.hypot(tx, ty) > SWIPE_SLOP) pendingTap.moved = true;
+    if (pendingTap.moved) { Input.swipeX -= dx; Input.swipeY -= dy; }
+    return;
+  }
+  if (Input.mouseHeld) Input.mouse.moved = true;
+}, { passive: true });
+const touchEnd = (e) => {
+  lastTouchAt = performance.now();
+  if (pendingTap) {
+    const p = pendingTap; pendingTap = null;
+    if (e.type === 'touchend' && !p.moved) { lastTapAt = performance.now(); Input.clicked = true; }
+    return;
+  }
+  if (!inTouchUI(e)) Input.mouseHeld = false;
+};
 window.addEventListener('touchend', touchEnd, { passive: true });
 window.addEventListener('touchcancel', touchEnd, { passive: true });
 window.addEventListener('mousedown', (e) => { if (fromTouch()) return; Input.setMouse(e); if (e.button === 2) Input.rightClicked = true; else { Input.clicked = true; Input.mouseHeld = true; } });
