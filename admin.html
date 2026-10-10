@@ -103,7 +103,7 @@ async function act(label, fn, args, after) {
 }
 
 // ====== Zustand ======
-const S = { tab: 'players', users: null, sel: null, saves: {}, gifts: [], filter: '', sort: { k: 'created_at', d: -1 }, logs: null, logsFor: null, stat: { user: '', slot: '', map: 'all', sub: 'overview', dev: false } };
+const S = { tab: 'players', users: null, sel: null, saves: {}, gifts: [], filter: '', sort: { k: 'created_at', d: -1 }, logs: null, logsFor: null, stat: { user: '', slot: '', map: 'all', sub: 'saves', dev: false }, allSaves: null };
 
 // ====== Login ======
 function renderLogin(msg) {
@@ -128,7 +128,7 @@ function renderMain() {
   $('#app').innerHTML = '<header><h1>DEATHARENA ADMIN</h1><nav>' + tabs.map(([id, l]) => '<button data-t="' + id + '" class="' + (S.tab === id ? 'on' : '') + '">' + l + '</button>').join('') + '</nav><span class="sp"></span><span class="muted">' + (S.users ? S.users.length + ' accounts' : '') + '</span><button id="rl">RELOAD</button><button id="lo" class="warn">LOG OUT</button></header><div class="wrap" id="main"></div>';
   document.querySelectorAll('nav button').forEach((b) => { b.onclick = () => { S.tab = b.dataset.t; renderMain(); }; });
   $('#lo').onclick = logout;
-  $('#rl').onclick = async () => { try { S.users = await rpc('adm_users'); S.logs = null; if (S.sel) await loadSel(); toast('Reloaded'); renderMain(); } catch (e) { toast(e.message, true); } };
+  $('#rl').onclick = async () => { try { S.users = await rpc('adm_users'); S.logs = null; S.allSaves = null; if (S.sel) await loadSel(); toast('Reloaded'); renderMain(); } catch (e) { toast(e.message, true); } };
   ({ players: viewPlayers, create: viewCreate, stats: viewStats, gifts: viewGifts, audit: viewAudit }[S.tab])();
 }
 
@@ -272,6 +272,40 @@ function viewCreate() {
 }
 
 // ====== Statistik (Auswertung wie Stats.analyze in js/runstats.js, auf den hochgeladenen Protokollen aller Spieler) ======
+async function ensureSaves() {
+  if (S.allSaves) return;
+  const out = []; let off = 0;
+  for (;;) {
+    const part = await rpc('adm_all_saves', { p_limit: 200, p_offset: off });
+    out.push(...part); if (part.length < 200) break; off += 200;
+    if (off > 20000) break;
+  }
+  S.allSaves = out.map((r) => ({ user_id: r.user_id, name: r.name, slot: r.slot, at: r.updated_at, d: decodeCode(r.code) })).filter((r) => r.d);
+}
+function histo(values, edges, fmt) {      // values -> Balken je Bereich [edges[i], edges[i+1])
+  const rows = edges.map((lo, i) => { const hi = edges[i + 1]; return [fmt(lo) + (hi === undefined ? '+' : ' - ' + fmt(hi)), values.filter((v) => v >= lo && (hi === undefined || v < hi)).length]; });
+  return bars(rows.map(([l, n]) => [l, n, n + (values.length ? ' (' + pct(n / values.length) + ')' : '')]));
+}
+function drawSaves(el) {
+  const f = S.stat;
+  const rows = S.allSaves.filter((r) => (f.user === '' || r.user_id === f.user) && (f.slot === '' || r.slot === +f.slot) && !r.d.dev);
+  if (!rows.length) { el.innerHTML = '<div class="card muted">No save files for this filter.</div>'; return; }
+  const lv = (r) => levelOf(r.d.pxp), num = (fn) => rows.map(fn), sum = (a) => a.reduce((x, y) => x + y, 0);
+  const ach = (r) => Object.values((r.d.ach && r.d.ach.done) || {}).filter(Boolean).length;
+  const players = new Set(rows.map((r) => r.user_id)).size;
+  let h = '<div class="muted" style="margin-bottom:8px">' + rows.length + ' save files of ' + players + ' players, read straight from the cloud (dev saves left out). Updated whenever a player saves while logged in.</div>' +
+    '<div class="kpis">' + [['Save files', rows.length], ['Players', players], ['Avg player level', avg(num(lv)).toFixed(1)], ['Total runs', fmtN(sum(num((r) => r.d.runs || 0)))], ['Total wins', fmtN(sum(num((r) => r.d.wins || 0)))], ['Total kills', fmtN(sum(num((r) => (r.d.stats && r.d.stats.kills) || 0)))], ['Total bosses', fmtN(sum(num((r) => (r.d.stats && r.d.stats.bosses) || 0)))], ['Credits held', fmtN(sum(num((r) => r.d.souls || 0)))], ['Avg achievements', avg(num(ach)).toFixed(1)]].map(([l, v]) => '<div class="kpi"><b>' + v + '</b><span>' + l + '</span></div>').join('') + '</div>';
+  h += '<h2>Player level</h2><div class="card">' + histo(num(lv), [1, 3, 5, 7, 10, 15, 20, 30], (x) => 'Lv ' + x) + '</div>';
+  const best = num((r) => r.d.best || 0).filter((x) => x > 0);
+  h += '<h2>Best time (regular mode)</h2><div class="card">' + (best.length ? histo(best, [0, 120, 240, 360, 480, 600, 720, 840], fmtT) : '<span class="muted">No runs yet.</span>') + '</div>';
+  const maps = Object.keys(MAP_NAMES).map((id) => { const t = rows.map((r) => (r.d.mapBest && r.d.mapBest[id]) || 0).filter((x) => x > 0).sort((a, b) => a - b); return [id, t]; });
+  h += '<h2>Best time per map</h2><div class="card"><table><tr><th>MAP</th><th>PLAYERS WITH A TIME</th><th>MEDIAN BEST</th><th>BEST</th></tr>' + maps.map(([id, t]) => '<tr><td>' + MAP_NAMES[id] + '</td><td>' + t.length + '</td><td>' + (t.length ? fmtT(quant(t, .5)) : '-') + '</td><td>' + (t.length ? fmtT(t[t.length - 1]) : '-') + '</td></tr>').join('') + '</table></div>';
+  const heroes = {}; for (const r of rows) heroes[r.d.hero || 'vanguard'] = (heroes[r.d.hero || 'vanguard'] || 0) + 1;
+  h += '<h2>Selected hero</h2><div class="card">' + bars(Object.keys(heroes).sort((a, b) => heroes[b] - heroes[a]).map((k) => [k, heroes[k], heroes[k] + ''])) + '</div>';
+  h += '<h2>All save files</h2><div class="card" style="overflow:auto"><table><tr><th>PLAYER</th><th>SLOT</th><th>LEVEL</th><th>CREDITS</th><th>BEST</th><th>ENDLESS</th><th>RUNS</th><th>WINS</th><th>BOSSES</th><th>KILLS</th><th>ACH.</th><th>HERO</th><th>SAVED</th></tr>' +
+    rows.slice().sort((x, y) => (x.d.pxp || 0) < (y.d.pxp || 0) ? 1 : -1).map((r) => '<tr><td><b>' + esc(r.name) + '</b></td><td>' + (r.slot + 1) + '</td><td>' + lv(r) + '</td><td>' + fmtN(r.d.souls) + '</td><td>' + fmtT(r.d.best) + '</td><td>' + fmtT(r.d.bestInf) + '</td><td>' + fmtN(r.d.runs) + '</td><td>' + fmtN(r.d.wins) + '</td><td>' + fmtN(r.d.stats && r.d.stats.bosses) + '</td><td>' + fmtN(r.d.stats && r.d.stats.kills) + '</td><td>' + ach(r) + '</td><td>' + esc(r.d.hero || '-') + '</td><td>' + fmtD(r.at) + '</td></tr>').join('') + '</table></div>';
+  el.innerHTML = h;
+}
 async function ensureLogs(userId) {
   const key = userId || '*';
   if (S.logs && S.logsFor === key) return;
@@ -331,13 +365,15 @@ function viewStats() {
     '<label>Slot <select id="ss"><option value="">ALL</option>' + [0, 1, 2].map((i) => '<option value="' + i + '"' + (f.slot === String(i) ? ' selected' : '') + '>SLOT ' + (i + 1) + '</option>').join('') + '</select></label>' +
     '<label>Map <select id="sm"><option value="all">ALL MAPS (regular)</option>' + Object.keys(MAP_NAMES).map((k) => '<option value="' + k + '"' + (f.map === k ? ' selected' : '') + '>' + MAP_NAMES[k] + '</option>').join('') + '<option value="inf"' + (f.map === 'inf' ? ' selected' : '') + '>ENDLESS</option></select></label>' +
     '<label><input type="checkbox" id="sd" style="min-width:0"' + (f.dev ? ' checked' : '') + '> include dev/cheat runs</label></div>' +
-    '<div class="row">' + [['overview', 'OVERVIEW'], ['killers', 'KILLERS'], ['bosses', 'BOSSES'], ['builds', 'BUILDS'], ['players', 'PLAYERS'], ['recent', 'RECENT']].map(([id, l]) => '<button data-s="' + id + '" class="' + (f.sub === id ? 'on' : '') + '">' + l + '</button>').join('') + '</div></div><div id="sbody"><span class="muted">Loading...</span></div>';
+    '<div class="row">' + [['saves', 'SAVE FILES'], ['overview', 'RUNS'], ['killers', 'KILLERS'], ['bosses', 'BOSSES'], ['builds', 'BUILDS'], ['players', 'PLAYERS'], ['recent', 'RECENT']].map(([id, l]) => '<button data-s="' + id + '" class="' + (f.sub === id ? 'on' : '') + '">' + l + '</button>').join('') + '</div></div><div id="sbody"><span class="muted">Loading...</span></div>';
   $('#su').onchange = (e) => { f.user = e.target.value; viewStats(); }; $('#ss').onchange = (e) => { f.slot = e.target.value; drawStats(); }; $('#sm').onchange = (e) => { f.map = e.target.value; drawStats(); }; $('#sd').onchange = (e) => { f.dev = e.target.checked; drawStats(); };
   m.querySelectorAll('button[data-s]').forEach((b) => { b.onclick = () => { f.sub = b.dataset.s; viewStats(); }; });
-  ensureLogs(f.user).then(drawStats, (e) => { const el = $('#sbody'); if (el) el.innerHTML = '<span class="err">' + esc(e.message) + '</span>'; });
+  (f.sub === 'saves' ? ensureSaves() : ensureLogs(f.user)).then(drawStats, (e) => { const el = $('#sbody'); if (el) el.innerHTML = '<span class="err">' + esc(e.message) + '</span>'; });
 }
 function drawStats() {
-  const f = S.stat, el = $('#sbody'); if (!el || !S.logs) return;
+  const f = S.stat, el = $('#sbody'); if (!el) return;
+  if (f.sub === 'saves') { if (S.allSaves) drawSaves(el); return; }
+  if (!S.logs) return;
   const { deaths, bosses } = statSets(), a = analyze(deaths);
   let h = '<div class="muted" style="margin-bottom:8px">' + fmtN(S.logs.length) + ' log entries loaded, ' + a.n + ' runs and ' + bosses.length + ' boss fights match the filter. Only runs of logged-in players are uploaded.</div>';
   if (!deaths.length && !bosses.length) h += '<div class="card muted">No data for this filter yet. Players upload their runs when they are in the main menu while logged in (needs the updated game).</div>';
