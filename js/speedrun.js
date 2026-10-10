@@ -298,6 +298,7 @@ const SpeedRun = {
       const keys = Object.keys(B).filter((k) => k.startsWith('seed:') || k.startsWith('daily:'));
       for (let i = 0; i < keys.length - 40; i++) delete B[keys[i]];            // nur die letzten 40 Seeds/Tage merken (alle anderen Listen bleiben)
     }
+    if (sr.kind === 'seed' && sr.mode === 'fixed' && (!B.fixed || sr.final < B.fixed.time)) B.fixed = { time: sr.final, seed: sr.seed };   // Liste "gewaehlter Seed": beste Zeit ueber alle selbst gewaehlten Seeds
     return { best: isBest, old, cheat: false };
   },
   exit() { Save.srOn = false; G.sr = null; },

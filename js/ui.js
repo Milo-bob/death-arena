@@ -728,7 +728,7 @@ function drawUpgradesScreen(ctx) {
     la.forEach((l, i) => uiText(ctx, l, DX + 10, top + 30 + i * DETAIL_LH, { size: T.small, color: P.ice }));
     lb.forEach((l, i) => uiText(ctx, l, DX + 10, top + 34 + (la.length + i) * DETAIL_LH, { size: T.small, color: P.grey }));
     const act = upgradeAction(cur);
-    if (act) drawActionButton(ctx, DX + DW / 2 - 110, top + bh - 34, 220, 24, act);
+    if (act) { const abw = Math.min(220, DW - 20); drawActionButton(ctx, DX + DW / 2 - abw / 2, top + bh - 34, abw, 24, act); }   // bleibt mit Rand im Detail-Feld
   }
 }
 

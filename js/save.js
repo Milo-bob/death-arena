@@ -20,6 +20,7 @@ const Save = {
     hero: 'vanguard', heroes: {},               // gewaehlter Held und gekaufte Helden (CFG.heroes)
     stats: { bosses: 0, kills: 0 }, milestones: {}, msPaid: {},
     pxp: 0, pxpSeeded: false,                    // Spielerlevel: gesammelte XP gesamt (CFG.level), pxpSeeded = alter Spielstand wurde einmal umgerechnet
+    devKey: '',                                  // geheimer Schluessel aus der Dev-Save-Datei: erlaubt Spieler in den Ranglisten zu sperren (Server prueft den Hash)
     dev: false,                                  // Dev-Modus (Cheat-Tasten + Statistik-Bildschirm), wird mit der Dev-Save-Datei freigeschaltet (tools/dev-save.deatharena)
     deathLog: [], bossLog: [],                   // Protokoll fuer das Balancing (siehe runstats.js), gilt fuer alle Slots
     imported: { deaths: [], bosses: [] },        // importierte Spieldaten anderer Spieler
@@ -321,6 +322,7 @@ const Save = {
       // auch wenn man einen aelteren Code ueber einen neueren Stand importiert
       if (!(src.dev === true && this.data.dev !== true) && this.data.ach) next.ach = this.mergeAch(next.ach, this.data.ach);       // nur die Dev-Datei (schaltet Dev neu frei) ersetzt ohne Zusammenfuehren
       for (const k of this.KEEP) if (this.data[k] !== undefined && (this.LOG_KEYS.includes(k) || src[k] === undefined || typeof src[k] !== typeof this.data[k])) next[k] = this.data[k];       // Protokolle bleiben lokal, Einstellungen kommen aus dem Code (fehlen sie dort, bleiben die lokalen)
+      next.devKey = (typeof src.devKey === 'string' && src.devKey) || (typeof this.data.devKey === 'string' && this.data.devKey) || '';
       next.dev = src.dev === true || this.data.dev === true;           // die Dev-Save-Datei schaltet den Dev-Modus fuer diesen Slot frei (bleibt dort auch nach einem normalen Import)
       this.data = next;
       this.migrate();

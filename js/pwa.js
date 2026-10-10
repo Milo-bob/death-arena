@@ -68,7 +68,7 @@ const PWA = {
         : 'Use your browser menu: "Install DeathArena" / "Install app" (Chrome, Edge) or "Add to Home Screen" (mobile). If nothing is offered, the app is probably installed already.'));
       box.appendChild(info);
       if (this.embedded) {
-        const a = installBtn('a', 'INSTALL THE APP', 'Opens the game page in a new tab, where you can install it.'); a.href = location.origin + '/?install=1'; a.target = '_blank'; a.rel = 'noopener'; box.appendChild(a);
+        const a = installBtn('a', 'INSTALL THE APP', 'Opens the download page in a new tab.'); a.href = location.origin + '/install.html'; a.target = '_blank'; a.rel = 'noopener'; box.appendChild(a);
       } else if (this.prompt) {
         const b = installBtn('button', 'INSTALL THE APP', 'Adds DeathArena to your device as an app.');
         b.onclick = async () => { try { this.prompt.prompt(); await this.prompt.userChoice; } catch (e) { /* abgebrochen */ } this.prompt = null; this.close(); };

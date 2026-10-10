@@ -114,7 +114,7 @@ I18n.add({
   'Own icon and window, works fully offline and is always the same version as the website (it updates itself when you are online). Your saves and your account stay the same.': 'Eigenes Symbol und Fenster, funktioniert komplett offline und ist immer dieselbe Version wie die Webseite (sie aktualisiert sich selbst, wenn du online bist). Deine Spielstände und dein Konto bleiben gleich.',
   'On iPhone / iPad: tap the SHARE button of Safari (square with an arrow), then "Add to Home Screen". Open the game from the new icon.': 'Auf iPhone / iPad: Tippe auf den TEILEN-Knopf von Safari (Quadrat mit Pfeil), dann auf "Zum Home-Bildschirm". Öffne das Spiel über das neue Symbol.',
   'Use your browser menu: "Install DeathArena" / "Install app" (Chrome, Edge) or "Add to Home Screen" (mobile). If nothing is offered, the app is probably installed already.': 'Nutze das Browsermenü: "DeathArena installieren" / "App installieren" (Chrome, Edge) oder "Zum Startbildschirm hinzufügen" (Handy). Wird nichts angeboten, ist die App wahrscheinlich schon installiert.',
-  'INSTALL THE APP': 'APP INSTALLIEREN', 'Opens the game page in a new tab, where you can install it.': 'Öffnet die Spielseite in einem neuen Tab, wo du sie installieren kannst.', 'Adds DeathArena to your device as an app.': 'Fügt DeathArena deinem Gerät als App hinzu.',
+  'INSTALL THE APP': 'APP INSTALLIEREN', 'Opens the download page in a new tab.': 'Öffnet die Download-Seite in einem neuen Tab.', 'Adds DeathArena to your device as an app.': 'Fügt DeathArena deinem Gerät als App hinzu.',
   'DEATHARENA APP': 'DEATHARENA-APP',
 });
 
@@ -180,14 +180,14 @@ I18n.add({
 });
 I18n.phrases([['MELEE: ', 'NAHKAMPF: '], ['RANGED: ', 'FERNKAMPF: '], ['HEAVY: ', 'STARKE WAFFE: '], ['MAP: ', 'KARTE: '], ['SEED: ', 'SEED: '], ['KILLED BY: ', 'GETÖTET VON: ']]);
 I18n.add({
-  'RANDOM SEED': 'ZUFALLS-SEED', 'DAILY SEED': 'TAGES-SEED', 'ENTER SEED': 'SEED EINGEBEN', 'SEED #': 'SEED #', 'ENTER A SEED NUMBER': 'Gib eine Seed-Zahl ein',
+  'RANDOM SEED': 'ZUFALLS-SEED', 'DAILY SEED': 'TAGES-SEED', 'ENTER SEED': 'SEED EINGEBEN', 'BANNED': 'GESPERRT', 'BAN': 'SPERREN', 'UNBAN': 'ENTSPERREN', 'SURE?': 'SICHER?', 'HIDDEN FROM ALL LISTS  -  UNBAN TO BRING THEM BACK': 'IN ALLEN LISTEN VERSTECKT  -  ENTSPERREN HOLT SIE ZURÜCK', 'CHOSEN SEED': 'GEWÄHLTER SEED', 'FASTEST TIME WITH A SEED THE PLAYER CHOSE': 'SCHNELLSTE ZEIT MIT EINEM SELBST GEWÄHLTEN SEED', 'ENTER A SEED NUMBER': 'Gib eine Seed-Zahl ein',
   'TYPE DIGITS (BACKSPACE DELETES) OR PRESS SPACE.': 'ZIFFERN TIPPEN (RÜCKSCHRITT LÖSCHT) ODER LEERTASTE DRÜCKEN.', 'DAILY SEED: the same world for everyone today.': 'TAGES-SEED: heute für alle die gleiche Welt.',
   'A / D: RANDOM, DAILY OR YOUR OWN SEED.': 'A / D: ZUFALL, TAGES-SEED ODER EIGENER SEED.',
 });
 I18n.add({
   'FASTEST TIME': 'SCHNELLSTE ZEIT', 'FASTEST TIME, PENALTY INCLUDED': 'SCHNELLSTE ZEIT, STRAFE EINGERECHNET', 'SEED RUN: RANDOM SEED': 'SEED RUN: ZUFALLS-SEED', 'SEED RUN: DAILY SEED': 'SEED RUN: TAGES-SEED',
   'FASTEST TIME WITH ANY RANDOM SEED': 'SCHNELLSTE ZEIT MIT EINEM BELIEBIGEN ZUFALLS-SEED', 'FASTEST TIME ON THIS SEED  -  TYPE DIGITS TO CHANGE THE SEED': 'SCHNELLSTE ZEIT AUF DIESEM SEED  -  ZIFFERN TIPPEN, UM DEN SEED ZU ÄNDERN',
-  'FASTEST TIME ON THE DAILY SEED (#)': 'SCHNELLSTE ZEIT AUF DEM TAGES-SEED (#)', 'SEED RUN: SEED #': 'SEED RUN: SEED #',
+  'FASTEST TIME ON THE DAILY SEED (#)': 'SCHNELLSTE ZEIT AUF DEM TAGES-SEED (#)', 'SEED RUN: SEED #': 'SEED RUN: SEED #', 'RANDOM SEED': 'ZUFALLS-SEED', 'DAILY SEED': 'TAGES-SEED', 'SEED #': 'SEED #',
   'LEADERBOARD [B] IN THE MAIN MENU: RANDOM SEED': 'RANGLISTE [B] IM HAUPTMENÜ: ZUFALLS-SEED', 'LEADERBOARD [B] IN THE MAIN MENU: DAILY SEED': 'RANGLISTE [B] IM HAUPTMENÜ: TAGES-SEED', 'LEADERBOARD [B] IN THE MAIN MENU: SEED #': 'RANGLISTE [B] IM HAUPTMENÜ: SEED #',
   'LEADERBOARD [B] IN THE MAIN MENU: BOSS RUSH': 'RANGLISTE [B] IM HAUPTMENÜ: BOSS RUSH', 'LEADERBOARD [B] IN THE MAIN MENU: GAUNTLET': 'RANGLISTE [B] IM HAUPTMENÜ: GAUNTLET',
 });

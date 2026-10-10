@@ -29,7 +29,7 @@ const STYLE = {
     white: '#ffffff',
   },
 
-  font: '"Pixelify Sans", monospace',
+  font: '"Pixel Digits", "Pixelify Sans", monospace',
 
   // Schriftgrößen in Bühneneinheiten (Bühne 480 x 360)
   type: { title: 56, h1: 24, h2: 14, body: 10, small: 8 },

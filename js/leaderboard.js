@@ -5,8 +5,8 @@
 
 const Board = {
   pages: {},                          // Liste-ID -> { rows: [{ rank, name, val, mine }], total, me: { rank, val } | null, error, at }
-  loading: {}, optIn: null, busy: false, error: '',
-  tab: 0, top: 0,
+  loading: {}, optIn: null, busy: false, error: '', admin: false, banAsk: null,
+  tab: 0, top: 0, sub: 0,
   LIMIT: 100, TTL: 60000,
 
   // Listen: id = Name der Liste in der Datenbank, fmt = Anzeige des Wertes
@@ -22,19 +22,27 @@ const Board = {
       { id: 'boss', label: 'BOSSES', hint: 'BOSSES DEFEATED IN TOTAL', fmt: f },
       { id: 'kill', label: 'KILLS', hint: 'ENEMIES DEFEATED IN TOTAL', fmt: f },
     ];
-    for (const m of CFG.maps) list.push({ id: 'map:' + m.id, label: m.name, hint: 'BEST TIME ON THIS MAP', fmt: formatTime });
-    // Speedrun: schnellste Zeit zuerst (Server: lb_sr_page). Zufalls-Seed = beste Zeit ueber alle Zufalls-Seeds, Daily = Seed des heutigen Tages, Fester Seed = die Zahl aus dem Speedrun-Setup (hier mit Ziffern aenderbar)
+    // Speedrun: schnellste Zeit zuerst (Server: lb_sr_page). Zufalls-Seed = beste Zeit ueber alle Zufalls-Seeds, Daily = Seed des heutigen Tages, Gewaehlter Seed = beste Zeit ueber alle Seeds, die Spieler selbst gewaehlt haben (nicht pro Seed)
     list.push({ id: 'sr:rush', label: 'BOSS RUSH', hint: 'FASTEST TIME', fmt: srFmt, sr: true });
     list.push({ id: 'sr:gauntlet', label: 'GAUNTLET', hint: 'FASTEST TIME, PENALTY INCLUDED', fmt: srFmt, sr: true });
-    list.push({ id: 'sr:rnd', label: 'SEED RUN: RANDOM SEED', hint: 'FASTEST TIME WITH ANY RANDOM SEED', fmt: srFmt, sr: true });
-    list.push({ id: 'sr:daily:' + SpeedRun.today(), label: 'SEED RUN: DAILY SEED', hint: 'FASTEST TIME ON THE DAILY SEED (' + SpeedRun.today() + ')', fmt: srFmt, sr: true });
-    list.push({ id: 'sr:seed:' + Math.max(1, Save.data.sr.seedNum), label: 'SEED RUN: SEED ' + Math.max(1, Save.data.sr.seedNum), hint: 'FASTEST TIME ON THIS SEED  -  TYPE DIGITS TO CHANGE THE SEED', fmt: srFmt, sr: true, typeSeed: true });
+    list.push(this.seedTab());
+    if (this.admin) list.push({ id: 'banned', label: 'BANNED', hint: 'HIDDEN FROM ALL LISTS  -  UNBAN TO BRING THEM BACK', fmt: () => '' });   // nur fuer Admins                                                          // alle Seed-Run-Listen = eine Kategorie, unten wechselt man zwischen ihnen (Q/E)
     return list;
   },
+  // Seed Run: Zufalls-Seed = beste Zeit ueber alle Zufalls-Seeds, Daily = Seed des heutigen Tages, Gewaehlter Seed = beste Zeit ueber alle Seeds, die Spieler selbst gewaehlt haben (nicht pro Seed)
+  seedSubs() {
+    return [
+      { id: 'sr:rnd', sub: 'RANDOM SEED', hint: 'FASTEST TIME WITH ANY RANDOM SEED' },
+      { id: 'sr:daily:' + SpeedRun.today(), sub: 'DAILY SEED', hint: 'FASTEST TIME ON THE DAILY SEED (' + SpeedRun.today() + ')' },
+      { id: 'sr:fixed', sub: 'CHOSEN SEED', hint: 'FASTEST TIME WITH A SEED THE PLAYER CHOSE' },
+    ];
+  },
+  seedTab() { const s = this.seedSubs()[this.sub]; return Object.assign({ label: 'SEED RUN', fmt: srFmt, sr: true, group: true }, s); },
+  setSub(i) { const n = this.seedSubs().length; this.sub = (i + n) % n; this.top = 0; Sfx.play('tick'); this.load(this.cur().id); },
   cur() { return this.tabs()[this.tab]; },
   page() { return this.pages[this.cur().id] || null; },
 
-  open() { this.tab = Math.min(this.tab, this.tabs().length - 1); this.top = 0; this.error = ''; this.loadOptIn(); this.load(this.cur().id); },
+  open() { this.tab = Math.min(this.tab, this.tabs().length - 1); this.top = 0; this.error = ''; this.banAsk = null; this.loadOptIn(); this.loadAdmin(); this.load(this.cur().id); },
 
   // Eine Liste laden (hoechstens einmal pro Minute, ausser force)
   async load(id, force) {
@@ -43,14 +51,39 @@ const Board = {
     if (!Account.configured) { this.error = 'CLOUD SAVES ARE NOT SET UP YET'; return; }
     this.loading[id] = true;
     try {
-      const fnPage = id.startsWith('sr:') ? 'lb_sr_page' : 'lb_page', fnMe = id.startsWith('sr:') ? 'lb_sr_me' : 'lb_me';
-      const a = await Account.http('POST', '/rest/v1/rpc/' + fnPage, { p_board: id, p_limit: this.LIMIT, p_offset: 0 }, Account.on ? await Account.token() : null);
+      const fnPage = id === 'banned' ? 'lb_banned' : id.startsWith('sr:') ? 'lb_sr_page' : 'lb_page', fnMe = id.startsWith('sr:') ? 'lb_sr_me' : 'lb_me';
+      const a = await Account.http('POST', '/rest/v1/rpc/' + fnPage, Object.assign({ p_board: id, p_limit: this.LIMIT, p_offset: 0 }, this.admin ? { p_key: this.key() } : {}), Account.on ? await Account.token() : null);
       if (!a.ok) { this.pages[id] = old || { rows: null, total: 0, me: null, at: 0 }; this.pages[id].error = a.offline ? 'NO CONNECTION' : 'LEADERBOARD IS NOT SET UP YET'; return; }
-      const rows = (a.json || []).map((r) => ({ rank: r.rank, name: r.name, val: +r.val, mine: !!r.mine }));
+      const rows = (a.json || []).map((r) => ({ rank: r.rank, name: r.name, val: +r.val, mine: !!r.mine, uid: r.uid || null }));
       let me = null;
-      if (Account.on) { const b = await Account.rest('POST', '/rest/v1/rpc/' + fnMe, { p_board: id }); if (b.ok && b.json && b.json[0]) me = { rank: b.json[0].rank, val: +b.json[0].val, total: b.json[0].total }; }
+      if (Account.on && id !== 'banned') { const b = await Account.rest('POST', '/rest/v1/rpc/' + fnMe, { p_board: id }); if (b.ok && b.json && b.json[0]) me = { rank: b.json[0].rank, val: +b.json[0].val, total: b.json[0].total }; }
       this.pages[id] = { rows, total: a.json && a.json[0] ? +a.json[0].total : 0, me, error: '', at: Date.now() };
     } finally { this.loading[id] = false; }
+  },
+
+  // Moderation haengt am SPIELSTAND, nicht am Konto: nur der Slot mit der Dev-Save-Datei hat den geheimen Schluessel (Save.data.devKey).
+  // Der Server kennt nur dessen Hash (Tabelle lb_admin_key) und sagt, ob er stimmt. Nur dann gibt es BAN-Knoepfe und den Reiter BANNED.
+  key() { return Save.data.dev === true && typeof Save.data.devKey === 'string' && Save.data.devKey.length >= 16 ? Save.data.devKey : null; },
+  async loadAdmin() {
+    const k = this.key();
+    if (!k || !Account.configured) { this.admin = false; return; }
+    const r = await Account.http('POST', '/rest/v1/rpc/lb_is_admin', { p_key: k }, null);
+    const was = this.admin;
+    this.admin = !!(r.ok && r.json === true);
+    if (this.admin && !was) { this.pages = {}; this.load(this.cur().id, true); }          // erste Liste war ohne Schluessel geladen: jetzt mit Spieler-IDs fuer BAN
+    if (!this.admin && this.tab >= this.tabs().length) this.tab = 0;
+  },
+
+  // Zweistufig: erst Klick = "SURE?", zweiter Klick auf denselben Eintrag fuehrt aus. Danach werden alle Listen neu geladen.
+  async moderate(e, unban) {
+    if (!this.admin || !e.uid || this.busy) return;
+    if (this.banAsk !== e.uid) { this.banAsk = e.uid; return; }
+    this.banAsk = null; this.busy = true;
+    try {
+      const r = await Account.http('POST', '/rest/v1/rpc/' + (unban ? 'lb_unban' : 'lb_ban'), { p_user: e.uid, p_key: this.key() }, null);
+      if (r.ok) { this.pages = {}; this.error = ''; this.load(this.cur().id, true); }
+      else this.error = Account.errText(r);
+    } finally { this.busy = false; }
   },
 
   async loadOptIn() {
@@ -71,24 +104,18 @@ const Board = {
     } finally { this.busy = false; }
   },
 
-  step(d) { const n = this.tabs().length; this.tab = (this.tab + d + n) % n; this.top = 0; Sfx.play('tick'); this.load(this.cur().id); },
+  step(d) { const n = this.tabs().length; this.tab = (this.tab + d + n) % n; this.top = 0; this.banAsk = null; Sfx.play('tick'); this.load(this.cur().id); },
   setTab(i) { this.tab = i; this.top = 0; this.load(this.cur().id); },
 
   update() {
     const pg = this.page(), n = pg && pg.rows ? pg.rows.length : 0, vis = 9;
     const tb = this.cur();
-    if (tb.typeSeed) {                                                                   // fester Seed: Ziffern tippen, Rueckschritt loescht (Liste laedt kurz nach der letzten Eingabe)
-      const S = Save.data.sr; let typed = false;
-      for (const c of Object.keys(Input.pressedNow)) { const m = /^(?:Digit|Numpad)([0-9])$/.exec(c); if (m) { S.seedNum = this.seedTyped ? Math.min(999999999, S.seedNum * 10 + Number(m[1])) : Number(m[1]); this.seedTyped = true; typed = true; } }
-      if (Input.pressedNow.Backspace) { S.seedNum = Math.floor(S.seedNum / 10); this.seedTyped = true; typed = true; }
-      if (typed) { Save.write(); this.seedAt = Date.now(); this.top = 0; if (Input.pressedNow.Backspace) return; }
-      if (this.seedAt && Date.now() - this.seedAt > 600) { this.seedAt = 0; this.load(this.cur().id); }
-    } else this.seedTyped = false;
     if (Input.pressed('Escape')) { G.mode = 'start'; return; }
     if (Input.pressed('ArrowLeft') || Input.pressed('KeyA')) this.step(-1);
     if (Input.pressed('ArrowRight') || Input.pressed('KeyD')) this.step(1);
     if (Input.pressed('ArrowUp') || Input.pressed('KeyW')) this.top = Math.max(0, this.top - 1);
     if (Input.pressed('ArrowDown') || Input.pressed('KeyS')) this.top = Math.max(0, Math.min(n - vis, this.top + 1));
+    if (tb.group) { if (Input.pressed('KeyQ')) this.setSub(this.sub - 1); if (Input.pressed('KeyE')) this.setSub(this.sub + 1); }
     if (Input.pressed('KeyR')) { this.loadOptIn(); this.load(this.cur().id, true); }
     if (Input.pressed('Space') || Input.pressed('Enter')) this.toggle();
   },
@@ -124,6 +151,13 @@ const Board = {
       uiText(ctx, e.name.toUpperCase(), X + 50, y + 13, { size: T.h2, color: col, maxW: W - 170 });
       uiText(ctx, tb.fmt(e.val) + (tb.unit ? ' ' + tb.unit : ''), X + W, y + 13, { size: T.h2, color: col, align: 'right' });
     });
+    if (this.admin) rows.slice(this.top, this.top + vis).forEach((e, i) => {             // BAN / UNBAN je Zeile (nur Admins; zweiter Klick bestaetigt)
+      if (!e.uid || e.mine) return;
+      const y = Y0 + i * DY, bx = X + W + 22, ask = this.banAsk === e.uid, unban = tb.id === 'banned', col = unban ? P.green : P.red;
+      UIHit.add(bx, y, 50, DY - 4, () => {}, { act: () => this.moderate(e, unban) });
+      uiPanel(ctx, bx, y, 50, DY - 4, { color: ask ? P.yellow : col, fill: ask ? P.voidLight : P.void, alpha: 0.9 });
+      uiText(ctx, ask ? 'SURE?' : unban ? 'UNBAN' : 'BAN', bx + 25, y + 13, { size: T.small, color: ask ? P.yellow : col, align: 'center' });
+    });
     UIScroll.bar(ctx, 'board', X + W + 12, Y0, 6, vis * DY - 4, true, Math.max(rows.length, vis), vis, this.top, (v) => { this.top = v; });
     // eigener Platz (kommt direkt aus der Datenbank, auch wenn er ausserhalb der Top 100 liegt)
     let line = '', lc = P.grey;
@@ -137,6 +171,15 @@ const Board = {
     if (err) uiText(ctx, err, cx, 334, { size: T.small, color: P.red, align: 'center' });
     // Knoepfe
     const by = 338, bw = 130;
+    if (tb.group) {                                                                     // Unterliste des Seed Run: Q/E oder Klick
+      const subs = this.seedSubs(), sw = 92, gx = cx - (subs.length * sw + (subs.length - 1) * 4) / 2;
+      subs.forEach((s2, i) => {
+        const x = gx + i * (sw + 4), on = i === this.sub;
+        UIHit.add(x, by, sw, 18, () => {}, { act: () => this.setSub(i) });
+        uiPanel(ctx, x, by, sw, 18, { color: on ? P.yellow : P.greyMid, fill: on ? P.voidLight : P.void, alpha: 0.9 });
+        uiText(ctx, s2.sub, x + sw / 2, by + 13, { size: T.small, color: on ? P.yellow : P.grey, align: 'center', maxW: sw - 6 });
+      });
+    }
     if (Account.on && this.optIn !== null) {
       UIHit.add(24, by, bw, 18, () => {}, { act: () => this.toggle() });
       uiPanel(ctx, 24, by, bw, 18, { color: this.optIn ? P.red : P.green, fill: P.void, alpha: 0.9 });

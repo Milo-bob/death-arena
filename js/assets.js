@@ -53,7 +53,10 @@ function loadAssets(onDone) {
     img.onerror = () => { console.warn('Missing image: ' + name); finish(); };
     img.src = 'assets/img_new/' + name + '.png';
   }
-  if (document.fonts) document.fonts.load('20px "Pixelify Sans"').catch(() => {});
+  if (document.fonts) {
+    document.fonts.load('20px "Pixelify Sans"').catch(() => {});
+    document.fonts.load('20px "Pixel Digits"', '0123456789').catch(() => {});
+  }
   setMusicVolume(Save.data.musicVol);
 }
 
