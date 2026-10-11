@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title>DeathArena Admin</title>
+<link rel="manifest" href="admin.webmanifest">
+<meta name="theme-color" content="#05060f">
+<link rel="icon" type="image/png" href="icons/admin-192.png">
+<link rel="apple-touch-icon" href="icons/admin-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="DA Admin">
 <style>
   :root { --ink:#05060f; --void:#070914; --panel:#0e1430; --line:#1f3a66; --cyan:#3de8ff; --cyanDark:#0d5a78; --ice:#e6fdff; --grey:#7f8fb0; --yellow:#ffd91f; --orange:#ff8a1f; --red:#ff2d3d; --green:#39ff6e; --violet:#8a4bff; }
   * { box-sizing: border-box; }
@@ -88,6 +95,17 @@ function levelOf(xp) {        // wie Save.levelInfo in js/save.js (needs: 80/120
 function randomPw() { const a = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789', b = crypto.getRandomValues(new Uint8Array(12)); return Array.from(b, (x) => a[x % a.length]).join(''); }
 
 // ====== Server ======
+const store = { get: () => { try { return localStorage.getItem('da.admin') || sessionStorage.getItem('da.admin') || ''; } catch (e) { return ''; } }, set: (k) => { try { localStorage.setItem('da.admin', k); } catch (e) { /* egal */ } }, del: () => { try { localStorage.removeItem('da.admin'); sessionStorage.removeItem('da.admin'); } catch (e) { /* egal */ } } };
+const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+let installEv = null;
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEv = e; document.querySelectorAll('.inst').forEach((b) => { b.hidden = false; }); });
+window.addEventListener('appinstalled', () => { installEv = null; document.querySelectorAll('.inst').forEach((b) => { b.hidden = true; }); });
+async function installApp() {
+  if (installEv) { installEv.prompt(); try { await installEv.userChoice; } catch (e) { /* egal */ } installEv = null; return; }
+  alert(/iPad|iPhone|iPod/.test(navigator.userAgent) ? 'On iPhone/iPad: tap the Share button, then "Add to Home Screen".' : 'Use your browser menu: "Install app" / "Add to Home screen". (Chrome/Edge: icon in the address bar.)');
+}
+const instBtn = () => standalone() ? '' : '<button class="inst" onclick="installApp()"' + (installEv ? '' : ' hidden') + '>INSTALL APP</button>';
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 let KEY = '';                                         // Admin-Passwort (nur im Speicher, optional sessionStorage)
 async function rpc(fn, args) {
   const res = await fetch(URL_ + '/rest/v1/rpc/' + fn, { method: 'POST', headers: { apikey: KEY_, Authorization: 'Bearer ' + KEY_, 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ p_key: KEY }, args || {})) });
@@ -109,23 +127,23 @@ const S = { tab: 'players', users: null, sel: null, saves: {}, gifts: [], filter
 function renderLogin(msg) {
   $('#app').innerHTML = '<div class="login card"><h1>DEATHARENA ADMIN</h1><p class="muted">Enter the admin password (your dev key).</p>' +
     '<input type="password" id="pw" placeholder="Admin password" autocomplete="current-password" autofocus>' +
-    '<label class="muted"><input type="checkbox" id="rem" style="min-width:0"> stay logged in in this tab</label>' +
-    '<div class="row"><button id="go" class="on">LOG IN</button></div><div class="err" id="lm">' + esc(msg || '') + '</div></div>';
+    '<label class="muted"><input type="checkbox" id="rem" style="min-width:0" checked> stay logged in on this device</label>' +
+    '<div class="row"><button id="go" class="on">LOG IN</button>' + instBtn() + '</div><div class="err" id="lm">' + esc(msg || '') + '</div></div>';
   const go = async () => {
     KEY = $('#pw').value.trim(); if (!KEY) return;
     $('#lm').textContent = 'Checking...';
     try { S.users = await rpc('adm_users'); } catch (e) { KEY = ''; $('#lm').textContent = e.message; return; }
-    try { if ($('#rem').checked) sessionStorage.setItem('da.admin', KEY); } catch (e) { /* egal */ }
+    if ($('#rem').checked) store.set(KEY);
     renderMain();
   };
   $('#go').onclick = go; $('#pw').addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
 }
-function logout() { KEY = ''; try { sessionStorage.removeItem('da.admin'); } catch (e) { /* egal */ } S.users = null; S.sel = null; S.logs = null; renderLogin(); }
+function logout() { KEY = ''; store.del(); S.users = null; S.sel = null; S.logs = null; renderLogin(); }
 
 // ====== Rahmen ======
 function renderMain() {
   const tabs = [['players', 'PLAYERS'], ['create', 'CREATE ACCOUNTS'], ['stats', 'STATISTICS'], ['gifts', 'GIFTS'], ['audit', 'ACTION LOG']];
-  $('#app').innerHTML = '<header><h1>DEATHARENA ADMIN</h1><nav>' + tabs.map(([id, l]) => '<button data-t="' + id + '" class="' + (S.tab === id ? 'on' : '') + '">' + l + '</button>').join('') + '</nav><span class="sp"></span><span class="muted">' + (S.users ? S.users.length + ' accounts' : '') + '</span><button id="rl">RELOAD</button><button id="lo" class="warn">LOG OUT</button></header><div class="wrap" id="main"></div>';
+  $('#app').innerHTML = '<header><h1>DEATHARENA ADMIN</h1><nav>' + tabs.map(([id, l]) => '<button data-t="' + id + '" class="' + (S.tab === id ? 'on' : '') + '">' + l + '</button>').join('') + '</nav><span class="sp"></span><span class="muted">' + (S.users ? S.users.length + ' accounts' : '') + '</span><button id="rl">RELOAD</button>' + instBtn() + '<button id="lo" class="warn">LOG OUT</button></header><div class="wrap" id="main"></div>';
   document.querySelectorAll('nav button').forEach((b) => { b.onclick = () => { S.tab = b.dataset.t; renderMain(); }; });
   $('#lo').onclick = logout;
   $('#rl').onclick = async () => { try { S.users = await rpc('adm_users'); S.logs = null; S.allSaves = null; if (S.sel) await loadSel(); toast('Reloaded'); renderMain(); } catch (e) { toast(e.message, true); } };
@@ -426,8 +444,8 @@ async function viewAudit() {
     const m = /[#?&]password=([^&#]+)/.exec(location.hash + '&' + location.search);
     if (m) { k = decodeURIComponent(m[1]).trim(); history.replaceState(null, '', location.pathname); }
   } catch (e) { /* egal */ }
-  if (!k) { try { k = sessionStorage.getItem('da.admin') || ''; } catch (e) { /* egal */ } }
-  if (k) { KEY = k; try { S.users = await rpc('adm_users'); try { sessionStorage.setItem('da.admin', k); } catch (e2) { /* egal */ } return renderMain(); } catch (e) { KEY = ''; try { sessionStorage.removeItem('da.admin'); } catch (e2) { /* egal */ } return renderLogin(e.message); } }
+  if (!k) k = store.get();
+  if (k) { KEY = k; try { S.users = await rpc('adm_users'); store.set(k); return renderMain(); } catch (e) { KEY = ''; if (/wrong admin password/i.test(e.message)) store.del(); return renderLogin(e.message); } }
   renderLogin();
 })();
 </script>

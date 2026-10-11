@@ -1,0 +1,17 @@
+{
+  "id": "/admin.html",
+  "name": "DeathArena Admin",
+  "short_name": "DA Admin",
+  "description": "Admin tools for DeathArena: players, credits, statistics.",
+  "start_url": "./admin.html?source=pwa",
+  "scope": "./admin.html",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#070914",
+  "theme_color": "#05060f",
+  "icons": [
+    { "src": "icons/admin-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/admin-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/admin-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
