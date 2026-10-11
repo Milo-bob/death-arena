@@ -202,6 +202,7 @@ const Coop = {
     G.cam = { x: G.player.x, y: G.player.y };
     if (role === 'host') { G.director = new Director(); MapEnv.init(); }
     else { G.director = this.stubDirector(); MapEnv.init(); G.hazards = []; MapEnv.blz = null; G.obstacles = []; }
+    if (n >= 2) Ach.add('coop');                                          // Achievement TWO'S COMPANY
     Pvp.say('');
     return true;
   },
@@ -661,7 +662,7 @@ const Coop = {
 };
 
 if (typeof I18n !== 'undefined' && I18n.add) I18n.add({
-  'CO-OP': 'KOOP', 'CONNECTION LOST': 'VERBINDUNG VERLOREN', 'THE HOST LEFT': 'DER HOST IST WEG', 'YOU LEFT THE RUN': 'DU HAST DEN LAUF VERLASSEN', 'ALL PLAYERS ARE DOWN': 'ALLE SPIELER SIND AUSGESCHIEDEN',
+  'CO-OP': 'KOOP', 'Play a co-op run together with another player.': 'Spiele einen Koop-Lauf zusammen mit einem anderen Spieler.', 'CONNECTION LOST': 'VERBINDUNG VERLOREN', 'THE HOST LEFT': 'DER HOST IST WEG', 'YOU LEFT THE RUN': 'DU HAST DEN LAUF VERLASSEN', 'ALL PLAYERS ARE DOWN': 'ALLE SPIELER SIND AUSGESCHIEDEN',
   'Play a run together with up to 3 friends on the standard maps, only bigger. Create a lobby and share the code.': 'Spielt einen Lauf zusammen mit bis zu 3 Freunden auf den Standardkarten, nur größer. Erstelle eine Lobby und teile den Code.',
   'Everyone keeps their own gear, upgrades and hero. More players means a much harder run: 2 players are about 2.7x, 4 players about 8x as hard. Fallen players come back after the next boss.': 'Jeder behält seine eigene Ausrüstung, Upgrades und seinen Helden. Mehr Spieler bedeuten einen viel härteren Lauf: 2 Spieler sind etwa 2,7x, 4 Spieler etwa 8x so schwer. Gefallene Spieler kommen nach dem nächsten Boss zurück.',
   'Share the code. Everyone plays together on the bigger map; more players make the run harder. Choose the map, then start.': 'Teile den Code. Alle spielen zusammen auf der größeren Karte; mehr Spieler machen den Lauf härter. Wähle die Karte und starte.',

@@ -138,6 +138,7 @@ const ACH_LIST = [
   { id: 'timeout',   br: 'hero', name: 'TIME OUT',              desc: 'Use Chrono Lock 10 times.',                      icon: 'chronoIcon',   key: 'art_chrono', need: 10,  reward: { cores: 40 } },
   { id: 'crown',     br: 'hero', name: 'HEAVY IS THE CROWN',    desc: 'Survive 5 minutes as Harbinger.',                icon: 'heroHarbinger', key: 't_harbinger', need: 300, reward: { cores: 100 } },
   { id: 'greed',     br: 'hero', name: 'GREED IS GOOD',         desc: 'Earn 1000 credits in one run as Harbinger.',       icon: 'buffMagnet',   key: 'earn_harbinger', need: 1000, reward: { cores: 200 } },
+  { id: 'coop',      br: 'hero', name: "TWO'S COMPANY",         desc: 'Play a co-op run together with another player.', icon: 'player',       key: 'coop',      need: 1,    reward: { cores: 40 } },
 
   // ---- LOADOUT ----
   { id: 'bladerun',  br: 'gear', name: 'BLADE RUNNER',          desc: 'Defeat 500 enemies with the Plasma Blade.',      icon: 'sword',        key: 'kw_PLASMA BLADE', need: 500, reward: { cores: 30 } },
