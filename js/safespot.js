@@ -57,11 +57,21 @@ const SafeSpot = {
   },
 
   // Gegner: bremsen und weichen zurück, solange der Spieler im Spot steht (aufgerufen aus Enemy.update)
-  slow() { return this.inside ? CFG.safeSpot.enemySlow : 1; },
+  // Koop: aktive Spots = eigener (wenn man drinsteht) + die der Mitspieler, die drinstehen (kommen per 'cstate'); die Gegner rechnet nur der Host
+  spots() {
+    const out = [];
+    if (this.inside && this.spot) out.push(this.spot);
+    if (G.coop && G.mates) for (const m of G.mates) if (m.sp && !m.dead) out.push({ x: m.sp[0], y: m.sp[1] });
+    return out;
+  },
+  get any() { return this.inside || !!(G.coop && G.mates && G.mates.some((m) => m.sp && !m.dead)); },
+  slow() { return this.any ? CFG.safeSpot.enemySlow : 1; },
   retreat(e, dt) {
-    if (!this.inside || !this.spot) return;
-    const s = this.spot, dx = e.x - s.x, dy = e.y - s.y, d = Math.hypot(dx, dy) || 1, k = CFG.safeSpot.retreat * framesOf(dt);
-    e.x += dx / d * k; e.y += dy / d * k;
+    const k = CFG.safeSpot.retreat * framesOf(dt);
+    for (const s of this.spots()) {
+      const dx = e.x - s.x, dy = e.y - s.y, d = Math.hypot(dx, dy) || 1;
+      e.x += dx / d * k; e.y += dy / d * k;
+    }
   },
 
   // Treffer, der im Spot abgefangen wurde (Statistik)

@@ -217,7 +217,7 @@ class Enemy {
     if (this.stun <= 0 || this.type === 'tank') SafeSpot.retreat(this, dt);       // Safe Spot: Rückzug vom Spot
     [this.x, this.y] = clampToMap(this.x, this.y, this.radius);     // Gegner bleiben immer in der Arena (auch nach Rueckstoss, Sog oder Events)
 
-    const busy = this.ov || this.act || SafeSpot.inside;           // Events pausieren das Schießen (im Safe Spot auch)
+    const busy = this.ov || this.act || SafeSpot.any;           // Events pausieren das Schießen (im Safe Spot auch)
     if (!busy) this.shootT -= dt;
     if (!busy && this.shootT <= 0 && (SHOOTERS.includes(this.type) || this.type === 'phantom')) this.attack();
     if (this.type === 'support') Patterns.supportAura(this, dt);

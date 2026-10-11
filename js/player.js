@@ -61,7 +61,7 @@ class Player {
   evo(id) { return this.evolved[CFG.evolutions.list[id].slot] === id; }       // Evolution dieses Laufs aktiv?
   has(id) { return this.slots.weak === id || this.slots.medium === id || this.slots.strong === id; }       // Ability (auch passive) ausgewaehlt?
 
-  get invincibleBase() { return G.victory > 0 || this.dashLeft > 0 || this.invincibleT > 0 || this.blinkT > 0; }
+  get invincibleBase() { return G.victory > 0 || (G.coop && (G.coop.out || G.mode === 'pick')) ||this.dashLeft > 0 || this.invincibleT > 0 || this.blinkT > 0; }
   get invincible() { return this.invincibleBase || SafeSpot.inside; }       // im Safe Spot ist man unverwundbar
   // Wohin Gegner zielen: auf den Spieler, bei Blink auf die Stelle, wo er verschwunden ist
   get target() {

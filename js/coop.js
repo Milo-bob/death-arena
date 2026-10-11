@@ -34,7 +34,7 @@ class CoopMate {
     if (this.dead) return;
     const cx = STAGE_W / 2 + this.x, cy = STAGE_H / 2 - this.y, P = STYLE.pal, age = Math.min(0.3, G.realTime - this.ghostAt), fr = framesOf(age);
     for (const g of this.ghosts) PvpMatch.drawGhost(ctx, g, fr);
-    drawSprite(ctx, Cos.tinted(this.spr, 'hue-rotate(40deg)'), this.x, this.y, this.dir, CFG.player.size, { alpha: this.blink ? 0.18 : 1 });       // umgefaerbte Kopie (einmal berechnet) statt Farbfilter in jedem Bild (haengt in Edge)
+    this.drawLook(ctx, cx, cy);
     if (this.shield) { ctx.save(); ctx.globalAlpha = 0.6; ctx.fillStyle = P.cyan; pxRing(ctx, cx, cy, 20, 1, 14, G.realTime); ctx.restore(); }
     const w = 28, f = clamp(this.hp / Math.max(1, this.mhp), 0, 1);
     ctx.save();
@@ -42,6 +42,35 @@ class CoopMate {
     ctx.fillStyle = f > 0.35 ? P.green : P.orange; ctx.fillRect(Math.round(cx - w / 2), Math.round(cy - 24), Math.round(w * f), 3);
     ctx.restore();
     uiText(ctx, this.name, cx, cy - 29, { size: STYLE.type.small, color: P.green, align: 'center' });
+    // Ultimate-Ladung des Mitspielers: kleiner Balken unter dem Schiff (bereit = leuchtend, mit Anzahl)
+    const uw = 24, uf = clamp(this.ult || 0, 0, 1);
+    ctx.save();
+    ctx.fillStyle = P.greyDark; ctx.fillRect(Math.round(cx - uw / 2) - 1, Math.round(cy + 17) - 1, uw + 2, 4);
+    ctx.fillStyle = this.ultReady ? P.ice : P.teal; ctx.globalAlpha = this.ultReady ? 0.7 + 0.3 * Math.sin(G.realTime * 6) : 1;
+    ctx.fillRect(Math.round(cx - uw / 2), Math.round(cy + 17), Math.round(uw * (this.ultReady ? 1 : uf)), 2);
+    ctx.restore();
+    if (this.ultReady) uiText(ctx, 'ULT' + (this.ultN > 1 ? ' x' + this.ultN : ''), cx, cy + 28, { size: STYLE.type.small, color: P.teal, align: 'center' });
+  }
+  // Schiff mit den Cosmetics des Mitspielers (Skin, Aura, Gear samt Farbe); ohne Angaben oder bei Fehlern das schlichte Schiff
+  drawLook(ctx, cx, cy) {
+    const plain = () => drawSprite(ctx, Cos.tinted(this.spr, 'hue-rotate(40deg)'), this.x, this.y, this.dir, CFG.player.size, { alpha: this.blink ? 0.18 : 1 });
+    if (!this.cs) { plain(); return; }
+    const prev = Cos.over, t = G.realTime, over = {};
+    try {
+      for (const cat of ['skin', 'aura', 'gear']) {
+        const e = this.cs[cat], it = e && Cos.item(cat, e[0]);
+        over[cat] = it ? Cos.colored(cat, it, e[1] || null) : Cos.items(cat)[0];
+      }
+      Cos.over = over;
+      const moving = Math.hypot(this.vx, this.vy) > 0.5;
+      Cos.drawAura(ctx, over.aura, this.x, this.y, t);
+      Cos.gearMoving = moving;
+      Cos.drawGear(ctx, over.gear, this.x, this.y, this.dir, t, 'back');
+      Cos2.state.moving = moving; Cos2.state.dash = false; Cos2.state.hp = clamp(this.hp / Math.max(1, this.mhp), 0, 1);
+      Cos.drawShip(ctx, Cos.sprite(this.spr, 'skin'), this.x, this.y, this.dir, CFG.player.size, { alpha: this.blink ? 0.18 : 1 }, over.skin, t);
+      Cos.drawGear(ctx, over.gear, this.x, this.y, this.dir, t, 'front');
+    } catch (e) { this.cs = null; plain(); }
+    finally { Cos.over = prev; }
   }
 }
 
@@ -63,7 +92,7 @@ class CoopEnemy extends Enemy {
     this.hitsLeft = it.h; this.hl0 = it.h; this.maxHits = it.m;
     const f = it.f | 0;
     this.mini = !!(f & 1); this.blooded = !!(f & 2); this.minion = !!(f & 8); this.splitlet = !!(f & 32); this.raised = !!(f & 64); this.attached = !!(f & 128);
-    if (f & 4) this.stun = Math.max(this.stun, 0.2);
+    if (f & 4) { this.stun = Math.max(this.stun, 0.2); this.hsRem = Math.max(this.hsRem || 0, 0.2); }       // Betaeubung vom Host: nicht als eigene Waffenwirkung zurueckmelden (sonst bleibt der Gegner ewig betaeubt)
     this.hasteT = f & 256 ? 1 : 0; this.amp = f & 512 ? 1 : 0;
     if (it.z) this.size = it.z;
     this.armor = it.a || null; this.kind = it.k || null; this.fuse = it.u === undefined ? null : it.u; this.aimDir = it.ai === undefined ? null : it.ai;
@@ -79,7 +108,8 @@ class CoopEnemy extends Enemy {
     // was andere Waffen seit dem letzten Bild verschoben haben (Druckwelle, Sog, Rueckstoss): an den Host melden
     const dx = this.x - this.lx, dy = this.y - this.ly;
     if (Math.abs(dx) + Math.abs(dy) > 0.01) { this.kx += dx; this.ky += dy; }
-    if (this.stun > 0) this.stq = Math.max(this.stq, this.stun);
+    this.hsRem = Math.max(0, (this.hsRem || 0) - dt);
+    if (this.stun > this.hsRem + 0.02) this.stq = Math.max(this.stq, this.stun);        // nur was ueber die Host-Betaeubung hinausgeht kommt von den eigenen Waffen
     if (this.extra < 0.25) { this.extra += dt; this.nx += (this.svx || 0) * dt; this.ny += (this.svy || 0) * dt; }
     const k = Math.min(1, dt * 12);
     this.x += (this.nx - this.x) * k; this.y += (this.ny - this.y) * k;
@@ -272,13 +302,21 @@ const Coop = {
       C.stateT = 1 / K.stateHz;
       const pl = G.player, r1 = (v) => Math.round(v * 10) / 10;
       this.send('cstate', { x: r1(pl.x), y: r1(pl.y), d: r1(pl.dir), vx: r1(pl.velX || 0), vy: r1(pl.velY || 0), hp: Math.round(pl.hp), mh: Math.round(pl.maxHp),
-        spr: Hero.sprite(), bl: pl.blinkT > 0 ? 1 : 0, sh: pl.shield ? 1 : 0, dd: C.out ? 1 : 0, a: C.out ? [] : PvpMatch.snapshot() });
+        spr: Hero.sprite(), bl: pl.blinkT > 0 ? 1 : 0, sh: pl.shield ? 1 : 0, dd: C.out ? 1 : 0, a: C.out ? [] : PvpMatch.snapshot(),
+        ul: Math.round(clamp(G.ultCharge / (CFG.ult.readyAt + 1), 0, 1) * 100) / 100, ur: G.ultCharge > CFG.ult.readyAt ? 1 : 0, un: 1 + (G.ultStock || 0),
+        cs: this.lookPack(), sp: SafeSpot.inside && SafeSpot.spot ? [Math.round(SafeSpot.spot.x), Math.round(SafeSpot.spot.y)] : 0 });
     }
     if (C.role === 'host') {
       C.worldT -= dt;
       if (C.worldT <= 0) { C.worldT = 1 / K.worldHz; this.send('world', this.packWorld()); }
     }
     if (C.out) this.spectate();
+  },
+  // eigene Cosmetics fuer die Mitspieler: je Kategorie [Item-ID, Farb-ID]
+  lookPack() {
+    const o = {};
+    for (const cat of ['skin', 'aura', 'gear']) { const it = Cos.cur(cat); o[cat] = [it.id, Save.cosColor(cat) || 0]; }
+    return o;
   },
   // Zuschauer: die Kamera folgt einem lebenden Mitspieler
   spectate() {
@@ -502,6 +540,7 @@ const Coop = {
       const m = G.mates.find((q) => q.id === p.from);
       if (!m) return;
       m.nx = p.x; m.ny = p.y; m.nd = p.d; m.vx = p.vx; m.vy = p.vy; m.at = G.realTime; m.hp = p.hp; m.mhp = p.mh; m.spr = p.spr || 'player'; m.blink = !!p.bl; m.shield = !!p.sh; m.dead = !!p.dd;
+      m.ult = p.ul || 0; m.ultReady = !!p.ur; m.ultN = p.un || 1; if (p.cs) m.cs = p.cs; m.sp = p.sp || null;
       m.seen = G.realTime;
       if (!m.dead) PvpMatch.ghostsFrom(m, p.a || []); else m.ghosts = [];
       m.ghostAt = G.realTime;
