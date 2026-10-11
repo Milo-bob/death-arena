@@ -104,7 +104,7 @@ async function installApp() {
   if (installEv) { installEv.prompt(); try { await installEv.userChoice; } catch (e) { /* egal */ } installEv = null; return; }
   alert(/iPad|iPhone|iPod/.test(navigator.userAgent) ? 'On iPhone/iPad: tap the Share button, then "Add to Home Screen".' : 'Use your browser menu: "Install app" / "Add to Home screen". (Chrome/Edge: icon in the address bar.)');
 }
-const instBtn = () => standalone() ? '' : '<button class="inst" onclick="installApp()"' + (installEv ? '' : ' hidden') + '>INSTALL APP</button>';
+const instBtn = () => standalone() ? '' : '<button class="inst" onclick="installApp()"' + '>INSTALL APP</button>';
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 let KEY = '';                                         // Admin-Passwort (nur im Speicher, optional sessionStorage)
 async function rpc(fn, args) {
