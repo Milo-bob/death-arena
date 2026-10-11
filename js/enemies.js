@@ -235,11 +235,11 @@ class Enemy {
     if (this.type === 'triangle') {
       this.shootT += V && V.every ? V.every : e.triangle.shootEvery;
       Sfx.play('enemyShot');
-      for (let i = 0; i < fan; i++) G.shots.push(Object.assign(new EnemyBolt(this.x, this.y, aim + off(i)), { src: Stats.enemyName(this), chill: !!(V && V.chill) }));
+      for (let i = 0; i < fan; i++) G.shots.push(Object.assign(new EnemyBolt(this.x, this.y, aim + off(i)), { src: Stats.enemyName(this), chill: !!(V && V.chill), fromMinion: this.minion }));
     } else if (this.type === 'square') {
       this.shootT += V && V.every ? V.every : e.square.missileEvery;
       Sfx.play('missile');
-      for (let i = 0; i < fan; i++) G.shots.push(Object.assign(new Missile(this.x, this.y, aim + off(i)), { src: Stats.enemyName(this), chill: !!(V && V.chill) }));
+      for (let i = 0; i < fan; i++) G.shots.push(Object.assign(new Missile(this.x, this.y, aim + off(i)), { src: Stats.enemyName(this), chill: !!(V && V.chill), fromMinion: this.minion }));
     } else if (this.type === 'rhombus') {
       this.shootT += e.rhombus.waveEvery;
       G.blasts.push(Object.assign(new Blast('wave', this.x, this.y, false, Stats.enemyName(this)), { chill: !!(V && V.chill) }));
@@ -407,7 +407,7 @@ class EnemyBolt {
     this.src = 'TRIANGLE';          // Name der Quelle fuer die Run-Statistik (wird vom Schuetzen ueberschrieben)
   }
   update(dt) {
-    if (G.clearing || G.bossFight) { this.alive = false; return; }
+    if (G.clearing || (G.bossFight && !this.fromMinion)) { this.alive = false; return; }
     const f = framesOf(dt);
     moveForward(this, this.speed * f);
     this.ghost += 3 * f;
@@ -430,7 +430,7 @@ class Missile {
     this.src = 'SQUARE';
   }
   update(dt) {
-    if (G.clearing || G.bossFight) { this.alive = false; return; }
+    if (G.clearing || (G.bossFight && !this.fromMinion)) { this.alive = false; return; }
     const f = framesOf(dt);
     const tg = G.player.target;                              // wie die Gegner: Phase und Köder lenken die Rakete ab
     steerTowards(this, tg.x, tg.y, CFG.enemy.missile.turn * f);
