@@ -191,11 +191,12 @@ function slotCard(i) {
     ['Bosses / kills', fmtN(d.stats && d.stats.bosses) + ' / ' + fmtN(d.stats && d.stats.kills)], ['Achievements', ach], ['Hero', d.hero || '-'], ['Language', d.lang || '-'], ['Saved', fmtD(r.updated_at)]];
   return '<div class="card"><h3>SLOT ' + (i + 1) + (d.dev ? ' <span class="tag yel">DEV</span>' : '') + '</h3><table>' + rows.map(([a, b]) => '<tr><td class="muted">' + a + '</td><td>' + esc(b) + '</td></tr>').join('') + '</table>' +
     '<div class="row"><input type="number" id="g' + i + '" placeholder="credits (+/-)" style="width:120px"><button data-a="gift" data-s="' + i + '" class="on">GIVE</button></div>' +
+    '<div class="row"><input type="number" id="x' + i + '" data-xp="' + i + '" data-cur="' + (d.pxp || 0) + '" placeholder="XP (+/-)" style="width:120px"><button data-a="giftxp" data-s="' + i + '" class="on">GIVE XP</button><span class="muted" id="xl' + i + '">level ' + levelOf(d.pxp) + ' now</span></div>' +
     '<div class="row"><button data-a="stats" data-s="' + i + '">STATS</button><button data-a="json" data-s="' + i + '">DATA</button><button data-a="copy" data-s="' + i + '">COPY CODE</button><button data-a="restore" data-s="' + i + '" class="warn">RESTORE</button><button data-a="del" data-s="' + i + '" class="bad">DELETE</button></div></div>';
 }
 function drawDetail() {
   const u = user(), el = $('#detail'); if (!el) return; if (!u) { el.innerHTML = ''; return; }
-  const gh = S.gifts.length ? '<table><tr><th>WHEN</th><th>SLOT</th><th>CREDITS</th><th>NOTE</th><th>STATE</th><th></th></tr>' + S.gifts.map((g) => '<tr><td>' + fmtD(g.created_at) + '</td><td>' + (g.slot + 1) + '</td><td>' + (g.credits > 0 ? '+' : '') + g.credits + '</td><td>' + esc(g.note) + '</td><td>' + (g.claimed_at ? '<span class="ok">collected ' + fmtD(g.claimed_at) + '</span>' : '<span class="yel">waiting</span>') + '</td><td>' + (g.claimed_at ? '' : '<button data-a="cancelgift" data-id="' + g.id + '" class="warn">CANCEL</button>') + '</td></tr>').join('') + '</table>' : '<span class="muted">No gifts yet.</span>';
+  const gh = S.gifts.length ? '<table><tr><th>WHEN</th><th>SLOT</th><th>CREDITS</th><th>XP</th><th>NOTE</th><th>STATE</th><th></th></tr>' + S.gifts.map((g) => '<tr><td>' + fmtD(g.created_at) + '</td><td>' + (g.slot + 1) + '</td><td>' + (g.credits > 0 ? '+' : '') + g.credits + '</td><td>' + (g.xp > 0 ? '+' : '') + (g.xp || 0) + '</td><td>' + esc(g.note) + '</td><td>' + (g.claimed_at ? '<span class="ok">collected ' + fmtD(g.claimed_at) + '</span>' : '<span class="yel">waiting</span>') + '</td><td>' + (g.claimed_at ? '' : '<button data-a="cancelgift" data-id="' + g.id + '" class="warn">CANCEL</button>') + '</td></tr>').join('') + '</table>' : '<span class="muted">No gifts yet.</span>';
   el.innerHTML = '<h2>' + esc(u.name) + ' <span class="muted" style="font-size:12px">' + u.user_id + '</span></h2>' +
     '<div class="grid">' + [0, 1, 2].map(slotCard).join('') + '</div>' +
     '<div class="card"><h3>ACCOUNT</h3><div class="row"><input type="text" id="npw" placeholder="new password (6+)" style="width:200px"><button id="rnd">RANDOM</button><button id="setpw" class="warn">SET PASSWORD</button></div>' +
@@ -209,6 +210,10 @@ function drawDetail() {
   $('#bk').onclick = () => quick('block', u.user_id);
   $('#rn').onclick = () => { const n = $('#nn').value.trim().toLowerCase(); if (!/^[a-z0-9_]{3,20}$/.test(n)) return toast('Name: 3-20 letters, numbers or _', true); if (confirm('Rename ' + u.name + ' to ' + n + '? They must log in with the new name.')) act('Renamed to ' + n, 'adm_rename', { p_user: u.user_id, p_name: n }, reloadUsers); };
   $('#du').onclick = () => { const n = prompt('Delete account ' + u.name + ' with all saves? Type the name to confirm:'); if (n !== u.name) return; act('Account deleted', 'adm_delete_user', { p_user: u.user_id }, async () => { S.sel = null; await reloadUsers(); }); };
+  el.querySelectorAll('input[data-xp]').forEach((inp) => { inp.oninput = () => {      // Live-Anzeige: welches Level entspricht Stand + Eingabe
+    const cur = +inp.dataset.cur, add = parseInt(inp.value, 10) || 0, lab = $('#xl' + inp.dataset.xp), to = Math.max(0, cur + add);
+    lab.textContent = add ? 'level ' + levelOf(cur) + ' → ' + levelOf(to) + ' (' + fmtN(to) + ' XP)' : 'level ' + levelOf(cur) + ' now';
+  }; });
   el.querySelectorAll('[data-a]').forEach((b) => { b.onclick = () => detailAction(b.dataset.a, b.dataset.s === '' || b.dataset.s === undefined ? null : +b.dataset.s, b); });
 }
 async function reloadUsers() { S.users = await rpc('adm_users'); renderMain(); if (S.sel && S.tab === 'players') { await loadSel(); drawDetail(); } }
@@ -219,6 +224,11 @@ function detailAction(a, i, btn) {
     const n = parseInt($('#g' + i).value, 10); if (!n) return toast('Enter an amount', true);
     if (!confirm((n > 0 ? 'Give ' : 'Take away ') + Math.abs(n) + ' credits ' + (n > 0 ? 'to ' : 'from ') + u.name + ' (slot ' + (i + 1) + ')?')) return;
     act('Gift queued: ' + n + ' credits for slot ' + (i + 1), 'adm_gift', { p_user: u.user_id, p_slot: i, p_credits: n, p_note: 'admin' }, refresh);
+  } else if (a === 'giftxp') {
+    const n = parseInt($('#x' + i).value, 10); if (!n) return toast('Enter an XP amount', true);
+    const cur = (decodeCode(r.code) || {}).pxp || 0, to = Math.max(0, cur + n);
+    if (!confirm((n > 0 ? 'Give ' : 'Take away ') + Math.abs(n) + ' XP ' + (n > 0 ? 'to ' : 'from ') + u.name + ' (slot ' + (i + 1) + ')?\nLevel ' + levelOf(cur) + ' → ' + levelOf(to))) return;
+    act('XP gift queued: ' + n + ' XP for slot ' + (i + 1), 'adm_gift', { p_user: u.user_id, p_slot: i, p_credits: 0, p_xp: n, p_note: 'admin' }, refresh);
   } else if (a === 'cancelgift') act('Gift cancelled', 'adm_cancel_gift', { p_id: +btn.dataset.id }, refresh);
   else if (a === 'json') showText('Slot ' + (i + 1) + ' data', JSON.stringify(decodeCode(r.code) || r.code, null, 2));
   else if (a === 'copy') { navigator.clipboard.writeText(r.code).then(() => toast('Code copied (' + r.code.length + ' chars)'), () => showText('Save code (copy manually)', r.code)); }
@@ -428,7 +438,7 @@ function drawStats() {
 async function viewGifts() {
   const m = $('#main'); m.innerHTML = '<span class="muted">Loading...</span>';
   let list; try { list = await rpc('adm_gifts', { p_user: null }); } catch (e) { m.innerHTML = '<span class="err">' + esc(e.message) + '</span>'; return; }
-  m.innerHTML = '<div class="card" style="overflow:auto"><table><tr><th>WHEN</th><th>PLAYER</th><th>SLOT</th><th>CREDITS</th><th>NOTE</th><th>STATE</th></tr>' + list.map((g) => '<tr><td>' + fmtD(g.created_at) + '</td><td>' + esc(g.name) + '</td><td>' + (g.slot + 1) + '</td><td>' + (g.credits > 0 ? '+' : '') + g.credits + '</td><td>' + esc(g.note) + '</td><td>' + (g.claimed_at ? '<span class="ok">collected ' + fmtD(g.claimed_at) + '</span>' : '<span class="yel">waiting</span>') + '</td></tr>').join('') + (list.length ? '' : '<tr><td colspan="6" class="muted">No gifts yet. Give credits from a player\'s slot card.</td></tr>') + '</table></div>';
+  m.innerHTML = '<div class="card" style="overflow:auto"><table><tr><th>WHEN</th><th>PLAYER</th><th>SLOT</th><th>CREDITS</th><th>XP</th><th>NOTE</th><th>STATE</th></tr>' + list.map((g) => '<tr><td>' + fmtD(g.created_at) + '</td><td>' + esc(g.name) + '</td><td>' + (g.slot + 1) + '</td><td>' + (g.credits > 0 ? '+' : '') + g.credits + '</td><td>' + (g.xp > 0 ? '+' : '') + (g.xp || 0) + '</td><td>' + esc(g.note) + '</td><td>' + (g.claimed_at ? '<span class="ok">collected ' + fmtD(g.claimed_at) + '</span>' : '<span class="yel">waiting</span>') + '</td></tr>').join('') + (list.length ? '' : '<tr><td colspan="6" class="muted">No gifts yet. Give credits from a player\'s slot card.</td></tr>') + '</table></div>';
 }
 async function viewAudit() {
   const m = $('#main'); m.innerHTML = '<span class="muted">Loading...</span>';

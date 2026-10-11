@@ -942,6 +942,7 @@ const G = {
     this.noticeT = Math.max(0, (this.noticeT || 0) - dt);
     this.flashT = Math.max(0, (this.flashT || 0) - dt);
     if (this.pvp && PvpMatch.frozen(dt)) { Juice.update(dt); return; }                // PvP-Zaehler vor dem Start: alle stehen still
+    if (this.coop && Coop.frozen(dt)) { Juice.update(dt); Coop.update(dt); return; }   // Koop: Zaehler vor dem Start (Verbindung und Mitspieler laufen schon)
     if (Tutorial.active && Tutorial.phase === 'brief') { Juice.update(dt); Tutorial.update(dt); return; }       // Tutorial-Textbox: das Spiel steht still, bis SPACE gedrueckt wird
     Juice.update(dt);
     Cos2.tick(dt);                                              // Cosmetics: Bodenmarken, Echos, Titelkarte, Siegerpose, Wiederbelebung
@@ -966,7 +967,7 @@ const G = {
     else if (this.pvp) PvpMatch.update(dt);                                                    // PvP: kein Director, nur der Fernspieler
     else if (!Tutorial.active && !(this.victory > 0)) { Coop.noticesOn(true); this.director.update(dt); this.director.updateBosses(); Coop.noticesOn(false); }       // im Tutorial führt Tutorial.update die Szenarien
     MapEnv.update(dt);
-    Elite.update();
+    if (!Coop.guest) Elite.update();                                                        // (Koop-Gast: die Geister kommen fertig vom Host)
     SafeSpot.update(dt);
     MapFx.update(dt);
 

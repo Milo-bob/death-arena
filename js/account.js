@@ -135,14 +135,15 @@ const Account = {
   // Geschenke (Credits) des Admins abholen: erst als abgeholt markieren (nur der erste Client gewinnt), dann dem Slot gutschreiben und hochladen.
   // Gibt die Summe der gutgeschriebenen Credits zurueck.
   async claimGifts() {
-    const r = await this.rest('GET', '/rest/v1/admin_gifts?select=id,slot,credits&claimed_at=is.null&order=id');
+    const r = await this.rest('GET', '/rest/v1/admin_gifts?select=id,slot,credits,xp&claimed_at=is.null&order=id');
     if (!r.ok || !Array.isArray(r.json)) return 0;
     let total = 0;
     for (const g of r.json) {
+      g.xp = Number.isFinite(g.xp) ? g.xp : 0;                      // aeltere Zeilen/Tabelle ohne xp-Spalte
       if (this.conflicts[g.slot] || !(g.slot >= 0 && g.slot < Save.SLOTS) || !Number.isFinite(g.credits)) continue;
       const c = await this.rest('PATCH', '/rest/v1/admin_gifts?id=eq.' + g.id + '&claimed_at=is.null', { claimed_at: new Date().toISOString() }, { Prefer: 'return=representation' });
       if (!c.ok || !Array.isArray(c.json) || !c.json.length) continue;
-      this.withSlot(g.slot, () => { Save.data.souls = Math.max(0, (Save.data.souls || 0) + g.credits); Save.write(); });
+      this.withSlot(g.slot, () => { Save.data.souls = Math.max(0, (Save.data.souls || 0) + g.credits); if (g.xp) Save.data.pxp = Math.max(0, Math.floor((Save.data.pxp || 0) + g.xp)); Save.write(); });
       total += g.credits;
       const code = this.localCode(g.slot); if (code) await this.upload(g.slot, code);
     }

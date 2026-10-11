@@ -56,6 +56,9 @@ class CoopEnemy extends Enemy {
     this.hl0 = this.hitsLeft;
   }
   apply(it) {
+    const now = G.realTime, dtS = now - (this.snapAt || 0);
+    if (this.snapAt && dtS > 0.03 && dtS < 0.5) { this.svx = clamp((it.x - this.snapX) / dtS, -500, 500); this.svy = clamp((it.y - this.snapY) / dtS, -500, 500); } else { this.svx = 0; this.svy = 0; }       // Geschwindigkeit zwischen zwei Bildern: damit laeuft er bis zum naechsten Bild weiter
+    this.snapAt = now; this.snapX = it.x; this.snapY = it.y; this.extra = 0;
     this.nx = it.x; this.ny = it.y; this.nd = it.d || 0;
     this.hitsLeft = it.h; this.hl0 = it.h; this.maxHits = it.m;
     const f = it.f | 0;
@@ -77,6 +80,7 @@ class CoopEnemy extends Enemy {
     const dx = this.x - this.lx, dy = this.y - this.ly;
     if (Math.abs(dx) + Math.abs(dy) > 0.01) { this.kx += dx; this.ky += dy; }
     if (this.stun > 0) this.stq = Math.max(this.stq, this.stun);
+    if (this.extra < 0.25) { this.extra += dt; this.nx += (this.svx || 0) * dt; this.ny += (this.svy || 0) * dt; }
     const k = Math.min(1, dt * 12);
     this.x += (this.nx - this.x) * k; this.y += (this.ny - this.y) * k;
     const dd = ((this.nd - this.dir + 540) % 360) - 180; this.dir += dd * Math.min(1, dt * 14);
@@ -91,7 +95,7 @@ class CoopEnemy extends Enemy {
   hostDied() { Enemy.prototype.die.call(this); }
   draw(ctx) {
     if (this.bad) { drawSprite(ctx, CFG.enemy[this.type].sprite || this.type, this.x, this.y, this.dir, this.size); return; }
-    try { super.draw(ctx); } catch (e) { this.bad = true; }
+    try { super.draw(ctx); } catch (e) { this.bad = true; Coop.fail('enemy ' + this.type, e); }
   }
 }
 
@@ -156,7 +160,8 @@ function coopObstacleContact(dt) {
 function coopSpawnerContact(dt) { this.age += dt; this.hitCd = Math.max(0, this.hitCd - dt); if (!this.arriving) this.weaponContact(dt); }
 
 const Coop = {
-  focus: null, _classes: null,
+  focus: null, _classes: null, errs: [],
+  fail(what, e) { if (this.errs.length < 30) this.errs.push(what + ': ' + String((e && e.message) || e)); },
 
   get on() { return !!G.coop; },
   get host() { return !!(G.coop && G.coop.role === 'host'); },
@@ -258,7 +263,7 @@ const Coop = {
       if (m.gone > 2) { m.dead = true; m.left = true; }
       m.update(dt);
     }
-    G.mates = G.mates.filter((m) => !m.left);
+    if (G.mates.some((m) => m.left)) { G.mates = G.mates.filter((m) => !m.left); this.check(); }
     if (!G.mates.length && C.role === 'guest') { this.abort('THE HOST LEFT'); return; }
     // eigener Zustand
     C.stateT -= dt;
@@ -330,7 +335,7 @@ const Coop = {
     const gen = (list, max, skip = COOP_SKIP, withVel = true) => {
       const out = [];
       for (const o of list) {
-        if (!o.alive || out.length >= max) continue;
+        if (o.alive === false || out.length >= max) continue;       // (Gefahren haben kein alive)
         const c = o.constructor.name;
         if (!this.classes()[c]) continue;
         const wl = COOP_WL[c];
@@ -417,7 +422,8 @@ const Coop = {
     g.cid = it.i; g.gh = true; g.alive = true; g.nx = g.x; g.ny = g.y; g.vx = it.vx || 0; g.vy = it.vy || 0;
     g.update = coopGhostUpdate;
     const draw = Cl.prototype.draw;
-    g.draw = function (ctx) { try { draw.call(this, ctx); } catch (e) { this.draw = () => {}; } };
+    const nm = it.c;
+    g.draw = function (ctx) { try { draw.call(this, ctx); } catch (e) { Coop.fail('draw ' + nm, e); this.draw = () => {}; } };
     if (hook) hook(g);
     return g;
   },
@@ -471,7 +477,7 @@ const Coop = {
         g.nx = g.x; g.ny = g.y; g.bar = 1; g.hitCd = 0; g.stunImmune = 0; g.summonFlash = 0;
         g.update = coopBossUpdate;
         const draw = Cl.prototype.draw;
-        g.draw = function (ctx) { try { draw.call(this, ctx); } catch (e) { drawSprite(ctx, this.sprite || 'octagon', this.x, this.y, this.dir, 300); } };
+        g.draw = function (ctx) { try { draw.call(this, ctx); } catch (e) { Coop.fail('draw boss ' + this.type, e); drawSprite(ctx, this.sprite || 'octagon', this.x, this.y, this.dir, 300); } };
       } else {
         const x = g.x, y = g.y, hc = g.hitCd, st = g.stun, bar = g.bar;
         Object.assign(g, it.f);
@@ -640,14 +646,14 @@ const Coop = {
     const C = G.coop, T = STYLE.type, S = STYLE.pal;
     if (!C) return;
     const all = [{ name: Pvp.name(), hp: G.player.hp, mhp: G.player.maxHp, dead: C.out, me: true }].concat(G.mates.map((m) => ({ name: m.name, hp: m.hp, mhp: m.mhp, dead: m.dead })));
-    const w = 96, x0 = STAGE_W / 2 - all.length * w / 2;
+    // rechts unter der XP-Leiste: Schwierigkeit und je Spieler Name mit Lebensbalken
+    uiText(ctx, 'CO-OP x' + C.mult.toFixed(1), STAGE_W - 8, 44, { size: T.small, color: S.orange, align: 'right' });
     all.forEach((p, i) => {
-      const x = x0 + i * w + w / 2, f = clamp(p.hp / Math.max(1, p.mhp), 0, 1);
-      uiText(ctx, p.name, x, 40, { size: T.small, color: p.dead ? S.greyMid : p.me ? S.cyan : S.green, align: 'center', maxW: w - 8 });
-      ctx.fillStyle = S.greyDark; ctx.fillRect(x - 36, 44, 72, 4);
-      if (!p.dead) { ctx.fillStyle = f > 0.35 ? (p.me ? S.cyan : S.green) : S.orange; ctx.fillRect(x - 36, 44, Math.round(72 * f), 4); }
+      const y = 58 + i * 17, f = clamp(p.hp / Math.max(1, p.mhp), 0, 1), col = p.dead ? S.greyMid : p.me ? S.cyan : S.green;
+      uiText(ctx, p.name, STAGE_W - 8, y, { size: T.small, color: col, align: 'right', maxW: 90 });
+      ctx.fillStyle = S.greyDark; ctx.fillRect(STAGE_W - 8 - 60, y + 3, 60, 4);
+      if (!p.dead) { ctx.fillStyle = f > 0.35 ? col : S.orange; ctx.fillRect(STAGE_W - 8 - 60, y + 3, Math.round(60 * f), 4); }
     });
-    uiText(ctx, 'CO-OP x' + C.mult.toFixed(1), STAGE_W - 8, 40, { size: T.small, color: S.orange, align: 'right' });
     if (C.cd > 0) uiText(ctx, String(Math.ceil(C.cd)), STAGE_W / 2, STAGE_H / 2 - 20, { size: T.title, color: S.yellow, align: 'center', glow: S.yellow });
     else if (C.startShown !== undefined && G.realTime - C.startShown < 0.8) uiText(ctx, 'GO!', STAGE_W / 2, STAGE_H / 2 - 20, { size: T.h1, color: S.green, align: 'center' });
     if (C.out && !C.over) uiText(ctx, 'WATCHING ' + (C.watching || '') + '  [SPACE: NEXT]', STAGE_W / 2, STAGE_H - 24, { size: T.body, color: S.orange, align: 'center' });
@@ -656,5 +662,11 @@ const Coop = {
 
 if (typeof I18n !== 'undefined' && I18n.add) I18n.add({
   'CO-OP': 'KOOP', 'CONNECTION LOST': 'VERBINDUNG VERLOREN', 'THE HOST LEFT': 'DER HOST IST WEG', 'YOU LEFT THE RUN': 'DU HAST DEN LAUF VERLASSEN', 'ALL PLAYERS ARE DOWN': 'ALLE SPIELER SIND AUSGESCHIEDEN',
+  'Play a run together with up to 3 friends on the standard maps, only bigger. Create a lobby and share the code.': 'Spielt einen Lauf zusammen mit bis zu 3 Freunden auf den Standardkarten, nur größer. Erstelle eine Lobby und teile den Code.',
+  'Everyone keeps their own gear, upgrades and hero. More players means a much harder run: 2 players are about 2.7x, 4 players about 8x as hard. Fallen players come back after the next boss.': 'Jeder behält seine eigene Ausrüstung, Upgrades und seinen Helden. Mehr Spieler bedeuten einen viel härteren Lauf: 2 Spieler sind etwa 2,7x, 4 Spieler etwa 8x so schwer. Gefallene Spieler kommen nach dem nächsten Boss zurück.',
+  'Share the code. Everyone plays together on the bigger map; more players make the run harder. Choose the map, then start.': 'Teile den Code. Alle spielen zusammen auf der größeren Karte; mehr Spieler machen den Lauf härter. Wähle die Karte und starte.',
+  'Your own gear, upgrades and hero count. Only the host can start the run.': 'Deine eigene Ausrüstung, Upgrades und dein Held zählen. Nur der Host kann den Lauf starten.',
+  'PRESS ESC AGAIN TO GIVE UP': 'ESC NOCHMAL DRÜCKEN ZUM AUFGEBEN', 'PRESS ESC AGAIN TO LEAVE': 'ESC NOCHMAL DRÜCKEN ZUM VERLASSEN',
   'YOU ARE OUT - WATCH, YOU RETURN AFTER THE NEXT BOSS': 'DU BIST RAUS - SCHAU ZU, NACH DEM NÄCHSTEN BOSS BIST DU WIEDER DABEI', 'REVIVED!': 'WIEDERBELEBT!', 'GO!': 'LOS!',
 });
+if (typeof I18n !== 'undefined' && I18n.phrases) I18n.phrases([['MAP:', 'KARTE:'], ['DIFFICULTY x', 'SCHWIERIGKEIT x'], ['CO-OP x', 'KOOP x'], ['WATCHING', 'DU SIEHST ZU:'], ['[SPACE: NEXT]', '[LEERTASTE: WEITER]']]);
