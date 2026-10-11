@@ -1653,7 +1653,7 @@ function drawEndingScreen(ctx) {
   if (G.levelRes) uiText(ctx, '+' + G.levelRes.xp + ' XP   -   LV ' + G.levelRes.to + (G.levelRes.to > G.levelRes.from ? '   LEVEL UP!' : ''), STAGE_W / 2, 264, { size: T.small, color: P.yellow, align: 'center' });
   milestoneLines().forEach((l, i) => uiText(ctx, l, STAGE_W / 2, 275 + i * 11, { size: T.small, color: P.cyan, align: 'center' }));
   ctx.restore();
-  if (t > ENDING_MENU_AT && !G.deathDetails) drawKeyButtons(ctx, [['MENU [SPACE]', 'Space'], ['DETAILS [TAB]', 'Tab']], 322);
+  if (t > ENDING_MENU_AT && !G.deathDetails) drawKeyButtons(ctx, [[G.coop ? 'LOBBY [SPACE]' : 'MENU [SPACE]', 'Space'], ['DETAILS [TAB]', 'Tab']], 322);
   if (G.deathDetails && Stats.summary) drawRunDetails(ctx, Stats.summary);
 }
 
@@ -1678,7 +1678,7 @@ function drawDeathScreen(ctx) {
   if (G.infinite) uiText(ctx, 'INFINITE MODE', 12, 24, { size: STYLE.type.h2, color: STYLE.deathTints[name] || STYLE.pal.red });
   drawDeathTexts(ctx, name);
   const tint = STYLE.deathTints[name] || STYLE.pal.red;
-  if (!G.deathDetails && G.deadAge > 1) drawKeyButtons(ctx, [['MENU [SPACE]', 'Space'], ['RETRY [R]', 'KeyR'], ['DETAILS [TAB]', 'Tab']], 338, tint);
+  if (!G.deathDetails && G.deadAge > 1) drawKeyButtons(ctx, G.coop ? [['LOBBY [SPACE]', 'Space'], ['DETAILS [TAB]', 'Tab']] : [['MENU [SPACE]', 'Space'], ['RETRY [R]', 'KeyR'], ['DETAILS [TAB]', 'Tab']], 338, tint);
   const sm = Stats.summary, R = STAGE_W - 12;                                  // Layout: Belohnungen oben rechts, Zeit und Killer unten, damit nichts mit dem Spruch überlappt
   uiText(ctx, '+' + G.earned + ' CREDITS', R, 24, { size: STYLE.type.h2, color: STYLE.pal.yellow, align: 'right' });
   let ry = 36;
@@ -1716,8 +1716,8 @@ function drawRunDetails(ctx, sm) {
   const cw = Math.floor((STAGE_W - 36 - 24) / 2);
   col(18, 'DAMAGE TAKEN', sm.dmg, P.red, (v, tot) => Math.round(v) + ' (' + Math.round(100 * v / tot) + '%)');
   col(18 + cw + 24, 'KILLS BY WEAPON', sm.kills, P.cyan, (v) => String(v));
-  const btns = [['BACK [TAB]', 'Tab'], ['MENU [SPACE]', 'Space']];
-  if (G.mode !== 'ending') btns.push(['RETRY [R]', 'KeyR']);
+  const btns = [['BACK [TAB]', 'Tab'], [G.coop ? 'LOBBY [SPACE]' : 'MENU [SPACE]', 'Space']];
+  if (G.mode !== 'ending' && !G.coop) btns.push(['RETRY [R]', 'KeyR']);
   drawKeyButtons(ctx, btns, 340);
 }
 

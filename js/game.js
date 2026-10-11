@@ -909,7 +909,7 @@ const G = {
       this.endAge += dt;
       if (this.endAge > ENDING_MENU_AT && Input.pressed('Tab')) { this.deathDetails = !this.deathDetails; Sfx.play('select'); }
       if (Input.pressed('Space') || Input.pressed('Enter')) {
-        if (this.endAge > ENDING_MENU_AT) { this.deathDetails = false; this.mode = 'start'; }
+        if (this.endAge > ENDING_MENU_AT) { this.deathDetails = false; if (this.coop) Coop.toLobby(); else this.mode = 'start'; }
         else if (this.endAge > 3 && this.endAge < ENDING_SPLIT && Save.data.wins > 1) this.endAge = ENDING_SPLIT;       // ab dem zweiten Sieg darf man die Szene überspringen
       }
     } else if (this.mode === 'dead') {
@@ -918,8 +918,8 @@ const G = {
       if (Cos2.pet) Cos2.pet.hide = Math.min(1, Cos2.pet.hide + dt * 3);          // Begleiter versteckt sich
       if (this.deadAge > 0.6 && Input.pressed('Tab')) { this.deathDetails = !this.deathDetails; Sfx.play('select'); }
       const ready = this.deadAge > 1 && Cos2.deathFadeIn() >= 1;                // erst wenn die Todes-Animation vorbei und der Deathscreen eingeblendet ist
-      if (ready && Input.pressed('Space')) this.mode = 'start';      // nach dem Tod zurück ins Menü (hier wird später Build/Leveln ausgebaut)
-      else if (ready && Input.pressed('KeyR')) { Sfx.play('select'); this.begin(false, this.infinite); }      // Komfort: sofort noch ein Lauf, gleicher Modus und gleiche Karte
+      if (ready && Input.pressed('Space')) { if (this.coop) Coop.toLobby(); else this.mode = 'start'; }      // nach dem Tod zurück ins Menü (hier wird später Build/Leveln ausgebaut)
+      else if (ready && !this.coop && Input.pressed('KeyR')) { Sfx.play('select'); this.begin(false, this.infinite); }      // Komfort: sofort noch ein Lauf, gleicher Modus und gleiche Karte
     } else if (this.mode === 'pick') {
       this.updatePick(dt);
       if (this.coop && this.mode === 'pick') this.updatePlay(dt);                  // Koop: die Welt laeuft waehrend der Wahl weiter (der Spieler ist solange unverwundbar)

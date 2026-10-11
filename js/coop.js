@@ -639,6 +639,12 @@ const Coop = {
     G.pick = null; G.mode = 'start';
     G.notice(why || '', STYLE.pal.orange);
   },
+  // Nach dem Tod- oder Siegbildschirm: zurueck in die Lobby (die Verbindung bleibt), nicht ins Hauptmenue
+  toLobby() {
+    G.coop = null; G.mates = []; this.focus = null;
+    if (!Pvp.ch) { G.mode = 'start'; return; }
+    G.mode = 'pvp'; Pvp.st = 'lobby'; Pvp.sel = 0; Pvp.pick = null; Pvp.say('');
+  },
   exit() { if (G.coop) { G.coop = null; G.mates = []; } this.focus = null; try { Pvp.leave(true); } catch (e) { /* egal */ } },
 
   // ---------------------------------------------------------------- Anzeige
