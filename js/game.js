@@ -52,8 +52,9 @@ function drawGround(ctx) {
 const MENU_ITEMS = ['play', 'inventory', 'cosmetics', 'upgrades', 'achievements', 'settings'];
 const menuItems = () => MENU_ITEMS;
 const statsOpen = () => !!Save.data.dev;       // der Statistik-Bildschirm (Symbol im Hauptmenue) gehoert zum Dev-Modus und gilt nur im Slot, in den die Dev-Datei importiert wurde (die Daten selbst kommen aus allen Slots, siehe Stats.slotLogs)
-const MODE_ITEMS = ['regular', 'infinite', 'speedrun', 'pvp', 'tutorial', 'back'];        // Auswahl nach PLAY
-const MENU_MUSIC_MODES = ['start', 'stats', 'modeselect', 'infsetup', 'srsetup', 'mapselect', 'keys', 'binds', 'inventory', 'cosmetics', 'upgrades', 'achievements', 'leaderboard', 'settings'];       // hier läuft die Menümusik (Tasten-Menü aus der Pause heraus nicht)
+const MODE_ITEMS = ['regular', 'infinite', 'speedrun', 'multiplayer', 'tutorial', 'back'];        // Auswahl nach PLAY
+const MULTI_ITEMS = ['pvp', 'back'];          // Untermenue von MULTIPLAYER
+const MENU_MUSIC_MODES = ['start', 'stats', 'modeselect', 'multiselect', 'infsetup', 'srsetup', 'mapselect', 'keys', 'binds', 'inventory', 'cosmetics', 'upgrades', 'achievements', 'leaderboard', 'settings'];       // hier läuft die Menümusik (Tasten-Menü aus der Pause heraus nicht)
 // Upgrade-Menü: drei Reiter. Jede Zeile ist { kind: 'up' | 'ability', id }
 const UPGRADE_TABS = [
   { id: 'stats', label: 'STATS' },
@@ -200,6 +201,7 @@ const G = {
 
   seenKeys: Save.data.seenKeys,   // Tastenübersicht schon gesehen? (gespeichert)
   cosTab: 0, cosSel: 0,   // Cosmetics-Menue: Kategorie und gewaehltes Item
+  multiSel: 0,
   modeSel: 0,             // gewählter Punkt in der Modus-Auswahl nach PLAY
   menuSel: 0,           // gewählter Menüpunkt im Hauptmenü
   infSel: 0,             // gewählte Zeile im Endlos-Setup
@@ -239,7 +241,7 @@ const G = {
     this.newBest = false;
     this.bosses = 0; this.kills = 0; this.earned = 0; this.newMilestones = []; this.levelRes = null;
     Ach.beginRun(); Stats.reset(); this.deathDetails = false; this.cheated = !!this.god;       // Cheat-Laeufe werden als Dev-Lauf markiert (Statistik kann sie ausblenden)
-    Xp.reset(); this.xpOrbs = [];                                              // XP und Perks beginnen jeden Lauf von vorn
+    Xp.reset(); this.xpOrbs = []; Endless.reset();                             // XP und Perks beginnen jeden Lauf von vorn; Endlos-Credits und Mutationen ebenso
     this.time = 0;
     this.deadAge = 0;
     Cos2.reset();                                                              // Cosmetics: Bodenmarken, Begleiter, Animationen zuruecksetzen
@@ -310,7 +312,9 @@ const G = {
   settleRun(bonus) {
     const res = Save.finishRun(this.time, this.bosses, this.kills, this.infinite, Tutorial.active ? null : this.map.id);
     this.newBest = res.isBest; this.newMilestones = res.got;
-    let run = Math.floor((this.time * CFG.meta.perSecond + this.bosses * CFG.meta.perBoss) * (1 + Save.bonus('souls') + Save.bonus('soulgain')) * (this.infinite ? CFG.infinite.coreFactor : 1) * this.diff.cores * Hero.mods().cores);
+    // Endlos-Modus: die Cores der Zeit wurden live mit dem steigenden Multiplikator gesammelt (Endless.credit), Bosse zaehlen zum Multiplikator am Ende
+    const base = Endless.on() ? Endless.credit + this.bosses * CFG.meta.perBoss * Endless.mult(this.time) : this.time * CFG.meta.perSecond + this.bosses * CFG.meta.perBoss;
+    let run = Math.floor(base * (1 + Save.bonus('souls') + Save.bonus('soulgain')) * this.diff.cores * Hero.mods().cores);
     const S = CFG.meta.starter, n = Save.data.runs - 1;                      // Save.finishRun hat den Lauf schon mitgezaehlt: n = 0 fuer den ersten Lauf
     this.starterBonus = null;
     if (!Tutorial.active && n >= 0 && n < S.mult.length) {                  // Starter-Bonus der ersten Laeufe
@@ -421,9 +425,20 @@ const G = {
     if (item === 'regular') { this.mode = 'mapselect'; Save.data.mapSel = Save.mapUnlocked(Save.data.mapSel) ? Save.data.mapSel : 0; }
     else if (item === 'infinite') { this.mode = 'infsetup'; this.infSel = 0; }
     else if (item === 'speedrun') { this.mode = 'srsetup'; this.srSel = 0; SpeedRun.openSetup(); }
-    else if (item === 'pvp') { this.mode = 'pvp'; Pvp.open(); }
+    else if (item === 'multiplayer') { this.mode = 'multiselect'; this.multiSel = 0; }
     else if (item === 'tutorial') this.begin(true);
     else this.mode = 'start';
+  },
+
+  // Untermenue MULTIPLAYER: PVP ARENA, BACK
+  updateMultiSelect() {
+    const n = MULTI_ITEMS.length;
+    if (Input.pressed('ArrowUp') || Input.pressed('KeyW')) this.multiSel = (this.multiSel + n - 1) % n;
+    if (Input.pressed('ArrowDown') || Input.pressed('KeyS')) this.multiSel = (this.multiSel + 1) % n;
+    if (Input.pressed('Escape')) { this.mode = 'modeselect'; return; }
+    if (!(Input.pressed('Space') || Input.pressed('Enter'))) return;
+    if (MULTI_ITEMS[this.multiSel] === 'pvp') { this.mode = 'pvp'; Pvp.open(); }
+    else this.mode = 'modeselect';
   },
 
   // Kartenauswahl nach PLAY: A/D wechselt, Leertaste startet (nur freigeschaltete Karten), ESC zurück
@@ -855,6 +870,8 @@ const G = {
       StatsScreen.update();
     } else if (this.mode === 'modeselect') {
       this.updateModeSelect();
+    } else if (this.mode === 'multiselect') {
+      this.updateMultiSelect();
     } else if (this.mode === 'cosmetics') {
       this.updateCosmetics();
     } else if (this.mode === 'infsetup') {
@@ -932,6 +949,7 @@ const G = {
 
     if (this.victory > 0) { this.victory -= dt; if (this.victory <= 0) { this.win(); return; } }     // Siegphase: kein Director, keine neuen Gegner
     if (!this.bossFight && !Tutorial.active && !this.pvp && !(this.sr && this.sr.kind === 'rush')) this.time += dt;       // Boss Rush: G.time springt von Boss zu Boss (SpeedRun.update)
+    Endless.tick(dt);                                                                       // Endlos-Modus: Credits sammeln, Mutationen starten/beenden (sonst ohne Wirkung)
     Loadout.updateByTime(this.time);
     if (this.sr) { if (!(this.victory > 0)) SpeedRun.update(dt); }                         // Speedrun: kein Director, SpeedRun.update spawnt und steuert die Bosse
     else if (this.pvp) PvpMatch.update(dt);                                                    // PvP: kein Director, nur der Fernspieler
@@ -1014,6 +1032,8 @@ const G = {
       StatsScreen.draw(ctx);
     } else if (this.mode === 'modeselect') {
       drawModeSelectScreen(ctx);
+    } else if (this.mode === 'multiselect') {
+      drawMultiSelectScreen(ctx);
     } else if (this.mode === 'cosmetics') {
       drawCosmeticsScreen(ctx);
     } else if (this.mode === 'infsetup') {
@@ -1061,7 +1081,7 @@ const G = {
       this.drawPlay(ctx);
     }
     if (this.confirm && ['upgrades', 'cosmetics'].includes(this.mode)) drawConfirm(ctx);
-    if (['achievements', 'leaderboard', 'stats', 'modeselect', 'cosmetics', 'infsetup', 'srsetup', 'mapselect', 'keys', 'binds', 'inventory', 'upgrades', 'settings', 'swap', 'pause'].includes(this.mode)) drawCloseX(ctx);
+    if (['achievements', 'leaderboard', 'stats', 'modeselect', 'multiselect', 'cosmetics', 'infsetup', 'srsetup', 'mapselect', 'keys', 'binds', 'inventory', 'upgrades', 'settings', 'swap', 'pause'].includes(this.mode)) drawCloseX(ctx);
     if (!menuView) ctx.restore();
     Ach.drawToasts(ctx);
   },

@@ -131,7 +131,7 @@ const ACH_LIST = [
 
   // ---- HEROES ----
   { id: 'identity',  br: 'hero', name: 'IDENTITY CRISIS',       desc: 'Finish runs with 2 different heroes.',           icon: 'heroSpecter',  key: 'heroRuns',  need: 2,    reward: { cores: 30 } },
-  { id: 'roster',    br: 'hero', name: 'FULL ROSTER',           desc: 'Finish runs with all 6 heroes.',                 icon: 'heroAlchemist', key: 'heroRuns', need: 6,    reward: { cos: 'skin:midnight' } },
+  { id: 'roster',    br: 'hero', name: 'FULL ROSTER',           desc: 'Finish runs with all 7 heroes.',                 icon: 'heroAlchemist', key: 'heroRuns', need: 7,   reward: { cos: 'skin:midnight' } },
   { id: 'thewall',   br: 'hero', name: 'THE WALL',              desc: 'Defeat 3 bosses as Bulwark.',                    icon: 'heroBulwark',  key: 'hb_bulwark', need: 3,   reward: { cores: 50 } },
   { id: 'fastfrag',  br: 'hero', name: 'FAST AND FRAGILE',      desc: 'Survive 7 minutes as Specter.',                  icon: 'riftIcon',     key: 't_specter', need: 420,  reward: { cores: 50 } },
   { id: 'brewmstr',  br: 'hero', name: 'BREWMASTER',            desc: 'Use the Catalyst 10 times.',                     icon: 'catalystIcon', key: 'art_catalyst', need: 10, reward: { cores: 40 } },

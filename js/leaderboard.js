@@ -23,9 +23,8 @@ const Board = {
       { id: 'kill', label: 'KILLS', hint: 'ENEMIES DEFEATED IN TOTAL', fmt: f },
     ];
     // Speedrun: schnellste Zeit zuerst (Server: lb_sr_page). Zufalls-Seed = beste Zeit ueber alle Zufalls-Seeds, Daily = Seed des heutigen Tages, Gewaehlter Seed = beste Zeit ueber alle Seeds, die Spieler selbst gewaehlt haben (nicht pro Seed)
-    list.push({ id: 'sr:rush', label: 'BOSS RUSH', hint: 'FASTEST TIME', fmt: srFmt, sr: true });
-    list.push({ id: 'sr:gauntlet', label: 'GAUNTLET', hint: 'FASTEST TIME, PENALTY INCLUDED', fmt: srFmt, sr: true });
-    list.push(this.seedTab());
+    // Gauntlet und Seed Run sind abgeschaltet (CFG.speedrun.order): ihre Reiter sind weg, seedTab()/seedSubs() bleiben fuer eine spaetere Rueckkehr
+    list.push({ id: 'sr:rush', label: 'SPEEDRUN - BOSS RUSH', hint: 'FASTEST TIME', fmt: srFmt, sr: true });
     if (this.admin) list.push({ id: 'banned', label: 'BANNED', hint: 'HIDDEN FROM ALL LISTS  -  UNBAN TO BRING THEM BACK', fmt: () => '' });   // nur fuer Admins                                                          // alle Seed-Run-Listen = eine Kategorie, unten wechselt man zwischen ihnen (Q/E)
     return list;
   },

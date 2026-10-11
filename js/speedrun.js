@@ -306,10 +306,10 @@ const SpeedRun = {
   // ---------- Setup-Bildschirm ----------
   openSetup() {
     const S = Save.data.sr;
-    if (!CFG.speedrun.kinds[S.kind]) S.kind = 'rush';
+    if (!CFG.speedrun.order.includes(S.kind)) S.kind = CFG.speedrun.order[0];
     for (const slot of CFG.speedrun.loadoutSlots) if (S.loadout[slot] === undefined || (S.loadout[slot] && !CFG.items.catalog[S.loadout[slot]])) S.loadout[slot] = CFG.speedrun.loadoutStart[slot];
   },
-  rows() { return ['kind'].concat(Save.data.sr.kind === 'seed' ? ['seed'] : [], CFG.speedrun.loadoutSlots, ['start', 'back']); },
+  rows() { return (CFG.speedrun.order.length > 1 ? ['kind'] : []).concat(Save.data.sr.kind === 'seed' ? ['seed'] : [], CFG.speedrun.loadoutSlots, ['start', 'back']); },
   options(slot) {
     const list = Object.keys(CFG.items.catalog).filter((id) => CFG.items.catalog[id].slot === slot && CFG.items.catalog[id].impl);
     return slot === 'heavy' ? [null].concat(list) : list;

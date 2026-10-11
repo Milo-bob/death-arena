@@ -157,6 +157,8 @@ I18n.add({
 // Speedrun (js/speedrun.js)
 I18n.add({
   'SPEEDRUN': 'SPEEDRUN', 'Race the clock: Boss Rush, Gauntlet and Seed Run, each with its own best time.': 'Kämpfe gegen die Uhr: Boss Rush, Gauntlet und Seed Run, jeder mit eigener Bestzeit.',
+  'Race the clock: all bosses back to back, then Death. Your best time goes on the leaderboard.': 'Kämpfe gegen die Uhr: alle Bosse hintereinander, dann der Tod. Deine Bestzeit kommt in die Rangliste.',
+  'SPEEDRUN - BOSS RUSH': 'SPEEDRUN - BOSS RUSH',
   'Same standard loadout for everyone (you only pick your weapons). No credits, no XP. Death ends the run.': 'Für alle das gleiche Standard-Loadout (du wählst nur deine Waffen). Keine Credits, kein XP. Der Tod beendet den Lauf.',
   'ALL SIX BOSSES, THEN DEATH': 'ALLE SECHS BOSSE, DANN DER TOD', 'RUN THE STRIP, BEAT THE BOSS': 'LAUF DEN STREIFEN, BESIEGE DEN BOSS', 'FIND KEYS, TRADE, OPEN THE PORTAL': 'SCHLÜSSEL FINDEN, HANDELN, PORTAL ÖFFNEN',
   'Every boss of the regular run, back to back, then Death himself.': 'Jeder Boss des normalen Laufs, direkt hintereinander, dann der Tod selbst.',
@@ -192,3 +194,19 @@ I18n.add({
   'LEADERBOARD [B] IN THE MAIN MENU: RANDOM SEED': 'RANGLISTE [B] IM HAUPTMENÜ: ZUFALLS-SEED', 'LEADERBOARD [B] IN THE MAIN MENU: DAILY SEED': 'RANGLISTE [B] IM HAUPTMENÜ: TAGES-SEED', 'LEADERBOARD [B] IN THE MAIN MENU: SEED #': 'RANGLISTE [B] IM HAUPTMENÜ: SEED #',
   'LEADERBOARD [B] IN THE MAIN MENU: BOSS RUSH': 'RANGLISTE [B] IM HAUPTMENÜ: BOSS RUSH', 'LEADERBOARD [B] IN THE MAIN MENU: GAUNTLET': 'RANGLISTE [B] IM HAUPTMENÜ: GAUNTLET',
 });
+// Endlos-Modus: Credit-Wachstum, Mutationen, Held Voyager (js/endless.js)
+I18n.add({
+  'Credits grow the longer you survive, mutations raise the stakes, more player XP. Own best time.': 'Credits wachsen, je länger du überlebst, Mutationen erhöhen den Einsatz, mehr Spieler-XP. Eigene Bestzeit.',
+  'MUTATIONS: every few minutes the world gets harder for a while, but credits rise even faster. Later, several at once.': 'MUTATIONEN: alle paar Minuten wird die Welt eine Weile härter, dafür steigen die Credits noch schneller. Später mehrere gleichzeitig.',
+  'Hero VOYAGER (15 min) loves this mode.': 'Der Held VOYAGER (15 Min) liebt diesen Modus.',
+  'MUTATION OVER': 'MUTATION VORBEI',
+  'HORDE': 'HORDE', 'MORE ENEMIES': 'MEHR GEGNER', 'IRON SKIN': 'EISENHAUT', 'TOUGHER ENEMIES': 'ZÄHERE GEGNER', 'SWIFT FOES': 'FLINKE GEGNER', 'FASTER ENEMIES': 'SCHNELLERE GEGNER',
+  'GLASS CANNON': 'GLASKANONE', 'YOU TAKE 50% MORE DAMAGE': 'DU ERLEIDEST 50% MEHR SCHADEN', 'HEAVY METAL': 'SCHWERES METALL', 'MORE SHIELDS AND TANKS': 'MEHR SCHILDE UND TANKS',
+  'BOUNTY': 'KOPFGELD', 'DOUBLE DROPS, +50% XP': 'DOPPELTE DROPS, +50% XP',
+  '+8% SPEED  ENDLESS: CREDIT GROWTH X1.5': '+8% TEMPO  ENDLOS: CREDIT-WACHSTUM X1,5', 'COMPASS FRAME. BUILT FOR THE LONG HAUL.': 'KOMPASS-RAHMEN. GEMACHT FÜR DIE LANGE STRECKE.',
+  'SURVIVE 15 MIN IN ENDLESS': 'ÜBERLEBE 15 MIN IM ENDLOS-MODUS',
+  'Credits grow the longer you survive, mutations raise the stakes, more player XP. Own best time.': 'Credits wachsen, je länger du überlebst, Mutationen erhöhen den Einsatz, mehr Spieler-XP. Eigene Bestzeit.',
+});
+I18n.phrases([
+  ['CREDITS GROW THE LONGER YOU SURVIVE: ', 'CREDITS WACHSEN, JE LÄNGER DU ÜBERLEBST: '], [' AT THE START, ', ' AM START, '], [' AFTER ', ' NACH '], ['NEXT MUTATION ', 'NÄCHSTE MUTATION '], ['MUTATION: ', 'MUTATION: '], ['Player XP x', 'Spieler-XP x'],
+]);

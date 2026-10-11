@@ -134,7 +134,7 @@ const PvpMatch = {
     const spawn = players.slice().sort((a, b) => a.team - b.team || order.indexOf(a.id) - order.indexOf(b.id));
     spawn.forEach((p, i) => { const a = Math.PI + i * 2 * Math.PI / n; p.x = Math.cos(a) * C.spawnX; p.y = Math.sin(a) * C.spawnX; p.dir = dirTo(p.x, p.y, 0, 0); });
     const me = players.find((p) => p.id === ch.id);
-    G.pvp = { over: false, result: null, endAt: 0, cd: C.countdown, sendT: 0, t0: G.realTime, escAt: 0, mode, players, me: ch.id, dead: {}, out: false, spec: 0, winTeam: null, gone: {}, lastSeen: {}, why: '', scored: false };
+    G.pvp = { over: false, result: null, endAt: 0, cd: C.countdown, sendT: 0, t0: G.realTime, escAt: 0, mode, rule: info && ['own', 'set', 'all'].includes(info.rule) ? info.rule : 'own', setId: info && info.setId, players, me: ch.id, dead: {}, out: false, spec: 0, winTeam: null, gone: {}, lastSeen: {}, why: '', scored: false };
     CFG.map.halfW = C.camHalf[0]; CFG.map.halfH = C.camHalf[1];
     const P = G.player;
     P.x = me.x; P.y = me.y; P.dir = me.dir;

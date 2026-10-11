@@ -20,7 +20,7 @@ const Save = {
     hero: 'vanguard', heroes: {},               // gewaehlter Held und gekaufte Helden (CFG.heroes)
     stats: { bosses: 0, kills: 0 }, milestones: {}, msPaid: {},
     pxp: 0, pxpSeeded: false,                    // Spielerlevel: gesammelte XP gesamt (CFG.level), pxpSeeded = alter Spielstand wurde einmal umgerechnet
-    pvpName: '', pvpLoadout: {},                 // PvP: Anzeigename des Gasts, gewaehlte Abilities je Gruppe { weak, medium, strong }
+    pvpName: '', pvpLoadout: {}, pvpEquip: {}, pvpHeroSel: null, pvpSet: 'brawler',                 // PvP: Anzeigename des Gasts, gewaehlte Abilities je Gruppe { weak, medium, strong }
     devKey: '',                                  // geheimer Schluessel aus der Dev-Save-Datei: erlaubt Spieler in den Ranglisten zu sperren (Server prueft den Hash)
     dev: false,                                  // Dev-Modus (Cheat-Tasten + Statistik-Bildschirm), wird mit der Dev-Save-Datei freigeschaltet (tools/dev-save.deatharena)
     deathLog: [], bossLog: [],                   // Protokoll fuer das Balancing (siehe runstats.js), gilt fuer alle Slots
@@ -33,7 +33,7 @@ const Save = {
   KEEP: ['lang', 'musicVol', 'sfxVol', 'mouseAim', 'attackMode', 'touch', 'fx', 'binds', 'deathLog', 'bossLog', 'imported'],       // 'dev' gehoert bewusst NICHT dazu: der Dev-Modus gilt nur fuer den Slot, in den die Dev-Datei importiert wurde
 
   // Abilities: frei, wenn Preis 0 oder gekauft
-  isUnlocked(id) { return this.srOn || CFG.loadout.abilities[id].unlock === 0 || !!(this.data.unlocked && this.data.unlocked[id]); },
+  isUnlocked(id) { return this.srOn || this.pvpKind() === 'all' || CFG.loadout.abilities[id].unlock === 0 || !!(this.data.unlocked && this.data.unlocked[id]); },
   unlock(id) {
     const price = CFG.loadout.abilities[id].unlock;
     if (this.isUnlocked(id) || this.data.souls < price) return false;
@@ -44,7 +44,12 @@ const Save = {
   },
 
   // Stufe eines Meta-Upgrades und der Gesamtbonus (Stufe * Schritt)
-  level(id) { return (this.data.upgrades && this.data.upgrades[id]) || 0; },
+  level(id) {
+    const k = this.pvpKind();                                                                  // PvP: ALL = alle Upgrades auf Maximum, SET = keine Upgrades
+    if (k === 'all') return CFG.meta.upgrades[id] ? CFG.meta.upgrades[id].max : 0;
+    if (k === 'set') return 0;
+    return (this.data.upgrades && this.data.upgrades[id]) || 0;
+  },
   bonus(id) {
     if (this.srOn || RETIRED_BONUS.includes(id)) return 0;                // frühere Meilenstein-Waffenboni gibt es nicht mehr (Belohnung = Cores/Cosmetics)
     return this.level(id) * CFG.meta.upgrades[id].step;
@@ -68,7 +73,29 @@ const Save = {
 
   // ---- Inventar ----
   owns(id) { return !!this.data.items.owned[id]; },
-  equipped(slot) { if (this.srOn) return this.data.sr.loadout[slot] || null; return this.data.items.equipped[slot] || null; },        // Speedrun: Standard-Loadout statt Inventar
+  // ---- PvP-Regeln (Lobby-Einstellung): own = eigene Werte, set = festes Set ohne Upgrades, all = alles auf Maximum und alles frei ----
+  pvpKind() { return typeof G !== 'undefined' && G.pvp ? G.pvp.rule || 'own' : null; },
+  pvpRuleNow() { const k = this.pvpKind(); return k || (typeof Pvp !== 'undefined' ? Pvp.ruleKind() : 'own'); },
+  pvpSet() { const id = typeof G !== 'undefined' && G.pvp ? G.pvp.setId : (typeof Pvp !== 'undefined' ? Pvp.setNow().id : null); return CFG.pvp.sets.find((s) => s.id === id) || CFG.pvp.sets[0]; },
+  // Held im PvP: SET = Vanguard, sonst die in der Lobby gewaehlte (ALL: jeder, OWN: gekaufte), sonst der normale
+  pvpHero(kind) { if (kind === 'set') return 'vanguard'; const id = this.data.pvpHeroSel; return CFG.heroes[id] && (kind === 'all' || this.heroOwned(id)) ? id : this.ownHero(); },
+  equipped(slot) {
+    if (this.srOn) return this.data.sr.loadout[slot] || null;
+    if (typeof G !== 'undefined' && G.pvp) return this.pvpEquipped(slot);                       // PvP-Kampf: die in der Lobby gewaehlte Ausruestung
+    return this.data.items.equipped[slot] || null;
+  },
+  // PvP-Ausruestung (data.pvpEquip, nur Slots, die in der Lobby geaendert wurden); sonst gilt das normale Inventar. Nur gekaufte Items zaehlen.
+  pvpEquipped(slot) {
+    const k = this.pvpRuleNow();
+    if (k === 'set') return this.pvpSet()[slot] || null;
+    const E = this.data.pvpEquip || {};
+    if (slot in E) {
+      const id = E[slot], C = id && CFG.items.catalog[id];
+      if (id === null) return null;
+      if (C && C.slot === slot && C.impl && (k === 'all' || this.owns(id))) return id;
+    }
+    return this.data.items.equipped[slot] || null;
+  },
   buyItem(id) {
     const I = CFG.items.catalog[id];
     if (!I.impl || this.owns(id) || this.data.souls < I.cost) return false;
@@ -93,13 +120,13 @@ const Save = {
     if (I) return I.slot === 'artifact' ? 'implant' : 'weapon';
     return CFG.loadout.abilities[id].passive ? 'passive' : 'ability';
   },
-  gearLv(id) { return this.srOn ? 0 : (id && this.data.gear[id] && this.data.gear[id].lv) || 0; },
+  gearLv(id) { const k = this.pvpKind(); if (k) return k === 'all' ? this.gearMax() : k === 'set' ? 0 : this.pvpOwnGear(id); return this.srOn ? 0 : (id && this.data.gear[id] && this.data.gear[id].lv) || 0; },
   gearMax() { return CFG.gear.need.length; },
   gearMul(id) { return !id || !this.gearLv(id) ? 1 : 1 + this.gearLv(id) * CFG.gear.step[this.gearKind(id)]; },                // Faktor auf Staerke/Tempo
   gearFrac(id) { const lv = this.gearLv(id); return lv >= this.gearMax() ? 1 : Math.min(1, ((this.data.gear[id] && this.data.gear[id].xp) || 0) / CFG.gear.need[lv]); },
   // XP im Hintergrund sammeln (wird beim Laufende mit gespeichert); im Tutorial nichts
   gearXp(id, n) {
-    if (!id || this.srOn || (typeof Tutorial !== 'undefined' && Tutorial.active)) return;
+    if (!id || this.srOn || this.pvpKind() || (typeof Tutorial !== 'undefined' && Tutorial.active)) return;
     const lv = this.gearLv(id);
     if (lv >= this.gearMax()) return;
     const g = this.data.gear[id] || (this.data.gear[id] = { lv, xp: 0 });
@@ -149,7 +176,9 @@ const Save = {
 
   // ---- Helden (siehe CFG.heroes und js/heroes.js): Meilenstein erreicht + Cores bezahlt = Held gehoert dir ----
   heroOwned(id) { return id === 'vanguard' || !!(this.data.heroes && this.data.heroes[id]); },
-  heroSelected() { const id = this.data.hero; return CFG.heroes[id] && this.heroOwned(id) ? id : 'vanguard'; },
+  heroSelected() { const k = this.pvpKind(); return k ? this.pvpHero(k) : this.ownHero(); },
+  ownHero() { const id = this.data.hero; return CFG.heroes[id] && this.heroOwned(id) ? id : 'vanguard'; },
+  pvpOwnGear(id) { return (id && this.data.gear[id] && this.data.gear[id].lv) || 0; },
   heroOpen(id) { const H = CFG.heroes[id]; return !H.milestone || this.milestoneDone(H.milestone); },          // Meilenstein geschafft?
   heroSelect(id) { if (!CFG.heroes[id] || !this.heroOwned(id)) return false; this.data.hero = id; this.write(); return true; },
   // Kaufen (Meilenstein + Cores) und gleich auswaehlen

@@ -5,7 +5,7 @@
 
 const Pvp = {
   st: 'menu', sel: 0, code: '', input: '', ch: null, players: [], me: null, isHost: false,
-  msg: '', msgCol: null, msgAt: 0, joinAt: 0, hadHost: false, copied: 0, mode: 'ffa', scores: {},
+  msg: '', msgCol: null, msgAt: 0, joinAt: 0, hadHost: false, copied: 0, mode: 'ffa', scores: {}, rule: 'own', RULES: ['own', 'setfix', 'setpick', 'all'],
 
   // Anzeigename: Kontoname, sonst ein fester Gastname pro Geraet
   name() {
@@ -27,9 +27,9 @@ const Pvp = {
   connect(code, host) {
     if (!Net.available) { this.say('NO CONNECTION POSSIBLE ON THIS DEVICE', STYLE.pal.red); return; }
     this.leave(true);
-    this.scores = {}; this.mode = 'ffa';
+    this.scores = {}; this.mode = 'ffa'; this.rule = 'own';
     this.code = code; this.isHost = host; this.joinAt = Date.now(); this.hadHost = host; this.st = 'lobby'; this.sel = 0; this.say(host ? '' : 'JOINING...', STYLE.pal.grey);
-    this.ch = Net.open(code, { name: this.name(), host, mode: 'ffa' }, {
+    this.ch = Net.open(code, { name: this.name(), host, mode: 'ffa', rule: 'own', set: Save.data.pvpSet }, {
       onPlayers: (list) => this.onPlayers(list),
       onMessage: (ev, p) => { if (ev === 'start' && !this.isHost) this.roundStart(p); else PvpMatch.onMessage(ev, p); },
       onStatus: (s) => { if (s === 'error' && this.ch) { this.failBack('CONNECTION FAILED'); } },
@@ -47,17 +47,35 @@ const Pvp = {
   startRound() {
     if (!this.isHost || !this.ch) return;
     if (this.players.length < 2) { this.say('YOU NEED AT LEAST 2 PLAYERS', STYLE.pal.orange); Sfx.play('deny'); return; }
-    const info = { mode: this.mode, order: this.players.slice(0, Net.MAX_PLAYERS).map((p) => p.id), radius: CFG.pvp.radius };
+    const info = { mode: this.mode, order: this.players.slice(0, Net.MAX_PLAYERS).map((p) => p.id), radius: CFG.pvp.radius, rule: this.ruleKind(), setId: this.ruleNow() === 'setfix' ? this.setNow().id : Save.data.pvpSet };
     this.ch.send('start', info); this.roundStart(info);
   },
   // Modus: der Host waehlt (jeder gegen jeden / Teams), alle sehen ihn ueber die Anwesenheit des Hosts
   modeNow() { if (this.isHost) return this.mode; const h = this.players.find((p) => p.host); return h && h.mode === 'teams' ? 'teams' : 'ffa'; },
   toggleMode() { if (!this.isHost || !this.ch) return; this.mode = this.mode === 'teams' ? 'ffa' : 'teams'; this.ch.update({ mode: this.mode }); Sfx.play('select'); },
-  lobbyRows() { return this.isHost ? ['start', 'mode', 'abilities', 'copy', 'leave'] : ['abilities', 'copy', 'leave']; },
+  // Ausruestungs-Regel (der Host waehlt, alle sehen sie ueber seine Anwesenheit): own | setfix (ein Set fuer alle) | setpick (jeder waehlt ein Set) | all
+  ruleNow() { if (this.isHost) return this.rule; const h = this.players.find((p) => p.host); return h && this.RULES.includes(h.rule) ? h.rule : 'own'; },
+  ruleKind() { const r = this.ruleNow(); return r === 'setfix' || r === 'setpick' ? 'set' : r; },
+  toggleRule(d) { if (!this.isHost || !this.ch) return; this.rule = this.RULES[(this.RULES.indexOf(this.rule) + d + this.RULES.length) % this.RULES.length]; this.ch.update({ rule: this.rule, set: Save.data.pvpSet }); Sfx.play('select'); },
+  // Set fuer mich: bei "ein Set fuer alle" das des Hosts, sonst mein eigenes
+  setNow() {
+    const sets = CFG.pvp.sets;
+    let id = Save.data.pvpSet;
+    if (this.ruleNow() === 'setfix' && !this.isHost) { const h = this.players.find((p) => p.host); if (h && h.set) id = h.set; }
+    return sets.find((s) => s.id === id) || sets[0];
+  },
+  cycleSet(d) {
+    if (this.ruleNow() === 'setfix' && !this.isHost) return;
+    const sets = CFG.pvp.sets, i = sets.findIndex((s) => s.id === this.setNow().id);
+    Save.data.pvpSet = sets[(i + d + sets.length) % sets.length].id; Save.write(); Sfx.play('select');
+    if (this.isHost && this.ch) this.ch.update({ set: Save.data.pvpSet });
+  },
+  lobbyRows() { return this.isHost ? ['start', 'mode', 'rule', 'equipment', 'copy', 'leave'] : ['equipment', 'copy', 'leave']; },
 
   // ---- Abilities fuer den Kampf: je Gruppe (weak/medium/strong) eine GEKAUFTE Ability oder keine ----
-  tierList(tier) { return [null].concat(Object.keys(CFG.loadout.abilities).filter((id) => CFG.loadout.abilities[id].tier === tier && Save.isUnlocked(id))); },
+  tierList(tier) { const all = this.ruleKind() === 'all'; return [null].concat(Object.keys(CFG.loadout.abilities).filter((id) => CFG.loadout.abilities[id].tier === tier && (all || CFG.loadout.abilities[id].unlock === 0 || (Save.data.unlocked && Save.data.unlocked[id])))); },
   loadout() {
+    if (this.ruleKind() === 'set') { const S = this.setNow(); return { weak: S.weak, medium: S.medium, strong: S.strong }; }
     const S = Save.data.pvpLoadout || {}, out = {};
     for (const t of CFG.loadout.tiers) out[t.id] = S[t.id] && this.tierList(t.id).includes(S[t.id]) ? S[t.id] : null;
     return out;
@@ -67,6 +85,26 @@ const Pvp = {
     Save.data.pvpLoadout = Object.assign({}, this.loadout(), { [t.id]: list[(list.indexOf(cur) + d + n) % n] });
     Save.write(); Sfx.play('select');
   },
+
+  // ---- Waffen und Implant fuer den Kampf (Slots melee/ranged/heavy/artifact): nur gekaufte Items; starke Waffe und Implant duerfen leer bleiben ----
+  equipList(slot) { const l = this.ruleKind() === 'all' ? Object.keys(CFG.items.catalog).filter((id) => CFG.items.catalog[id].slot === slot && CFG.items.catalog[id].impl) : Save.ownedFor(slot); return slot === 'heavy' || slot === 'artifact' ? [null].concat(l) : l; },
+  equipCycle(slot, d) {
+    const list = this.equipList(slot), cur = Save.pvpEquipped(slot), n = list.length;
+    if (n < 2) return;
+    Save.data.pvpEquip = Object.assign({}, Save.data.pvpEquip, { [slot]: list[(Math.max(0, list.indexOf(cur)) + d + n) % n] });
+    Save.write(); Sfx.play('select');
+  },
+  heroList() { const all = this.ruleKind() === 'all'; return Object.keys(CFG.heroes).filter((id) => all || Save.heroOwned(id)); },
+  heroCycle(d) {
+    const l = this.heroList(), cur = Save.pvpHero(this.ruleKind()), n = l.length;
+    if (n < 2) return;
+    Save.data.pvpHeroSel = l[(Math.max(0, l.indexOf(cur)) + d + n) % n]; Save.write(); Sfx.play('select');
+  },
+  // Zeilen des Ausruestungs-Bildschirms: SET = nur die Set-Wahl, sonst 4 Inventar-Slots, 3 Ability-Gruppen, Held
+  eqRows() { return this.ruleKind() === 'set' ? ['set'] : [0, 1, 2, 3, 4, 5, 6, 7]; },
+  cycleRow(i, d) { if (this.ruleKind() === 'set') this.cycleSet(d); else if (i < 4) this.equipCycle(CFG.items.slots[i].id, d); else if (i < 7) this.cycle(i - 4, d); else this.heroCycle(d); },
+
+  RULE_NAMES: { own: 'OWN EQUIPMENT', setfix: 'ONE SET FOR ALL', setpick: 'PICK A SET', all: 'ALL EQUIPMENT' },
 
   failBack(text) { this.leave(); this.st = 'menu'; this.say(text, STYLE.pal.red); Sfx.play('deny'); },
 
@@ -97,12 +135,12 @@ const Pvp = {
     const go = Input.pressed('Space') || Input.pressed('Enter');
     if (this.st === 'menu') {
       const rows = this.rows(); if (up) this.sel = (this.sel + rows.length - 1) % rows.length; if (dn) this.sel = (this.sel + 1) % rows.length;
-      if (Input.pressed('Escape')) { G.mode = 'modeselect'; return; }
+      if (Input.pressed('Escape')) { G.mode = 'multiselect'; return; }
       if (go) {
         const r = rows[this.sel];
         if (r === 'create') this.connect(Net.newCode(), true);
         else if (r === 'join') { this.st = 'join'; this.sel = 0; this.input = ''; this.say(''); }
-        else G.mode = 'modeselect';
+        else G.mode = 'multiselect';
       }
     } else if (this.st === 'join') {
       if (Input.pressedNow.Backspace) { this.input = this.input.slice(0, -1); return; }       // Rueckschritt loescht (zaehlt sonst wie ESC)
@@ -114,26 +152,28 @@ const Pvp = {
         else { this.st = 'menu'; this.sel = 1; }
       }
     } else if (this.st === 'loadout') {
-      const n = CFG.loadout.tiers.length + 1;
+      const n = this.eqRows().length + 1;
       if (up) this.sel = (this.sel + n - 1) % n;
       if (dn) this.sel = (this.sel + 1) % n;
       if (this.sel < n - 1) {
-        if (Input.pressed('ArrowLeft') || Input.pressed('KeyA')) this.cycle(this.sel, -1);
-        if (Input.pressed('ArrowRight') || Input.pressed('KeyD')) this.cycle(this.sel, 1);
+        if (Input.pressed('ArrowLeft') || Input.pressed('KeyA')) this.cycleRow(this.sel, -1);
+        if (Input.pressed('ArrowRight') || Input.pressed('KeyD')) this.cycleRow(this.sel, 1);
       }
-      if (Input.pressed('Escape') || (go && this.sel === n - 1)) { this.st = 'lobby'; this.sel = 1; return; }
-      if (go && this.sel < n - 1) this.cycle(this.sel, 1);
+      if (Input.pressed('Escape') || (go && this.sel === n - 1)) { this.st = 'lobby'; this.sel = this.isHost ? 3 : 0; return; }
+      if (go && this.sel < n - 1) this.cycleRow(this.sel, 1);
     } else if (this.st === 'lobby') {
       const lr = this.lobbyRows(); if (up) this.sel = (this.sel + lr.length - 1) % lr.length; if (dn) this.sel = (this.sel + 1) % lr.length;
       this.sel = Math.min(this.sel, lr.length - 1);
       if (!this.isHost && this.ch && this.ch.status === 'joined' && !this.hadHost && Date.now() - this.joinAt > 2500) { this.failBack('NO LOBBY WITH THIS CODE'); return; }       // niemand hat sich als Host eingetragen
       if (Input.pressed('Escape')) { this.leave(); return; }
       if (lr[this.sel] === 'mode' && (Input.pressed('ArrowLeft') || Input.pressed('KeyA') || Input.pressed('ArrowRight') || Input.pressed('KeyD'))) this.toggleMode();
+      if (lr[this.sel] === 'rule') { if (Input.pressed('ArrowLeft') || Input.pressed('KeyA')) this.toggleRule(-1); if (Input.pressed('ArrowRight') || Input.pressed('KeyD')) this.toggleRule(1); }
       if (go) {
         const r = lr[this.sel];
         if (r === 'start') this.startRound();
         else if (r === 'mode') this.toggleMode();
-        else if (r === 'abilities') { this.st = 'loadout'; this.sel = 0; }
+        else if (r === 'rule') this.toggleRule(1);
+        else if (r === 'equipment') { this.st = 'loadout'; this.sel = 0; }
         else if (r === 'copy') { try { navigator.clipboard.writeText(this.code); } catch (e) { /* egal */ } this.copied = Date.now(); }
         else this.leave();
       }
@@ -194,28 +234,65 @@ const Pvp = {
     if (this.msg) uiText(ctx, this.msg, cx, 338, { size: T.body, color: this.msgCol || P.orange, align: 'center' });
   },
 
+  // Ausruestung: links Waffen und Implant, rechts die drei Ability-Gruppen und der Held, unten BACK. Bei SET nur die Set-Wahl.
   drawLoadout(ctx) {
-    const P = STYLE.pal, T = STYLE.type, cx = STAGE_W / 2, L = this.loadout(), tiers = CFG.loadout.tiers, w = 440, x0 = cx - w / 2, H = 46, G2 = 54, y0 = 92;
-    uiText(ctx, 'CHOOSE YOUR ABILITIES', cx, 80, { size: T.h2, color: P.ice, align: 'center' });
-    tiers.forEach((t, i) => {
-      const y = y0 + i * G2, sel = this.sel === i, id = L[t.id], A = id ? CFG.loadout.abilities[id] : null, n = this.tierList(t.id).length - 1;
-      UIHit.add(x0, y, w, H, () => { this.sel = i; });
-      uiPanel(ctx, x0, y, w, H, { color: sel ? P.cyan : P.greyMid, fill: P.void, alpha: 0.92, glow: sel });
-      uiText(ctx, t.label + '  [' + t.key.toUpperCase() + ']', x0 + 12, y + 17, { size: T.small, color: P.grey });
-      if (A) drawIcon(ctx, A.icon, x0 + 40, y + 32, 20);
-      uiText(ctx, A ? A.name : (n ? 'NONE' : 'NONE UNLOCKED'), x0 + (A ? 58 : 12), y + 36, { size: T.h2, color: A ? P.ice : P.greyMid, maxW: w - 130 });
-      if (n > 0) {
-        UIHit.add(x0 + w - 70, y, 35, H, () => { this.sel = i; }, { act: () => this.cycle(i, -1) });
-        UIHit.add(x0 + w - 35, y, 35, H, () => { this.sel = i; }, { act: () => this.cycle(i, 1) });
-        uiText(ctx, '<', x0 + w - 52, y + 31, { size: T.h1, color: sel ? P.cyan : P.grey, align: 'center' });
-        uiText(ctx, '>', x0 + w - 17, y + 31, { size: T.h1, color: sel ? P.cyan : P.grey, align: 'center' });
+    const P = STYLE.pal, T = STYLE.type, cx = STAGE_W / 2, kind = this.ruleKind(), rule = this.ruleNow();
+    uiText(ctx, 'CHOOSE YOUR EQUIPMENT', cx, 56, { size: T.h2, color: P.ice, align: 'center' });
+    uiText(ctx, this.RULE_NAMES[rule], cx, 72, { size: T.small, color: kind === 'all' ? P.yellow : kind === 'set' ? P.cyan : P.grey, align: 'center' });
+    if (kind === 'set') return this.drawSetPick(ctx);
+    const L = this.loadout(), tiers = CFG.loadout.tiers, w = 440, H = 40, GP = 46, y0 = 92, xs = [cx - w - 10, cx + 10], all = kind === 'all';
+    const row = (i, x, y, label, name, icon, iconW, n) => {
+      const sel = this.sel === i;
+      UIHit.add(x, y, w, H, () => { this.sel = i; });
+      uiPanel(ctx, x, y, w, H, { color: sel ? P.cyan : P.greyMid, fill: P.void, alpha: 0.92, glow: sel });
+      uiText(ctx, label, x + 10, y + 14, { size: T.small, color: P.grey });
+      if (icon) drawIcon(ctx, icon, x + 26, y + 29, iconW || 18);
+      uiText(ctx, name || 'NONE', x + (icon ? 46 : 10), y + 33, { size: T.h2, color: name ? P.ice : P.greyMid, maxW: w - 120 });
+      if (n > 1) {
+        UIHit.add(x + w - 70, y, 35, H, () => { this.sel = i; }, { act: () => this.cycleRow(i, -1) });
+        UIHit.add(x + w - 35, y, 35, H, () => { this.sel = i; }, { act: () => this.cycleRow(i, 1) });
+        uiText(ctx, '<', x + w - 52, y + 28, { size: T.h1, color: sel ? P.cyan : P.grey, align: 'center' });
+        uiText(ctx, '>', x + w - 17, y + 28, { size: T.h1, color: sel ? P.cyan : P.grey, align: 'center' });
       }
+    };
+    let desc = '';
+    CFG.items.slots.forEach((s, i) => {
+      const id = Save.pvpEquipped(s.id), I = id ? CFG.items.catalog[id] : null;
+      row(i, xs[0], y0 + i * GP, s.label, I ? I.name : '', I && I.icon, I && I.iconW, this.equipList(s.id).length);
+      if (this.sel === i && I) desc = I.desc;
     });
-    const by = y0 + tiers.length * G2 + 4;
-    drawMenuRow(ctx, by, 'BACK', this.sel === tiers.length, { w: 200, h: 30, cx, hit: () => { this.sel = tiers.length; } });
-    const cur = this.sel < tiers.length && L[tiers[this.sel].id] ? CFG.loadout.abilities[L[tiers[this.sel].id]] : null;
-    if (cur) uiWrap(ctx, cur.desc, x0, by + 44, w, 13, { size: T.small, color: P.grey });
-    else uiText(ctx, 'ONLY ABILITIES YOU HAVE UNLOCKED CAN BE CHOSEN.', cx, by + 52, { size: T.small, color: P.greyMid, align: 'center' });
+    tiers.forEach((t, i) => {
+      const id = L[t.id], A = id ? CFG.loadout.abilities[id] : null, n = this.tierList(t.id).length;
+      row(4 + i, xs[1], y0 + i * GP, t.label + '  [' + t.key.toUpperCase() + ']', A ? A.name : (n > 1 ? '' : 'NONE UNLOCKED'), A && A.icon, 20, n);
+      if (this.sel === 4 + i && A) desc = A.desc;
+    });
+    const hid = Save.pvpHero(kind), Hc = CFG.heroes[hid];
+    row(7, xs[1], y0 + 3 * GP, 'HERO', Hc.name, null, 0, this.heroList().length);
+    if (this.sel === 7) desc = Hc.blurb || '';
+    const by = y0 + 4 * GP + 2;
+    drawMenuRow(ctx, by, 'BACK', this.sel === 8, { w: 200, h: 28, cx, hit: () => { this.sel = 8; } });
+    if (desc) uiWrap(ctx, desc, xs[0], by + 42, 2 * w + 20, 13, { size: T.small, color: P.grey });
+    else uiText(ctx, all ? 'EVERYTHING IS UNLOCKED AND AT MAX LEVEL, WITH MAX UPGRADES.' : 'ONLY WHAT YOU OWN CAN BE CHOSEN. YOUR UPGRADES AND HERO COUNT. YOUR INVENTORY STAYS UNCHANGED.', cx, by + 52, { size: T.small, color: P.greyMid, align: 'center' });
+  },
+
+  drawSetPick(ctx) {
+    const P = STYLE.pal, T = STYLE.type, cx = STAGE_W / 2, S = this.setNow(), cat = CFG.items.catalog, ab = CFG.loadout.abilities, w = 520, x = cx - w / 2, y = 90;
+    const locked = this.ruleNow() === 'setfix' && !this.isHost;
+    uiPanel(ctx, x, y, w, 150, { color: P.cyan, fill: P.void, alpha: 0.92, glow: true });
+    UIHit.add(x, y, w, 150, () => { this.sel = 0; });
+    uiText(ctx, S.name, cx, y + 30, { size: T.h1, color: P.cyan, align: 'center' });
+    if (!locked) {
+      UIHit.add(x, y, 60, 150, () => { this.sel = 0; }, { act: () => this.cycleSet(-1) });
+      UIHit.add(x + w - 60, y, 60, 150, () => { this.sel = 0; }, { act: () => this.cycleSet(1) });
+      uiText(ctx, '<', x + 30, y + 80, { size: T.h1, color: P.cyan, align: 'center' });
+      uiText(ctx, '>', x + w - 30, y + 80, { size: T.h1, color: P.cyan, align: 'center' });
+    }
+    uiWrap(ctx, S.desc, x + 70, y + 50, w - 140, 13, { size: T.small, color: P.grey });
+    const lines = [['MELEE', cat[S.melee].name], ['RANGED', cat[S.ranged].name], ['HEAVY', cat[S.heavy].name], ['IMPLANT', cat[S.artifact].name]], l2 = [['WEAK', ab[S.weak].name], ['MEDIUM', ab[S.medium].name], ['STRONG', ab[S.strong].name], ['HERO', CFG.heroes.vanguard.name]];
+    lines.forEach(([k, v], i) => { uiText(ctx, k, x + 70, y + 92 + i * 14, { size: T.small, color: P.grey }); uiText(ctx, v, x + 140, y + 92 + i * 14, { size: T.small, color: P.ice }); });
+    l2.forEach(([k, v], i) => { uiText(ctx, k, x + 290, y + 92 + i * 14, { size: T.small, color: P.grey }); uiText(ctx, v, x + 350, y + 92 + i * 14, { size: T.small, color: P.ice }); });
+    drawMenuRow(ctx, y + 166, 'BACK', this.sel === 1, { w: 200, h: 28, cx, hit: () => { this.sel = 1; } });
+    uiText(ctx, locked ? 'THE HOST CHOSE THIS SET FOR EVERYONE.' : 'NO UPGRADES, LEVEL 0 GEAR, HERO VANGUARD: EVERYONE IS EQUAL.', cx, y + 216, { size: T.small, color: P.greyMid, align: 'center' });
   },
 
   drawLobby(ctx, top) {
@@ -224,8 +301,8 @@ const Pvp = {
     const y0 = top + 58, BH = 28, BG = 36, bottom = y0 + (rows.length - 1) * BG + BH;            // der rote Kasten reicht bis zur Unterkante des letzten Knopfes
     rows.forEach((r, i) => {
       const label = r === 'start' ? (this.players.length < 2 ? 'START ROUND (2+ PLAYERS)' : 'START ROUND') : r === 'mode' ? (teams ? 'MODE: TEAMS (A / B)' : 'MODE: ALL VS ALL')
-        : r === 'abilities' ? 'ABILITIES' : r === 'copy' ? (copied ? 'COPIED!' : 'COPY CODE') : 'LEAVE LOBBY';
-      drawMenuRow(ctx, y0 + i * BG, label, this.sel === i, { w: lw, h: BH, cx: 40 + lw / 2, hit: () => { this.sel = i; }, lr: r === 'mode' });
+        : r === 'rule' ? 'RULES: ' + this.RULE_NAMES[this.ruleNow()] : r === 'equipment' ? 'EQUIPMENT' : r === 'copy' ? (copied ? 'COPIED!' : 'COPY CODE') : 'LEAVE LOBBY';
+      drawMenuRow(ctx, y0 + i * BG, label, this.sel === i, { w: lw, h: BH, cx: 40 + lw / 2, hit: () => { this.sel = i; }, lr: r === 'mode' || r === 'rule' });
     });
     uiText(ctx, 'LOBBY CODE', 40 + lw / 2, top + 10, { size: T.small, color: P.grey, align: 'center' });
     uiText(ctx, this.code, 40 + lw / 2, top + 46, { size: T.title * 0.62, color: P.yellow, align: 'center', glow: P.yellow });
@@ -242,12 +319,12 @@ const Pvp = {
       uiText(ctx, (sc[p.id] ? sc[p.id] + ' WINS  ' : '') + (p.host ? 'HOST' : ''), PX + PW - 20, y + 16, { size: T.small, color: P.yellow, align: 'right' });
     });
     const hy = top + 34 + Math.min(this.players.length, Net.MAX_PLAYERS) * 26 + 6;
-    if (hy < bottom - 26) uiWrap(ctx, this.isHost ? 'Share the code. Everyone who joins appears here. Start the round when you are ready.' : 'Choose your abilities. Only the host can start the round.', PX + 14, hy + 8, PW - 28, 13, { size: T.small, color: P.grey });
+    if (hy < bottom - 26) uiWrap(ctx, this.isHost ? 'Share the code. Everyone who joins appears here. Start the round when you are ready.' : 'Choose your equipment. Only the host can start the round.', PX + 14, hy + 8, PW - 28, 13, { size: T.small, color: P.grey });
   },
 };
 
 if (typeof I18n !== 'undefined' && I18n.add) I18n.add({
-  'PVP ARENA': 'PVP-ARENA', 'CREATE LOBBY': 'LOBBY ERSTELLEN', 'JOIN LOBBY': 'LOBBY BEITRETEN', 'JOIN': 'BEITRETEN', 'LEAVE LOBBY': 'LOBBY VERLASSEN', 'COPY CODE': 'CODE KOPIEREN', 'COPIED!': 'KOPIERT!',
+  'PVP ARENA': 'PVP-ARENA', 'MULTIPLAYER': 'MEHRSPIELER', 'Play with other players online. Pick a multiplayer mode next.': 'Spiele online mit anderen Spielern. Wähle als Nächstes einen Mehrspieler-Modus.', 'Currently: PVP Arena. Needs an internet connection.': 'Aktuell: PvP-Arena. Braucht eine Internetverbindung.', 'Back to the mode selection.': 'Zurück zur Modus-Auswahl.', 'CREATE LOBBY': 'LOBBY ERSTELLEN', 'JOIN LOBBY': 'LOBBY BEITRETEN', 'JOIN': 'BEITRETEN', 'LEAVE LOBBY': 'LOBBY VERLASSEN', 'COPY CODE': 'CODE KOPIEREN', 'COPIED!': 'KOPIERT!',
   'LOBBY CODE': 'LOBBY-CODE', 'ENTER THE LOBBY CODE': 'LOBBY-CODE EINGEBEN', 'TYPE THE CODE (CTRL+V PASTES)': 'CODE TIPPEN (STRG+V FÜGT EIN)', 'TAP THE LETTERS BELOW (OR TYPE, CTRL+V PASTES)': 'BUCHSTABEN UNTEN ANTIPPEN (ODER TIPPEN, STRG+V FÜGT EIN)', 'DEL': 'LÖSCHEN',
   'CONNECTING...': 'VERBINDE...', 'JOINING...': 'TRETE BEI...', 'HOST': 'HOST', '(YOU)': '(DU)', 'CONNECTION FAILED': 'VERBINDUNG FEHLGESCHLAGEN',
   'THE HOST CLOSED THE LOBBY': 'DER HOST HAT DIE LOBBY GESCHLOSSEN', 'THE LOBBY IS FULL': 'DIE LOBBY IST VOLL', 'NO LOBBY WITH THIS CODE': 'KEINE LOBBY MIT DIESEM CODE',
@@ -255,7 +332,7 @@ if (typeof I18n !== 'undefined' && I18n.add) I18n.add({
   'Share the code. Everyone who joins appears here. Start the round when you are ready.': 'Teile den Code. Alle, die beitreten, erscheinen hier. Starte die Runde, wenn ihr bereit seid.',
   'Waiting for the host to start the round.': 'Warte darauf, dass der Host die Runde startet.',
   'START ROUND': 'RUNDE STARTEN', 'START ROUND (2+ PLAYERS)': 'RUNDE STARTEN (2+ SPIELER)', 'MODE: TEAMS (A / B)': 'MODUS: TEAMS (A / B)', 'MODE: ALL VS ALL': 'MODUS: JEDER GEGEN JEDEN', 'TEAMS': 'TEAMS', 'ALL VS ALL': 'JEDER GEGEN JEDEN', 'WINS': 'SIEGE',
-  'A ROUND IS RUNNING - YOU JOIN THE NEXT ONE': 'EINE RUNDE LÄUFT - DU BIST BEIM NÄCHSTEN DABEI', 'Choose your abilities. Only the host can start the round.': 'Wähle deine Abilities. Nur der Host kann die Runde starten.', 'ABILITIES': 'ABILITIES', 'CHOOSE YOUR ABILITIES': 'WÄHLE DEINE ABILITIES', 'NONE': 'KEINE', 'NONE UNLOCKED': 'KEINE FREIGESCHALTET', 'ONLY ABILITIES YOU HAVE UNLOCKED CAN BE CHOSEN.': 'NUR FREIGESCHALTETE ABILITIES KÖNNEN GEWÄHLT WERDEN.', 'YOU NEED AT LEAST 2 PLAYERS': 'DU BRAUCHST MINDESTENS 2 SPIELER',
+  'A ROUND IS RUNNING - YOU JOIN THE NEXT ONE': 'EINE RUNDE LÄUFT - DU BIST BEIM NÄCHSTEN DABEI', 'Choose your abilities. Only the host can start the round.': 'Wähle deine Abilities. Nur der Host kann die Runde starten.', 'ABILITIES': 'ABILITIES', 'CHOOSE YOUR ABILITIES': 'WÄHLE DEINE ABILITIES', 'EQUIPMENT': 'AUSRÜSTUNG', 'RULES: OWN EQUIPMENT': 'REGEL: EIGENE AUSRÜSTUNG', 'RULES: ONE SET FOR ALL': 'REGEL: EIN SET FÜR ALLE', 'RULES: PICK A SET': 'REGEL: SET WÄHLEN', 'RULES: ALL EQUIPMENT': 'REGEL: ALLE AUSRÜSTUNG', 'OWN EQUIPMENT': 'EIGENE AUSRÜSTUNG', 'ONE SET FOR ALL': 'EIN SET FÜR ALLE', 'PICK A SET': 'SET WÄHLEN', 'ALL EQUIPMENT': 'ALLE AUSRÜSTUNG', 'HERO': 'HELD', 'EVERYTHING IS UNLOCKED AND AT MAX LEVEL, WITH MAX UPGRADES.': 'ALLES IST FREIGESCHALTET UND AUF MAXIMALER STUFE, MIT MAXIMALEN UPGRADES.', 'ONLY WHAT YOU OWN CAN BE CHOSEN. YOUR UPGRADES AND HERO COUNT. YOUR INVENTORY STAYS UNCHANGED.': 'NUR GEKAUFTES KANN GEWÄHLT WERDEN. DEINE UPGRADES UND DEIN HELD ZÄHLEN. DEIN INVENTAR BLEIBT UNVERÄNDERT.', 'THE HOST CHOSE THIS SET FOR EVERYONE.': 'DER HOST HAT DIESES SET FÜR ALLE GEWÄHLT.', 'NO UPGRADES, LEVEL 0 GEAR, HERO VANGUARD: EVERYONE IS EQUAL.': 'KEINE UPGRADES, AUSRÜSTUNG STUFE 0, HELD VANGUARD: ALLE SIND GLEICH.', 'WEAK': 'SCHWACH', 'MEDIUM': 'MITTEL', 'STRONG': 'STARK', 'CHOOSE YOUR EQUIPMENT': 'WÄHLE DEINE AUSRÜSTUNG', 'WEAPONS & IMPLANT': 'WAFFEN & IMPLANT', 'Choose your equipment. Only the host can start the round.': 'Wähle deine Ausrüstung. Nur der Host kann die Runde starten.', 'ONLY ITEMS AND ABILITIES YOU OWN CAN BE CHOSEN. THIS DOES NOT CHANGE YOUR INVENTORY.': 'NUR GEKAUFTE ITEMS UND ABILITIES KÖNNEN GEWÄHLT WERDEN. DEIN INVENTAR BLEIBT UNVERÄNDERT.', 'NONE': 'KEINE', 'NONE UNLOCKED': 'KEINE FREIGESCHALTET', 'ONLY ABILITIES YOU HAVE UNLOCKED CAN BE CHOSEN.': 'NUR FREIGESCHALTETE ABILITIES KÖNNEN GEWÄHLT WERDEN.', 'YOU NEED AT LEAST 2 PLAYERS': 'DU BRAUCHST MINDESTENS 2 SPIELER',
   'ROUND STARTING - THE ARENA ITSELF COMES IN THE NEXT UPDATE': 'RUNDE STARTET - DIE ARENA SELBST KOMMT IM NÄCHSTEN UPDATE',
   'Back to the mode list.': 'Zurück zur Modusliste.', 'You are the host.': 'Du bist der Host.', "Enter the code of a friend's lobby to join it.": 'Gib den Code der Lobby eines Freundes ein, um beizutreten.',
   'Fight other players in an arena. Create a lobby and share the code, or join a friend with their code.': 'Kämpfe in einer Arena gegen andere Spieler. Erstelle eine Lobby und teile den Code, oder tritt mit dem Code eines Freundes bei.',

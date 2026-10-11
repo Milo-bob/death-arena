@@ -97,6 +97,7 @@ function drawHud(ctx) {
 
   Tutorial.draw(ctx);
   if (G.sr) SpeedRun.drawHud(ctx);
+  Endless.drawHud(ctx);
   Xp.drawHud(ctx);
   MsFx.draw(ctx);                                                // Meilenstein-Fanfare (js/milestonefx.js)
   drawHotbar(ctx, p);
@@ -558,12 +559,12 @@ function drawMenuIcons(ctx) {
 // Modus-Auswahl nach PLAY: Regular / Infinite / Tutorial, darunter eine Kurzbeschreibung des gewählten Modus
 function drawModeSelectScreen(ctx) {
   const P = STYLE.pal, T = STYLE.type, t = G.realTime;
-  const labels = { regular: 'REGULAR', infinite: 'INFINITE MODE', speedrun: 'SPEEDRUN', pvp: 'PVP ARENA', tutorial: 'TUTORIAL', back: 'BACK' };
+  const labels = { regular: 'REGULAR', infinite: 'INFINITE MODE', speedrun: 'SPEEDRUN', multiplayer: 'MULTIPLAYER', tutorial: 'TUTORIAL', back: 'BACK' };
   const descs = {
     regular: ['The classic run on a walled map. Choose map and difficulty next.', 'Survive the waves and bosses, face Death at the end.'],
-    infinite: ['An endless map without walls. Choose map and final boss time next.', 'Credits x' + CFG.infinite.coreFactor + ', own best time.'],
-    speedrun: ['Race the clock: Boss Rush, Gauntlet and Seed Run, each with its own best time.', 'Same standard loadout for everyone (you only pick your weapons). No credits, no XP. Death ends the run.'],
-    pvp: ['Fight other players in an arena. Create a lobby and share the code, or join a friend with their code.', 'Up to 4 players, all vs all or in teams. Your own weapons, abilities and upgrades count. Needs an internet connection.'],
+    infinite: ['An endless map without walls. Choose map and final boss time next.', 'Credits grow the longer you survive, mutations raise the stakes, more player XP. Own best time.'],
+    speedrun: ['Race the clock: all bosses back to back, then Death. Your best time goes on the leaderboard.', 'Same standard loadout for everyone (you only pick your weapons). No credits, no XP. Death ends the run.'],
+    multiplayer: ['Play with other players online. Pick a multiplayer mode next.', 'Currently: PVP Arena. Needs an internet connection.'],
     tutorial: ['A short guided level that teaches the basics.', 'You cannot die. Nothing is saved.'],
     back: ['Back to the main menu.', ''],
   };
@@ -577,13 +578,31 @@ function drawModeSelectScreen(ctx) {
     drawMenuRow(ctx, y, labels[id], G.modeSel === i, { w: lw, h: RH, cx: lcx, hit: () => { G.modeSel = i; }, locked: lock });
     if (id === 'tutorial' && !Save.data.tutorialDone) uiHintDot(ctx, 40 + lw + 8, y + 18, t);
   });
-  const id = MODE_ITEMS[G.modeSel], d = descs[id], mc = { regular: P.yellow, infinite: P.cyan, speedrun: P.orange, pvp: P.red, tutorial: P.green }[id] || P.ice;
+  const id = MODE_ITEMS[G.modeSel], d = descs[id], mc = { regular: P.yellow, infinite: P.cyan, speedrun: P.orange, multiplayer: P.red, tutorial: P.green }[id] || P.ice;
   uiPanel(ctx, PX, top, PW, MODE_ITEMS.length * GAP - (GAP - RH), { color: mc, fill: P.void, alpha: 0.92, glow: true });
   uiText(ctx, labels[id], PX + 14, top + 24, { size: T.h1, color: mc });
   let ty = top + 48;
   ty += 13 * uiWrap(ctx, d[0], PX + 14, ty, PW - 28, 13, { size: T.body, color: P.ice }) + 6;
   ty += 13 * uiWrap(ctx, d[1], PX + 14, ty, PW - 28, 13, { size: T.body, color: P.grey }) + 6;
   if (CFG.level.gates[id] && !Save.gateOpen(id)) uiWrap(ctx, 'LOCKED: reach player level ' + CFG.level.gates[id] + ' (you are level ' + Save.plevel() + '). Every run earns XP.', PX + 14, ty, PW - 28, 13, { size: T.body, color: P.orange });
+}
+
+// Untermenue MULTIPLAYER: PVP ARENA
+function drawMultiSelectScreen(ctx) {
+  const P = STYLE.pal, T = STYLE.type;
+  const labels = { pvp: 'PVP ARENA', back: 'BACK' };
+  drawMenuBg(ctx, 'keysettings');
+  drawEmbers(ctx);
+  uiText(ctx, 'MULTIPLAYER', STAGE_W / 2, 56, { size: T.h1, color: P.red, align: 'center', glow: P.red });
+  const lw = 300, PX = 40 + lw + 24, PW = STAGE_W - 40 - PX, top = 90, GAP = 38, RH = 30;
+  MULTI_ITEMS.forEach((id, i) => drawMenuRow(ctx, top + i * GAP, labels[id], G.multiSel === i, { w: lw, h: RH, cx: 40 + lw / 2, hit: () => { G.multiSel = i; } }));
+  const id = MULTI_ITEMS[G.multiSel];
+  uiPanel(ctx, PX, top, PW, 6 * GAP - (GAP - RH), { color: P.red, fill: P.void, alpha: 0.92, glow: true });
+  uiText(ctx, labels[id], PX + 14, top + 24, { size: T.h1, color: P.red });
+  const d = id === 'pvp' ? ['Fight other players in an arena. Create a lobby and share the code, or join a friend with their code.', 'Up to 4 players, all vs all or in teams. Your own weapons, abilities and upgrades count. Needs an internet connection.'] : ['Back to the mode selection.', ''];
+  let ty = top + 48;
+  ty += 13 * uiWrap(ctx, d[0], PX + 14, ty, PW - 28, 13, { size: T.body, color: P.ice }) + 6;
+  uiWrap(ctx, d[1], PX + 14, ty, PW - 28, 13, { size: T.body, color: P.grey });
 }
 
 // Endlos-Modus vor dem Start: Zeitpunkt des finalen Bosses wählen
@@ -601,8 +620,11 @@ function drawInfSetupScreen(ctx) {
   let ty = top + 40;
   ty += 12 * uiWrap(ctx, 'An endless map without walls. Enemies keep coming from every side.', PX + 14, ty, PW - 28, 12, { size: T.body, color: P.ice }) + 6;
   ty += 12 * uiWrap(ctx, 'Choose when the final boss (Death) arrives. Beat him to win.', PX + 14, ty, PW - 28, 12, { size: T.body, color: P.grey }) + 10;
-  uiText(ctx, 'CREDITS x' + CFG.infinite.coreFactor, PX + 14, ty, { size: T.body, color: P.yellow });
-  uiText(ctx, 'OWN BEST TIME: ' + (Save.data.bestInf > 0 ? formatTime(Save.data.bestInf) : '-'), PX + 14, ty + 14, { size: T.body, color: P.yellow });
+  const E = CFG.endless;
+  ty += 12 * uiWrap(ctx, 'CREDITS GROW THE LONGER YOU SURVIVE: x' + E.creditBase + ' AT THE START, x' + E.creditMax + ' AFTER ' + Math.round((E.creditMax - E.creditBase) / E.creditPerMin) + ' MIN.', PX + 14, ty, PW - 28, 12, { size: T.body, color: P.yellow }) + 4;
+  ty += 12 * uiWrap(ctx, 'MUTATIONS: every few minutes the world gets harder for a while, but credits rise even faster. Later, several at once.', PX + 14, ty, PW - 28, 12, { size: T.body, color: P.orange }) + 4;
+  ty += 12 * uiWrap(ctx, 'Player XP x' + CFG.level.infiniteFactor + '. Hero VOYAGER (15 min) loves this mode.', PX + 14, ty, PW - 28, 12, { size: T.body, color: P.cyan }) + 6;
+  uiText(ctx, 'OWN BEST TIME: ' + (Save.data.bestInf > 0 ? formatTime(Save.data.bestInf) : '-'), PX + 14, ty + 4, { size: T.body, color: P.yellow });
 }
 
 // Kartenauswahl nach PLAY: drei Karten nebeneinander, gesperrte zeigen, was zum Freischalten fehlt
