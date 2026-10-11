@@ -47,6 +47,7 @@ class LavaVent {
   damage(V) {
     const p = G.player;
     if (!this.hitPlayer && circlesOverlap(this.x, this.y, V.radius, p.x, p.y, p.radius) && p.hit('touch', V.dmg, 'LAVA VENT')) this.hitPlayer = true;
+    if (Coop.guest) return;                                                         // Koop-Gast: Schaden an Gegnern macht der Host
     for (const e of G.enemies) {
       if (!e.alive || this.hit.has(e) || !circlesOverlap(this.x, this.y, V.radius, e.x, e.y, e.radius)) continue;
       this.hit.add(e);
@@ -168,6 +169,7 @@ class AcidPool {
   // Giftwolke aus der Pfütze (Vorwarnung und Schaden der Wolke: ToxicCloud in mapspecial.js)
   burp() {
     this.bt = rand(G.map.env.pools.burp[0], G.map.env.pools.burp[1]);
+    if (Coop.guest) return;                                                         // Koop-Gast: die Wolke kommt als Bild vom Host
     dropCloud(this.x, this.y);
     Juice.sparks(this.x, this.y, STYLE.pal.green, 8, 3);
   }
@@ -261,7 +263,8 @@ const MapEnv = {
     const E = G.map.env;
     if (!E || Tutorial.active) return;
     if (E.blizzard) this.blz = { state: 'idle', t: E.blizzard.first, age: 0, ang: 0 };
-    const make = (cls, n, minPlayer) => { for (let i = 0; i < n; i++) { const h = new cls(); const pos = this.spot(h, minPlayer); if (pos) { [h.x, h.y] = pos; G.hazards.push(h); } } };
+    const sc = G.coop ? CFG.coop.obstacleMul : 1;
+    const make = (cls, n0, minPlayer) => { const n = Math.round(n0 * sc); for (let i = 0; i < n; i++) { const h = new cls(); const pos = this.spot(h, minPlayer); if (pos) { [h.x, h.y] = pos; G.hazards.push(h); } } };
     if (E.vents) make(LavaVent, E.vents.count, 90);
     if (E.belts) make(SlagBelt, E.belts.count, 70);
     if (E.pools) make(AcidPool, E.pools.count, 70);

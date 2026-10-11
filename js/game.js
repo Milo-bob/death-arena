@@ -53,7 +53,7 @@ const MENU_ITEMS = ['play', 'inventory', 'cosmetics', 'upgrades', 'achievements'
 const menuItems = () => MENU_ITEMS;
 const statsOpen = () => !!Save.data.dev;       // der Statistik-Bildschirm (Symbol im Hauptmenue) gehoert zum Dev-Modus und gilt nur im Slot, in den die Dev-Datei importiert wurde (die Daten selbst kommen aus allen Slots, siehe Stats.slotLogs)
 const MODE_ITEMS = ['regular', 'infinite', 'speedrun', 'multiplayer', 'tutorial', 'back'];        // Auswahl nach PLAY
-const MULTI_ITEMS = ['pvp', 'back'];          // Untermenue von MULTIPLAYER
+const MULTI_ITEMS = ['coop', 'pvp', 'back'];          // Untermenue von MULTIPLAYER
 const MENU_MUSIC_MODES = ['start', 'stats', 'modeselect', 'multiselect', 'infsetup', 'srsetup', 'mapselect', 'keys', 'binds', 'inventory', 'cosmetics', 'upgrades', 'achievements', 'leaderboard', 'settings'];       // hier läuft die Menümusik (Tasten-Menü aus der Pause heraus nicht)
 // Upgrade-Menü: drei Reiter. Jede Zeile ist { kind: 'up' | 'ability', id }
 const UPGRADE_TABS = [
@@ -232,7 +232,8 @@ const G = {
     setView(false);
     this.mode = 'play';
     this.pvp = null;                                                                       // PvP-Kampf: setzt PvpMatch.begin nach diesem Aufruf
-    this.sr = srKind && srKind !== 'pvp' && !withTutorial ? SpeedRun.create(srKind) : null;
+    this.coop = null; this.mates = []; Coop.focus = null;                                  // Koop-Lauf: setzt Coop.begin nach diesem Aufruf
+    this.sr = srKind && srKind !== 'pvp' && srKind !== 'coop' && !withTutorial ? SpeedRun.create(srKind) : null;
     Save.srOn = !!this.sr;
     this.infinite = (infinite || !!(this.sr && this.sr.infinite)) && !withTutorial;
     CFG.map.infinite = this.infinite;                       // die Kartenregeln (Wände, Kamera, Boss-Kamera) hängen an diesem Schalter
@@ -249,7 +250,7 @@ const G = {
     this.spawners = []; this.powerups = []; this.drops = []; this.texts = []; this.events = [];
     this.boss = null; this.intro = null; this.bossShots = [];
     this.arenaScale = 1; this.arenaTarget = 1; this.bossCount = 0; this.eliteUp = false;
-    const mi = withTutorial || srKind === 'pvp' || !Save.mapUnlocked(Save.data.mapSel) ? 0 : Save.data.mapSel;          // gewählte Karte (Tutorial immer Karte 1)
+    const mi = withTutorial || srKind === 'pvp' ? 0 : srKind === 'coop' && CFG.maps[this.coopMap] ? this.coopMap : !Save.mapUnlocked(Save.data.mapSel) ? 0 : Save.data.mapSel;          // gewählte Karte (Tutorial immer Karte 1, Koop: die Karte des Hosts)
     this.mapIdx = mi; this.map = CFG.maps[mi]; this.diff = this.map.diff;
     CFG.map.halfW = this.map.half[0]; CFG.map.halfH = this.map.half[1];
     if (this.sr) SpeedRun.applyMap();                                                    // Speedrun: eigene Streifenkarte (Gauntlet) bzw. Karte 1
@@ -291,6 +292,7 @@ const G = {
   die() {
     if (this.mode !== 'play' || this.victory > 0) return;
     if (this.pvp) { PvpMatch.localDeath(); return; }                   // PvP: Runde verloren, kein Todesbildschirm/keine Abrechnung
+    if (this.coop && !this.coop.over) { Coop.localDeath(); return; }    // Koop: erst ausgeschieden, der Lauf endet, wenn alle ausgeschieden sind
     if (Tutorial.active) { Tutorial.exit(); return; }                  // Tutorial verlassen: nichts wird gespeichert
     if (this.sr) { SpeedRun.fail(); return; }                          // Speedrun: Tod = Abbruch, eigener Ergebnisbildschirm
     this.mode = 'dead';
@@ -310,7 +312,7 @@ const G = {
 
   // Lauf abrechnen (Tod und Sieg): Bestzeit, Statistik, Meilensteine, Cores. bonus = zusätzliche Cores (Sieg)
   settleRun(bonus) {
-    const res = Save.finishRun(this.time, this.bosses, this.kills, this.infinite, Tutorial.active ? null : this.map.id);
+    const res = Save.finishRun(this.time, this.bosses, this.kills, this.infinite, Tutorial.active ? null : this.map.id, !!this.coop);
     this.newBest = res.isBest; this.newMilestones = res.got;
     // Endlos-Modus: die Cores der Zeit wurden live mit dem steigenden Multiplikator gesammelt (Endless.credit), Bosse zaehlen zum Multiplikator am Ende
     const base = Endless.on() ? Endless.credit + this.bosses * CFG.meta.perBoss * Endless.mult(this.time) : this.time * CFG.meta.perSecond + this.bosses * CFG.meta.perBoss;
@@ -437,7 +439,8 @@ const G = {
     if (Input.pressed('ArrowDown') || Input.pressed('KeyS')) this.multiSel = (this.multiSel + 1) % n;
     if (Input.pressed('Escape')) { this.mode = 'modeselect'; return; }
     if (!(Input.pressed('Space') || Input.pressed('Enter'))) return;
-    if (MULTI_ITEMS[this.multiSel] === 'pvp') { this.mode = 'pvp'; Pvp.open(); }
+    const it = MULTI_ITEMS[this.multiSel];
+    if (it === 'pvp' || it === 'coop') { this.mode = 'pvp'; Pvp.open(it); }
     else this.mode = 'modeselect';
   },
 
@@ -603,7 +606,7 @@ const G = {
 
   // Pause: ESC / P im Spiel, oder automatisch beim Verlassen des Fensters. Alles steht still, die Musik haelt an.
   pauseGame() {
-    if (this.mode !== 'play' || this.pvp) return;                       // online gibt es keine Pause (der Gegner spielt weiter)
+    if (this.mode !== 'play' || this.pvp || this.coop) return;                       // online gibt es keine Pause (die anderen spielen weiter)
     this.mode = 'pause';
     this.pauseSel = 0;
     this.pauseConfirm = false;
@@ -738,8 +741,10 @@ const G = {
   // Bosskampf mit festem Bild (Kamera steht, Spieler bleibt im Bild): nur auf der unendlichen Karte nötig.
   // Auf der begrenzten Karte kann der Spieler eh nicht weglaufen, dort erscheint der Boss in der Kartenmitte.
   // Spawnpunkte der Gegner: auf der begrenzten Karte fest, auf der unendlichen Karte relativ zur Kamera (wandern mit)
-  spawnPointList() { return CFG.map.infinite ? CFG.infinite.spawnPoints.map(([x, y]) => [x + this.cam.x, y + this.cam.y]) : CFG.spawnPoints; },
+  spawnPointList() { if (this.coop) return Coop.spawnPoints(); return CFG.map.infinite ? CFG.infinite.spawnPoints.map(([x, y]) => [x + this.cam.x, y + this.cam.y]) : CFG.spawnPoints; },
   get bossLock() { return this.bossFight && CFG.map.infinite; },
+  // Koop (Host): Orte fuer Tor, Heilkreuz und Meteoriten richten sich nach einem zufaelligen lebenden Spieler statt nach der Kamera
+  focusCam() { return this.coop && Coop.host ? Coop.randomPlayer() : this.cam; },
 
   addText(name, x, y) { this.texts.push(new FloatingText(name, x, y)); },
   // Schadenszahl am Spieler: echter Schaden als Pixelzahl, ab 15 orange und groesser
@@ -781,7 +786,7 @@ const G = {
     const fl = o.flash === undefined ? 0.2 : o.flash;
     if (fl > 0) Juice.flash(color, 0.5, fl, true);
   },
-  notice(text, color, size) { this.noticeText = text; this.noticeColor = color || STYLE.pal.cyan; this.noticeSize = size || STYLE.type.h2; this.noticeT = 2; },
+  notice(text, color, size) { Coop.noticeSent(text, color, size); this.noticeText = text; this.noticeColor = color || STYLE.pal.cyan; this.noticeSize = size || STYLE.type.h2; this.noticeT = 2; },
 
   // Alle lebenden Boss-Körper (bei den Zwillingen zwei)
   bossList() {
@@ -791,6 +796,7 @@ const G = {
   },
 
   startBossFight(type) {
+    Coop.bossStarted(type);                                     // Koop-Host: Gaeste benachrichtigen
     this.bossFight = true;
     Stats.bossStart(type);
     Sfx.play('bossIntro');
@@ -800,6 +806,7 @@ const G = {
   },
 
   endBossFight(result = 'win') {       // result fuers Protokoll: 'win' | 'timeout'
+    Coop.bossEnded(result);                                                        // Koop-Host: Gaeste benachrichtigen
     if (this.sr) SpeedRun.bossEnded(result, this.boss && this.boss.type);       // Speedrun: Zwischenzeit, Pause bis zum naechsten Boss (Boss Rush)
     Stats.bossEnd(result);
     this.bossFight = false;
@@ -861,6 +868,7 @@ const G = {
     Account.menuTick(this.mode);
     PWA.tick(this.mode);
     if (this.mode === 'start') {
+      if (this.coop) Coop.exit();                                                   // Koop-Lauf vorbei: Verbindung schliessen
       this.updateMenu();
     } else if (this.mode === 'achievements') {
       Ach.updateScreen();
@@ -913,12 +921,14 @@ const G = {
       else if (ready && Input.pressed('KeyR')) { Sfx.play('select'); this.begin(false, this.infinite); }      // Komfort: sofort noch ein Lauf, gleicher Modus und gleiche Karte
     } else if (this.mode === 'pick') {
       this.updatePick(dt);
+      if (this.coop && this.mode === 'pick') this.updatePlay(dt);                  // Koop: die Welt laeuft waehrend der Wahl weiter (der Spieler ist solange unverwundbar)
     } else if (this.mode === 'swap') {
       this.updateSwap();
     } else if (this.mode === 'pause') {
       this.updatePause();
     } else if (this.mode === 'play') {
       if (this.pvp) { if (Input.pressed('Escape')) PvpMatch.escape(); if (Juice.hs > 0) Juice.hs -= dt; else this.updatePlay(dt); }
+      else if (this.coop) { if (Input.pressed('Escape')) Coop.escape(); this.updatePlay(dt); }                // Koop: keine Pause (die anderen spielen weiter)
       else if (Input.pressed('Escape') || Input.pressed('KeyP')) { Ach.add('pauses'); this.pauseGame(); }
       else if (Juice.hs > 0) Juice.hs -= dt;                      // Impact-Frame: die Welt steht kurz still
       else this.updatePlay(dt);
@@ -937,8 +947,8 @@ const G = {
     Cos2.tick(dt);                                              // Cosmetics: Bodenmarken, Echos, Titelkarte, Siegerpose, Wiederbelebung
     MsFx.update(dt);
     Ach.update(dt);
-    if (this.pvp && this.pvp.out) { this.attacks = []; } else this.player.update(dt);          // PvP: wer ausgeschieden ist, schaut nur noch zu
-    if (this.mode !== 'play') return;
+    if (this.pvp && this.pvp.out) { this.attacks = []; } else if (this.coop && (this.coop.out || this.mode === 'pick')) { if (this.coop.out) this.attacks = []; } else this.player.update(dt);          // PvP/Koop: wer ausgeschieden ist, schaut nur noch zu; Koop: waehrend einer Wahl steht der Spieler
+    if (this.mode !== 'play' && !(this.coop && this.mode === 'pick')) return;
     Tutorial.update(dt);
     if (this.player.blinkT <= 0) pushOutOfObstacles(this.player, this.player.radius);      // unsichtbar (Phase) = man geht hindurch
     this.updateCamera(dt);
@@ -947,13 +957,14 @@ const G = {
     this.attacks = this.attacks.filter((a) => a.alive);
     this.clearing = this.attacks.some((a) => a.clearing);
 
+    if (this.coop) Coop.update(dt);                                                      // Koop: Mitspieler, Netz, Bild der Welt
     if (this.victory > 0) { this.victory -= dt; if (this.victory <= 0) { this.win(); return; } }     // Siegphase: kein Director, keine neuen Gegner
     if (!this.bossFight && !Tutorial.active && !this.pvp && !(this.sr && this.sr.kind === 'rush')) this.time += dt;       // Boss Rush: G.time springt von Boss zu Boss (SpeedRun.update)
     Endless.tick(dt);                                                                       // Endlos-Modus: Credits sammeln, Mutationen starten/beenden (sonst ohne Wirkung)
     Loadout.updateByTime(this.time);
     if (this.sr) { if (!(this.victory > 0)) SpeedRun.update(dt); }                         // Speedrun: kein Director, SpeedRun.update spawnt und steuert die Bosse
     else if (this.pvp) PvpMatch.update(dt);                                                    // PvP: kein Director, nur der Fernspieler
-    else if (!Tutorial.active && !(this.victory > 0)) { this.director.update(dt); this.director.updateBosses(); }       // im Tutorial führt Tutorial.update die Szenarien
+    else if (!Tutorial.active && !(this.victory > 0)) { Coop.noticesOn(true); this.director.update(dt); this.director.updateBosses(); Coop.noticesOn(false); }       // im Tutorial führt Tutorial.update die Szenarien
     MapEnv.update(dt);
     Elite.update();
     SafeSpot.update(dt);
@@ -965,17 +976,19 @@ const G = {
     }
     if (this.boss) {
       if (!Tutorial.active) this.bossTimer += dt;                      // im Tutorial gibt es kein Zeitlimit
-      if (this.bossTimer > CFG.boss.timeout && this.boss.type !== 'reaper' && !this.sr) {      // der finale Boss hat kein Zeitlimit
+      if (this.bossTimer > CFG.boss.timeout && this.boss.type !== 'reaper' && !this.sr && !Coop.guest) {      // der finale Boss hat kein Zeitlimit
         this.later(0.25, () => Loadout.weaponUp(this.time));
         this.endBossFight('timeout');
       } else {
-        this.boss.update(dt);
+        Coop.noticesOn(true); this.boss.update(dt); Coop.noticesOn(false);
       }
     }
 
     for (const list of [this.enemies, this.obstacles, this.shots, this.blasts, this.meteors, this.bossShots, this.spawners, this.powerups, this.drops, this.xpOrbs, this.texts]) {
       for (const e of list) e.update(dt);
     }
+    Coop.focus = null;
+    Coop.afterWorld(dt);                                                                // Koop-Gast: Schaden an Geisterbildern melden
     this.xpOrbs = this.xpOrbs.filter((e) => e.alive);
     Xp.update(dt);
     this.enemies = this.enemies.filter((e) => e.alive);
@@ -983,8 +996,7 @@ const G = {
     this.blasts = this.blasts.filter((e) => e.alive);
     this.meteors = this.meteors.filter((e) => e.alive);
     this.obstacles = this.obstacles.filter((e) => e.alive);
-    for (const e of this.enemies) pushOutOfObstacles(e, e.radius);                // Barrikaden sind für alle massiv
-    for (const b of this.bossList()) pushOutOfObstacles(b, b.radius);
+    if (!Coop.guest) { for (const e of this.enemies) pushOutOfObstacles(e, e.radius); for (const b of this.bossList()) pushOutOfObstacles(b, b.radius); }       // Barrikaden sind für alle massiv (Koop-Gast: Positionen kommen vom Host)
     this.bossShots = this.bossShots.filter((e) => e.alive);
     this.spawners = this.spawners.filter((e) => e.alive);
     this.powerups = this.powerups.filter((e) => e.alive);
@@ -1104,7 +1116,7 @@ const G = {
     // Alles in der Welt wird um die Kamera verschoben gezeichnet, das HUD danach fest auf dem Bildschirm
     ctx.save();
     ctx.translate(-this.cam.x, this.cam.y);
-    if (!CFG.map.infinite && !this.pvp) for (const [x, y] of this.spawnPointList()) drawSprite(ctx, 'spawnPoint', x, y, 90, 200, { alpha: 0.8 });      // im Endlos-Modus sind die Spawnpunkte unsichtbar
+    if (!CFG.map.infinite && !this.pvp && !this.coop) for (const [x, y] of this.spawnPointList()) drawSprite(ctx, 'spawnPoint', x, y, 90, 200, { alpha: 0.8 });      // im Endlos-Modus sind die Spawnpunkte unsichtbar
     MapFx.drawBelow(ctx);
     MapEnv.draw(ctx);
     SafeSpot.draw(ctx);
@@ -1119,6 +1131,7 @@ const G = {
     for (const e of this.xpOrbs) e.draw(ctx);
     Patterns.drawCorpses(ctx);
     for (const e of this.enemies) e.draw(ctx);
+    Coop.drawMates(ctx);                                                           // Koop: Mitspieler (mit ihren Angriffen)
     for (const b of this.bossList()) b.draw(ctx);
     if (this.intro) this.intro.draw(ctx);
     for (const e of this.blasts) e.draw(ctx);
@@ -1131,7 +1144,7 @@ const G = {
     Cos2.petDraw(ctx, Cos2.pet, Cos.cur('pet'), this.realTime);                    // Cosmetic PET
     Cos2.victoryDraw(ctx, Cos2.vic);                                               // Cosmetic WIN (Fanfare, Flagge)
     if (this.mode === 'dead' && Cos2.dfx) Cos2.deathDraw(ctx, Cos2.dfx);           // Cosmetic DEATH: statt des Spielers
-    else if (!(this.pvp && this.pvp.out)) this.player.draw(ctx);
+    else if (!(this.pvp && this.pvp.out) && !(this.coop && this.coop.out)) this.player.draw(ctx);
     for (const a of this.attacks) if (overlay(a)) a.draw(ctx);
     MapFx.drawAbove(ctx);
     for (const e of this.meteors) e.drawSky(ctx);
@@ -1144,6 +1157,7 @@ const G = {
     MapFx.drawScreen(ctx);                  // Beleuchtung, Boss-Vignette, Blizzard (js/mapfx.js)
     if (this.mode !== 'dead') { Cos2.hudBegin(); try { drawHud(ctx); } finally { Cos2.hudEnd(); } }              // Cosmetic HUD-Theme
     if (this.pvp) PvpMatch.drawOverlay(ctx);                                       // PvP: Punktestand, Zaehler, Ergebnis
+    if (this.coop) Coop.drawOverlay(ctx);                                          // Koop: Mitspieler-Leiste, Zaehler
     if (Cos2.intro) Cos2.introDraw(ctx, Cos2.intro, STAGE_W / 2, 96, 1);           // Cosmetic INTRO: Boss-Titelkarte
     if (Cos2.rev) Cos2.reviveDraw(ctx, Cos2.rev, STAGE_W / 2, STAGE_H / 2 - 10, 1);       // Cosmetic REVIVE: Totem of Undying
     if (Save.data.dev) uiText(ctx, 'DEV' + (this.god ? '  GOD' : '') + (this.cheated ? '  (DEV RUN)' : ''), 6, 10, { size: STYLE.type.small, color: STYLE.pal.yellow });

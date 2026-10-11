@@ -10,8 +10,12 @@ const Net = {
   CODE_LEN: 5,
   MAX_PLAYERS: 4,
 
+  // Reservierte Dev-Lobbys: enthalten 0/1 (nie in CODE_CHARS), also vergibt newCode sie nie und cleanCode laesst sie bei normalen Spielern nicht durch.
+  DEV_CODES: ['DEV01', 'DEV02', 'DEV03'],
+  isDevCode(c) { return this.DEV_CODES.includes(String(c || '').toUpperCase()); },
   newCode() { let c = ''; for (let i = 0; i < this.CODE_LEN; i++) c += this.CODE_CHARS[Math.floor(Math.random() * this.CODE_CHARS.length)]; return c; },
-  cleanCode(s) { return String(s || '').toUpperCase().split('').filter((ch) => this.CODE_CHARS.includes(ch)).join('').slice(0, this.CODE_LEN); },
+  // Mit Dev-Zugang bleiben 0 und 1 erlaubt, damit DEV01-DEV03 eingegeben werden koennen
+  cleanCode(s) { const ok = this.CODE_CHARS + (typeof Save !== 'undefined' && Save.anyDev && Save.anyDev() ? '01' : ''); return String(s || '').toUpperCase().split('').filter((ch) => ok.includes(ch)).join('').slice(0, this.CODE_LEN); },
   newId() { return Math.random().toString(36).slice(2, 10); },
   get available() { return typeof WebSocket !== 'undefined' && typeof Account !== 'undefined' && Account.configured; },
 

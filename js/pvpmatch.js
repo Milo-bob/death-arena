@@ -82,7 +82,7 @@ class RemotePlayer extends Enemy {
     Juice.sparks(this.x, this.y, STYLE.pal.yellow, 4, 2.5);
     Sfx.play('hit');
     Cos2.hit(this.x, this.y);
-    G.addUlt(0.4 * n);                                       // Treffer laden das Ultimate (Kills gibt es im PvP nicht)
+    if (!PvpMatch.botSwap) G.addUlt(0.4 * n);                // Treffer laden das Ultimate (Kills gibt es im PvP nicht)
   }
   // Ultimate & Co. rufen die() auf: im PvP ein schwerer Treffer (hoechstens einmal pro Sekunde)
   die() {
@@ -98,7 +98,7 @@ class RemotePlayer extends Enemy {
     if (this.dead) return;
     const cx = STAGE_W / 2 + this.x, cy = STAGE_H / 2 - this.y, P = STYLE.pal, age = Math.min(0.3, G.realTime - this.ghostAt), fr = framesOf(age);
     for (const g of this.ghosts) PvpMatch.drawGhost(ctx, g, fr);
-    drawSprite(ctx, this.spr, this.x, this.y, this.dir, CFG.player.size, { hue: this.friendly ? 0 : 150, brightness: this.hitFlash > 0 ? 2 : 0, alpha: this.blink ? 0.18 : 1 });
+    drawSprite(ctx, Cos.tinted(this.spr, this.friendly ? '' : 'hue-rotate(150deg)'), this.x, this.y, this.dir, CFG.player.size, { brightness: this.hitFlash > 0 ? 2 : 0, alpha: this.blink ? 0.18 : 1 });       // umgefaerbte Kopie statt Farbfilter in jedem Bild (haengt in Edge)
     if (this.shield) { ctx.save(); ctx.globalAlpha = 0.6; ctx.fillStyle = P.cyan; pxRing(ctx, cx, cy, 20, 1, 14, G.realTime); ctx.restore(); }
     if (this.friendly) { ctx.save(); ctx.globalAlpha = 0.5; ctx.fillStyle = P.cyan; pxRing(ctx, cx, cy, 14, 1, 10, G.realTime * 0.3); ctx.restore(); }
     // Name und Lebensbalken ueber dem Spieler (Gegner rot, Teamkameraden tuerkis)
@@ -108,6 +108,181 @@ class RemotePlayer extends Enemy {
     ctx.fillStyle = f > 0.35 ? col : P.orange; ctx.fillRect(Math.round(cx - w / 2), Math.round(cy - 24), Math.round(w * f), 3);
     ctx.restore();
     uiText(ctx, this.name, cx, cy - 29, { size: STYLE.type.small, color: col, align: 'center' });
+  }
+}
+
+// Der Spieler als Ziel fuer Bot-Angriffe: sieht fuer Waffen wie ein Gegner aus (Position, Radius, takeHit, Rueckstoss, Betaeubung), reicht alles an den echten Spieler weiter.
+// Der Schaden wird nur vorgemerkt (q) und nach dem Angriffsbild des Bots angewendet, weil Player.hit waehrenddessen die Ausruestung des Bots statt deiner lesen wuerde.
+class MeTarget extends Enemy {
+  constructor(bot) {
+    super('circle', 0, 0, false);
+    this.bot = bot; this.isMeT = true; this.hitsLeft = this.maxHits = 1e9; this.hitGap = 0; this.dieGap = 0; this.q = []; this.blink = false; this.friendly = false; this.dead = false;
+    const shove = (axis) => (v) => {
+      const pl = G.player, P = G.pvp;
+      if (!pl || !P || P.out || P.over || pl.shield || pl.blinkT > 0 || pl.dashLeft > 0) return;
+      const m = CFG.pvp.maxPush, d = clamp(v - pl[axis], -m, m);
+      const np = axis === 'x' ? clampToMap(pl.x + d, pl.y, 12) : clampToMap(pl.x, pl.y + d, 12);
+      pl.x = np[0]; pl.y = np[1];
+    };
+    Object.defineProperties(this, {
+      x: { get: () => G.player.x, set: shove('x'), configurable: true },
+      y: { get: () => G.player.y, set: shove('y'), configurable: true },
+      radius: { get: () => G.player.radius, set: () => {}, configurable: true },
+    });
+  }
+  takeHit(stun = true, src = null) {
+    const P = G.pvp;
+    if (!P || P.over || P.out || P.cd > 0 || this.hitGap > 0) return;
+    this.hitGap = CFG.pvp.hitGap;
+    this.q.push(this.bot.hitUnits() * damageBoost());                       // Einheiten wie bei einem Gegner (Doppeltreffer, Schadensverstaerker des Bots)
+  }
+  die() { this.alive = true; if (this.dieGap > 0) return; this.dieGap = 1; this.q.push(CFG.pvp.dieUnits); }
+  // nach dem Angriffsbild: vorgemerkten Schaden und Betaeubung auf den echten Spieler anwenden
+  flush() {
+    const pl = G.player, lv = this.bot.lv;
+    for (const n of this.q) pl.hit('pvp', Math.min(CFG.pvp.maxUnits, n) * CFG.pvp.dmgMul * lv.dmg, this.bot.name);
+    this.q = [];
+    if (this.stun > 0) { if (!(pl.shield || pl.blinkT > 0 || pl.dashLeft > 0)) pl.pvpStun(Math.min(this.stun, CFG.pvp.maxStun)); this.stun = 0; }
+  }
+}
+
+// Bot (DEV02): die KI laeuft nur auf dem Host-Geraet. Er spielt mit den ECHTEN Waffen: jeder Bot hat einen eigenen Player (`o`) mit Ausruestung aus einem der PvP-Sets
+// (Waffen, Implant, Abilities -> Evolutionen), und Player.useWeapon laeuft mit Bot-Eingaben; die Angriffe landen in bot.attacks, werden dort aktualisiert und treffen
+// alle Gegner der Bot-Mannschaft (Fernspieler, andere Bots, dich ueber MeTarget). Werte wie bei dir (Upgrades, Ausruestungsstufen, Held). Gaeste sehen Bot und Angriffe als Geisterbild.
+// Nicht dabei: Ultimate, Bloodburst, aktive Abilities (der Bot hat nur Dash und Schildblase in eigener, einfacher Form).
+const BOT_MELEE_REACH = { sword: 56, lance: 90, whip: 72, katana: 70, hammer: 56 };
+class BotPlayer extends RemotePlayer {
+  constructor(info) {
+    super(info);
+    this.isBot = true; this.lv = CFG.pvp.bot.levels[clamp(Pvp.botLevel | 0, 0, CFG.pvp.bot.levels.length - 1)];
+    this.set = info.set || CFG.pvp.sets[0];
+    this.items = { melee: this.set.melee, ranged: this.set.ranged, heavy: this.set.heavy, artifact: this.set.artifact };
+    this.tag = this.set.name;
+    this.close = this.set.id !== 'gunner';                                  // Nahkaempfer halten sich nah, der Gunner auf Abstand
+    const o = this.o = new Player();
+    o.slots = { weak: this.set.weak, medium: this.set.medium, strong: this.set.strong }; o.invincibleT = 0; o.aimAssist = (S) => this.aimFor();
+    for (const id of Object.keys(CFG.evolutions.list)) {                      // Evolutionen: Waffe und Partner (Ability/Implant) passen
+      const R = CFG.evolutions.list[id];
+      if (o.evolved[R.slot] || this.items[R.slot] !== R.weapon) continue;
+      if ((!R.needs.ability || o.has(R.needs.ability)) && (!R.needs.implant || this.items.artifact === R.needs.implant)) o.evolved[R.slot] = id;
+    }
+    this.meT = new MeTarget(this);
+    this.attacks = []; this.heavyWait = 2; this.beamPh = 'idle'; this.beamT = 0; this.gearErr = 0;
+    this.atkCd = 1; this.dashCd = 2; this.shieldCd = 3; this.shieldT = 0; this.dashT = 0; this.dashDir = 0; this.curTarget = null;
+    this.side = Math.random() < 0.5 ? 1 : -1; this.sideT = 1 + Math.random() * 2;
+  }
+  // Gegner dieses Bots: Fernspieler und Bots anderer Mannschaften, dazu der echte Spieler (als MeTarget), wenn er nicht im Team des Bots ist
+  hostile() {
+    const P = G.pvp, out = [];
+    for (const e of G.enemies) if (e.isRemote && e !== this && !e.dead && e.team !== this.team) out.push(e);
+    if (!P.out && PvpMatch.teamOf(P.me) !== this.team) out.push(this.meT);
+    return out;
+  }
+  aimFor() {
+    const t = this.curTarget, o = this.o;
+    return t ? dirTo(o.x, o.y, t.x, t.y) + (Math.random() * 2 - 1) * this.lv.aim : o.dir;
+  }
+  update(dt) {
+    this.alive = true;
+    const P = G.pvp;
+    if (!P || this.dead) { this.attacks = []; return; }
+    const C = CFG.pvp.bot, L = this.lv, I = { attack: false, beamHold: false, press: false };
+    this.hitFlash = Math.max(0, this.hitFlash - dt); this.hitGap = Math.max(0, this.hitGap - dt); this.dieGap = Math.max(0, this.dieGap - dt); this.meT.hitGap = Math.max(0, this.meT.hitGap - dt); this.meT.dieGap = Math.max(0, this.meT.dieGap - dt);
+    this.dashCd -= dt; this.shieldCd -= dt; this.dashT -= dt; this.shieldT -= dt; this.heavyWait -= dt;
+    this.shield = this.shieldT > 0;
+    if (!P.over && !P.out && P.cd <= 0 && this.hitGap <= 0) { const w = weaponHit(this.x, this.y, this.radius); if (w) this.takeHit(true, w.kind); }
+    if (this.dead) { this.attacks = []; return; }
+    let act = !(P.cd > 0 || P.over);
+    if (this.stun > 0) { this.stun = Math.max(0, this.stun - dt); act = false; }
+    if (act) this.think(dt, I);
+    this.runGear(dt, I, act);
+  }
+  // Ziel waehlen, bewegen, ausweichen/schuetzen und die Eingaben fuer diesen Frame festlegen (I: attack/beamHold/press)
+  think(dt, I) {
+    const C = CFG.pvp.bot, L = this.lv, P = G.pvp, list = this.hostile();
+    let best = null, bd = 1e9;
+    for (const t of list) { const d = Math.hypot(t.x - this.x, t.y - this.y); if (d < bd) { bd = d; best = t; } }
+    this.curTarget = best;
+    if (this.dashT > 0) { const s = C.dashSpeed * framesOf(dt); this.x += fwdX(this.dashDir) * s; this.y += fwdY(this.dashDir) * s; [this.x, this.y] = clampToMap(this.x, this.y, 12); return; }
+    const f = framesOf(dt) * C.speed * L.speed;
+    if (!best) {                                                       // niemand mehr zu bekaempfen: die Mannschaft des Spielers begleiten
+      const me = G.player, d = Math.hypot(me.x - this.x, me.y - this.y);
+      if (PvpMatch.teamOf(P.me) === this.team && d > 90) { const w = dirTo(this.x, this.y, me.x, me.y); this.x += fwdX(w) * f; this.y += fwdY(w) * f; }
+      return;
+    }
+    const d = bd, want = dirTo(this.x, this.y, best.x, best.y), reach = BOT_MELEE_REACH[this.items.melee] || 60;
+    this.dir += (((want - this.dir + 540) % 360) - 180) * Math.min(1, dt * 8);
+    this.sideT -= dt; if (this.sideT <= 0) { this.side = -this.side; this.sideT = 1 + Math.random() * 2; }
+    // Ausweichen: ein Projektil der Gegner fliegt knapp heran -> seitlicher Dash
+    if (this.dashCd <= 0 && Math.random() < L.dodge * dt * 8) {
+      for (const a of G.attacks) {
+        if (!a.alive || a.constructor.name !== 'Shot' || typeof a.x !== 'number') continue;
+        if (Math.hypot(a.x - this.x, a.y - this.y) < 80) { this.dashDir = dirTo(this.x, this.y, a.x, a.y) + 90 * this.side; this.dashT = C.dashTime; this.dashCd = C.dashCd; Sfx.play('dash'); return; }
+      }
+    }
+    if (this.shieldCd <= 0 && this.hp < this.mhp * 0.5 && d < 150 && Math.random() < L.shield * dt * 4) { this.shieldT = C.shieldTime; this.shieldCd = C.shieldCd; }
+    // Bewegung: Nahkaempfer ran, Gunner auf Abstand; dazwischen seitlich laufen
+    const prefer = this.close ? reach * 0.8 : 150;
+    if (d > prefer + 25) { const a = want + (d > prefer + 90 ? 0 : 35 * this.side); this.x += fwdX(a) * f; this.y += fwdY(a) * f; }
+    else if (!this.close && d < prefer - 40) { this.x -= fwdX(want) * f * 0.8; this.y -= fwdY(want) * f * 0.8; }
+    else { this.x += fwdX(want + 90 * this.side) * f * 0.7; this.y += fwdY(want + 90 * this.side) * f * 0.7; }
+    [this.x, this.y] = clampToMap(this.x, this.y, 12);
+    // Eingaben: nah = Nahkampfwaffe, sonst Fernkampfwaffe; die starke Waffe nach Art
+    const melee = d < reach + 22;
+    this.o.weapon = melee ? WEAPON.SWORD : WEAPON.SHOT;
+    I.attack = !this.shield && d < (melee ? reach + 22 : C.shootMax);
+    const hv = this.items.heavy;
+    if (hv === 'beam') {
+      if (this.beamPh === 'idle' && this.heavyWait <= 0 && d > 60 && d < 300) { this.beamPh = 'hold'; this.beamT = 0.8 + Math.random() * 0.4; I.press = true; }
+      if (this.beamPh === 'hold') { I.beamHold = true; this.beamT -= dt; if (this.beamT <= 0) { this.beamPh = 'idle'; this.heavyWait = 4; } }
+    } else if (hv === 'firetrail') {
+      const F = this.o.fire;
+      if (!F.on && d < 220 && F.fuel >= CFG.fire.minStart) I.press = true; else if (F.on && (d > 320 || F.fuel < 0.1)) I.press = true;
+    } else if (hv && this.heavyWait <= 0 && d < 260) { I.press = true; this.heavyWait = 0.8; }
+  }
+  // Angriffsbild: Player.useWeapon mit Bot-Eingaben und Bot-Ausruestung, danach die Angriffe des Bots aktualisieren und auf seine Gegner anwenden.
+  // Eingaben, Save.equipped, Save.gearXp, G.attacks und G.enemies werden nur fuer diesen Aufruf ersetzt (try/finally).
+  runGear(dt, I, act) {
+    const o = this.o, P = G.pvp, f = framesOf(dt);
+    o.x = this.x; o.y = this.y; o.dir = this.dir; o.stunT = this.stun; o.dashLeft = this.dashT > 0 ? 1 : 0; o.shield = this.shield ? { alive: true } : null;
+    o.attackCd = Math.max(0, o.attackCd - dt / this.lv.react); o.reloadT = Math.max(0, o.reloadT - dt);
+    if (this.gearErr > 5) { this.attacks = []; return; }
+    const hostile = this.hostile(), S = { ad: Input.actDown, ap: Input.actPressed, eq: Save.equipped, gx: Save.gearXp, at: G.attacks, en: G.enemies };
+    PvpMatch.botSwap = true;
+    try {
+      Input.actDown = (a) => a === 'attack' ? !!I.attack : a === 'beam' ? !!I.beamHold : false;
+      Input.actPressed = (a) => a === 'beam' && !!I.press;
+      Save.equipped = (slot) => this.items[slot] || null;
+      Save.gearXp = () => {};
+      G.attacks = this.attacks; G.enemies = hostile;
+      if (act) Player.prototype.useWeapon.call(o, dt, f);
+      for (const a of this.attacks) a.update(dt);
+      for (const a of this.attacks) if (a.alive && a.damaging) for (const t of hostile) if (a.hitsCircle(t.x, t.y, t.radius)) t.takeHit(true, a.kind);
+      this.attacks = this.attacks.filter((a) => a.alive);
+    } catch (e) { this.gearErr++; this.attacks = []; if (this.gearErr === 1) console.warn('bot gear error', e); }
+    finally { Input.actDown = S.ad; Input.actPressed = S.ap; Save.equipped = S.eq; Save.gearXp = S.gx; G.attacks = S.at; G.enemies = S.en; PvpMatch.botSwap = false; }
+    this.meT.flush();
+  }
+  takeHit(stun = true, src = null) {
+    const P = G.pvp;
+    if (!P || P.over || P.cd > 0 || this.hitGap > 0 || this.dead || this.blink) return;
+    this.hitGap = CFG.pvp.hitGap;
+    const n = this.hitUnits() * damageBoost();
+    this.hurt(n);
+    if (!PvpMatch.botSwap) G.addUlt(0.4 * n);
+  }
+  die() { this.alive = true; if (this.dieGap > 0) return; this.dieGap = 1; this.hurt(CFG.pvp.dieUnits); }
+  hurt(units) {
+    if (this.dead || this.shield) { if (this.shield) { this.hitFlash = 0.1; Sfx.play('hit'); } return; }
+    this.hp -= units * CFG.pvp.bot.hpPerUnit; this.hitFlash = 0.14;
+    Juice.sparks(this.x, this.y, STYLE.pal.yellow, 4, 2.5); Sfx.play('hit'); Cos2.hit(this.x, this.y);
+    if (this.hp <= 0) { this.hp = 0; Sfx.play('killBig'); this.attacks = []; PvpMatch.markDead(this.pid, ''); }
+  }
+  draw(ctx) {
+    if (this.dead) return;
+    for (const a of this.attacks) { try { a.draw(ctx); } catch (e) { /* ein Zeichenfehler darf das Bild nicht stoeren */ } }
+    super.draw(ctx);
+    uiText(ctx, this.tag, STAGE_W / 2 + this.x, STAGE_H / 2 - this.y + 22, { size: STYLE.type.small, color: STYLE.pal.grey, align: 'center' });
   }
 }
 
@@ -124,17 +299,20 @@ const PvpMatch = {
     const ch = Pvp.ch;
     if (!ch) return false;
     const order = (info && info.order && info.order.slice(0, CFG.pvp.maxPlayers)) || Pvp.players.slice(0, CFG.pvp.maxPlayers).map((p) => p.id);
-    if (!order.includes(ch.id) || order.length < 2) return false;
+    const nb = clamp((info && info.bots | 0) || 0, 0, Math.max(0, CFG.pvp.maxPlayers - order.length));             // Bots (DEV02): der Host rechnet sie, die Gaeste bekommen ihr Bild per 'bots'-Nachricht
+    if (!order.includes(ch.id) || (order.length + nb < 2 && !Pvp.isDevLobby())) return false;
     const byId = {}; for (const p of Pvp.players) byId[p.id] = p;
     if (order.some((id) => !byId[id])) return false;
-    const mode = info && info.mode === 'teams' ? 'teams' : 'ffa', C = CFG.pvp, n = order.length;
+    const mode = info && info.mode === 'teams' ? 'teams' : 'ffa', C = CFG.pvp, n = order.length + nb;
     const players = order.map((id, i) => ({ id, name: byId[id].name, team: mode === 'teams' ? i % 2 : i }));
+    const pool = CFG.pvp.sets.slice().sort(() => Math.random() - 0.5);
+    for (let b = 0; b < nb; b++) { const i = order.length + b; players.push({ id: 'bot' + (b + 1), name: 'BOT ' + (b + 1), team: mode === 'teams' ? i % 2 : i, bot: true, set: pool[b % pool.length] }); }
     G.begin(false, false, 'pvp');
     // Startplaetze im Kreis, Teamkameraden nebeneinander; der Host (Index 0) beginnt links
     const spawn = players.slice().sort((a, b) => a.team - b.team || order.indexOf(a.id) - order.indexOf(b.id));
     spawn.forEach((p, i) => { const a = Math.PI + i * 2 * Math.PI / n; p.x = Math.cos(a) * C.spawnX; p.y = Math.sin(a) * C.spawnX; p.dir = dirTo(p.x, p.y, 0, 0); });
     const me = players.find((p) => p.id === ch.id);
-    G.pvp = { over: false, result: null, endAt: 0, cd: C.countdown, sendT: 0, t0: G.realTime, escAt: 0, mode, rule: info && ['own', 'set', 'all'].includes(info.rule) ? info.rule : 'own', setId: info && info.setId, players, me: ch.id, dead: {}, out: false, spec: 0, winTeam: null, gone: {}, lastSeen: {}, why: '', scored: false };
+    G.pvp = { over: false, result: null, endAt: 0, cd: C.countdown, sendT: 0, t0: G.realTime, escAt: 0, mode, rule: info && ['own', 'set', 'all'].includes(info.rule) ? info.rule : 'own', setId: info && info.rule === 'set' && info.setId ? info.setId : Save.data.pvpSet, players, me: ch.id, dead: {}, out: false, spec: 0, winTeam: null, gone: {}, lastSeen: {}, why: '', scored: false };
     CFG.map.halfW = C.camHalf[0]; CFG.map.halfH = C.camHalf[1];
     const P = G.player;
     P.x = me.x; P.y = me.y; P.dir = me.dir;
@@ -146,7 +324,7 @@ const PvpMatch = {
     for (let i = 1; i <= C.weaponUps; i++) Loadout.upgradeStats(step * i + 0.5);
     this.applyLoadout(P);
     P.hp = P.maxHp;
-    G.enemies = players.filter((p) => p.id !== ch.id).map((p) => new RemotePlayer({ x: p.x, y: p.y, dir: p.dir, name: p.name, id: p.id, team: p.team, friendly: mode === 'teams' && p.team === me.team }));
+    G.enemies = players.filter((p) => p.id !== ch.id).map((p) => new (p.bot && Pvp.isHost ? BotPlayer : RemotePlayer)({ set: p.set, x: p.x, y: p.y, dir: p.dir, name: p.name, id: p.id, team: p.team, friendly: mode === 'teams' && p.team === me.team }));
     G.enemies.forEach((e) => { e.dir = e.nd; });
     Pvp.say('');
     return true;
@@ -168,8 +346,23 @@ const PvpMatch = {
   // ---- Netz -> Spiel ----
   onMessage(ev, p) {
     const P = G.pvp; if (!P || !p) return;
+    if (ev === 'bots') {                                             // Gast: Bilder der Bots vom Host
+      if (Pvp.isHost || !Array.isArray(p.l)) return;
+      for (const b of p.l.slice(0, 3)) {
+        const e = this.remoteOf(b.i); if (!e || e.isBot) continue;
+        if (b.dd) { this.markDead(b.i, ''); continue; }
+        e.nx = b.x; e.ny = b.y; e.nd = b.d; e.vx = 0; e.vy = 0; e.at = G.realTime; e.hp = b.hp; e.mhp = b.mh; e.blink = false; e.shield = !!b.sh;
+        this.ghostsFrom(e, Array.isArray(b.a) ? b.a : []);
+      }
+      return;
+    }
     const r = this.remoteOf(p.from);
     if (!r) return;
+    if (ev === 'hit' && Pvp.isHost && typeof p.to === 'string' && p.to.startsWith('bot')) {          // ein Gast hat einen Bot getroffen
+      const bot = this.remoteOf(p.to), n = Math.min(CFG.pvp.maxUnits, Math.max(0, +p.n || 0));
+      if (bot && bot.isBot && n > 0) bot.hurt(n);
+      return;
+    }
     if (ev === 'state') {
       r.nx = p.x; r.ny = p.y; r.nd = p.d; r.vx = p.vx; r.vy = p.vy; r.at = G.realTime; r.hp = p.hp; r.mhp = p.mh;
       r.spr = p.spr || 'player'; r.blink = !!p.bl; r.shield = !!p.sh;
@@ -178,7 +371,7 @@ const PvpMatch = {
     } else if (ev === 'hit') {
       if (p.to !== P.me || P.over || P.out || P.cd > 0 || r.friendly || r.dead) return;
       const n = Math.min(CFG.pvp.maxUnits, Math.max(0, +p.n || 0));
-      if (n > 0) G.player.hit('pvp', n * CFG.pvp.dmgMul, r.name);
+      if (n > 0) G.player.hit('pvp', n * CFG.pvp.dmgMul, typeof p.sn === 'string' ? p.sn.slice(0, 14) : r.name);
     } else if (ev === 'fx') {
       if (p.to !== P.me || P.over || P.out || P.cd > 0 || r.friendly || r.dead) return;
       const pl = G.player;
@@ -193,11 +386,11 @@ const PvpMatch = {
   },
 
   // ---- Angriffe des Gegners als Geisterbild ----
-  snapshot() {
+  snapshot(list = G.attacks) {
     if (!this.classes) this.classes = pvpAttackClasses();
     const out = [], rd = (v) => Math.round(v * 100) / 100, num = (v) => typeof v === 'number' && isFinite(v);
     const isPlain = (e) => e && typeof e === 'object' && !Array.isArray(e) && Object.keys(e).length <= 4 && Object.values(e).every(num);
-    for (const a of G.attacks) {
+    for (const a of list) {
       if (!a.alive || out.length >= CFG.pvp.maxGhosts) continue;
       const name = a.constructor.name;
       if (!this.classes[name]) continue;
@@ -227,6 +420,12 @@ const PvpMatch = {
       r.ghosts.push(g);
     }
   },
+  drawBolts(ctx, list) {
+    if (!list || !list.length) return;
+    ctx.save(); ctx.fillStyle = STYLE.pal.orange;
+    for (const b of list) ctx.fillRect(Math.round(STAGE_W / 2 + b.x) - 2, Math.round(STAGE_H / 2 - b.y) - 2, 4, 4);
+    ctx.restore();
+  },
   // Geisterbild zeichnen: nie aktualisieren; Geschosse und Klingen werden entlang ihrer Bewegung fortgeschrieben, ein Fehler sperrt nur diese Klasse
   drawGhost(ctx, g, fr) {
     const name = g.constructor.name;
@@ -247,7 +446,7 @@ const PvpMatch = {
     if (!P) return;
     if (P.over) { if (G.realTime - P.endAt > C.endDelay) { this.score(); G.mode = 'pvpend'; } return; }
     for (const pl of P.players) {                                  // wer ist noch da?
-      if (pl.id === P.me || P.dead[pl.id]) continue;
+      if (pl.id === P.me || P.dead[pl.id] || pl.bot) continue;
       const present = Pvp.ch && Pvp.players.some((q) => q.id === pl.id);
       P.gone[pl.id] = present ? 0 : (P.gone[pl.id] || 0) + dt;
       if (P.gone[pl.id] > 1.5) this.markDead(pl.id, 'AN OPPONENT LEFT');
@@ -262,6 +461,10 @@ const PvpMatch = {
       const pl = G.player, r1 = (v) => Math.round(v * 10) / 10;
       this.send('state', { x: r1(pl.x), y: r1(pl.y), d: r1(pl.dir), vx: r1(pl.velX || 0), vy: r1(pl.velY || 0), hp: Math.round(pl.hp), mh: Math.round(pl.maxHp),
         spr: Hero.sprite(), bl: pl.blinkT > 0 ? 1 : 0, sh: pl.shield ? 1 : 0, a: this.snapshot() });
+      if (Pvp.isHost && P.players.some((q) => q.bot)) {              // der Host schickt die Bots mit
+        const r1b = (v) => Math.round(v * 10) / 10;
+        this.send('bots', { l: this.remotes.filter((e) => e.isBot).map((e) => ({ i: e.pid, x: r1b(e.x), y: r1b(e.y), d: r1b(e.dir), hp: Math.round(e.hp), mh: Math.round(e.mhp), sh: e.shield ? 1 : 0, dd: e.dead ? 1 : 0, a: e.dead ? [] : this.snapshot(e.attacks) })) });
+      }
     }
   },
   // Vor dem Start laeuft ein Zaehler: alle stehen still. true = dieses Bild nicht spielen

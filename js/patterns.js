@@ -254,7 +254,7 @@ const Patterns = {
         }
       }
       e.reattachCd -= dt;
-      if (e.reattachCd <= 0 && e.stun <= 0 && !p.invincible && !p.shield && touchesPlayer(e.x, e.y, e.radius)) e.attached = true;
+      if (e.reattachCd <= 0 && e.stun <= 0 && !p.invincible && !p.shield && touchesPlayer(e.x, e.y, e.radius) === p) e.attached = true;
       return { mul: 1 };
     },
     // Nekromant: hält Abstand, belebt Leichen in Reichweite nach einer Kanalisierungszeit wieder

@@ -287,6 +287,15 @@ const Save = {
     try { const d = {}; for (const k of this.KEEP) d[k] = this.data[k]; localStorage.setItem(this.DEVICE_KEY, JSON.stringify(d)); } catch (e) { /* ignorieren */ }
     if (typeof Account !== 'undefined') Account.dirty();       // Cloud-Konto: nach kurzer Ruhe hochladen (account.js)
   },
+  // true, wenn mindestens ein Slot (egal welcher aktive) den Dev-Zugang hat; gilt fuer die reservierten Dev-Lobbys
+  anyDev() {
+    if (this.data.dev === true) return true;
+    for (let i = 0; i < this.SLOTS; i++) {
+      if (i === this.slot) continue;
+      try { const raw = localStorage.getItem(this.keyFor(i)); if (raw && JSON.parse(raw).dev === true) return true; } catch (e) { /* leer */ }
+    }
+    return false;
+  },
   // Zusammenfassung eines Slots fuer die Anzeige (null = leer)
   slotInfo(i) {
     let d = null;
@@ -387,16 +396,16 @@ const Save = {
   mapUnlocked(i) { return i === 0 || (this.data.dev && this.data.devUnlockAll) || (this.data.mapBest[CFG.maps[i - 1].id] || 0) >= this.mapNeed(i); },
   mapBestTime(i) { return this.data.mapBest[CFG.maps[i].id] || 0; },
 
-  finishRun(time, bosses, kills, infinite = false, mapId = null) {
+  finishRun(time, bosses, kills, infinite = false, mapId = null, coop = false) {
     this.data.runs++;
-    if (!infinite && mapId && time > (this.data.mapBest[mapId] || 0)) this.data.mapBest[mapId] = time;        // Bestzeit je Karte (schaltet die nächste frei)
+    if (!infinite && mapId && !coop && time > (this.data.mapBest[mapId] || 0)) this.data.mapBest[mapId] = time;       // Koop-Laeufe zaehlen nicht fuer Bestzeit und Kartenfreischaltung        // Bestzeit je Karte (schaltet die nächste frei)
     this.data.last = { time, bosses, kills, infinite };            // fuer die Anzeige im Hauptmenue
     // Endlos-Modus hat eine eigene Bestzeit (sonst wären die Zeit-Meilensteine dort leichter zu holen)
-    const key = infinite ? 'bestInf' : 'best', isBest = time > (this.data[key] || 0);
+    const key = infinite ? 'bestInf' : 'best', isBest = !coop && time > (this.data[key] || 0);
     if (isBest) this.data[key] = time;
     this.data.stats.bosses += bosses;
     this.data.stats.kills += kills;
-    if (!infinite && mapId) { const S = this.data.stats; S['mapbosses:' + mapId] = (S['mapbosses:' + mapId] || 0) + bosses; S['mapkills:' + mapId] = (S['mapkills:' + mapId] || 0) + kills; }       // Karten-Meilensteine
+    if (!infinite && mapId && !coop) { const S = this.data.stats; S['mapbosses:' + mapId] = (S['mapbosses:' + mapId] || 0) + bosses; S['mapkills:' + mapId] = (S['mapkills:' + mapId] || 0) + kills; }       // Karten-Meilensteine
     if (infinite) { this.data.stats.infBosses = (this.data.stats.infBosses || 0) + bosses; this.data.stats.infKills = (this.data.stats.infKills || 0) + kills; }       // Endlos-Meilensteine
     const got = this.checkMilestones();
     this.write();

@@ -64,7 +64,10 @@ class Player {
   get invincibleBase() { return G.victory > 0 || this.dashLeft > 0 || this.invincibleT > 0 || this.blinkT > 0; }
   get invincible() { return this.invincibleBase || SafeSpot.inside; }       // im Safe Spot ist man unverwundbar
   // Wohin Gegner zielen: auf den Spieler, bei Blink auf die Stelle, wo er verschwunden ist
-  get target() { return this.blinkT > 0 && this.blinkFrom ? this.blinkFrom : this.decoyT > 0 && this.decoy ? this.decoy : this; }
+  get target() {
+    const t = this.blinkT > 0 && this.blinkFrom ? this.blinkFrom : this.decoyT > 0 && this.decoy ? this.decoy : this;
+    return Coop.focus ? Coop.nearestTarget(t) : t;                                // Koop (Host): der Gegner, der gerade rechnet, zielt auf den naechsten Spieler
+  }
   get hasField() { return this.slots.strong === 'field'; }
   get radius() { return CFG.player.hitRadius; }
   get maxHp() { return Math.max(20, CFG.player.maxHp + Save.bonus('health') + Xp.val('health', 'hp') + Hero.mods().hp); }      // Meta-Upgrade Leben + Perk Vitality
@@ -136,7 +139,7 @@ class Player {
 
   // kind: 'touch' | 'shoot' | 'higher'
   hit(kind, mul = 1, src = null) {          // mul: zusätzlicher Schadensfaktor (Bosse: CFG.boss.power.dmg); src: Name der Quelle fuer die Run-Statistik
-    if (G.god || this.hitCd > 0 || this.invincibleBase || this.shield || (G.pvp && G.pvp.out)) return false;     // die Schildblase blockt alle Treffer
+    if (G.god || this.hitCd > 0 || this.invincibleBase || this.shield || (G.pvp && G.pvp.out) || (G.coop && (G.coop.out || G.mode === 'pick'))) return false;       // Koop: wer waehlt (Level-up, Ability) oder ausgeschieden ist, bleibt unverletzt     // die Schildblase blockt alle Treffer
     if (SafeSpot.inside) {                                        // Safe Spot: Treffer abgefangen, fuer die Statistik mit geschaetztem Schaden
       const est = kind === 'higher' ? CFG.player.kiteBaseDamage + G.bossStageKite : (CFG.player.hitDamageMin + CFG.player.hitDamageMax) / 2 * this.damageFactor;
       SafeSpot.blocked(src, est * (G.diff.damage + this.dmgRamp()) * mul);

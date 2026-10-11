@@ -129,7 +129,7 @@ const Elite = {
     const C = CFG.elite.magnetar, mk2 = e.mk === 2, R = mk2 ? C.radius2 : C.radius, p = G.player;
     G.blasts.push(new Pop(e.x, e.y, R, STYLE.pal.green));
     Juice.shake(2); Sfx.play('ventBlast');
-    if (Math.hypot(p.x - e.x, p.y - e.y) <= R + p.radius) p.hit('shoot', e.dmgMul, Stats.enemyName(e));
+    for (const q of playersList()) if (Math.hypot(q.x - e.x, q.y - e.y) <= R + q.radius) q.hit('shoot', e.dmgMul, Stats.enemyName(e));
     if (--e.slamN > 0) e.slamWarn = C.tele2;
     else { e.slamT = mk2 ? C.every2 : C.every; e.pullOff = C.rest; }
   },

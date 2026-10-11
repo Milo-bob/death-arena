@@ -33,8 +33,26 @@ function touchesShield(x, y, r) {
   return !!(sh && sh.alive && sh.hitsCircle(x, y, r));
 }
 
+// Wen trifft ein Kreis (x, y, r)? Gibt den getroffenen Spieler zurueck (der eigene oder, im Koop-Lauf des Hosts, ein Mitspieler) oder null. Mitspieler (CoopMate) haben hit() und chill().
 function touchesPlayer(x, y, r) {
-  return circlesOverlap(x, y, r, G.player.x, G.player.y, G.player.radius);
+  const p = G.player;
+  if (!G.mates || !G.mates.length) return circlesOverlap(x, y, r, p.x, p.y, p.radius) ? p : null;
+  for (const q of playersList()) if (circlesOverlap(x, y, r, q.x, q.y, q.radius)) return q;
+  return null;
+}
+// Alle Spieler, die gerade getroffen werden koennen: der eigene (ausser er ist ausgeschieden) und die lebenden Mitspieler
+function playersList() {
+  const out = G.coop && G.coop.out ? [] : [G.player];
+  if (G.mates) for (const m of G.mates) if (!m.dead) out.push(m);
+  return out;
+}
+// Trifft ein Kreis einen Spieler, bekommt er den Schaden (kind: 'touch' | 'shoot' | 'higher'). true = getroffen
+function hurtPlayersAt(x, y, r, kind, mul, src, chill) {
+  const v = touchesPlayer(x, y, r);
+  if (!v) return false;
+  v.hit(kind, mul, src);
+  if (chill) v.chill(CFG.chill.dur);
+  return true;
 }
 
 // ---------- Normale Gegner ----------
@@ -55,6 +73,7 @@ class Enemy {
     this.dir = 0;
     this.alive = true;
     const V = this.V = variant && !mini ? CFG.variants[variant] : null;
+    this.vKey = V ? variant : null;                 // Schluessel der Variante (Koop: wird zu den Gaesten uebertragen)
     this.size = mini ? CFG.enemy.miniSize : (CFG.enemy[type].size || CFG.enemy.size) * (V ? V.size : 1);
     this.hitsLeft = mini ? CFG.enemy.miniHits : V && V.hits ? V.hits : CFG.enemy[type].hits ? CFG.enemy[type].hits : (type === 'square' || type === 'rhombus') ? 2 : 1;
     if (!Tutorial.active) this.hitsLeft = Math.max(this.hitsLeft, Math.round(this.hitsLeft * CFG.enemy.hitsMul * (G.diff.hits || 1) * Hero.world().hits * Hero.type(type).hits));     // Zähigkeit (CFG.enemy.hitsMul x Kartenfaktor diff.hits, Karte 1 = unverändert)
@@ -115,6 +134,7 @@ class Enemy {
     if ((G.clearing || G.bossFight) && !this.minion) { this.alive = false; return; }
     if (this.minion && !G.bossFight) { this.alive = false; return; }       // Minions verschwinden mit dem Boss
     if (this.dormant && SpeedRun.sleeping(this)) return;                    // Speedrun: schlafende Gegner (Gauntlet-Gruppen, Seed-Traeger) warten, bis der Spieler nah ist
+    Coop.focus = this;                                                       // Koop: Gegner zielen auf den naechsten Spieler (Player.target)
     this.age += dt;
     this.hitFlash = Math.max(0, this.hitFlash - dt);
     let f = framesOf(dt) * (this.blooded ? CFG.bloodMoon.speedFactor : 1) * G.diff.speed * Hero.world().speed * Hero.type(this.type).speed * (this.V && this.V.speed ? this.V.speed : 1);       // Karten-Schwierigkeit, Variante
@@ -161,14 +181,14 @@ class Enemy {
       if (onShield) step -= CFG.enemy[this.type].push || 2;
       if (pat.move !== undefined) { const face = this.dir; this.dir = pat.move; moveForward(this, step * f); this.dir = face; }     // Laufrichtung getrennt von der Blickrichtung (Dreieck)
       else moveForward(this, step * f);
-      if (pat.touch && touchesPlayer(this.x, this.y, r)) p.hit('touch', this.dmgMul, Stats.enemyName(this));
+      if (pat.touch) hurtPlayersAt(this.x, this.y, r, 'touch', this.dmgMul, Stats.enemyName(this));
     } else if (CHASERS.includes(this.type)) {
       const C = e[this.type];
       let step = this.stun <= 0 || this.type === 'tank' ? C.speed : 0;       // der Tank wird nie betäubt
       if (this.mini && this.type === 'circle' && !onShield) step += C.miniExtraSpeed;
       if (onShield) step -= C.push;
       moveForward(this, step * f);
-      if (TOUCHERS.includes(this.type) && touchesPlayer(this.x, this.y, r)) p.hit('touch', 1, Stats.enemyName(this));
+      if (TOUCHERS.includes(this.type)) hurtPlayersAt(this.x, this.y, r, 'touch', 1, Stats.enemyName(this));
     } else if (this.type === 'triangle') {
       if (this.dashFrames > 0) {
         moveForward(this, e.triangle.dashSpeed * f);
@@ -180,7 +200,7 @@ class Enemy {
       let step = this.stun <= 0 ? e.guard.speed : 0;
       if (onShield) step -= e.guard.push;
       moveForward(this, step * f);
-      if (touchesPlayer(this.x, this.y, r)) p.hit('touch', e.guard.touchDmg * this.dmgMul, Stats.enemyName(this));
+      hurtPlayersAt(this.x, this.y, r, 'touch', e.guard.touchDmg * this.dmgMul, Stats.enemyName(this));
     } else if (this.type === 'square' || this.type === 'rhombus') {
       const c = e[this.type];
       if (!this.halted) {
@@ -202,6 +222,12 @@ class Enemy {
     if (!busy && this.shootT <= 0 && (SHOOTERS.includes(this.type) || this.type === 'phantom')) this.attack();
     if (this.type === 'support') Patterns.supportAura(this, dt);
 
+    this.weaponContact(r);
+  }
+
+  // Treffer durch die Waffen des (lokalen) Spielers: Schild-Gegner und Bastion haben eigene Regeln. Auch der Koop-Gast prueft das an den Geisterbildern der Gegner.
+  weaponContact(r) {
+    const e = CFG.enemy;
     if (this.type === 'guard') {
       const A = e.guard.armor[this.armor];
       if (this.stun <= 0 && weaponHitOf(this.x, this.y, r, A.hurts)) this.takeHit();
@@ -290,6 +316,7 @@ class Enemy {
 
   die() {
     this.alive = false;
+    Coop.enemyDied(this);                                  // Koop-Host: den Gaesten melden (Belohnungen laufen bei jedem Spieler selbst)
     Sfx.play(this.mini || HEAVY.includes(this.type) ? 'killBig' : 'kill');
     Cos.killSparks(this.x, this.y, this.mini ? STYLE.pal.yellow : STYLE.pal.orange, this.mini ? 10 : HEAVY.includes(this.type) ? 6 : 4);
     G.player.heal(CFG.enemy.killHeal + Xp.val('leech') + (Save.equipped('artifact') === 'vampire' ? CFG.items.vampire.heal * Save.gearMul('vampire') : 0) + (G.player.buffs.vampire > 0 ? CFG.drops.types.vampire.heal : 0));
@@ -301,12 +328,12 @@ class Enemy {
     Stats.kill(this.killSrc);
     Xp.drop(this);
     if (!this.splitlet && !this.minion && !this.elite) noteFallen(this);
-    if (this.type === 'splitter') Patterns.splitlet(this, CFG.enemy.splitter.splitCount);
+    if (this.type === 'splitter' && !this.gh) Patterns.splitlet(this, CFG.enemy.splitter.splitCount);
     const D = G.director;
-    if (!this.raised && !this.splitlet && CORPSE_TYPES.includes(this.type) && D.corpses.length < 12 && G.enemies.some((n) => n.alive && n.type === 'necro')) D.corpses.push({ x: this.x, y: this.y, type: this.type, t: CFG.patterns.necro.corpseLife });
+    if (!this.gh && !this.raised && !this.splitlet && CORPSE_TYPES.includes(this.type) && D.corpses.length < 12 && G.enemies.some((n) => n.alive && n.type === 'necro')) D.corpses.push({ x: this.x, y: this.y, type: this.type, t: CFG.patterns.necro.corpseLife });
     if (!this.splitlet && Math.random() < (this.mini || this.elite ? CFG.drops.miniChance : G.bloodMoon ? CFG.bloodMoon.dropChance : G.flood ? CFG.flood.dropChance : CFG.drops.chance) * (Save.equipped('artifact') === 'lucky' ? 1 + (CFG.items.lucky.mult - 1) * Save.gearMul('lucky') : 1) * (1 + Save.bonus('luck') + Xp.val('luck')) * Hero.mods().luck * Perk.mul('dropMul')) G.drops.push(new Drop(this.x, this.y));
-    if (this.type === 'rhombus') G.blasts.push(new Blast('wave', this.x, this.y, false, Stats.enemyName(this)));
-    if (this.V && !this.splitlet && !G.clearing) {                      // kartenspezifische Variante: Besonderheit beim Tod (Cinder: Funkenexplosion, Spore: Giftwolke)
+    if (this.type === 'rhombus' && !this.gh) G.blasts.push(new Blast('wave', this.x, this.y, false, Stats.enemyName(this)));
+    if (this.V && !this.splitlet && !G.clearing && !this.gh) {                      // kartenspezifische Variante: Besonderheit beim Tod (Cinder: Funkenexplosion, Spore: Giftwolke)
       if (this.V.death === 'ember') G.blasts.push(new Blast('ember', this.x, this.y, false, Stats.enemyName(this)));
       else if (this.V.death === 'cloud') dropCloud(this.x, this.y);
       else if (this.V.death === 'frost') G.blasts.push(Object.assign(new Blast('ember', this.x, this.y, false, Stats.enemyName(this)), { chill: true }));       // Rime: Frostring
@@ -414,7 +441,7 @@ class EnemyBolt {
     this.frames -= f;
     const r = CFG.enemy.bolt.radius;
     if (hitObstacle(this.x, this.y, r, CFG.obstacles.dmg.bolt)) this.alive = false;               // Deckung
-    else if (touchesPlayer(this.x, this.y, r)) { G.player.hit('shoot', this.mul || 1, this.src); if (this.chill) G.player.chill(CFG.chill.dur); this.alive = false; }
+    else if (hurtPlayersAt(this.x, this.y, r, 'shoot', this.mul || 1, this.src, this.chill)) this.alive = false;
     else if (blockedByPlayerGear(this.x, this.y, r) || this.frames <= 0) this.alive = false;
   }
   draw(ctx) { drawSprite(ctx, 'enemyShot', this.x, this.y, this.dir, 150, { alpha: 1 - this.ghost / 100, hue: this.chill ? 170 : 0 }); }
@@ -432,6 +459,7 @@ class Missile {
   update(dt) {
     if (G.clearing || (G.bossFight && !this.fromMinion)) { this.alive = false; return; }
     const f = framesOf(dt);
+    Coop.focus = this;
     const tg = G.player.target;                              // wie die Gegner: Phase und Köder lenken die Rakete ab
     steerTowards(this, tg.x, tg.y, CFG.enemy.missile.turn * f);
     moveForward(this, CFG.enemy.missile.speed * f);
@@ -439,7 +467,7 @@ class Missile {
     this.frames -= f;
     const r = CFG.enemy.missile.radius;
     if (hitObstacle(this.x, this.y, r, CFG.obstacles.dmg.missile)) this.alive = false;            // Deckung
-    else if (touchesPlayer(this.x, this.y, r)) { G.player.hit('shoot', 1, this.src); if (this.chill) G.player.chill(CFG.chill.dur); this.alive = false; }
+    else if (hurtPlayersAt(this.x, this.y, r, 'shoot', 1, this.src, this.chill)) this.alive = false;
     else if (blockedByPlayerGear(this.x, this.y, r) || this.frames <= 0) this.alive = false;
   }
   draw(ctx) { drawSprite(ctx, 'missile', this.x, this.y, this.dir, 175, { alpha: 1 - this.ghost / 100, hue: this.chill ? 170 : 0 }); }
@@ -497,13 +525,14 @@ class Blast {
     const st = BLAST_STAGES[this.kind][i];
     if (this.kind === 'wave' && this.age > 0.1) {
       // wandert langsam auf den Spieler zu, das Schild drückt sie zurück
+      Coop.focus = this;
       const tg = G.player.target;
       this.dir = dirTo(this.x, this.y, tg.x, tg.y);
       let step = CFG.enemy.wave.drift;
       if (touchesShield(this.x, this.y, st.r)) step -= CFG.enemy.wave.push;
       moveForward(this, step * framesOf(dt));
     }
-    if (touchesPlayer(this.x, this.y, st.r)) { G.player.hit(this.damageKind, this.mul, this.src); if (this.chill) G.player.chill(CFG.chill.dur); }
+    hurtPlayersAt(this.x, this.y, st.r, this.damageKind, this.mul, this.src, this.chill);
   }
   draw(ctx) {
     const i = this.stage();
@@ -565,10 +594,7 @@ class Spawner {
 
     if (this.arriving) { this.hp = this.maxHp; return; }      // noch nicht angreifbar
 
-    if (this.hitCd <= 0 && weaponHit(this.x, this.y, r)) { this.hp -= 1; this.hitCd = s.hitCooldown; Juice.sparks(this.x, this.y, STYLE.pal.red, 3, 2.5); Sfx.play('crateHit'); }
-    for (const a of G.attacks) {
-      if (a.alive && (a.kind === 'ult') && a.hitsCircle(this.x, this.y, r)) this.hp -= s.ultDamage * framesOf(dt);
-    }
+    this.weaponContact(dt);
     if (this.hp < 1) {
       G.addUlt(s.rewardUlt);
       G.powerups.push(new PowerUp(this.x, this.y, s.rewardHeal));
@@ -591,6 +617,14 @@ class Spawner {
     } else {
       this.pulseT -= dt;
       if (this.pulseT <= 0) { this.warn = s.telegraph; Sfx.play('tick'); }
+    }
+  }
+  // Waffen des (lokalen) Spielers treffen das Tor (der Koop-Gast prueft das am Geisterbild und meldet den Schaden dem Host)
+  weaponContact(dt) {
+    const s = CFG.spawner, r = s.radius;
+    if (this.hitCd <= 0 && weaponHit(this.x, this.y, r)) { this.hp -= 1; this.hitCd = s.hitCooldown; Juice.sparks(this.x, this.y, STYLE.pal.red, 3, 2.5); Sfx.play('crateHit'); }
+    for (const a of G.attacks) {
+      if (a.alive && (a.kind === 'ult') && a.hitsCircle(this.x, this.y, r)) this.hp -= s.ultDamage * framesOf(dt);
     }
   }
   burst() {
@@ -670,7 +704,7 @@ class PowerUp {
     this.age += dt;
     if (this.age > CFG.powerup.life) { this.alive = false; return; }
     magnetPull(this, dt);
-    if (touchesPlayer(this.x, this.y, CFG.powerup.radius * pickupRange())) {
+    if (touchesPlayer(this.x, this.y, CFG.powerup.radius * pickupRange()) === G.player) {
       G.player.pickup(this.amount);
       Juice.sparks(this.x, this.y, STYLE.pal.green, 8);
       this.alive = false;
@@ -696,7 +730,7 @@ class Drop {
     this.age += dt;
     if (this.age > CFG.drops.life) { this.alive = false; return; }
     magnetPull(this, dt);
-    if (touchesPlayer(this.x, this.y, CFG.drops.radius * pickupRange())) {
+    if (touchesPlayer(this.x, this.y, CFG.drops.radius * pickupRange()) === G.player) {
       G.player.applyBuff(this.kind);
       this.alive = false;
     }

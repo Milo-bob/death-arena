@@ -590,7 +590,7 @@ function drawModeSelectScreen(ctx) {
 // Untermenue MULTIPLAYER: PVP ARENA
 function drawMultiSelectScreen(ctx) {
   const P = STYLE.pal, T = STYLE.type;
-  const labels = { pvp: 'PVP ARENA', back: 'BACK' };
+  const labels = { coop: 'CO-OP RUN', pvp: 'PVP ARENA', back: 'BACK' };
   drawMenuBg(ctx, 'keysettings');
   drawEmbers(ctx);
   uiText(ctx, 'MULTIPLAYER', STAGE_W / 2, 56, { size: T.h1, color: P.red, align: 'center', glow: P.red });
@@ -599,7 +599,7 @@ function drawMultiSelectScreen(ctx) {
   const id = MULTI_ITEMS[G.multiSel];
   uiPanel(ctx, PX, top, PW, 6 * GAP - (GAP - RH), { color: P.red, fill: P.void, alpha: 0.92, glow: true });
   uiText(ctx, labels[id], PX + 14, top + 24, { size: T.h1, color: P.red });
-  const d = id === 'pvp' ? ['Fight other players in an arena. Create a lobby and share the code, or join a friend with their code.', 'Up to 4 players, all vs all or in teams. Your own weapons, abilities and upgrades count. Needs an internet connection.'] : ['Back to the mode selection.', ''];
+  const d = id === 'coop' ? ['Play a run together with up to 3 friends on the standard maps, only bigger. Create a lobby and share the code.', 'Everyone keeps their own gear, upgrades and hero. More players means a much harder run: 2 players are about 2.7x, 4 players about 8x as hard. Fallen players come back after the next boss.'] : id === 'pvp' ? ['Fight other players in an arena. Create a lobby and share the code, or join a friend with their code.', 'Up to 4 players, all vs all or in teams. Your own weapons, abilities and upgrades count. Needs an internet connection.'] : ['Back to the mode selection.', ''];
   let ty = top + 48;
   ty += 13 * uiWrap(ctx, d[0], PX + 14, ty, PW - 28, 13, { size: T.body, color: P.ice }) + 6;
   uiWrap(ctx, d[1], PX + 14, ty, PW - 28, 13, { size: T.body, color: P.grey });

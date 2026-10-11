@@ -1596,5 +1596,18 @@ CFG.pvp = { startTime: CFG.finalBoss.at, weaponUps: CFG.boss.order.length, radiu
     { id: 'gunner', name: 'GUNNER', desc: 'Ranged pressure. Vortex Blades, Seeker Rounds, Storm Chain.', melee: 'sword', ranged: 'shot', heavy: 'chain', artifact: 'damage', weak: 'scanner', medium: 'capacitor', strong: 'overclock' },
     { id: 'trapper', name: 'TRAPPER', desc: 'Area control. Rail Spear, Napalm Rockets, Event Horizon.', melee: 'lance', ranged: 'rocket', heavy: 'blackhole', artifact: 'thorns', weak: 'thrusters', medium: 'overcharge', strong: 'field' },
   ],
-  maxPlayers: 4, maxStun: 1.2, stunImmune: 3, maxPush: 36, fxHz: 8 };
+  maxPlayers: 4, maxStun: 1.2, stunImmune: 3, maxPush: 36, fxHz: 8,
+  // Bots (nur Dev-Lobby DEV02): speed = Schritte pro Bild, near = Abstand, ab dem sie umkreisen, reach/cooldown/units = Nahkampfschlag, hpPerUnit = Leben (von 100), das eine Treffer-Einheit kostet
+  // Staerken (levels): speed/dmg = Faktoren, react = Faktor auf Pausen (kleiner = schneller), aim = Zielfehler in Grad, dodge/shield = Neigung zu Dash bzw. Schildblase
+  bot: { speed: 3.6, near: 46, reach: 34, cooldown: 0.9, units: 1.2, hpPerUnit: 8, shootMax: 220, shootCd: 1.4, boltSpeed: 7, boltLife: 40, boltRadius: 12, boltUnits: 0.9,
+    dashSpeed: 10, dashTime: 0.22, dashCd: 3.5, shieldTime: 1.5, shieldCd: 9,
+    levels: [{ name: 'EASY', speed: 0.8, dmg: 0.7, react: 1.5, aim: 22, dodge: 0.1, shield: 0.1 }, { name: 'NORMAL', speed: 1, dmg: 1, react: 1, aim: 10, dodge: 0.4, shield: 0.5 }, { name: 'HARD', speed: 1.15, dmg: 1.3, react: 0.7, aim: 3, dodge: 0.8, shield: 1 }] } };
 // maxStun/stunImmune: Betaeubung durch Gegner-Abilities (Sekunden) und die Schonfrist danach; maxPush: groesster Rueckstoss pro Nachricht; fxHz: wie oft Rueckstoss/Betaeubung gesendet werden; sendHzMany: Zustandsrate ab 3 Spielern.
+
+// ---------- Koop-Lauf (PLAY > MULTIPLAYER > CO-OP): bis zu 4 Spieler spielen gemeinsam einen Lauf auf einer der vier Standardkarten (js/coop.js) ----------
+// Der Host rechnet die Welt (Gegner, Bosse, Director), die Gaeste sehen sie als Bild und spielen ihren eigenen Spieler. Siehe Organise/CLAUDE.md "Koop".
+// Schwierigkeit: Faktor m(n) = n * (1 + extra * (n - 1)), also 1, 2.7, 5.1, 8.4 (immer deutlich ueber der Spielerzahl). Er wird aufgeteilt: zaehere Gegner (m^hpExp),
+// mehr Gegner (m^spawnExp, Raten und Obergrenzen), Boss-Leben (m^bossExp). Credits: x m^coreExp. Karten sind mapScale-mal so gross (gleiche vier Karten).
+CFG.coop = { mapScale: 1.7, extra: 0.35, hpExp: 0.4, spawnExp: 0.7, bossExp: 0.9, coreExp: 0.5, obstacleMul: 1.5, countdown: 3,
+  stateHz: 15, worldHz: 10, reviveFrac: 0.5, maxEnemies: 140, maxShots: 90, mateTimeout: 8, maxPlayers: 4 };
+CFG.coop.mult = (n) => n * (1 + CFG.coop.extra * (Math.max(1, n) - 1));

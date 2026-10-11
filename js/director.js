@@ -200,7 +200,7 @@ class Director {
   updateObstacles(dt) {
     const C = CFG.obstacles;
     if (G.bossFight) { this.obstFill = true; return; }
-    const target = Math.min(C.max, C.start + Math.floor(G.time / CFG.waves.length) * C.perWave), have = G.obstacles.filter((o) => o.alive).length;
+    const target = Math.round(Math.min(C.max, C.start + Math.floor(G.time / CFG.waves.length) * C.perWave) * (G.coop ? CFG.coop.obstacleMul : 1)), have = G.obstacles.filter((o) => o.alive).length;
     if (have >= target) { this.obstT = C.respawn; return; }
     this.obstT -= dt;
     if (this.obstT > 0 && !this.obstFill) return;
@@ -247,8 +247,9 @@ class Director {
     if (this.meteorT > 0) return;
     this.meteorT += Math.max(M.everyMin, M.every - wave * M.everyStep);
     let x, y;
-    if (Math.random() < M.aimShare) [x, y] = clampToMap(G.player.x + rand(-M.aimJitter, M.aimJitter), G.player.y + rand(-M.aimJitter, M.aimJitter), 20);
-    else [x, y] = clampToMap(G.cam.x + rand(-(STAGE_W / 2 - 10), STAGE_W / 2 - 10), G.cam.y + rand(-170, 170), 20);
+    const fc = G.focusCam(), tp = G.coop ? fc : G.player;
+    if (Math.random() < M.aimShare) [x, y] = clampToMap(tp.x + rand(-M.aimJitter, M.aimJitter), tp.y + rand(-M.aimJitter, M.aimJitter), 20);
+    else [x, y] = clampToMap(fc.x + rand(-(STAGE_W / 2 - 10), STAGE_W / 2 - 10), fc.y + rand(-170, 170), 20);
     G.meteors.push(new Meteor(x, y));
   }
 
@@ -335,7 +336,8 @@ class Director {
     const S = CFG.spawner;
     if (this.spawnerStage === 'first') {
       if (G.time > S.firstAt && !G.bossFight) {
-        G.spawners.push(new Spawner(G.cam.x, G.cam.y));
+        const fc = G.focusCam();
+        G.spawners.push(new Spawner(fc.x, fc.y));
         this.spawnerStage = 'wait';
         this.spawnerT = rand(S.respawnMin, S.respawnMax);
       }
@@ -353,7 +355,8 @@ class Director {
   }
 
   placeSpawner() {
-    G.spawners.push(new Spawner(...clampToMap(G.cam.x + rand(-150, 150), G.cam.y + rand(-100, 100), 30)));
+    const fc = G.focusCam();
+    G.spawners.push(new Spawner(...clampToMap(fc.x + rand(-150, 150), fc.y + rand(-100, 100), 30)));
     this.spawnerStage = 'wait';
     this.spawnerT = rand(CFG.spawner.respawnMin, CFG.spawner.respawnMax);
   }
@@ -376,7 +379,8 @@ class Director {
     const P = CFG.powerup;
     const early = G.time < P.earlyUntil + 0.01;
     if (G.time > this.powerT && G.powerups.length === 0) {
-      G.powerups.push(new PowerUp(...clampToMap(G.cam.x + rand(-(STAGE_W / 2 - 30), STAGE_W / 2 - 30), G.cam.y + rand(-150, 150), 20), early ? P.earlyHeal : P.lateHeal));
+      const fc = G.focusCam();
+      G.powerups.push(new PowerUp(...clampToMap(fc.x + rand(-(STAGE_W / 2 - 30), STAGE_W / 2 - 30), fc.y + rand(-150, 150), 20), early ? P.earlyHeal : P.lateHeal));
       this.powerT += early ? rand(P.earlyEveryMin, P.earlyEveryMax) : rand(P.lateEveryMin, P.lateEveryMax);
     }
   }

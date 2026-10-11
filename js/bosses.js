@@ -75,6 +75,7 @@ class Boss {
 
   update(dt) {
     const f = framesOf(dt);
+    Coop.focus = this;                          // Koop: Bosse zielen auf den naechsten Spieler
     const p = G.player, tg = p.target;          // tg = wohin der Boss zielt (bei Phase/Koeder nicht der echte Spieler)
     Cos.bossTick(Juice.particles, this, dt);    // Cosmetic: Flammen um den Boss
     Cos2.bossWatch(this);                       // Cosmetic HITS: Schaden am Boss erkennen
@@ -143,7 +144,7 @@ class Boss {
     this.updateCounters(dt, p, tg);
 
     // Berührung = Schaden am Spieler
-    if (touchesPlayer(this.x, this.y, this.radius)) { p.hit(this.shootKind === 'mortar' ? 'higher' : 'touch', bossPower().dmg, Stats.bossName(this)); if (this.cfg.chill) p.chill(CFG.chill.dur); }
+    hurtPlayersAt(this.x, this.y, this.radius, this.shootKind === 'mortar' ? 'higher' : 'touch', bossPower().dmg, Stats.bossName(this), this.cfg.chill);
 
     if (this.hitCd <= 0) this.takeDamage();
     if (this.hp < 1) this.defeat();
@@ -313,7 +314,7 @@ class Boss {
       L.ang += C.spin * L.sign * dt;
       for (let i = 0; i < L.count; i++) {
         const a = L.ang + (360 / L.count) * i;
-        if (segHitsCircle(this.x, this.y, this.x + fwdX(a) * C.len, this.y + fwdY(a) * C.len, C.width, p.x, p.y, p.radius)) p.hit('touch', bossPower().dmg, Stats.bossName(this));
+        for (const q of playersList()) if (segHitsCircle(this.x, this.y, this.x + fwdX(a) * C.len, this.y + fwdY(a) * C.len, C.width, q.x, q.y, q.radius)) q.hit('touch', bossPower().dmg, Stats.bossName(this));
       }
       if (L.t <= 0) { L.phase = 'rest'; L.t = C.rest; L.n++; }
     }
@@ -344,7 +345,7 @@ class Boss {
         }
         if (a.t <= -K.pullTime) cn.act = null;
       } else if (a.t <= 0) {                                      // Schockwelle trifft
-        if (dReal < K.shockRadius + 8) p.hit('touch', bossPower().dmg, Stats.bossName(this));           // Schaden nach der echten Position
+        for (const q of playersList()) if (Math.hypot(q.x - this.x, q.y - this.y) < K.shockRadius + 8) q.hit('touch', bossPower().dmg, Stats.bossName(this));           // Schaden nach der echten Position
         G.blasts.push(bossBlast('bomb', this.x, this.y, Stats.bossName(this)));
         cn.act = null;
       }
@@ -448,6 +449,7 @@ class Boss {
       return;
     }
     Sfx.play('bossDown');
+    Coop.bossDefeated(this);                                    // Koop-Host: Gaeste bekommen Belohnungen und Wiederbelebung
     Tutorial.bossDown = true;                                   // Tutorial: Aufgabe erledigt
     Juice.hitStop(0.12); Juice.shake(5); Juice.zoomPulse(1.06, 0.5); Juice.flash(STYLE.pal.white, 0.3, 0.15);
     Juice.sparks(this.x, this.y, STYLE.pal.yellow, 24, 5);
@@ -570,13 +572,14 @@ class BossBolt {
   update(dt) {
     if (G.clearing || !G.bossFight) { this.alive = false; return; }
     const f = framesOf(dt);
+    Coop.focus = this;
     const tg = G.player.target;
     steerTowards(this, tg.x, tg.y, this.turn * f);
     moveForward(this, CFG.boss.bolt.speed * f);
     this.ghost += 2 * f;
     this.frames -= f;
     const r = CFG.boss.bolt.radius;
-    if (touchesPlayer(this.x, this.y, r)) { G.player.hit('shoot', bossPower().dmg, this.src); if (this.chill) G.player.chill(CFG.chill.dur); this.alive = false; }
+    if (hurtPlayersAt(this.x, this.y, r, 'shoot', bossPower().dmg, this.src, this.chill)) this.alive = false;
     else if (blockedByPlayerGear(this.x, this.y, r) || this.frames <= 0) this.alive = false;
   }
   draw(ctx) { drawSprite(ctx, 'enemyShot', this.x, this.y, this.dir, 175, { alpha: 1 - this.ghost / 100, hue: this.chill ? 170 : 0 }); }
@@ -591,6 +594,7 @@ class Mortar {
   }
   update(dt) {
     if (!G.bossFight) { this.alive = false; return; }
+    Coop.focus = this;
     const p = G.player.target;
     this.dir = dirTo(this.x, this.y, p.x, p.y);
     moveForward(this, CFG.boss.mortar.speed * framesOf(dt));
@@ -637,6 +641,7 @@ class BossIntro {
     this.t += dt;
     if (this.t >= CFG.boss.anim) {
       this.alive = false;
+      if (Coop.guest) { G.bossTimer = 0; return; }                  // Koop-Gast: der Boss kommt als Bild vom Host
       if (this.type === 'twin') {                                   // zwei Körper links und rechts der Mitte
         const a = new Boss('twin', this.x - 45, this.y, 'bolt'), b = new Boss('twin', this.x + 45, this.y, 'mortar');
         a.twin = b; b.twin = a;

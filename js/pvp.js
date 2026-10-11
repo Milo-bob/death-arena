@@ -4,7 +4,7 @@
 // Bedienung: W/S + Leertaste (Maus geht ueberall), im Code-Feld Buchstaben/Ziffern tippen (Strg+V fuegt ein), Rueckschritt loescht, ESC = zurueck.
 
 const Pvp = {
-  st: 'menu', sel: 0, code: '', input: '', ch: null, players: [], me: null, isHost: false,
+  bots: 0, botLevel: 1, st: 'menu', sel: 0, code: '', input: '', ch: null, players: [], me: null, isHost: false,
   msg: '', msgCol: null, msgAt: 0, joinAt: 0, hadHost: false, copied: 0, mode: 'ffa', scores: {}, rule: 'own', RULES: ['own', 'setfix', 'setpick', 'all'],
 
   // Anzeigename: Kontoname, sonst ein fester Gastname pro Geraet
@@ -14,7 +14,8 @@ const Pvp = {
     return Save.data.pvpName;
   },
 
-  open() { this.pick = null; this.scores = {}; this.leave(true); this.st = 'menu'; this.sel = 0; this.input = ''; this.say(''); },
+  game: 'pvp', coopMap: 0,
+  open(game) { this.game = game === 'coop' ? 'coop' : 'pvp'; this.pick = null; this.scores = {}; this.leave(true); this.st = 'menu'; this.sel = 0; this.input = ''; this.say(''); },
   say(t, col) { this.msg = t; this.msgCol = col || null; this.msgAt = Date.now(); },
 
   // Verbindung schliessen und zurueck ins Menue (silent = keine Meldung loeschen)
@@ -26,12 +27,16 @@ const Pvp = {
 
   connect(code, host) {
     if (!Net.available) { this.say('NO CONNECTION POSSIBLE ON THIS DEVICE', STYLE.pal.red); return; }
+    if (Net.isDevCode(code)) {                                      // reservierte Dev-Lobby: nur mit Dev-Zugang. Man tritt als Gast bei; ist niemand Host, wird man es selbst (promote)
+      if (!Save.anyDev()) { this.say('THIS CODE IS RESERVED', STYLE.pal.red); Sfx.play('deny'); return; }
+      host = false; code = code.toUpperCase();
+    }
     this.leave(true);
-    this.scores = {}; this.mode = 'ffa'; this.rule = 'own';
+    this.scores = {}; this.mode = 'ffa'; this.rule = 'own'; this.bots = 0;
     this.code = code; this.isHost = host; this.joinAt = Date.now(); this.hadHost = host; this.st = 'lobby'; this.sel = 0; this.say(host ? '' : 'JOINING...', STYLE.pal.grey);
-    this.ch = Net.open(code, { name: this.name(), host, mode: 'ffa', rule: 'own', set: Save.data.pvpSet }, {
+    this.ch = Net.open(this.game === 'coop' && Net.isDevCode(code) ? code + 'C' : code, { /* Dev-Lobbys: PvP und Koop haben je einen eigenen Kanal */ name: this.name(), host, mode: 'ffa', rule: 'own', set: Save.data.pvpSet, game: this.game, map: this.coopMap }, {
       onPlayers: (list) => this.onPlayers(list),
-      onMessage: (ev, p) => { if (ev === 'start' && !this.isHost) this.roundStart(p); else PvpMatch.onMessage(ev, p); },
+      onMessage: (ev, p) => { if (ev === 'start' && !this.isHost) this.roundStart(p); else { PvpMatch.onMessage(ev, p); Coop.onMessage(ev, p); } },
       onStatus: (s) => { if (s === 'error' && this.ch) this.failBack('CONNECTION FAILED'); else if (s === 'reconnecting') this.say('RECONNECTING...', STYLE.pal.orange); else if (s === 'joined' && this.msg === 'RECONNECTING...') this.say(''); },
     });
   },
@@ -42,13 +47,36 @@ const Pvp = {
     this.st = 'lobby';
     // Der Host bestimmt die Arena-Groesse: ein Geraet mit aelterem Spielstand (App noch nicht aktualisiert) soll sonst keine andere Arena haben
     if (info && !this.isHost && Number.isFinite(info.radius) && info.radius >= 100 && info.radius <= 1000) CFG.pvp.radius = info.radius;
-    if (PvpMatch.begin(info)) Sfx.play('levelUp'); else this.say('CONNECTION FAILED', STYLE.pal.red);
+    if (info && info.game === 'coop' ? Coop.begin(info) : PvpMatch.begin(info)) Sfx.play('levelUp'); else this.say('CONNECTION FAILED', STYLE.pal.red);
   },
+  // Dev-Lobby ohne Host (nie eroeffnet oder der Host ist weg): der Beitretende uebernimmt die Rolle
+  promote() {
+    if (!this.ch || this.isHost) return;
+    this.isHost = true; this.hadHost = true; this.ch.update({ host: true }); this.sel = 0; this.say('');
+  },
+  isDevLobby() { return Net.isDevCode(this.code); },
+  // DEV02: 0-3 Bots (nur beim Host-Geraet vorhanden, siehe PvpMatch.begin)
+  botsNow() { return this.isHost && this.code === 'DEV02' ? this.bots | 0 : 0; },
   startRound() {
     if (!this.isHost || !this.ch) return;
-    if (this.players.length < 2) { this.say('YOU NEED AT LEAST 2 PLAYERS', STYLE.pal.orange); Sfx.play('deny'); return; }
-    const info = { mode: this.mode, order: this.players.slice(0, Net.MAX_PLAYERS).map((p) => p.id), radius: CFG.pvp.radius, rule: this.ruleKind(), setId: this.ruleNow() === 'setfix' ? this.setNow().id : Save.data.pvpSet };
+    if (this.gameNow() === 'coop') {                                       // Koop: auch allein moeglich, die Karte waehlt der Host
+      const order = this.players.slice(0, Net.MAX_PLAYERS).map((p) => p.id), info = { game: 'coop', order, map: this.coopMap };
+      this.ch.send('start', info); this.roundStart(info);
+      return;
+    }
+    if (this.players.length < 2 && !this.isDevLobby()) { this.say('YOU NEED AT LEAST 2 PLAYERS', STYLE.pal.orange); Sfx.play('deny'); return; }
+    const info = { bots: this.botsNow(), mode: this.mode, order: this.players.slice(0, Math.max(1, Net.MAX_PLAYERS - this.botsNow())).map((p) => p.id), radius: CFG.pvp.radius, rule: this.ruleKind(), setId: this.ruleNow() === 'setfix' ? this.setNow().id : null };
     this.ch.send('start', info); this.roundStart(info);
+  },
+  // Spielart der Lobby (der Host legt sie beim Erstellen fest): 'pvp' oder 'coop'
+  gameNow() { if (this.isHost) return this.game; const h = this.players.find((p) => p.host); return h && h.game === 'coop' ? 'coop' : 'pvp'; },
+  // Koop: Karte (der Host waehlt unter seinen freigeschalteten, alle sehen sie ueber seine Anwesenheit)
+  mapNow() { if (this.isHost) return this.coopMap; const h = this.players.find((p) => p.host); return h && Number.isFinite(h.map) ? clamp(h.map | 0, 0, CFG.maps.length - 1) : 0; },
+  toggleMap(d) {
+    if (!this.isHost || !this.ch) return;
+    const n = CFG.maps.length; let i = this.coopMap;
+    for (let k = 0; k < n; k++) { i = (i + d + n) % n; if (Save.mapUnlocked(i)) break; }
+    this.coopMap = i; this.ch.update({ map: i }); Sfx.play('select');
   },
   // Modus: der Host waehlt (jeder gegen jeden / Teams), alle sehen ihn ueber die Anwesenheit des Hosts
   modeNow() { if (this.isHost) return this.mode; const h = this.players.find((p) => p.host); return h && h.mode === 'teams' ? 'teams' : 'ffa'; },
@@ -70,7 +98,7 @@ const Pvp = {
     Save.data.pvpSet = sets[(i + d + sets.length) % sets.length].id; Save.write(); Sfx.play('select');
     if (this.isHost && this.ch) this.ch.update({ set: Save.data.pvpSet });
   },
-  lobbyRows() { return this.isHost ? ['start', 'mode', 'rule', 'equipment', 'copy', 'leave'] : ['equipment', 'copy', 'leave']; },
+  lobbyRows() { if (this.gameNow() === 'coop') return this.isHost ? ['start', 'map', 'copy', 'leave'] : ['copy', 'leave']; return this.isHost ? ['start', 'mode'].concat(this.code === 'DEV02' ? ['bots', 'botlevel'] : [], ['rule', 'equipment', 'copy', 'leave']) : ['equipment', 'copy', 'leave']; },
 
   // ---- Abilities fuer den Kampf: je Gruppe (weak/medium/strong) eine GEKAUFTE Ability oder keine ----
   tierList(tier) { const all = this.ruleKind() === 'all'; return [null].concat(Object.keys(CFG.loadout.abilities).filter((id) => CFG.loadout.abilities[id].tier === tier && (all || CFG.loadout.abilities[id].unlock === 0 || (Save.data.unlocked && Save.data.unlocked[id])))); },
@@ -140,7 +168,7 @@ const Pvp = {
     if (host) this.hadHost = true;
     if (!this.hadHost) return;                                          // der Host kommt kurz nach dem Beitritt per Presence an (Pruefung in update)
     if (!host) {                                                        // Host kurz weg (z. B. beim Aktualisieren seiner Anwesenheit): erst nach 3 s wirklich schliessen
-      setTimeout(() => { if (this.ch && !this.isHost && this.hadHost && !this.players.some((p) => p.host)) this.failBack('THE HOST CLOSED THE LOBBY'); }, 3000);
+      setTimeout(() => { if (this.ch && !this.isHost && this.hadHost && !this.players.some((p) => p.host)) { if (this.isDevLobby()) this.promote(); else this.failBack('THE HOST CLOSED THE LOBBY'); } }, 3000);
       return;
     }
     if (list.length > Net.MAX_PLAYERS && !list.slice(0, Net.MAX_PLAYERS).some((p) => p.id === this.ch.id)) { this.failBack('THE LOBBY IS FULL'); return; }
@@ -167,6 +195,7 @@ const Pvp = {
       if (go) {
         const r = rows[this.sel];
         if (r === 'create') this.connect(Net.newCode(), true);
+        else if (/^dev\d$/.test(r)) this.connect(Net.DEV_CODES[+r[3] - 1], true);
         else if (r === 'join') { this.st = 'join'; this.sel = 0; this.input = ''; this.say(''); }
         else G.mode = 'multiselect';
       }
@@ -188,19 +217,26 @@ const Pvp = {
         if (Input.pressed('ArrowLeft') || Input.pressed('KeyA')) this.cycleRow(this.sel, -1);
         if (Input.pressed('ArrowRight') || Input.pressed('KeyD')) this.cycleRow(this.sel, 1);
       }
-      if (Input.pressed('Escape') || (go && this.sel === n - 1)) { this.st = 'lobby'; this.sel = this.isHost ? 3 : 0; return; }
+      if (Input.pressed('Escape') || (go && this.sel === n - 1)) { this.st = 'lobby'; this.sel = Math.max(0, this.lobbyRows().indexOf('equipment')); return; }
       if (go && this.sel < n - 1) { if (this.ruleKind() === 'set') this.cycleRow(this.sel, 1); else this.openPick(this.sel); }
     } else if (this.st === 'lobby') {
       const lr = this.lobbyRows(); if (up) this.sel = (this.sel + lr.length - 1) % lr.length; if (dn) this.sel = (this.sel + 1) % lr.length;
       this.sel = Math.min(this.sel, lr.length - 1);
+      if (!this.isHost && this.ch && this.ch.status === 'joined' && !this.hadHost && this.isDevLobby() && Date.now() - this.joinAt > 1500) this.promote();         // Dev-Lobby: es gibt sie immer
       if (!this.isHost && this.ch && this.ch.status === 'joined' && !this.hadHost && Date.now() - this.joinAt > 2500) { this.failBack('NO LOBBY WITH THIS CODE'); return; }       // niemand hat sich als Host eingetragen
+      if (lr[this.sel] === 'botlevel') { if (Input.pressed('ArrowLeft') || Input.pressed('KeyA')) this.botLevel = (this.botLevel + 2) % 3; if (Input.pressed('ArrowRight') || Input.pressed('KeyD')) this.botLevel = (this.botLevel + 1) % 3; }
+      if (lr[this.sel] === 'bots') { if (Input.pressed('ArrowLeft') || Input.pressed('KeyA')) this.bots = Math.max(0, this.bots - 1); if (Input.pressed('ArrowRight') || Input.pressed('KeyD')) this.bots = Math.min(3, this.bots + 1); }
       if (Input.pressed('Escape')) { this.leave(); return; }
+      if (lr[this.sel] === 'map') { if (Input.pressed('ArrowLeft') || Input.pressed('KeyA')) this.toggleMap(-1); if (Input.pressed('ArrowRight') || Input.pressed('KeyD')) this.toggleMap(1); }
       if (lr[this.sel] === 'mode' && (Input.pressed('ArrowLeft') || Input.pressed('KeyA') || Input.pressed('ArrowRight') || Input.pressed('KeyD'))) this.toggleMode();
       if (lr[this.sel] === 'rule') { if (Input.pressed('ArrowLeft') || Input.pressed('KeyA')) this.toggleRule(-1); if (Input.pressed('ArrowRight') || Input.pressed('KeyD')) this.toggleRule(1); }
       if (go) {
         const r = lr[this.sel];
         if (r === 'start') this.startRound();
+        else if (r === 'map') this.toggleMap(1);
         else if (r === 'mode') this.toggleMode();
+        else if (r === 'bots') this.bots = (this.bots + 1) % 4;
+        else if (r === 'botlevel') this.botLevel = (this.botLevel + 1) % 3;
         else if (r === 'rule') this.toggleRule(1);
         else if (r === 'equipment') { this.st = 'loadout'; this.sel = 0; this.pick = null; }
         else if (r === 'copy') { try { navigator.clipboard.writeText(this.code); } catch (e) { /* egal */ } this.copied = Date.now(); }
@@ -215,7 +251,7 @@ const Pvp = {
     const P = STYLE.pal, T = STYLE.type, cx = STAGE_W / 2;
     drawMenuBg(ctx, 'keysettings');
     drawEmbers(ctx);
-    if (this.st !== 'loadout') uiText(ctx, 'PVP ARENA', cx, 56, { size: T.h1, color: P.red, align: 'center', glow: P.red });
+    if (this.st !== 'loadout') uiText(ctx, this.gameNow() === 'coop' ? 'CO-OP' : 'PVP ARENA', cx, 56, { size: T.h1, color: P.red, align: 'center', glow: P.red });
     const top = 90, GAP = 46;
     if (this.st === 'menu') {
       const labels = ['CREATE LOBBY', 'JOIN LOBBY', 'BACK'], lw = 300, PX = 40 + lw + 24, PW = STAGE_W - 40 - PX;
@@ -238,8 +274,9 @@ const Pvp = {
         if (this.input[i]) uiText(ctx, this.input[i], x + bw / 2, 134, { size: T.h1, color: P.ice, align: 'center' });
       }
       uiText(ctx, 'TAP THE LETTERS BELOW (OR TYPE, CTRL+V PASTES)', cx, 158, { size: T.small, color: P.grey, align: 'center' });
+      if (Save.data.dev) uiText(ctx, 'DEV: ' + Net.DEV_CODES.join(', ') + ' = RESERVED DEV LOBBIES (WORK IN PVP AND CO-OP)', cx, 80, { size: T.small, color: P.yellow, align: 'center' });
       // Bildschirmtastatur (fuer Handy/Tablet ohne Tastatur): 8 Tasten pro Reihe, nur die erlaubten Code-Zeichen
-      const chars = Net.CODE_CHARS.split(''), cols = 8, kw = 34, kh = 22, kg = 4, kx0 = cx - (cols * kw + (cols - 1) * kg) / 2, m = Input.mouse;
+      const dev = Save.anyDev(), chars = (Net.CODE_CHARS + (dev ? '01' : '')).split(''), cols = dev ? 9 : 8, kw = 34, kh = 22, kg = 4, kx0 = cx - (cols * kw + (cols - 1) * kg) / 2, m = Input.mouse;
       chars.forEach((ch, i) => {
         const x = kx0 + (i % cols) * (kw + kg), y = 166 + Math.floor(i / cols) * (kh + kg), hot = m.x >= x && m.x <= x + kw && m.y >= y && m.y <= y + kh;
         UIHit.add(x, y, kw, kh, () => {}, { act: () => { if (this.input.length < Net.CODE_LEN) { this.input += ch; Sfx.play('tick'); } } });
@@ -362,18 +399,18 @@ const Pvp = {
   drawLobby(ctx, top) {
     const P = STYLE.pal, T = STYLE.type, lw = 190, PX = 40 + lw + 24, PW = STAGE_W - 40 - PX;
     top = 76;
-    const status = this.ch ? this.ch.status : 'closed', copied = Date.now() - this.copied < 1500, rows = this.lobbyRows(), mode = this.modeNow(), teams = mode === 'teams';
-    const y0 = top + 56, BH = 24, BG = 30, bottom = y0 + (rows.length - 1) * BG + BH;            // der rote Kasten reicht bis zur Unterkante des letzten Knopfes
+    const status = this.ch ? this.ch.status : 'closed', copied = Date.now() - this.copied < 1500, rows = this.lobbyRows(), coop = this.gameNow() === 'coop', mode = this.modeNow(), teams = !coop && mode === 'teams';
+    const y0 = top + 56, BG = Math.min(30, Math.floor((STAGE_H - 22 - y0 - 22) / Math.max(1, rows.length - 1))), BH = Math.min(24, BG - 3), bottom = y0 + (rows.length - 1) * BG + BH;            // der rote Kasten reicht bis zur Unterkante des letzten Knopfes
     rows.forEach((r, i) => {
-      const label = r === 'start' ? (this.players.length < 2 ? 'START ROUND (2+ PLAYERS)' : 'START ROUND') : r === 'mode' ? (teams ? 'MODE: TEAMS (A / B)' : 'MODE: ALL VS ALL')
+      const label = r === 'map' ? 'MAP: ' + CFG.maps[this.mapNow()].name : r === 'start' ? (coop ? 'START RUN' : this.players.length < 2 && !this.isDevLobby() ? 'START ROUND (2+ PLAYERS)' : 'START ROUND') : r === 'bots' ? 'BOTS: ' + this.bots + ' / 3' : r === 'botlevel' ? 'BOT LEVEL: ' + CFG.pvp.bot.levels[this.botLevel].name : r === 'mode' ? (teams ? 'MODE: TEAMS (A / B)' : 'MODE: ALL VS ALL')
         : r === 'rule' ? this.RULE_SHORT[this.ruleNow()] : r === 'equipment' ? 'EQUIPMENT' : r === 'copy' ? (copied ? 'COPIED!' : 'COPY CODE') : 'LEAVE LOBBY';
-      drawMenuRow(ctx, y0 + i * BG, label, this.sel === i, { w: lw, h: BH, cx: 40 + lw / 2, hit: () => { this.sel = i; }, lr: r === 'mode' || r === 'rule' });
+      drawMenuRow(ctx, y0 + i * BG, label, this.sel === i, { w: lw, h: BH, cx: 40 + lw / 2, hit: () => { this.sel = i; }, lr: r === 'mode' || r === 'rule' || r === 'map' || r === 'bots' || r === 'botlevel' });
     });
     uiText(ctx, 'LOBBY CODE', 40 + lw / 2, top + 10, { size: T.small, color: P.grey, align: 'center' });
     uiText(ctx, this.code, 40 + lw / 2, top + 42, { size: T.title * 0.5, color: P.yellow, align: 'center', glow: P.yellow });
     uiPanel(ctx, PX, top, PW, bottom - top, { color: P.red, fill: P.void, alpha: 0.92, glow: true });
     uiText(ctx, 'PLAYERS  ' + this.players.length + ' / ' + Net.MAX_PLAYERS, PX + 14, top + 22, { size: T.h2, color: P.red });
-    uiText(ctx, teams ? 'TEAMS' : 'ALL VS ALL', PX + PW - 14, top + 22, { size: T.small, color: P.grey, align: 'right' });
+    uiText(ctx, coop ? 'DIFFICULTY x' + CFG.coop.mult(Math.max(1, this.players.length)).toFixed(1) : teams ? 'TEAMS' : 'ALL VS ALL', PX + PW - 14, top + 22, { size: T.small, color: coop ? P.orange : P.grey, align: 'right' });
     if (status === 'connecting' || (!this.players.length && status === 'joined')) uiText(ctx, 'CONNECTING...', PX + 14, top + 52, { size: T.body, color: P.grey });
     const sc = this.scores || {};
     this.players.slice(0, Net.MAX_PLAYERS).forEach((p, i) => {
@@ -384,12 +421,12 @@ const Pvp = {
       uiText(ctx, (sc[p.id] ? sc[p.id] + ' WINS  ' : '') + (p.host ? 'HOST' : ''), PX + PW - 20, y + 16, { size: T.small, color: P.yellow, align: 'right' });
     });
     const hy = top + 34 + Math.min(this.players.length, Net.MAX_PLAYERS) * 26 + 6;
-    if (hy < bottom - 26) uiWrap(ctx, this.isHost ? 'Share the code. Everyone who joins appears here. Start the round when you are ready.' : 'Choose your equipment. Only the host can start the round.', PX + 14, hy + 8, PW - 28, 13, { size: T.small, color: P.grey });
+    if (hy < bottom - 26) uiWrap(ctx, coop ? (this.isHost ? 'Share the code. Everyone plays together on the bigger map; more players make the run harder. Choose the map, then start.' : 'Your own gear, upgrades and hero count. Only the host can start the run.') : this.isHost ? 'Share the code. Everyone who joins appears here. Start the round when you are ready.' : 'Choose your equipment. Only the host can start the round.', PX + 14, hy + 8, PW - 28, 13, { size: T.small, color: P.grey });
   },
 };
 
 if (typeof I18n !== 'undefined' && I18n.add) I18n.add({
-  'PVP ARENA': 'PVP-ARENA', 'MULTIPLAYER': 'MEHRSPIELER', 'Play with other players online. Pick a multiplayer mode next.': 'Spiele online mit anderen Spielern. Wähle als Nächstes einen Mehrspieler-Modus.', 'Currently: PVP Arena. Needs an internet connection.': 'Aktuell: PvP-Arena. Braucht eine Internetverbindung.', 'Back to the mode selection.': 'Zurück zur Modus-Auswahl.', 'CREATE LOBBY': 'LOBBY ERSTELLEN', 'JOIN LOBBY': 'LOBBY BEITRETEN', 'JOIN': 'BEITRETEN', 'LEAVE LOBBY': 'LOBBY VERLASSEN', 'COPY CODE': 'CODE KOPIEREN', 'COPIED!': 'KOPIERT!',
+  'PVP ARENA': 'PVP-ARENA', 'START RUN': 'LAUF STARTEN', 'DIFFICULTY x': 'SCHWIERIGKEIT x', 'CO-OP RUN': 'KOOP-LAUF', 'MULTIPLAYER': 'MEHRSPIELER', 'Play with other players online. Pick a multiplayer mode next.': 'Spiele online mit anderen Spielern. Wähle als Nächstes einen Mehrspieler-Modus.', 'Currently: PVP Arena. Needs an internet connection.': 'Aktuell: PvP-Arena. Braucht eine Internetverbindung.', 'Back to the mode selection.': 'Zurück zur Modus-Auswahl.', 'CREATE LOBBY': 'LOBBY ERSTELLEN', 'JOIN LOBBY': 'LOBBY BEITRETEN', 'JOIN': 'BEITRETEN', 'LEAVE LOBBY': 'LOBBY VERLASSEN', 'COPY CODE': 'CODE KOPIEREN', 'COPIED!': 'KOPIERT!',
   'LOBBY CODE': 'LOBBY-CODE', 'ENTER THE LOBBY CODE': 'LOBBY-CODE EINGEBEN', 'TYPE THE CODE (CTRL+V PASTES)': 'CODE TIPPEN (STRG+V FÜGT EIN)', 'TAP THE LETTERS BELOW (OR TYPE, CTRL+V PASTES)': 'BUCHSTABEN UNTEN ANTIPPEN (ODER TIPPEN, STRG+V FÜGT EIN)', 'DEL': 'LÖSCHEN',
   'CONNECTING...': 'VERBINDE...', 'RECONNECTING...': 'VERBINDE NEU...', 'JOINING...': 'TRETE BEI...', 'HOST': 'HOST', '(YOU)': '(DU)', 'CONNECTION FAILED': 'VERBINDUNG FEHLGESCHLAGEN',
   'THE HOST CLOSED THE LOBBY': 'DER HOST HAT DIE LOBBY GESCHLOSSEN', 'THE LOBBY IS FULL': 'DIE LOBBY IST VOLL', 'NO LOBBY WITH THIS CODE': 'KEINE LOBBY MIT DIESEM CODE',
