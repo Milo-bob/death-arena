@@ -44,8 +44,8 @@ I18n.add({
   // --- Tutorial ---
   'TASK COMPLETE': 'AUFGABE ERLEDIGT', 'TUTORIAL COMPLETE': 'TUTORIAL ABGESCHLOSSEN',
   'You know every basic now. Spend credits in UPGRADES and': 'Du kennst jetzt alle Grundlagen. Gib Credits in UPGRADES und',
-  'INVENTORY, then take on bosses, events and evolutions.': 'INVENTAR aus und stelle dich dann Bossen, Events und Evolutionen.',
-  'Nothing happens until you press SPACE. Read in peace.': 'Es passiert nichts, bis du die LEERTASTE drückst. Lies in Ruhe.', 'PRESS SPACE TO START': 'LEERTASTE ZUM STARTEN', 'MOVEMENT': 'BEWEGUNG',
+  'ARMORY, then take on bosses, events and evolutions.': 'WAFFENKAMMER aus und stelle dich dann Bossen, Events und Evolutionen.',
+  'Nothing happens until you press SPACE. Read in peace.': 'Es passiert nichts, bis du die LEERTASTE drückst. Lies in Ruhe.', 'CONTINUE': 'WEITER', 'MOVEMENT': 'BEWEGUNG',
   'Walk into the glowing ring with the left stick. You face the way you walk.': 'Geh mit dem linken Stick in den leuchtenden Ring. Du blickst in Laufrichtung.',
   'Walk into the glowing ring. You aim with the mouse.': 'Geh in den leuchtenden Ring. Du zielst mit der Maus.',
   'Walk into the glowing ring. You face the way you walk. A quick tap only turns you.': 'Geh in den leuchtenden Ring. Du blickst in Laufrichtung. Ein kurzer Tipp dreht dich nur.',

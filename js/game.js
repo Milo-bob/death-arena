@@ -49,7 +49,7 @@ function drawGround(ctx) {
   ctx.restore();
 }
 
-const MENU_ITEMS = ['play', 'inventory', 'cosmetics', 'upgrades', 'achievements', 'settings'];
+const MENU_ITEMS = ['play', 'inventory', 'upgrades', 'achievements', 'cosmetics', 'settings'];
 const menuItems = () => MENU_ITEMS;
 const statsOpen = () => !!Save.data.dev;       // der Statistik-Bildschirm (Symbol im Hauptmenue) gehoert zum Dev-Modus und gilt nur im Slot, in den die Dev-Datei importiert wurde (die Daten selbst kommen aus allen Slots, siehe Stats.slotLogs)
 const MODE_ITEMS = ['regular', 'infinite', 'speedrun', 'multiplayer', 'tutorial', 'back'];        // Auswahl nach PLAY

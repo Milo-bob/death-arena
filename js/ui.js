@@ -465,7 +465,7 @@ function drawStartScreen(ctx) {
   ctx.restore();
   uiText(ctx, 'DEATHARENA', STAGE_W / 2, 98 + Math.sin(t * 1.5) * 1.2, { size: T.title, color: P.red, align: 'center', glow: P.red });
   uiText(ctx, 'ONE WAY TICKET TO HELL', STAGE_W / 2, 124, { size: T.h2, color: P.yellow, align: 'center' });
-  const labels = { play: 'PLAY', inventory: 'INVENTORY', cosmetics: 'COSMETICS', upgrades: 'UPGRADES', achievements: 'ACHIEVEMENTS', settings: 'SETTINGS', stats: 'STATISTICS' };
+  const labels = { play: 'PLAY', inventory: 'ARMORY', cosmetics: 'COSMETICS', upgrades: 'UPGRADES', achievements: 'ACHIEVEMENTS', settings: 'SETTINGS', stats: 'STATISTICS' };
   menuItems().forEach((id, i) => {
     const y = 134 + i * 28;
     const lock = CFG.level.gates[id] && !Save.gateOpen(id) ? CFG.level.gates[id] : 0;
@@ -562,7 +562,7 @@ function drawModeSelectScreen(ctx) {
   const labels = { regular: 'REGULAR', infinite: 'INFINITE MODE', speedrun: 'SPEEDRUN', multiplayer: 'MULTIPLAYER', tutorial: 'TUTORIAL', back: 'BACK' };
   const descs = {
     regular: ['The classic run on a walled map. Choose map and difficulty next.', 'Survive the waves and bosses, face Death at the end.'],
-    infinite: ['An endless map without walls. Choose map and final boss time next.', 'Credits grow the longer you survive, mutations raise the stakes, more player XP. Own best time.'],
+    infinite: ['An endless map without walls. Choose map and final boss time next.', 'Credits grow the longer you survive. Own best time.'],
     speedrun: ['Race the clock: all bosses back to back, then Death. Your best time goes on the leaderboard.', 'Same standard loadout for everyone (you only pick your weapons). No credits, no XP. Death ends the run.'],
     multiplayer: ['Play with other players online. Pick a multiplayer mode next.', 'Currently: PVP Arena. Needs an internet connection.'],
     tutorial: ['A short guided level that teaches the basics.', 'You cannot die. Nothing is saved.'],
@@ -623,8 +623,6 @@ function drawInfSetupScreen(ctx) {
   ty += 12 * uiWrap(ctx, 'Choose when the final boss (Death) arrives. Beat him to win.', PX + 14, ty, PW - 28, 12, { size: T.body, color: P.grey }) + 10;
   const E = CFG.endless;
   ty += 12 * uiWrap(ctx, 'CREDITS GROW THE LONGER YOU SURVIVE: x' + E.creditBase + ' AT THE START, x' + E.creditMax + ' AFTER ' + Math.round((E.creditMax - E.creditBase) / E.creditPerMin) + ' MIN.', PX + 14, ty, PW - 28, 12, { size: T.body, color: P.yellow }) + 4;
-  ty += 12 * uiWrap(ctx, 'MUTATIONS: every few minutes the world gets harder for a while, but credits rise even faster. Later, several at once.', PX + 14, ty, PW - 28, 12, { size: T.body, color: P.orange }) + 4;
-  ty += 12 * uiWrap(ctx, 'Player XP x' + CFG.level.infiniteFactor + '. Hero VOYAGER (15 min) loves this mode.', PX + 14, ty, PW - 28, 12, { size: T.body, color: P.cyan }) + 6;
   uiText(ctx, 'OWN BEST TIME: ' + (Save.data.bestInf > 0 ? formatTime(Save.data.bestInf) : '-'), PX + 14, ty + 4, { size: T.body, color: P.yellow });
 }
 
@@ -682,7 +680,7 @@ function drawUpgradesScreen(ctx) {
   const w = 372, x = 24, H = 34, GAP = 37, Y0 = 106, DX = x + w + 22, DW = STAGE_W - 24 - DX;      // links die Liste, rechts das Detail-Feld
   const VIS = 6;
   const SW = UIScroll.win('upgrades', G.upgradeTab, G.upgradeSel, VIS, rows.length);
-  UIScroll.bar(ctx, 'upgrades', x + w + 6, Y0, 6, VIS * GAP - 3, true, rows.length, VIS, SW.off, (v) => { SW.off = v; });
+  UIScroll.bar(ctx, 'upgrades', 10, Y0, 6, VIS * GAP - 3, true, rows.length, VIS, SW.off, (v) => { SW.off = v; });
   const off = SW.off;
   rows.slice(off, off + VIS).forEach((r, k) => {
     const i = off + k, sel = G.upgradeSel === i, y = Y0 + k * GAP;
@@ -744,7 +742,6 @@ function drawUpgradesScreen(ctx) {
       uiText(ctx, txt, x + w - 10, y + 14, { size: T.small, color: col, align: 'right' });
     }
   });
-  if (rows.length > VIS) uiText(ctx, (off > 0 ? '^ ' : '') + (off + VIS < rows.length ? 'v' : ''), x + w, 98, { size: T.small, color: P.grey, align: 'right' });
   const cur = rows[G.upgradeSel];
   if (cur && cur.kind !== 'back') {                                // Erklaerung zum gewaehlten Eintrag: Feld rechts neben der Liste
     const [la, lb] = detailWrapped(ctx, cur, DW - 20), top = Y0, bh = VIS * GAP - 3;
@@ -999,7 +996,7 @@ function drawInventoryScreen(ctx) {
   const P = STYLE.pal, T = STYLE.type, t = G.realTime, slots = CFG.items.slots;
   drawMenuBg(ctx, 'keysettings');
   drawEmbers(ctx);
-  uiText(ctx, 'INVENTORY', 24, 40, { size: T.h1, color: P.yellow, glow: P.yellow });
+  uiText(ctx, 'ARMORY', 24, 40, { size: T.h1, color: P.yellow, glow: P.yellow });
   drawCoreCount(ctx);
   drawLevelBar(ctx, 190, 38, 150);                                   // Spielerlevel mit Fortschrittsbalken
 
@@ -1167,7 +1164,7 @@ function drawCosmeticsScreen(ctx) {
     G.cosListOff = clamp(G.cosListSeen && G.cosListSeen.split(':')[0] === '' + G.cosTab ? G.cosListOff : 0, G.cosSel - (VIS - 1), G.cosSel); G.cosListSeen = lkey;
   }
   const off = clamp(G.cosListOff, 0, lmax);
-  if (!G.colorPick) UIScroll.bar(ctx, 'cosList', lx + lw + 3, Y0, 5, VIS * (H + GAP) - GAP, true, items.length, VIS, off, (v) => { G.cosListOff = v; });
+  if (!G.colorPick) UIScroll.bar(ctx, 'cosList', 12, Y0, 5, VIS * (H + GAP) - GAP, true, items.length, VIS, off, (v) => { G.cosListOff = v; });
   (G.colorPick ? [] : items.slice(off, off + VIS)).forEach((it, k) => {
     const i = off + k, sel = G.cosSel === i, y = Y0 + k * (H + GAP), owned = Save.cosOwned(cat.id, it.id), eq = Save.cosEquipped(cat.id) === it.id, afford = Save.data.souls >= it.cost;
     UIHit.add(lx, y, lw, H, () => { G.cosSel = i; }, { noConfirm: true });          // Klick waehlt nur aus, gekauft wird ueber den Knopf in der Vorschau
@@ -1180,7 +1177,6 @@ function drawCosmeticsScreen(ctx) {
     const st = eq ? 'EQUIPPED' : owned ? 'OWNED' : it.cost + ' CREDITS';
     uiText(ctx, st, x + w - 8, y + 18, { size: T.small, color: eq ? P.cyan : owned ? P.ice : afford ? P.yellow : P.red, align: 'right' });
   });
-  if (items.length > VIS && !G.colorPick) uiText(ctx, (off > 0 ? '^ ' : '') + (off + VIS < items.length ? 'v' : ''), lx + lw - 6, Y0 - 3, { size: T.small, color: P.grey, align: 'right' });
   const by = Y0 + VIS * (H + GAP) + 2, backSel = G.cosSel === items.length;
   if (G.colorPick) drawColorPick(ctx, cat, selIt, lx, Y0 - 2, lw, by + 22 - Y0 + 2);
   else {
@@ -1561,7 +1557,7 @@ function drawKeysScreen(ctx) {
   panel(C2, 208, 2 * W + 12, 78, 'MENUS', P.green);
   const mrow = (x, y, key, text, kw) => { uiText(ctx, key, x, y, { size: T.small, color: P.ice }); uiText(ctx, text, x + kw, y, { size: T.small, color: P.grey, maxW: W - kw - 6 }); };
   [['W/S, ARROWS', 'SELECT (OR MOUSE)'], ['A/D, ARROWS', 'CHANGE / SWITCH TAB'], ['SPACE, ENTER', 'CONFIRM / BUY / EQUIP'], ['ESC, X, R-CLICK', 'BACK']].forEach(([k, t], i) => mrow(C2 + 8, 230 + i * 12, k, t, 84));
-  [['U', 'LEVEL UP GEAR (INVENTORY)'], ['TAB', 'RUN DETAILS / OWN DATA'], ['P, BACKSPACE', 'PAUSE (ALSO ESC)'], ['L M N V F' + (PWA.visible ? ' I' : '') + (statsOpen() ? ' T' : ''), 'MAIN MENU ICONS']].forEach(([k, t], i) => mrow(C2 + W + 18, 230 + i * 12, k, t, 62));
+  [['U', 'LEVEL UP GEAR (ARMORY)'], ['TAB', 'RUN DETAILS / OWN DATA'], ['P, BACKSPACE', 'PAUSE (ALSO ESC)'], ['L M N V F' + (PWA.visible ? ' I' : '') + (statsOpen() ? ' T' : ''), 'MAIN MENU ICONS']].forEach(([k, t], i) => mrow(C2 + W + 18, 230 + i * 12, k, t, 62));
 
   uiText(ctx, 'SURVIVE.', STAGE_W / 2, 296, { size: T.h2, color: P.red, align: 'center', glow: P.red });
   UIHit.add(STAGE_W / 2 - 80, 306, 160, 24, () => {});                // Klick = zurueck

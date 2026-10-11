@@ -107,7 +107,7 @@ const Tutorial = {
       uiPanel(ctx, STAGE_W / 2 - 170, 100, 340, 140, { color: P.green, fill: P.void, alpha: 0.96, glow: true });
       uiText(ctx, 'TUTORIAL COMPLETE', STAGE_W / 2, 135, { size: T.h1, color: P.green, align: 'center', glow: P.green });
       uiText(ctx, 'You know every basic now. Spend credits in UPGRADES and', STAGE_W / 2, 160, { size: T.body, color: P.ice, align: 'center' });
-      uiText(ctx, 'INVENTORY, then take on bosses, events and evolutions.', STAGE_W / 2, 173, { size: T.body, color: P.ice, align: 'center' });
+      uiText(ctx, 'ARMORY, then take on bosses, events and evolutions.', STAGE_W / 2, 173, { size: T.body, color: P.ice, align: 'center' });
       if (this.firstTime) uiText(ctx, 'FIRST TIME BONUS: +' + TUT_BONUS_CORES + ' CREDITS', STAGE_W / 2, 194, { size: T.h2, color: P.yellow, align: 'center' });
       if (this.levelRes) uiText(ctx, '+' + this.levelRes.xp + ' XP   -   ' + (this.levelRes.to > this.levelRes.from ? 'LEVEL UP!  LV ' + this.levelRes.from + ' > ' + this.levelRes.to : 'LV ' + this.levelRes.to), STAGE_W / 2, 208, { size: T.small, color: P.green, align: 'center' });
       if (this.newMs.length) uiText(ctx, 'MILESTONE: ' + this.newMs[0].name, STAGE_W / 2, 221, { size: T.small, color: P.cyan, align: 'center' });
@@ -125,7 +125,7 @@ const Tutorial = {
       uiText(ctx, 'Nothing happens until you press SPACE. Read in peace.', STAGE_W / 2, y + h - 36, { size: T.small, color: P.grey, align: 'center' });
       ctx.save(); ctx.globalAlpha = pulse;
       uiPanel(ctx, STAGE_W / 2 - 100, y + h - 28, 200, 20, { color: P.green, fill: P.void, alpha: 1, glow: true });
-      uiText(ctx, 'PRESS SPACE TO START', STAGE_W / 2, y + h - 14, { size: T.h2, color: P.green, align: 'center' });
+      uiText(ctx, 'CONTINUE', STAGE_W / 2, y + h - 14, { size: T.h2, color: P.green, align: 'center' });
       ctx.restore();
       return;
     }
