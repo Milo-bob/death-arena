@@ -69,7 +69,7 @@ const Pvp = {
     this.ch.send('start', info); this.roundStart(info);
   },
   // Spielart der Lobby (der Host legt sie beim Erstellen fest): 'pvp' oder 'coop'
-  gameNow() { if (this.isHost) return this.game; const h = this.players.find((p) => p.host); return h && h.game === 'coop' ? 'coop' : 'pvp'; },
+  gameNow() { if (this.isHost) return this.game; const h = this.players.find((p) => p.host); return h ? (h.game === 'coop' ? 'coop' : 'pvp') : this.game; },       // solange der Host noch nicht sichtbar ist, gilt der gewaehlte Modus (sonst steht beim Beitreten kurz PVP ARENA im Koop)
   // Koop: Karte (der Host waehlt unter seinen freigeschalteten, alle sehen sie ueber seine Anwesenheit)
   mapNow() { if (this.isHost) return this.coopMap; const h = this.players.find((p) => p.host); return h && Number.isFinite(h.map) ? clamp(h.map | 0, 0, CFG.maps.length - 1) : 0; },
   toggleMap(d) {

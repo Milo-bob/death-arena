@@ -956,10 +956,12 @@ class Player {
     Cos.drawAura(ctx, Cos.cur('aura'), this.x, this.y, t);
     if (G.infinite) Cos.drawEndless(ctx, Cos.cur('endless'), this.x, this.y, t, { homeX: 0, homeY: 0, mins: G.time / 60 });
     Cos.gearMoving = !!this.cosMoving;
-    Cos.drawGear(ctx, gear, this.x, this.y, this.dir, t, 'back');
     Cos2.state.moving = !!this.cosMoving; Cos2.state.dash = this.dashLeft > 0; Cos2.state.hp = clamp(this.hp / this.maxHp, 0, 1);       // Zustand fuer Skins mit Verhalten (Cosmetics)
     const vm = Cos2.victoryMod(Cos2.vic);                                    // Cosmetic Siegerpose "Victory Spin": huepft und dreht sich kurz
+    Cos.gearAlpha = this.blinkT > 0 ? 0.18 : 1;                              // Gear folgt dem Schiff: Durchsichtigkeit, Siegerpose (Hop/Drehung)
+    Cos.drawGear(ctx, gear, this.x, this.y + vm.hop, this.dir + vm.spin, t, 'back');
     Cos.drawShip(ctx, Cos.player(), this.x, this.y + vm.hop, this.dir + vm.spin, CFG.player.size + (this.boosted ? 30 : 0), { hue, brightness, alpha: this.blinkT > 0 ? 0.18 : 1 }, Cos.cur('skin'), t);
-    Cos.drawGear(ctx, gear, this.x, this.y, this.dir, t, 'front');
+    Cos.drawGear(ctx, gear, this.x, this.y + vm.hop, this.dir + vm.spin, t, 'front');
+    Cos.gearAlpha = undefined;
   }
 }

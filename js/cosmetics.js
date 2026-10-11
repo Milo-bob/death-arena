@@ -305,6 +305,7 @@ const Cos = {
     if (!it || !it.fx) return;
     const P = STYLE.pal, sx = STAGE_W / 2 + x, sy = STAGE_H / 2 - y;
     ctx.save();
+    ctx.globalAlpha = this.gearAlpha === undefined ? 1 : this.gearAlpha;          // gleiche Durchsichtigkeit wie das Schiff (Phase/Blink)
     if (it.fx === 'crown') {                                   // schwebt ueber dem Kopf, dreht sich nicht
       if (layer === 'front') {
         const by = sy - 17 + Math.round(Math.sin(t * 3)), c = P.yellow;
@@ -319,11 +320,13 @@ const Cos = {
     const ga = (dir - 90) * DEG, ca = Math.cos(ga), sa = Math.sin(ga);      // lokale Koordinaten: +x zeigt nach vorn
     const T = (x2, y2) => [sx + x2 * ca - y2 * sa, sy + x2 * sa + y2 * ca], poly = (pts) => pts.map((p) => T(p[0], p[1]));
     if (it.fx === 'wings' && layer === 'back') {
-      const flap = Math.sin(t * 7) * 2;
+      // Das Schiff ist ca. 40 Einheiten gross (Sprite 16 px x 250 %), die Fluegel muessen deutlich hinter dem Rumpf hervorragen
+      const flap = Math.sin(t * 7) * 3;
       for (const s of [-1, 1]) {
-        ctx.fillStyle = P.cyanDark; pxPolyFill(ctx, poly([[-2, s * 5], [-9, s * (12 + flap)], [-17, s * (15 + flap)], [-12, s * 6]]));
-        ctx.fillStyle = it.color; pxPolyFill(ctx, poly([[-3, s * 5], [-9, s * (11 + flap)], [-12, s * 6]]));
-        ctx.fillStyle = P.ice; const a = T(-2, s * 5), b = T(-17, s * (15 + flap)); pxLine(ctx, a[0], a[1], b[0], b[1], 1);
+        ctx.fillStyle = P.cyanDark; pxPolyFill(ctx, poly([[0, s * 7], [-8, s * (17 + flap)], [-18, s * (27 + flap)], [-26, s * (22 + flap)], [-17, s * 8]]));
+        ctx.fillStyle = it.color; pxPolyFill(ctx, poly([[-1, s * 7], [-8, s * (16 + flap)], [-17, s * (25 + flap)], [-14, s * 8]]));
+        ctx.fillStyle = P.ice; const a = T(0, s * 7), b = T(-18, s * (27 + flap)); pxLine(ctx, a[0], a[1], b[0], b[1], 1);
+        const c = T(-8, s * (17 + flap)), d = T(-26, s * (22 + flap)); pxLine(ctx, c[0], c[1], d[0], d[1], 1);
       }
     } else if (it.fx === 'horns' && layer === 'front') {
       for (const s of [-1, 1]) {
@@ -333,8 +336,9 @@ const Cos = {
     } else if (it.fx === 'antenna' && layer === 'back') {
       ctx.fillStyle = P.grey; pxPoly(ctx, poly([[-5, 0], [-10, -6], [-15, -8]]), false, 1);
       const tip = T(-15.5, -8.5);
+      const ba = ctx.globalAlpha;
       ctx.fillStyle = Math.floor(t * 3) % 2 ? P.red : P.green; pxFill(ctx, tip[0] - 1, tip[1] - 1, 2);
-      ctx.globalAlpha = 0.25; pxGlow(ctx, tip[0], tip[1], 5);
+      ctx.globalAlpha = ba * 0.25; pxGlow(ctx, tip[0], tip[1], 5);
     } else if (it.fx === 'jetpack' && layer === 'back') {
       // Die Tanks sitzen hinten am Schiff (das Schiff ist nur ca. 10 Einheiten gross, weiter vorn waeren sie verdeckt); die Flamme ragt nach hinten heraus
       for (const s of [-1, 1]) {

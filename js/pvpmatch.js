@@ -98,7 +98,9 @@ class RemotePlayer extends Enemy {
     if (this.dead) return;
     const cx = STAGE_W / 2 + this.x, cy = STAGE_H / 2 - this.y, P = STYLE.pal, age = Math.min(0.3, G.realTime - this.ghostAt), fr = framesOf(age);
     for (const g of this.ghosts) PvpMatch.drawGhost(ctx, g, fr);
-    drawSprite(ctx, Cos.tinted(this.spr, this.friendly ? '' : 'hue-rotate(150deg)'), this.x, this.y, this.dir, CFG.player.size, { brightness: this.hitFlash > 0 ? 2 : 0, alpha: this.blink ? 0.18 : 1 });       // umgefaerbte Kopie statt Farbfilter in jedem Bild (haengt in Edge)
+    if (this.cs) CoopMate.prototype.drawLook.call(this, ctx, cx, cy);                // Skin, Aura und Gear des Spielers (wie im Koop)
+    else drawSprite(ctx, Cos.tinted(this.spr, this.friendly ? '' : 'hue-rotate(150deg)'), this.x, this.y, this.dir, CFG.player.size, { brightness: this.hitFlash > 0 ? 2 : 0, alpha: this.blink ? 0.18 : 1 });       // umgefaerbte Kopie statt Farbfilter in jedem Bild (haengt in Edge)
+    if (this.cs && this.hitFlash > 0) drawSprite(ctx, Cos.tinted(this.spr, ''), this.x, this.y, this.dir, CFG.player.size, { brightness: 2, alpha: 0.5 });
     if (this.shield) { ctx.save(); ctx.globalAlpha = 0.6; ctx.fillStyle = P.cyan; pxRing(ctx, cx, cy, 20, 1, 14, G.realTime); ctx.restore(); }
     if (this.friendly) { ctx.save(); ctx.globalAlpha = 0.5; ctx.fillStyle = P.cyan; pxRing(ctx, cx, cy, 14, 1, 10, G.realTime * 0.3); ctx.restore(); }
     // Name und Lebensbalken ueber dem Spieler (Gegner rot, Teamkameraden tuerkis)
@@ -365,7 +367,7 @@ const PvpMatch = {
     }
     if (ev === 'state') {
       r.nx = p.x; r.ny = p.y; r.nd = p.d; r.vx = p.vx; r.vy = p.vy; r.at = G.realTime; r.hp = p.hp; r.mhp = p.mh;
-      r.spr = p.spr || 'player'; r.blink = !!p.bl; r.shield = !!p.sh;
+      r.spr = p.spr || 'player'; r.blink = !!p.bl; r.shield = !!p.sh; if (p.cs && typeof p.cs === 'object') r.cs = p.cs;
       this.ghostsFrom(r, p.a || []);
       P.lastSeen[p.from] = G.realTime;
     } else if (ev === 'hit') {
@@ -460,7 +462,7 @@ const PvpMatch = {
       P.sendT = 1 / (P.players.length > 2 ? C.sendHzMany : C.sendHz);
       const pl = G.player, r1 = (v) => Math.round(v * 10) / 10;
       this.send('state', { x: r1(pl.x), y: r1(pl.y), d: r1(pl.dir), vx: r1(pl.velX || 0), vy: r1(pl.velY || 0), hp: Math.round(pl.hp), mh: Math.round(pl.maxHp),
-        spr: Hero.sprite(), bl: pl.blinkT > 0 ? 1 : 0, sh: pl.shield ? 1 : 0, a: this.snapshot() });
+        spr: Hero.sprite(), bl: pl.blinkT > 0 ? 1 : 0, sh: pl.shield ? 1 : 0, a: this.snapshot(), cs: (P.csN = (P.csN || 0) + 1) % 20 === 1 ? Coop.lookPack() : undefined });       // Cosmetics (Skin, Aura, Gear) nur alle 20 Pakete mitschicken
       if (Pvp.isHost && P.players.some((q) => q.bot)) {              // der Host schickt die Bots mit
         const r1b = (v) => Math.round(v * 10) / 10;
         this.send('bots', { l: this.remotes.filter((e) => e.isBot).map((e) => ({ i: e.pid, x: r1b(e.x), y: r1b(e.y), d: r1b(e.dir), hp: Math.round(e.hp), mh: Math.round(e.mhp), sh: e.shield ? 1 : 0, dd: e.dead ? 1 : 0, a: e.dead ? [] : this.snapshot(e.attacks) })) });

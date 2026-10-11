@@ -64,13 +64,13 @@ class CoopMate {
       Cos.over = over;
       const moving = Math.hypot(this.vx, this.vy) > 0.5;
       Cos.drawAura(ctx, over.aura, this.x, this.y, t);
-      Cos.gearMoving = moving;
+      Cos.gearMoving = moving; Cos.gearAlpha = this.blink ? 0.18 : 1;
       Cos.drawGear(ctx, over.gear, this.x, this.y, this.dir, t, 'back');
       Cos2.state.moving = moving; Cos2.state.dash = false; Cos2.state.hp = clamp(this.hp / Math.max(1, this.mhp), 0, 1);
       Cos.drawShip(ctx, Cos.sprite(this.spr, 'skin'), this.x, this.y, this.dir, CFG.player.size, { alpha: this.blink ? 0.18 : 1 }, over.skin, t);
       Cos.drawGear(ctx, over.gear, this.x, this.y, this.dir, t, 'front');
     } catch (e) { this.cs = null; plain(); }
-    finally { Cos.over = prev; }
+    finally { Cos.over = prev; Cos.gearAlpha = undefined; }
   }
 }
 
