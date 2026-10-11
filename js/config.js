@@ -1540,6 +1540,7 @@ for (const id of Object.keys(CFG.items.catalog)) {
 //  Es gibt weder Credits noch XP noch Erfolge; Tod = Abbruch. Die Uhr zaehlt in Echtzeit (auch in Auswahlbildschirmen), steht nur im Pausenmenue.
 // ==========================================================================================
 CFG.level.gates.speedrun = 5;
+CFG.level.gates.pvp = 7;                                    // PvP-Arena erst ab Spielerlevel 7 (Koop von Anfang an)
 CFG.speedrun = {
   order: ['rush'],                                            // aktive Karten; 'gauntlet' und 'seed' sind abgeschaltet (Code und Zahlen unten bleiben, Wiedereinschalten = hier eintragen + Reiter in leaderboard.js)
   kinds: {

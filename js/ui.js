@@ -595,14 +595,15 @@ function drawMultiSelectScreen(ctx) {
   drawEmbers(ctx);
   uiText(ctx, 'MULTIPLAYER', STAGE_W / 2, 56, { size: T.h1, color: P.red, align: 'center', glow: P.red });
   const lw = 300, PX = 40 + lw + 24, PW = STAGE_W - 40 - PX, top = 90, GAP = 38, RH = 30;
-  MULTI_ITEMS.forEach((id, i) => drawMenuRow(ctx, top + i * GAP, labels[id], G.multiSel === i, { w: lw, h: RH, cx: 40 + lw / 2, hit: () => { G.multiSel = i; } }));
+  MULTI_ITEMS.forEach((id, i) => drawMenuRow(ctx, top + i * GAP, labels[id], G.multiSel === i, { w: lw, h: RH, cx: 40 + lw / 2, hit: () => { G.multiSel = i; }, locked: CFG.level.gates[id] && !Save.gateOpen(id) ? CFG.level.gates[id] : 0 }));
   const id = MULTI_ITEMS[G.multiSel];
   uiPanel(ctx, PX, top, PW, 6 * GAP - (GAP - RH), { color: P.red, fill: P.void, alpha: 0.92, glow: true });
   uiText(ctx, labels[id], PX + 14, top + 24, { size: T.h1, color: P.red });
   const d = id === 'coop' ? ['Play a run together with up to 3 friends on the standard maps, only bigger. Create a lobby and share the code.', 'Everyone keeps their own gear, upgrades and hero. More players means a much harder run: 2 players are about 2.7x, 4 players about 8x as hard. Fallen players come back after the next boss.'] : id === 'pvp' ? ['Fight other players in an arena. Create a lobby and share the code, or join a friend with their code.', 'Up to 4 players, all vs all or in teams. Your own weapons, abilities and upgrades count. Needs an internet connection.'] : ['Back to the mode selection.', ''];
   let ty = top + 48;
   ty += 13 * uiWrap(ctx, d[0], PX + 14, ty, PW - 28, 13, { size: T.body, color: P.ice }) + 6;
-  uiWrap(ctx, d[1], PX + 14, ty, PW - 28, 13, { size: T.body, color: P.grey });
+  ty += 13 * uiWrap(ctx, d[1], PX + 14, ty, PW - 28, 13, { size: T.body, color: P.grey }) + 6;
+  if (CFG.level.gates[id] && !Save.gateOpen(id)) uiWrap(ctx, 'LOCKED: reach player level ' + CFG.level.gates[id] + ' (you are level ' + Save.plevel() + '). Every run earns XP.', PX + 14, ty, PW - 28, 13, { size: T.body, color: P.orange });
 }
 
 // Endlos-Modus vor dem Start: Zeitpunkt des finalen Bosses wählen

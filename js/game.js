@@ -440,6 +440,7 @@ const G = {
     if (Input.pressed('Escape')) { this.mode = 'modeselect'; return; }
     if (!(Input.pressed('Space') || Input.pressed('Enter'))) return;
     const it = MULTI_ITEMS[this.multiSel];
+    if (CFG.level.gates[it] && !Save.gateOpen(it)) { Sfx.play('deny'); return; }          // PvP erst ab dem noetigen Spielerlevel
     if (it === 'pvp' || it === 'coop') { this.mode = 'pvp'; Pvp.open(it); }
     else this.mode = 'modeselect';
   },
