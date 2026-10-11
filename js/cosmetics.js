@@ -341,11 +341,11 @@ const Cos = {
     } else if (it.fx === 'jetpack' && layer === 'back') {
       // Tanks hinten am Schiff (Schiff ca. 40 Einheiten gross, Heck bei ca. -16); die Flamme ragt nach hinten heraus
       for (const s of [-1, 1]) {
-        const body = poly([[-26, s * 8 - 3], [-12, s * 8 - 3], [-12, s * 8 + 3], [-26, s * 8 + 3]]);
+        const body = poly([[-19, s * 6 - 2], [-11, s * 6 - 2], [-11, s * 6 + 2], [-19, s * 6 + 2]]);
         ctx.fillStyle = P.greyDark; pxPolyFill(ctx, body); ctx.fillStyle = P.grey; pxPoly(ctx, body, true, 1);
-        const len = (this.gearMoving ? 14 : 4) + Math.abs(Math.sin(t * 31 + s * 2)) * (this.gearMoving ? 7 : 2);
-        ctx.fillStyle = P.orange; pxPolyFill(ctx, poly([[-26, s * 8 - 3], [-26 - len, s * 8], [-26, s * 8 + 3]]));
-        ctx.fillStyle = P.yellow; pxPolyFill(ctx, poly([[-26, s * 8 - 2], [-26 - len * 0.55, s * 8], [-26, s * 8 + 2]]));
+        const len = (this.gearMoving ? 9 : 3) + Math.abs(Math.sin(t * 31 + s * 2)) * (this.gearMoving ? 5 : 1.5);
+        ctx.fillStyle = P.orange; pxPolyFill(ctx, poly([[-19, s * 6 - 2], [-19 - len, s * 6], [-19, s * 6 + 2]]));
+        ctx.fillStyle = P.yellow; pxPolyFill(ctx, poly([[-19, s * 6 - 1], [-19 - len * 0.55, s * 6], [-19, s * 6 + 1]]));
       }
     }
     ctx.restore();
@@ -358,7 +358,7 @@ const Cos = {
     this.gearT = Juice.level === 2 ? 0.03 : 0.06;
     const back = dir + 180;
     for (const s of [-1, 1]) {
-      const bx = x + fwdX(back) * 34 + fwdX(dir + 90) * s * 8, by = y + fwdY(back) * 34 + fwdY(dir + 90) * s * 8;
+      const bx = x + fwdX(back) * 27 + fwdX(dir + 90) * s * 6, by = y + fwdY(back) * 27 + fwdY(dir + 90) * s * 6;
       this.push(list, { x: bx, y: by, vx: fwdX(back) * 1.6 + rand(-0.2, 0.2), vy: fwdY(back) * 1.6 + rand(-0.2, 0.2), life: 0.36, color: '#ff8a1f', size: 3, shape: 'flame' });
     }
   },
