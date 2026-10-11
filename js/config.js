@@ -1609,5 +1609,5 @@ CFG.pvp = { startTime: CFG.finalBoss.at, weaponUps: CFG.boss.order.length, radiu
 // Schwierigkeit: Faktor m(n) = n * (1 + extra * (n - 1)), also 1, 2.7, 5.1, 8.4 (immer deutlich ueber der Spielerzahl). Er wird aufgeteilt: zaehere Gegner (m^hpExp),
 // mehr Gegner (m^spawnExp, Raten und Obergrenzen), Boss-Leben (m^bossExp). Credits: x m^coreExp. Karten sind mapScale-mal so gross (gleiche vier Karten).
 CFG.coop = { mapScale: 1.7, extra: 0.35, hpExp: 0.4, spawnExp: 0.7, bossExp: 0.9, coreExp: 0.5, obstacleMul: 1.5, countdown: 3,
-  stateHz: 15, worldHz: 10, reviveFrac: 0.5, maxEnemies: 140, maxShots: 90, mateTimeout: 8, maxPlayers: 4 };
+  pickTime: 15, stateHz: 15, worldHz: 10, reviveFrac: 0.5, maxEnemies: 140, maxShots: 90, mateTimeout: 8, maxPlayers: 4 };
 CFG.coop.mult = (n) => n * (1 + CFG.coop.extra * (Math.max(1, n) - 1));

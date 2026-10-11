@@ -1762,4 +1762,12 @@ function drawPickScreen(ctx) {
   });
   if (Tutorial.active) uiText(ctx, 'After every boss you pick a new ability like this. Choose one.', STAGE_W / 2, 84, { size: T.small, color: P.yellow, align: 'center' });
   if (k.age > 0.6) drawPrompt(ctx, 'SELECT [SPACE]', 318);
+  if (G.coop) {                                                       // Koop: ablaufender Balken, am Ende nimmt das Spiel die markierte Karte
+    const T2 = CFG.coop.pickTime, left = clamp(1 - k.age / T2, 0, 1), bw = 200, bx = STAGE_W / 2 - 150, by = 296;
+    const col = left > 0.5 ? P.cyan : left > 0.25 ? P.yellow : P.red;
+    ctx.fillStyle = P.greyDark; ctx.fillRect(bx - 1, by - 1, bw + 2, 7);
+    ctx.fillStyle = col; ctx.fillRect(bx, by, Math.round(bw * left), 5);
+    if (left < 0.25 && Math.floor(G.realTime * 6) % 2 === 0) { ctx.globalAlpha = 0.5; ctx.fillStyle = P.white; ctx.fillRect(bx, by, Math.round(bw * left), 5); ctx.globalAlpha = 1; }
+    uiText(ctx, 'AUTO-PICK IN ' + Math.ceil(T2 - k.age) + 'S', bx + bw + 8, by + 6, { size: T.small, color: col });
+  }
 }

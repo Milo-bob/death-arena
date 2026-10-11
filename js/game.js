@@ -690,6 +690,7 @@ const G = {
     if (Input.pressed('ArrowRight') || Input.pressed('KeyD')) k.sel = (k.sel + 1) % n;
     let confirm = Input.pressed('Space') || Input.pressed('Enter') || Input.clicked;
     for (let i = 0; i < n; i++) if (Input.pressed('Digit' + (i + 1))) { k.sel = i; confirm = true; }     // Ziffer wählt direkt
+    if (this.coop && k.age >= CFG.coop.pickTime) confirm = true;       // Koop: die Welt laeuft weiter, nach pickTime Sekunden wird die markierte Karte genommen
     if (k.kind === 'xp') {                                            // Level-up: ein Perk (kein Überspringen, kurze Sperre gegen versehentliches Bestätigen)
       if (k.age > 0.45 && confirm) { Xp.choose(k.ids[k.sel]); this.pick = null; this.mode = 'play'; }
       return;
