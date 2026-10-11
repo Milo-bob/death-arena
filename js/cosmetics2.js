@@ -399,12 +399,12 @@ const Cos2 = {
       drawSprite(ctx, name, x, y, dir, size * (1 + 0.04 * Math.sin(t * 4)), opts);
     } else if (fx === 'mech') {                                // Panzerplatten, die beim Dash aufklappen
       this.mechK += ((st.dash ? 1 : 0) - this.mechK) * 0.25;
-      const o = this.mechK * 4;
+      const o = this.mechK * 7;
       ctx.globalAlpha = a;
       for (const s of [-1, 1]) {
-        const plate = [T(2, s * (4 + o)), T(-6, s * (6 + o)), T(-7, s * (10 + o)), T(3, s * (8 + o))];
+        const plate = [T(8, s * (8 + o)), T(-12, s * (10 + o)), T(-14, s * (21 + o)), T(9, s * (18 + o))];       // Schiff ist ca. 40 gross: Platten ragen seitlich deutlich heraus
         ctx.fillStyle = P.greyDark; pxPolyFill(ctx, plate); ctx.fillStyle = P.grey; pxPoly(ctx, plate, true, 1);
-        const rv = T(-2, s * (7 + o)); ctx.fillStyle = P.ice; pxFill(ctx, rv[0] - 1, rv[1] - 1, 1);
+        for (const rx of [4, -6]) { const rv = T(rx, s * (14 + o)); ctx.fillStyle = P.ice; pxFill(ctx, rv[0] - 1, rv[1] - 1, 2); }
       }
       drawSprite(ctx, name, x, y, dir, size, opts);
       const v = T(R * 0.55, 0); ctx.globalAlpha = a; ctx.fillStyle = P.cyan; pxFill(ctx, v[0] - 1, v[1] - 1, 1);       // Visier

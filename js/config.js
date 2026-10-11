@@ -300,6 +300,7 @@ const CFG = {
         { id: 'toxic',   name: 'TOXIC',       cost: 110, color: STYLE.pal.green,  filter: 'hue-rotate(225deg)' },
         { id: 'frost',   name: 'FROST',       cost: 110, color: STYLE.pal.cyan,   filter: 'hue-rotate(-75deg) brightness(1.1)' },
         { id: 'rose',    name: 'ROSE',        cost: 90,  color: STYLE.pal.pink,   filter: 'hue-rotate(50deg)' },
+        { id: 'grey',    name: 'GREY',        cost: 80,  color: STYLE.pal.greyMid, filter: 'grayscale(1) brightness(0.85)' },
         { id: 'ghost',   name: 'GHOST',       cost: 200, color: STYLE.pal.ice,    filter: 'grayscale(1) brightness(1.3)' },
         { id: 'glitch',  name: 'GLITCH',      cost: 260, color: STYLE.pal.cyan,   filter: 'hue-rotate(-75deg)', fx: 'glitch' },
         { id: 'holo',    name: 'HOLOGRAM',    cost: 320, color: STYLE.pal.teal,   filter: 'hue-rotate(-100deg) brightness(1.3)', fx: 'holo' },
