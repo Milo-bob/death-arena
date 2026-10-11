@@ -32,7 +32,7 @@ const Pvp = {
     this.ch = Net.open(code, { name: this.name(), host, mode: 'ffa', rule: 'own', set: Save.data.pvpSet }, {
       onPlayers: (list) => this.onPlayers(list),
       onMessage: (ev, p) => { if (ev === 'start' && !this.isHost) this.roundStart(p); else PvpMatch.onMessage(ev, p); },
-      onStatus: (s) => { if (s === 'error' && this.ch) { this.failBack('CONNECTION FAILED'); } },
+      onStatus: (s) => { if (s === 'error' && this.ch) this.failBack('CONNECTION FAILED'); else if (s === 'reconnecting') this.say('RECONNECTING...', STYLE.pal.orange); else if (s === 'joined' && this.msg === 'RECONNECTING...') this.say(''); },
     });
   },
 
@@ -391,7 +391,7 @@ const Pvp = {
 if (typeof I18n !== 'undefined' && I18n.add) I18n.add({
   'PVP ARENA': 'PVP-ARENA', 'MULTIPLAYER': 'MEHRSPIELER', 'Play with other players online. Pick a multiplayer mode next.': 'Spiele online mit anderen Spielern. Wähle als Nächstes einen Mehrspieler-Modus.', 'Currently: PVP Arena. Needs an internet connection.': 'Aktuell: PvP-Arena. Braucht eine Internetverbindung.', 'Back to the mode selection.': 'Zurück zur Modus-Auswahl.', 'CREATE LOBBY': 'LOBBY ERSTELLEN', 'JOIN LOBBY': 'LOBBY BEITRETEN', 'JOIN': 'BEITRETEN', 'LEAVE LOBBY': 'LOBBY VERLASSEN', 'COPY CODE': 'CODE KOPIEREN', 'COPIED!': 'KOPIERT!',
   'LOBBY CODE': 'LOBBY-CODE', 'ENTER THE LOBBY CODE': 'LOBBY-CODE EINGEBEN', 'TYPE THE CODE (CTRL+V PASTES)': 'CODE TIPPEN (STRG+V FÜGT EIN)', 'TAP THE LETTERS BELOW (OR TYPE, CTRL+V PASTES)': 'BUCHSTABEN UNTEN ANTIPPEN (ODER TIPPEN, STRG+V FÜGT EIN)', 'DEL': 'LÖSCHEN',
-  'CONNECTING...': 'VERBINDE...', 'JOINING...': 'TRETE BEI...', 'HOST': 'HOST', '(YOU)': '(DU)', 'CONNECTION FAILED': 'VERBINDUNG FEHLGESCHLAGEN',
+  'CONNECTING...': 'VERBINDE...', 'RECONNECTING...': 'VERBINDE NEU...', 'JOINING...': 'TRETE BEI...', 'HOST': 'HOST', '(YOU)': '(DU)', 'CONNECTION FAILED': 'VERBINDUNG FEHLGESCHLAGEN',
   'THE HOST CLOSED THE LOBBY': 'DER HOST HAT DIE LOBBY GESCHLOSSEN', 'THE LOBBY IS FULL': 'DIE LOBBY IST VOLL', 'NO LOBBY WITH THIS CODE': 'KEINE LOBBY MIT DIESEM CODE',
   'NO CONNECTION POSSIBLE ON THIS DEVICE': 'AUF DIESEM GERÄT IST KEINE VERBINDUNG MÖGLICH',
   'Share the code. Everyone who joins appears here. Start the round when you are ready.': 'Teile den Code. Alle, die beitreten, erscheinen hier. Starte die Runde, wenn ihr bereit seid.',

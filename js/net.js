@@ -27,33 +27,49 @@ const Net = {
       ch.players = list; emit('onPlayers', list);
     };
     const track = () => send('presence', { type: 'presence', event: 'track', payload: ch.meta });
-    try {
-      const url = Account.URL.replace(/^http/, 'ws') + '/realtime/v1/websocket?apikey=' + encodeURIComponent(Account.KEY) + '&vsn=1.0.0';
-      ch.ws = new WebSocket(url);
-    } catch (e) { setStatus('error'); return ch; }
-    ch.ws.onopen = () => {
-      send('phx_join', { config: { broadcast: { self: false, ack: false }, presence: { key: id, enabled: true }, postgres_changes: [], private: false }, access_token: Account.KEY });
-      ch.hb = setInterval(() => send('heartbeat', {}, 'phoenix'), 20000);
+    // Verbindungsabbrueche (Netz, Server, Ruhezustand) werden still durch erneutes Verbinden behoben: gleiche Kennung, Anwesenheit wird neu gemeldet.
+    // Erst nach mehreren Fehlversuchen in Folge meldet der Kanal 'error'.
+    let tries = 0;
+    const lost = () => {
+      if (ch.closed || ch.rt) return;
+      clearInterval(ch.hb);
+      if (tries >= (ch.joined || ch.wasJoined ? 8 : 2)) { setStatus('error'); return; }
+      tries++; if (ch.joined) ch.wasJoined = true; ch.joined = false;
+      if (ch.wasJoined) setStatus('reconnecting');
+      ch.rt = setTimeout(() => { ch.rt = null; if (!ch.closed) connect(); }, Math.min(3000, 400 * tries));
     };
-    ch.ws.onmessage = (ev) => {
-      let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
-      if (m.topic !== topic) return;
-      const p = m.payload || {};
-      if (m.event === 'phx_reply' && p.status === 'ok' && !ch.joined) { ch.joined = true; ch.meta.at = Date.now(); track(); setStatus('joined'); }
-      else if (m.event === 'phx_reply' && p.status === 'error') setStatus('error');
-      else if (m.event === 'phx_error' || m.event === 'phx_close') setStatus(ch.closed ? 'closed' : 'error');
-      else if (m.event === 'presence_state') { for (const k of Object.keys(state)) delete state[k]; for (const [k, v] of Object.entries(p)) if (v.metas && v.metas.length) state[k] = v.metas[v.metas.length - 1]; publish(); }
-      else if (m.event === 'presence_diff') {
-        for (const [k, v] of Object.entries(p.leaves || {})) {            // nur loeschen, wenn der gehende Eintrag der aktuelle ist (ein erneutes track() meldet erst 'leave' des alten, dann 'join' des neuen Eintrags, auch in getrennten Nachrichten)
-          const cur = state[k];
-          if (!cur || !cur.phx_ref || !v.metas || !v.metas.length || v.metas.some((q) => q.phx_ref === cur.phx_ref)) delete state[k];
-        }
-        for (const [k, v] of Object.entries(p.joins || {})) if (v.metas && v.metas.length) state[k] = v.metas[v.metas.length - 1];
-        publish();
-      } else if (m.event === 'broadcast' && p.event) emit('onMessage', p.event, p.payload, p.payload && p.payload.from);
+    const connect = () => {
+      let ws;
+      try {
+        const url = Account.URL.replace(/^http/, 'ws') + '/realtime/v1/websocket?apikey=' + encodeURIComponent(Account.KEY) + '&vsn=1.0.0';
+        ws = new WebSocket(url);
+      } catch (e) { lost(); return; }
+      ch.ws = ws;
+      ws.onopen = () => {
+        send('phx_join', { config: { broadcast: { self: false, ack: false }, presence: { key: id, enabled: true }, postgres_changes: [], private: false }, access_token: Account.KEY });
+        ch.hb = setInterval(() => send('heartbeat', {}, 'phoenix'), 20000);
+      };
+      ws.onmessage = (ev) => {
+        let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+        if (m.topic !== topic) return;
+        const p = m.payload || {};
+        if (m.event === 'phx_reply' && p.status === 'ok' && !ch.joined) { ch.joined = true; tries = 0; if (!ch.meta.at) ch.meta.at = Date.now(); track(); setStatus('joined'); }
+        else if (m.event === 'phx_reply' && p.status === 'error') setStatus('error');
+        else if (m.event === 'phx_error' || m.event === 'phx_close') { if (ch.closed) setStatus('closed'); else { try { ws.close(); } catch (e) { /* egal */ } lost(); } }
+        else if (m.event === 'presence_state') { for (const k of Object.keys(state)) delete state[k]; for (const [k, v] of Object.entries(p)) if (v.metas && v.metas.length) state[k] = v.metas[v.metas.length - 1]; publish(); }
+        else if (m.event === 'presence_diff') {
+          for (const [k, v] of Object.entries(p.leaves || {})) {            // nur loeschen, wenn der gehende Eintrag der aktuelle ist (ein erneutes track() meldet erst 'leave' des alten, dann 'join' des neuen Eintrags, auch in getrennten Nachrichten)
+            const cur = state[k];
+            if (!cur || !cur.phx_ref || !v.metas || !v.metas.length || v.metas.some((q) => q.phx_ref === cur.phx_ref)) delete state[k];
+          }
+          for (const [k, v] of Object.entries(p.joins || {})) if (v.metas && v.metas.length) state[k] = v.metas[v.metas.length - 1];
+          publish();
+        } else if (m.event === 'broadcast' && p.event) emit('onMessage', p.event, p.payload, p.payload && p.payload.from);
+      };
+      ws.onerror = () => { /* onclose folgt, dort wird neu verbunden */ };
+      ws.onclose = () => { if (ch.ws === ws) lost(); };
     };
-    ch.ws.onerror = () => { if (!ch.closed) setStatus('error'); };
-    ch.ws.onclose = () => { clearInterval(ch.hb); setStatus(ch.closed ? 'closed' : 'error'); };
+    connect();
     ch.send = (event, payload) => send('broadcast', { type: 'broadcast', event, payload: Object.assign({ from: id }, payload || {}) });
     // Anwesenheit aktualisieren: schnelle Folgen (z. B. beim Durchblaettern der Sets) werden zu einer Nachricht zusammengefasst, sonst drosselt/beendet der Server die Verbindung
     ch.update = (meta) => {
@@ -63,7 +79,7 @@ const Net = {
       ch.updT = setTimeout(() => { ch.updT = null; if (!ch.closed) track(); }, 350);
     };
     ch.close = () => {
-      ch.closed = true; clearInterval(ch.hb); if (ch.updT && typeof clearTimeout === 'function') clearTimeout(ch.updT);
+      ch.closed = true; clearInterval(ch.hb); if (ch.rt && typeof clearTimeout === 'function') clearTimeout(ch.rt); if (ch.updT && typeof clearTimeout === 'function') clearTimeout(ch.updT);
       try { send('phx_leave', {}); ch.ws.close(); } catch (e) { /* schon zu */ }
       setStatus('closed');
     };
