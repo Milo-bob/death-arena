@@ -14,7 +14,7 @@ const Pvp = {
     return Save.data.pvpName;
   },
 
-  open() { this.scores = {}; this.leave(true); this.st = 'menu'; this.sel = 0; this.input = ''; this.say(''); },
+  open() { this.pick = null; this.scores = {}; this.leave(true); this.st = 'menu'; this.sel = 0; this.input = ''; this.say(''); },
   say(t, col) { this.msg = t; this.msgCol = col || null; this.msgAt = Date.now(); },
 
   // Verbindung schliessen und zurueck ins Menue (silent = keine Meldung loeschen)
@@ -100,10 +100,35 @@ const Pvp = {
     if (n < 2) return;
     Save.data.pvpHeroSel = l[(Math.max(0, l.indexOf(cur)) + d + n) % n]; Save.write(); Sfx.play('select');
   },
+  // Auswahlfenster (wie im Inventar): alle Moeglichkeiten der Zeile als Liste. row 0-3 Inventar-Slot, 4-6 Ability-Gruppe, 7 Held
+  openPick(row) {
+    let kind, key, list, cur, col;
+    const P = STYLE.pal;
+    if (row < 4) { kind = 'slot'; key = CFG.items.slots[row].id; list = this.equipList(key); cur = Save.pvpEquipped(key); col = slotColor(key); }
+    else if (row < 7) { kind = 'tier'; key = CFG.loadout.tiers[row - 4].id; list = this.tierList(key); cur = this.loadout()[key]; col = { weak: P.cyan, medium: P.yellow, strong: P.orange }[key] || P.cyan; }
+    else { kind = 'hero'; key = 'hero'; list = this.heroList(); cur = Save.pvpHero(this.ruleKind()); col = P.purple; }
+    this.pick = { kind, key, list, cur, col, sel: Math.max(0, list.indexOf(cur)), title: row < 4 ? CFG.items.slots[row].label : row < 7 ? CFG.loadout.tiers[row - 4].label : 'HERO' };
+    Sfx.play('select');
+  },
+  updatePick(up, dn, go) {
+    const K = this.pick, n = K.list.length;
+    if (Input.pressed('Escape')) { this.pick = null; return; }
+    if (!n) { if (go) this.pick = null; return; }
+    if (up) K.sel = (K.sel + n - 1) % n;
+    if (dn) K.sel = (K.sel + 1) % n;
+    if (go) {
+      const id = K.list[K.sel];
+      if (K.kind === 'slot') Save.data.pvpEquip = Object.assign({}, Save.data.pvpEquip, { [K.key]: id });
+      else if (K.kind === 'tier') Save.data.pvpLoadout = Object.assign({}, this.loadout(), { [K.key]: id });
+      else Save.data.pvpHeroSel = id;
+      Save.write(); Sfx.play('select'); this.pick = null;
+    }
+  },
   // Zeilen des Ausruestungs-Bildschirms: SET = nur die Set-Wahl, sonst 4 Inventar-Slots, 3 Ability-Gruppen, Held
   eqRows() { return this.ruleKind() === 'set' ? ['set'] : [0, 1, 2, 3, 4, 5, 6, 7]; },
   cycleRow(i, d) { if (this.ruleKind() === 'set') this.cycleSet(d); else if (i < 4) this.equipCycle(CFG.items.slots[i].id, d); else if (i < 7) this.cycle(i - 4, d); else this.heroCycle(d); },
 
+  RULE_SHORT: { own: 'RULES: OWN GEAR', setfix: 'RULES: ONE SET', setpick: 'RULES: PICK SET', all: 'RULES: ALL GEAR' },
   RULE_NAMES: { own: 'OWN EQUIPMENT', setfix: 'ONE SET FOR ALL', setpick: 'PICK A SET', all: 'ALL EQUIPMENT' },
 
   failBack(text) { this.leave(); this.st = 'menu'; this.say(text, STYLE.pal.red); Sfx.play('deny'); },
@@ -114,7 +139,10 @@ const Pvp = {
     const host = list.some((p) => p.host);
     if (host) this.hadHost = true;
     if (!this.hadHost) return;                                          // der Host kommt kurz nach dem Beitritt per Presence an (Pruefung in update)
-    if (!host) { this.failBack('THE HOST CLOSED THE LOBBY'); return; }
+    if (!host) {                                                        // Host kurz weg (z. B. beim Aktualisieren seiner Anwesenheit): erst nach 3 s wirklich schliessen
+      setTimeout(() => { if (this.ch && !this.isHost && this.hadHost && !this.players.some((p) => p.host)) this.failBack('THE HOST CLOSED THE LOBBY'); }, 3000);
+      return;
+    }
     if (list.length > Net.MAX_PLAYERS && !list.slice(0, Net.MAX_PLAYERS).some((p) => p.id === this.ch.id)) { this.failBack('THE LOBBY IS FULL'); return; }
     this.say('');
   },
@@ -152,15 +180,16 @@ const Pvp = {
         else { this.st = 'menu'; this.sel = 1; }
       }
     } else if (this.st === 'loadout') {
+      if (this.pick) { this.updatePick(up, dn, go); return; }
       const n = this.eqRows().length + 1;
       if (up) this.sel = (this.sel + n - 1) % n;
       if (dn) this.sel = (this.sel + 1) % n;
-      if (this.sel < n - 1) {
+      if (this.sel < n - 1 && this.ruleKind() === 'set') {
         if (Input.pressed('ArrowLeft') || Input.pressed('KeyA')) this.cycleRow(this.sel, -1);
         if (Input.pressed('ArrowRight') || Input.pressed('KeyD')) this.cycleRow(this.sel, 1);
       }
       if (Input.pressed('Escape') || (go && this.sel === n - 1)) { this.st = 'lobby'; this.sel = this.isHost ? 3 : 0; return; }
-      if (go && this.sel < n - 1) this.cycleRow(this.sel, 1);
+      if (go && this.sel < n - 1) { if (this.ruleKind() === 'set') this.cycleRow(this.sel, 1); else this.openPick(this.sel); }
     } else if (this.st === 'lobby') {
       const lr = this.lobbyRows(); if (up) this.sel = (this.sel + lr.length - 1) % lr.length; if (dn) this.sel = (this.sel + 1) % lr.length;
       this.sel = Math.min(this.sel, lr.length - 1);
@@ -173,7 +202,7 @@ const Pvp = {
         if (r === 'start') this.startRound();
         else if (r === 'mode') this.toggleMode();
         else if (r === 'rule') this.toggleRule(1);
-        else if (r === 'equipment') { this.st = 'loadout'; this.sel = 0; }
+        else if (r === 'equipment') { this.st = 'loadout'; this.sel = 0; this.pick = null; }
         else if (r === 'copy') { try { navigator.clipboard.writeText(this.code); } catch (e) { /* egal */ } this.copied = Date.now(); }
         else this.leave();
       }
@@ -186,7 +215,7 @@ const Pvp = {
     const P = STYLE.pal, T = STYLE.type, cx = STAGE_W / 2;
     drawMenuBg(ctx, 'keysettings');
     drawEmbers(ctx);
-    uiText(ctx, 'PVP ARENA', cx, 56, { size: T.h1, color: P.red, align: 'center', glow: P.red });
+    if (this.st !== 'loadout') uiText(ctx, 'PVP ARENA', cx, 56, { size: T.h1, color: P.red, align: 'center', glow: P.red });
     const top = 90, GAP = 46;
     if (this.st === 'menu') {
       const labels = ['CREATE LOBBY', 'JOIN LOBBY', 'BACK'], lw = 300, PX = 40 + lw + 24, PW = STAGE_W - 40 - PX;
@@ -228,6 +257,7 @@ const Pvp = {
       });
     } else if (this.st === 'loadout') {
       this.drawLoadout(ctx);
+      if (this.pick && this.ruleKind() !== 'set') this.drawPick(ctx);
     } else {
       this.drawLobby(ctx, top);
     }
@@ -237,42 +267,76 @@ const Pvp = {
   // Ausruestung: links Waffen und Implant, rechts die drei Ability-Gruppen und der Held, unten BACK. Bei SET nur die Set-Wahl.
   drawLoadout(ctx) {
     const P = STYLE.pal, T = STYLE.type, cx = STAGE_W / 2, kind = this.ruleKind(), rule = this.ruleNow();
-    uiText(ctx, 'CHOOSE YOUR EQUIPMENT', cx, 56, { size: T.h2, color: P.ice, align: 'center' });
-    uiText(ctx, this.RULE_NAMES[rule], cx, 72, { size: T.small, color: kind === 'all' ? P.yellow : kind === 'set' ? P.cyan : P.grey, align: 'center' });
+    uiText(ctx, 'CHOOSE YOUR EQUIPMENT', cx, 38, { size: T.h2, color: P.ice, align: 'center' });
+    uiText(ctx, this.RULE_NAMES[rule], cx, 54, { size: T.small, color: kind === 'all' ? P.yellow : kind === 'set' ? P.cyan : P.grey, align: 'center' });
     if (kind === 'set') return this.drawSetPick(ctx);
-    const L = this.loadout(), tiers = CFG.loadout.tiers, w = 440, H = 40, GP = 46, y0 = 92, xs = [cx - w - 10, cx + 10], all = kind === 'all';
-    const row = (i, x, y, label, name, icon, iconW, n) => {
-      const sel = this.sel === i;
+    const L = this.loadout(), tiers = CFG.loadout.tiers, w = 200, H = 44, GP = 50, y0 = 84, xs = [cx - w - 10, cx + 10], all = kind === 'all', t = G.realTime;
+    uiText(ctx, 'WEAPONS & IMPLANT', xs[0], 78, { size: T.small, color: P.grey });
+    uiText(ctx, 'ABILITIES & HERO', xs[1], 78, { size: T.small, color: P.grey });
+    // Karte im Stil des Inventars: Farbstreifen, Symbol im Rahmen, Beschriftung, Name; schmale Pfeile rechts
+    const card = (i, x, y, col, label, name, icon, iconW, n) => {
+      const sel = this.sel === i, cw = w - (sel ? 6 : 0), cx0 = x + (sel ? 6 : 0);
       UIHit.add(x, y, w, H, () => { this.sel = i; });
-      uiPanel(ctx, x, y, w, H, { color: sel ? P.cyan : P.greyMid, fill: P.void, alpha: 0.92, glow: sel });
-      uiText(ctx, label, x + 10, y + 14, { size: T.small, color: P.grey });
-      if (icon) drawIcon(ctx, icon, x + 26, y + 29, iconW || 18);
-      uiText(ctx, name || 'NONE', x + (icon ? 46 : 10), y + 33, { size: T.h2, color: name ? P.ice : P.greyMid, maxW: w - 120 });
-      if (n > 1) {
-        UIHit.add(x + w - 70, y, 35, H, () => { this.sel = i; }, { act: () => this.cycleRow(i, -1) });
-        UIHit.add(x + w - 35, y, 35, H, () => { this.sel = i; }, { act: () => this.cycleRow(i, 1) });
-        uiText(ctx, '<', x + w - 52, y + 28, { size: T.h1, color: sel ? P.cyan : P.grey, align: 'center' });
-        uiText(ctx, '>', x + w - 17, y + 28, { size: T.h1, color: sel ? P.cyan : P.grey, align: 'center' });
-      }
+      uiPanel(ctx, cx0, y, cw, H, { color: sel ? col : P.greyMid, fill: sel ? P.voidLight : P.void, alpha: 0.92, glow: sel });
+      ctx.save(); ctx.globalAlpha = sel ? 1 : 0.45; ctx.fillStyle = col; ctx.fillRect(cx0 + 1, y + 4, 3, H - 8); ctx.restore();
+      uiPanel(ctx, cx0 + 8, y + 7, 30, 30, { color: sel ? col : P.greyMid, fill: P.ink, alpha: 1, notch: 3 });
+      if (icon) drawIcon(ctx, icon, cx0 + 23, y + 22 + (sel ? Math.round(Math.sin(t * 4)) : 0), Math.min(24, (iconW || 18) + 4), 1);
+      else uiText(ctx, name ? name[0] : '?', cx0 + 23, y + 27, { size: T.h2, color: name ? col : P.greyMid, align: 'center' });
+      const tw = cw - 44 - (n > 1 ? 22 : 6);
+      uiText(ctx, label, cx0 + 44, y + 16, { size: T.small, color: col });
+      uiText(ctx, name ? uiFit(ctx, name, tw, T.body) : 'NONE', cx0 + 44, y + 30, { size: T.body, color: name ? (sel ? P.ice : P.grey) : P.greyMid });
+      if (n > 1) uiText(ctx, '...', x + w - 12, y + 26, { size: T.small, color: sel ? col : P.greyMid, align: 'center' });       // Hinweis: Antippen oeffnet die Liste
     };
     let desc = '';
     CFG.items.slots.forEach((s, i) => {
       const id = Save.pvpEquipped(s.id), I = id ? CFG.items.catalog[id] : null;
-      row(i, xs[0], y0 + i * GP, s.label, I ? I.name : '', I && I.icon, I && I.iconW, this.equipList(s.id).length);
+      card(i, xs[0], y0 + i * GP, slotColor(s.id), s.label, I ? I.name : '', I && I.icon, I && I.iconW, this.equipList(s.id).length);
       if (this.sel === i && I) desc = I.desc;
     });
-    tiers.forEach((t, i) => {
-      const id = L[t.id], A = id ? CFG.loadout.abilities[id] : null, n = this.tierList(t.id).length;
-      row(4 + i, xs[1], y0 + i * GP, t.label + '  [' + t.key.toUpperCase() + ']', A ? A.name : (n > 1 ? '' : 'NONE UNLOCKED'), A && A.icon, 20, n);
+    const tcol = { weak: P.cyan, medium: P.yellow, strong: P.orange };
+    tiers.forEach((tr, i) => {
+      const id = L[tr.id], A = id ? CFG.loadout.abilities[id] : null, n = this.tierList(tr.id).length;
+      card(4 + i, xs[1], y0 + i * GP, tcol[tr.id] || P.cyan, tr.label + ' [' + tr.key.toUpperCase() + ']', A ? A.name : '', A && A.icon, A && A.iconW, n);
       if (this.sel === 4 + i && A) desc = A.desc;
     });
     const hid = Save.pvpHero(kind), Hc = CFG.heroes[hid];
-    row(7, xs[1], y0 + 3 * GP, 'HERO', Hc.name, null, 0, this.heroList().length);
+    card(7, xs[1], y0 + 3 * GP, P.purple, 'HERO', Hc.name, null, 0, this.heroList().length);
     if (this.sel === 7) desc = Hc.blurb || '';
-    const by = y0 + 4 * GP + 2;
-    drawMenuRow(ctx, by, 'BACK', this.sel === 8, { w: 200, h: 28, cx, hit: () => { this.sel = 8; } });
-    if (desc) uiWrap(ctx, desc, xs[0], by + 42, 2 * w + 20, 13, { size: T.small, color: P.grey });
-    else uiText(ctx, all ? 'EVERYTHING IS UNLOCKED AND AT MAX LEVEL, WITH MAX UPGRADES.' : 'ONLY WHAT YOU OWN CAN BE CHOSEN. YOUR UPGRADES AND HERO COUNT. YOUR INVENTORY STAYS UNCHANGED.', cx, by + 52, { size: T.small, color: P.greyMid, align: 'center' });
+    const by = y0 + 4 * GP + 2, bw = 130;
+    UIHit.add(cx - bw / 2, by, bw, 24, () => { this.sel = 8; });
+    uiPanel(ctx, cx - bw / 2, by, bw, 24, { color: this.sel === 8 ? P.cyan : P.greyMid, fill: P.void, alpha: 0.9, glow: this.sel === 8 });
+    uiText(ctx, 'BACK', cx, by + 17, { size: T.h2, color: this.sel === 8 ? P.ice : P.grey, align: 'center' });
+    if (desc) uiWrap(ctx, desc, xs[0], by + 40, 2 * w + 20, 11, { size: T.small, color: P.grey });
+    else uiText(ctx, all ? 'EVERYTHING UNLOCKED, MAX LEVEL, MAX UPGRADES.' : 'ONLY WHAT YOU OWN. YOUR UPGRADES AND HERO COUNT.', cx, by + 44, { size: T.small, color: P.greyMid, align: 'center' });
+  },
+
+  // Auswahlfenster der Ausruestung: Karten mit Symbol, Name und Kurzinfo; die aktuelle Wahl ist markiert
+  drawPick(ctx) {
+    const P = STYLE.pal, T = STYLE.type, K = this.pick, col = K.col, t = G.realTime, cx = STAGE_W / 2;
+    const w = 340, H = 36, GAP = 40, VIS = 6, x = cx - w / 2, y0 = 66;
+    UIHit.list.length = 0;                                           // das Fenster liegt oben: darunter ist nichts klickbar
+    ctx.save(); ctx.globalAlpha = 0.8; ctx.fillStyle = P.ink; ctx.fillRect(0, 0, STAGE_W, STAGE_H); ctx.restore();
+    const rows = Math.max(1, Math.min(VIS, K.list.length));
+    uiPanel(ctx, x - 12, y0 - 36, w + 24, 36 + rows * GAP + 14, { color: col, fill: P.void, alpha: 0.97, glow: true });
+    uiCorners(ctx, x - 15, y0 - 39, w + 30, 36 + rows * GAP + 20, col, 7);
+    uiText(ctx, K.title + ' - CHOOSE', cx, y0 - 14, { size: T.h2, color: col, align: 'center', glow: col });
+    const off = clamp(K.sel - (VIS - 1), 0, Math.max(0, K.list.length - VIS));
+    K.list.slice(off, off + VIS).forEach((id, k) => {
+      const i = off + k, sel = K.sel === i, y = y0 + k * GAP, ox = sel ? 4 : 0;
+      let name = 'NONE', sub = 'Leave it empty', icon = null, iw = 18;
+      if (K.kind === 'slot' && id) { const I = CFG.items.catalog[id]; name = I.name; sub = itemFacts(id) || I.desc; icon = I.icon; iw = I.iconW; }
+      else if (K.kind === 'tier' && id) { const A = CFG.loadout.abilities[id]; name = A.name; sub = A.desc; icon = A.icon; iw = A.iconW; }
+      else if (K.kind === 'hero') { const Hc = CFG.heroes[id]; name = Hc.name; sub = Hc.blurb || ''; }
+      UIHit.add(x, y, w, H, () => { K.sel = i; });
+      uiPanel(ctx, x + ox, y, w - ox, H, { color: sel ? col : P.greyMid, fill: sel ? P.voidLight : P.void, alpha: 0.92, glow: sel });
+      uiPanel(ctx, x + 7 + ox, y + 5, 26, 26, { color: sel ? col : P.greyMid, fill: P.ink, alpha: 1, notch: 3 });
+      if (icon) drawIcon(ctx, icon, x + 20 + ox, y + 18 + (sel ? Math.round(Math.sin(t * 4)) : 0), Math.min(20, (iw || 18) + 2), 1);
+      else uiText(ctx, name[0], x + 20 + ox, y + 24, { size: T.h2, color: sel ? col : P.greyMid, align: 'center' });
+      uiText(ctx, name, x + 40 + ox, y + 15, { size: T.h2, color: sel ? P.ice : P.grey });
+      uiText(ctx, uiFit(ctx, sub, w - 52 - (id === K.cur ? 56 : 0), T.small), x + 40 + ox, y + 28, { size: T.small, color: sel ? P.cyan : P.greyMid });
+      if (id === K.cur) uiText(ctx, 'SELECTED', x + w - 8, y + 15, { size: T.small, color: P.cyan, align: 'right' });
+    });
+    if (K.list.length > VIS) uiText(ctx, (K.sel + 1) + ' / ' + K.list.length, cx, y0 + rows * GAP + 8, { size: T.small, color: P.grey, align: 'center' });
   },
 
   drawSetPick(ctx) {
@@ -291,21 +355,22 @@ const Pvp = {
     const lines = [['MELEE', cat[S.melee].name], ['RANGED', cat[S.ranged].name], ['HEAVY', cat[S.heavy].name], ['IMPLANT', cat[S.artifact].name]], l2 = [['WEAK', ab[S.weak].name], ['MEDIUM', ab[S.medium].name], ['STRONG', ab[S.strong].name], ['HERO', CFG.heroes.vanguard.name]];
     lines.forEach(([k, v], i) => { uiText(ctx, k, x + 70, y + 92 + i * 14, { size: T.small, color: P.grey }); uiText(ctx, v, x + 140, y + 92 + i * 14, { size: T.small, color: P.ice }); });
     l2.forEach(([k, v], i) => { uiText(ctx, k, x + 290, y + 92 + i * 14, { size: T.small, color: P.grey }); uiText(ctx, v, x + 350, y + 92 + i * 14, { size: T.small, color: P.ice }); });
-    drawMenuRow(ctx, y + 166, 'BACK', this.sel === 1, { w: 200, h: 28, cx, hit: () => { this.sel = 1; } });
+    drawMenuRow(ctx, y + 166, 'BACK', this.sel === 1, { w: 130, h: 24, cx, hit: () => { this.sel = 1; } });
     uiText(ctx, locked ? 'THE HOST CHOSE THIS SET FOR EVERYONE.' : 'NO UPGRADES, LEVEL 0 GEAR, HERO VANGUARD: EVERYONE IS EQUAL.', cx, y + 216, { size: T.small, color: P.greyMid, align: 'center' });
   },
 
   drawLobby(ctx, top) {
-    const P = STYLE.pal, T = STYLE.type, lw = 220, PX = 40 + lw + 24, PW = STAGE_W - 40 - PX;
+    const P = STYLE.pal, T = STYLE.type, lw = 190, PX = 40 + lw + 24, PW = STAGE_W - 40 - PX;
+    top = 76;
     const status = this.ch ? this.ch.status : 'closed', copied = Date.now() - this.copied < 1500, rows = this.lobbyRows(), mode = this.modeNow(), teams = mode === 'teams';
-    const y0 = top + 58, BH = 28, BG = 36, bottom = y0 + (rows.length - 1) * BG + BH;            // der rote Kasten reicht bis zur Unterkante des letzten Knopfes
+    const y0 = top + 56, BH = 24, BG = 30, bottom = y0 + (rows.length - 1) * BG + BH;            // der rote Kasten reicht bis zur Unterkante des letzten Knopfes
     rows.forEach((r, i) => {
       const label = r === 'start' ? (this.players.length < 2 ? 'START ROUND (2+ PLAYERS)' : 'START ROUND') : r === 'mode' ? (teams ? 'MODE: TEAMS (A / B)' : 'MODE: ALL VS ALL')
-        : r === 'rule' ? 'RULES: ' + this.RULE_NAMES[this.ruleNow()] : r === 'equipment' ? 'EQUIPMENT' : r === 'copy' ? (copied ? 'COPIED!' : 'COPY CODE') : 'LEAVE LOBBY';
+        : r === 'rule' ? this.RULE_SHORT[this.ruleNow()] : r === 'equipment' ? 'EQUIPMENT' : r === 'copy' ? (copied ? 'COPIED!' : 'COPY CODE') : 'LEAVE LOBBY';
       drawMenuRow(ctx, y0 + i * BG, label, this.sel === i, { w: lw, h: BH, cx: 40 + lw / 2, hit: () => { this.sel = i; }, lr: r === 'mode' || r === 'rule' });
     });
     uiText(ctx, 'LOBBY CODE', 40 + lw / 2, top + 10, { size: T.small, color: P.grey, align: 'center' });
-    uiText(ctx, this.code, 40 + lw / 2, top + 46, { size: T.title * 0.62, color: P.yellow, align: 'center', glow: P.yellow });
+    uiText(ctx, this.code, 40 + lw / 2, top + 42, { size: T.title * 0.5, color: P.yellow, align: 'center', glow: P.yellow });
     uiPanel(ctx, PX, top, PW, bottom - top, { color: P.red, fill: P.void, alpha: 0.92, glow: true });
     uiText(ctx, 'PLAYERS  ' + this.players.length + ' / ' + Net.MAX_PLAYERS, PX + 14, top + 22, { size: T.h2, color: P.red });
     uiText(ctx, teams ? 'TEAMS' : 'ALL VS ALL', PX + PW - 14, top + 22, { size: T.small, color: P.grey, align: 'right' });
@@ -332,7 +397,7 @@ if (typeof I18n !== 'undefined' && I18n.add) I18n.add({
   'Share the code. Everyone who joins appears here. Start the round when you are ready.': 'Teile den Code. Alle, die beitreten, erscheinen hier. Starte die Runde, wenn ihr bereit seid.',
   'Waiting for the host to start the round.': 'Warte darauf, dass der Host die Runde startet.',
   'START ROUND': 'RUNDE STARTEN', 'START ROUND (2+ PLAYERS)': 'RUNDE STARTEN (2+ SPIELER)', 'MODE: TEAMS (A / B)': 'MODUS: TEAMS (A / B)', 'MODE: ALL VS ALL': 'MODUS: JEDER GEGEN JEDEN', 'TEAMS': 'TEAMS', 'ALL VS ALL': 'JEDER GEGEN JEDEN', 'WINS': 'SIEGE',
-  'A ROUND IS RUNNING - YOU JOIN THE NEXT ONE': 'EINE RUNDE LÄUFT - DU BIST BEIM NÄCHSTEN DABEI', 'Choose your abilities. Only the host can start the round.': 'Wähle deine Abilities. Nur der Host kann die Runde starten.', 'ABILITIES': 'ABILITIES', 'CHOOSE YOUR ABILITIES': 'WÄHLE DEINE ABILITIES', 'EQUIPMENT': 'AUSRÜSTUNG', 'RULES: OWN EQUIPMENT': 'REGEL: EIGENE AUSRÜSTUNG', 'RULES: ONE SET FOR ALL': 'REGEL: EIN SET FÜR ALLE', 'RULES: PICK A SET': 'REGEL: SET WÄHLEN', 'RULES: ALL EQUIPMENT': 'REGEL: ALLE AUSRÜSTUNG', 'OWN EQUIPMENT': 'EIGENE AUSRÜSTUNG', 'ONE SET FOR ALL': 'EIN SET FÜR ALLE', 'PICK A SET': 'SET WÄHLEN', 'ALL EQUIPMENT': 'ALLE AUSRÜSTUNG', 'HERO': 'HELD', 'EVERYTHING IS UNLOCKED AND AT MAX LEVEL, WITH MAX UPGRADES.': 'ALLES IST FREIGESCHALTET UND AUF MAXIMALER STUFE, MIT MAXIMALEN UPGRADES.', 'ONLY WHAT YOU OWN CAN BE CHOSEN. YOUR UPGRADES AND HERO COUNT. YOUR INVENTORY STAYS UNCHANGED.': 'NUR GEKAUFTES KANN GEWÄHLT WERDEN. DEINE UPGRADES UND DEIN HELD ZÄHLEN. DEIN INVENTAR BLEIBT UNVERÄNDERT.', 'THE HOST CHOSE THIS SET FOR EVERYONE.': 'DER HOST HAT DIESES SET FÜR ALLE GEWÄHLT.', 'NO UPGRADES, LEVEL 0 GEAR, HERO VANGUARD: EVERYONE IS EQUAL.': 'KEINE UPGRADES, AUSRÜSTUNG STUFE 0, HELD VANGUARD: ALLE SIND GLEICH.', 'WEAK': 'SCHWACH', 'MEDIUM': 'MITTEL', 'STRONG': 'STARK', 'CHOOSE YOUR EQUIPMENT': 'WÄHLE DEINE AUSRÜSTUNG', 'WEAPONS & IMPLANT': 'WAFFEN & IMPLANT', 'Choose your equipment. Only the host can start the round.': 'Wähle deine Ausrüstung. Nur der Host kann die Runde starten.', 'ONLY ITEMS AND ABILITIES YOU OWN CAN BE CHOSEN. THIS DOES NOT CHANGE YOUR INVENTORY.': 'NUR GEKAUFTE ITEMS UND ABILITIES KÖNNEN GEWÄHLT WERDEN. DEIN INVENTAR BLEIBT UNVERÄNDERT.', 'NONE': 'KEINE', 'NONE UNLOCKED': 'KEINE FREIGESCHALTET', 'ONLY ABILITIES YOU HAVE UNLOCKED CAN BE CHOSEN.': 'NUR FREIGESCHALTETE ABILITIES KÖNNEN GEWÄHLT WERDEN.', 'YOU NEED AT LEAST 2 PLAYERS': 'DU BRAUCHST MINDESTENS 2 SPIELER',
+  'A ROUND IS RUNNING - YOU JOIN THE NEXT ONE': 'EINE RUNDE LÄUFT - DU BIST BEIM NÄCHSTEN DABEI', 'Choose your abilities. Only the host can start the round.': 'Wähle deine Abilities. Nur der Host kann die Runde starten.', 'ABILITIES': 'ABILITIES', 'CHOOSE YOUR ABILITIES': 'WÄHLE DEINE ABILITIES', 'EQUIPMENT': 'AUSRÜSTUNG', 'SELECTED': 'GEWÄHLT', 'Leave it empty': 'Leer lassen', ' - CHOOSE': ' - WÄHLEN', 'RULES: OWN GEAR': 'REGEL: EIGENE', 'RULES: ONE SET': 'REGEL: EIN SET', 'RULES: PICK SET': 'REGEL: SET WÄHLEN', 'RULES: ALL GEAR': 'REGEL: ALLES', 'ABILITIES & HERO': 'ABILITIES & HELD', 'EVERYTHING UNLOCKED, MAX LEVEL, MAX UPGRADES.': 'ALLES FREI, MAX-STUFE, MAX-UPGRADES.', 'ONLY WHAT YOU OWN. YOUR UPGRADES AND HERO COUNT.': 'NUR DEIN BESITZ. DEINE UPGRADES UND DEIN HELD ZÄHLEN.', 'RULES: OWN EQUIPMENT': 'REGEL: EIGENE AUSRÜSTUNG', 'RULES: ONE SET FOR ALL': 'REGEL: EIN SET FÜR ALLE', 'RULES: PICK A SET': 'REGEL: SET WÄHLEN', 'RULES: ALL EQUIPMENT': 'REGEL: ALLE AUSRÜSTUNG', 'OWN EQUIPMENT': 'EIGENE AUSRÜSTUNG', 'ONE SET FOR ALL': 'EIN SET FÜR ALLE', 'PICK A SET': 'SET WÄHLEN', 'ALL EQUIPMENT': 'ALLE AUSRÜSTUNG', 'HERO': 'HELD', 'EVERYTHING IS UNLOCKED AND AT MAX LEVEL, WITH MAX UPGRADES.': 'ALLES IST FREIGESCHALTET UND AUF MAXIMALER STUFE, MIT MAXIMALEN UPGRADES.', 'ONLY WHAT YOU OWN CAN BE CHOSEN. YOUR UPGRADES AND HERO COUNT. YOUR INVENTORY STAYS UNCHANGED.': 'NUR GEKAUFTES KANN GEWÄHLT WERDEN. DEINE UPGRADES UND DEIN HELD ZÄHLEN. DEIN INVENTAR BLEIBT UNVERÄNDERT.', 'THE HOST CHOSE THIS SET FOR EVERYONE.': 'DER HOST HAT DIESES SET FÜR ALLE GEWÄHLT.', 'NO UPGRADES, LEVEL 0 GEAR, HERO VANGUARD: EVERYONE IS EQUAL.': 'KEINE UPGRADES, AUSRÜSTUNG STUFE 0, HELD VANGUARD: ALLE SIND GLEICH.', 'WEAK': 'SCHWACH', 'MEDIUM': 'MITTEL', 'STRONG': 'STARK', 'CHOOSE YOUR EQUIPMENT': 'WÄHLE DEINE AUSRÜSTUNG', 'WEAPONS & IMPLANT': 'WAFFEN & IMPLANT', 'Choose your equipment. Only the host can start the round.': 'Wähle deine Ausrüstung. Nur der Host kann die Runde starten.', 'ONLY ITEMS AND ABILITIES YOU OWN CAN BE CHOSEN. THIS DOES NOT CHANGE YOUR INVENTORY.': 'NUR GEKAUFTE ITEMS UND ABILITIES KÖNNEN GEWÄHLT WERDEN. DEIN INVENTAR BLEIBT UNVERÄNDERT.', 'NONE': 'KEINE', 'NONE UNLOCKED': 'KEINE FREIGESCHALTET', 'ONLY ABILITIES YOU HAVE UNLOCKED CAN BE CHOSEN.': 'NUR FREIGESCHALTETE ABILITIES KÖNNEN GEWÄHLT WERDEN.', 'YOU NEED AT LEAST 2 PLAYERS': 'DU BRAUCHST MINDESTENS 2 SPIELER',
   'ROUND STARTING - THE ARENA ITSELF COMES IN THE NEXT UPDATE': 'RUNDE STARTET - DIE ARENA SELBST KOMMT IM NÄCHSTEN UPDATE',
   'Back to the mode list.': 'Zurück zur Modusliste.', 'You are the host.': 'Du bist der Host.', "Enter the code of a friend's lobby to join it.": 'Gib den Code der Lobby eines Freundes ein, um beizutreten.',
   'Fight other players in an arena. Create a lobby and share the code, or join a friend with their code.': 'Kämpfe in einer Arena gegen andere Spieler. Erstelle eine Lobby und teile den Code, oder tritt mit dem Code eines Freundes bei.',

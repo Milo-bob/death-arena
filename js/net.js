@@ -44,7 +44,10 @@ const Net = {
       else if (m.event === 'phx_error' || m.event === 'phx_close') setStatus(ch.closed ? 'closed' : 'error');
       else if (m.event === 'presence_state') { for (const k of Object.keys(state)) delete state[k]; for (const [k, v] of Object.entries(p)) if (v.metas && v.metas.length) state[k] = v.metas[v.metas.length - 1]; publish(); }
       else if (m.event === 'presence_diff') {
-        for (const k of Object.keys(p.leaves || {})) delete state[k];
+        for (const [k, v] of Object.entries(p.leaves || {})) {            // nur loeschen, wenn der gehende Eintrag der aktuelle ist (ein erneutes track() meldet erst 'leave' des alten, dann 'join' des neuen Eintrags, auch in getrennten Nachrichten)
+          const cur = state[k];
+          if (!cur || !cur.phx_ref || !v.metas || !v.metas.length || v.metas.some((q) => q.phx_ref === cur.phx_ref)) delete state[k];
+        }
         for (const [k, v] of Object.entries(p.joins || {})) if (v.metas && v.metas.length) state[k] = v.metas[v.metas.length - 1];
         publish();
       } else if (m.event === 'broadcast' && p.event) emit('onMessage', p.event, p.payload, p.payload && p.payload.from);
@@ -52,9 +55,15 @@ const Net = {
     ch.ws.onerror = () => { if (!ch.closed) setStatus('error'); };
     ch.ws.onclose = () => { clearInterval(ch.hb); setStatus(ch.closed ? 'closed' : 'error'); };
     ch.send = (event, payload) => send('broadcast', { type: 'broadcast', event, payload: Object.assign({ from: id }, payload || {}) });
-    ch.update = (meta) => { Object.assign(ch.meta, meta); if (ch.joined) track(); };
+    // Anwesenheit aktualisieren: schnelle Folgen (z. B. beim Durchblaettern der Sets) werden zu einer Nachricht zusammengefasst, sonst drosselt/beendet der Server die Verbindung
+    ch.update = (meta) => {
+      Object.assign(ch.meta, meta);
+      if (!ch.joined || ch.updT) return;
+      if (typeof setTimeout !== 'function') { track(); return; }
+      ch.updT = setTimeout(() => { ch.updT = null; if (!ch.closed) track(); }, 350);
+    };
     ch.close = () => {
-      ch.closed = true; clearInterval(ch.hb);
+      ch.closed = true; clearInterval(ch.hb); if (ch.updT && typeof clearTimeout === 'function') clearTimeout(ch.updT);
       try { send('phx_leave', {}); ch.ws.close(); } catch (e) { /* schon zu */ }
       setStatus('closed');
     };
