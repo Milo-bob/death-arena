@@ -94,7 +94,7 @@ const Pvp = {
     Save.data.pvpEquip = Object.assign({}, Save.data.pvpEquip, { [slot]: list[(Math.max(0, list.indexOf(cur)) + d + n) % n] });
     Save.write(); Sfx.play('select');
   },
-  heroList() { const all = this.ruleKind() === 'all'; return Object.keys(CFG.heroes).filter((id) => all || Save.heroOwned(id)); },
+  heroList() { const all = this.ruleKind() === 'all'; return (CFG.heroes.order || Object.keys(CFG.heroes)).filter((id) => CFG.heroes[id] && CFG.heroes[id].name && (all || Save.heroOwned(id))); },
   heroCycle(d) {
     const l = this.heroList(), cur = Save.pvpHero(this.ruleKind()), n = l.length;
     if (n < 2) return;
