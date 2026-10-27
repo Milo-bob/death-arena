@@ -63,7 +63,7 @@ function drawHud(ctx) {
   let clock;
   if (G.bossFight) clock = G.boss ? Math.max(0, 30 - Math.floor(G.bossTimer / 2)) : 30;
   else clock = Math.min(30, Math.floor((G.time % CFG.waves.length) / 4));
-  if (!G.sr) drawSprite(ctx, 'clock' + clock, STAGE_W / 2 - 70, 160, 90, 375);       // Speedrun: eigene Uhr (SpeedRun.drawHud)
+  drawSprite(ctx, 'clock' + clock, STAGE_W / 2 - 70, 160, 90, 375);
 
   if (G.noticeT > 0) {
     ctx.save();
@@ -96,8 +96,6 @@ function drawHud(ctx) {
   }
 
   Tutorial.draw(ctx);
-  if (G.sr) SpeedRun.drawHud(ctx);
-  Endless.drawHud(ctx);
   Xp.drawHud(ctx);
   MsFx.draw(ctx);                                                // Meilenstein-Fanfare (js/milestonefx.js)
   drawHotbar(ctx, p);
@@ -212,8 +210,8 @@ function drawHotbar(ctx, p) {
 
   // Mitte: Ultimate
   const ultReady = G.ultCharge > CFG.ult.readyAt;
-  drawUltOrb(ctx, G.ultCharge / (CFG.ult.readyAt + 1), ultReady);
-  if (ultReady) {                                             // kleine Kugel: Fortschritt des nächsten Ultimates, Zahl = bereite Ultimates
+  if (!G.pvp) drawUltOrb(ctx, G.ultCharge / (CFG.ult.readyAt + 1), ultReady);       // PvP: kein Ultimate
+  if (ultReady && !G.pvp) {                                             // kleine Kugel: Fortschritt des nächsten Ultimates, Zahl = bereite Ultimates
     const mo = { cx: ORB.cx, cy: ORB.cy - ORB.r - 11, r: 7 }, full = 1 + G.ultStock >= CFG.ult.maxStack;
     drawUltOrb(ctx, full ? 1 : G.ultNext, full, mo);
     uiText(ctx, 'x' + (1 + G.ultStock), mo.cx + mo.r + 4, mo.cy + 3, { size: STYLE.type.small, align: 'left', color: P.teal });
@@ -354,8 +352,12 @@ function drawConfirm(ctx) {
   });
 }
 
-// Hintergrundbild eines Menüs über die ganze (16:9-)Breite
+// Hintergrundbild eines Menüs über die ganze (16:9-)Breite. Das Standard-Menübild 'keysettings' (Homescreen und alle Menues) ersetzt das ausgeruestete Menue-Cosmetic (MENU), abgedunkelt, damit die Bedienung lesbar bleibt.
 function drawMenuBg(ctx, name, keepRatio) {
+  if (name === 'keysettings') {
+    const it = Cos.cur('menubg');
+    if (it && it.bg && Cos2.drawMenuBg(ctx, it, G.realTime, 0, 0, STAGE_W, STAGE_H)) { ctx.fillStyle = 'rgba(2,3,10,0.5)'; ctx.fillRect(0, 0, STAGE_W, STAGE_H); return; }
+  }
   const im = IMG[name];
   if (!im || !im.ok) return;
   if (!keepRatio || STAGE_W === 480) { ctx.drawImage(im.img, 0, 0, STAGE_W, STAGE_H); return; }
@@ -410,7 +412,7 @@ function drawMenuRow(ctx, y, text, sel, opts = {}) {
   const P = STYLE.pal, T = STYLE.type, w = opts.w || 190, h = opts.h || 24, cx = opts.cx === undefined ? STAGE_W / 2 : opts.cx, x = cx - w / 2, ty = y + Math.round(h / 2) + 5;
   if (opts.hit) UIHit.add(x, y, w, h, opts.hit, { lr: opts.lr });
   uiPanel(ctx, x, y, w, h, { color: opts.locked ? P.greyDark : sel ? P.cyan : P.greyMid, fill: P.void, alpha: 0.9, glow: sel && !opts.locked });
-  uiText(ctx, text, cx, ty, { size: T.h2, color: opts.locked ? P.greyMid : sel ? P.ice : P.grey, align: 'center' });
+  uiText(ctx, text, cx, ty, { size: opts.size || T.h2, color: opts.locked ? P.greyMid : sel ? P.ice : P.grey, align: 'center', maxW: w - 34 });
   if (opts.locked) uiText(ctx, 'LV ' + opts.locked, x + w - 10, ty, { size: T.small, color: P.orange, align: 'right' });       // gesperrt bis zu diesem Spielerlevel
   if (sel) uiText(ctx, '>', x + 10, ty, { size: T.h2, color: opts.locked ? P.grey : P.cyan });
 }
@@ -455,37 +457,174 @@ function gearReady() {
   return CFG.items.slots.some((S) => { const id = Save.equipped(S.id); return id && Save.gearLv(id) < Save.gearMax() && Save.gearFrac(id) >= 1 && Save.data.souls >= Save.gearPrice(id); });
 }
 
-function drawStartScreen(ctx) {
+// Hintergrund + Titel (Startbildschirm und Homescreen)
+function drawTitleBg(ctx, titleY, small, home) {
   const P = STYLE.pal, T = STYLE.type, t = G.realTime;
-  if (!Cos2.drawMenuBg(ctx, Cos.cur('menubg'), t, 0, 0, STAGE_W, STAGE_H)) drawMenuBg(ctx, 'startscreen');       // Cosmetic: animierter Hintergrund
-  drawEmbers(ctx);
+  if (home) { drawMenuBg(ctx, 'keysettings'); drawEmbers(ctx); }                                                       // Homescreen: flache Gitterwand wie die anderen Menues (die Menue-Hintergruende/Cosmetics gehoeren zum Startbildschirm)
+  else {
+    if (!Cos2.drawMenuBg(ctx, Cos.cur('menubg'), t, 0, 0, STAGE_W, STAGE_H)) drawMenuBg(ctx, 'startscreen');       // Cosmetic: animierter Hintergrund
+    drawEmbers(ctx);
+  }
   // Titel: pulsierendes Glühen, ab und zu ein kurzes cyanes Flackern (Glitch)
   ctx.save();
-  if (Math.sin(t * 2.3) > 0.93) { ctx.globalAlpha = 0.6; uiText(ctx, 'DEATHARENA', STAGE_W / 2 + 2, 99, { size: T.title, color: P.cyan, align: 'center' }); }
+  if (Math.sin(t * 2.3) > 0.93) { ctx.globalAlpha = 0.6; uiText(ctx, 'DEATHARENA', STAGE_W / 2 + 2, titleY + 1, { size: home ? 34 : small ? T.h1 : T.title, color: P.cyan, align: 'center' }); }
   ctx.restore();
-  uiText(ctx, 'DEATHARENA', STAGE_W / 2, 98 + Math.sin(t * 1.5) * 1.2, { size: T.title, color: P.red, align: 'center', glow: P.red });
-  uiText(ctx, 'ONE WAY TICKET TO HELL', STAGE_W / 2, 124, { size: T.h2, color: P.yellow, align: 'center' });
-  const labels = { play: 'PLAY', inventory: 'ARMORY', cosmetics: 'COSMETICS', upgrades: 'UPGRADES', achievements: 'ACHIEVEMENTS', settings: 'SETTINGS', stats: 'STATISTICS' };
-  menuItems().forEach((id, i) => {
-    const y = 134 + i * 28;
-    const lock = CFG.level.gates[id] && !Save.gateOpen(id) ? CFG.level.gates[id] : 0;
-    drawMenuRow(ctx, y, labels[id], G.menuSel === i, { h: 22, hit: () => { G.menuSel = i; }, locked: lock });
-    const dot = (id === 'play' && !Save.data.tutorialDone) || (id === 'upgrades' && ((Save.data.tutorialDone && !Save.data.upgradesSeen) || guideStep()));          // Hinweispunkt: erst das Tutorial, danach einmal die Upgrades (weg, sobald man dort war)
-    if (dot || (id === 'settings' && !Save.data.settingsSeen)) uiHintDot(ctx, STAGE_W / 2 + 104, y + 11, t);
-  });
-  drawMenuIcons(ctx);
+  const ts = home ? 34 : small ? T.h1 : T.title, ss = home ? T.h2 : small ? T.small : T.h2;                                   // Homescreen: Titel gross genug fuer Handys
+  uiText(ctx, 'DEATHARENA', STAGE_W / 2, titleY + Math.sin(t * 1.5) * 1.2, { size: ts, color: P.red, align: 'center', glow: P.red });
+  uiText(ctx, 'ONE WAY TICKET TO HELL', STAGE_W / 2, titleY + (home ? 19 : small ? 16 : 26), { size: ss, color: P.yellow, align: 'center' });
+}
+
+// Startbildschirm (beim Oeffnen): der alte Hauptmenue-Hintergrund mit Ladebalken; gibt Konto/Update kurz Zeit und geht dann von selbst zum Homescreen (der Ton wird beim ersten Tastendruck/Klick im Menue frei)
+function drawSplashScreen(ctx) {
+  const P = STYLE.pal, T = STYLE.type, t = G.realTime, ready = G.splashReady;
+  if (G.assetsReady) drawTitleBg(ctx, 150, false);
+  else {                                                              // Bilder laden noch: Hintergrund (sobald da) und Titel ohne Cosmetics/Funken
+    drawMenuBg(ctx, 'startscreen');
+    uiText(ctx, 'DEATHARENA', STAGE_W / 2, 150, { size: T.title, color: P.red, align: 'center', glow: P.red });
+    uiText(ctx, 'ONE WAY TICKET TO HELL', STAGE_W / 2, 176, { size: T.h2, color: P.yellow, align: 'center' });
+  }
+  drawSplashBar(ctx, t);
   drawSyncIndicator(ctx);
-  uiText(ctx, 'LV ' + Save.plevel(), 12, 346, { size: T.h2, color: P.yellow });          // Hauptmenü: nur die Zahl, der Balken ist im Inventar
-  const best = Save.data.best > 0 ? formatTime(Save.data.best) : '-', L = Save.data.last;
-  uiText(ctx, 'BEST ' + best + '    RUNS ' + Save.data.runs + (Save.data.wins ? '    WINS ' + Save.data.wins : '') + '    CREDITS ' + Save.data.souls, STAGE_W / 2, 316, { size: T.body, color: P.ice, align: 'center' });
-  if (L) uiText(ctx, 'LAST RUN ' + formatTime(L.time) + '  -  ' + L.bosses + ' BOSSES  -  ' + L.kills + ' KILLS' + (L.infinite ? '  (INFINITE)' : ''), STAGE_W / 2, 329, { size: T.small, color: P.grey, align: 'center' });
+}
+
+// Ladebalken des Startbildschirms: Rahmen, Segmente mit Farbverlauf, wanderndes Licht, Glut an der Spitze, Prozent und Status; bei 100 % blitzt er auf (READY)
+function drawSplashBar(ctx, t) {
+  const P = STYLE.pal, T = STYLE.type, f = clamp(G.splashShown, 0, 1), w = 200, h = 10, x = Math.round(STAGE_W / 2 - w / 2), y = 246, cx = STAGE_W / 2;
+  const done = G.splashReady && f > 0.985, pulse = 0.5 + 0.5 * Math.sin(t * 9), flash = done ? Math.max(0, 1 - G.splashDone / 0.4) : 0;
+  ctx.save();
+  ctx.fillStyle = P.greyDark; ctx.fillRect(x - 3, y - 3, w + 6, h + 6);                                    // Rahmen
+  ctx.fillStyle = done ? P.yellow : P.cyanDark; ctx.fillRect(x - 2, y - 2, w + 4, 1); ctx.fillRect(x - 2, y + h + 1, w + 4, 1); ctx.fillRect(x - 2, y - 2, 1, h + 4); ctx.fillRect(x + w + 1, y - 2, 1, h + 4);
+  ctx.fillStyle = P.void; ctx.fillRect(x, y, w, h);
+  const seg = 8, gap = 2, n = Math.floor((w + gap) / (seg + gap)), lit = f * n;                                // Segmente
+  for (let i = 0; i < n; i++) {
+    const sx = x + i * (seg + gap), part = clamp(lit - i, 0, 1);
+    if (part <= 0) { ctx.fillStyle = P.voidLight; ctx.fillRect(sx, y + 1, seg, h - 2); continue; }
+    const k = i / (n - 1);
+    ctx.fillStyle = done ? P.yellow : k < 0.5 ? P.cyanDark : P.cyan; ctx.fillRect(sx, y + 1, Math.round(seg * part), h - 2);
+    ctx.fillStyle = done ? P.white : P.ice; ctx.globalAlpha = 0.35 + 0.35 * k; ctx.fillRect(sx, y + 1, Math.round(seg * part), 2); ctx.globalAlpha = 1;       // Lichtkante oben
+  }
+  const fw = Math.round(w * f);                                                                               // wanderndes Licht ueber dem gefuellten Teil
+  if (fw > 6) { const sx = x + ((t * 90) % (fw + 30)) - 15; ctx.fillStyle = P.white; ctx.globalAlpha = 0.45; ctx.fillRect(Math.max(x, sx), y + 1, Math.max(0, Math.min(4, x + fw - Math.max(x, sx))), h - 2); ctx.globalAlpha = 1; }
+  if (f > 0.02 && !done) {                                                                                    // Glut und Schein an der Spitze
+    const ex = x + fw; ctx.fillStyle = P.cyan; ctx.globalAlpha = 0.18 + 0.12 * pulse; pxGlow(ctx, ex, y + h / 2, 16); ctx.globalAlpha = 1;
+    for (let i = 0; i < 5; i++) { const ph = (t * 1.3 + i * 0.37) % 1; ctx.fillStyle = i % 2 ? P.yellow : P.cyan; ctx.globalAlpha = 1 - ph; pxFill(ctx, ex - 2 + Math.sin(i * 7 + t * 3) * 5, y - 2 - ph * 16, 1); }
+    ctx.globalAlpha = 1;
+  }
+  if (flash > 0) { ctx.fillStyle = P.white; ctx.globalAlpha = flash * 0.8; ctx.fillRect(x - 3, y - 3, w + 6, h + 6); ctx.globalAlpha = 1; }
+  const syncing = G.assetsReady && G.splashAge > 1.2 && !G.splashReady, dots = '.'.repeat(1 + Math.floor(t * 3) % 3);
+  uiText(ctx, done ? 'READY' : syncing ? 'SYNCING SAVE' + dots : 'LOADING' + dots, cx, y + h + 20, { size: T.small, color: done ? P.yellow : P.grey, align: 'center' });
+  uiText(ctx, Math.floor(f * 100) + '%', cx, y - 8, { size: T.small, color: done ? P.yellow : P.cyan, align: 'center' });
+  ctx.restore();
+}
+
+// Homescreen: ein Bild, Knoepfe fuehren in die Menues. Mitte = dein Held auf einer Buehne; Profil oben links, Rangliste/Einstellungen oben rechts, Shop/Held unten links, PLAY gross unten rechts
+const HOME_ICONS = {
+  play: ['XX.......', 'XXXX.....', 'XXXXXX...', 'XXXXXXXX.', 'XXXXXXXXX', 'XXXXXXXX.', 'XXXXXX...', 'XXXX.....', 'XX.......'],
+  shop: ['...XXX...', '..X...X..', '..X...X..', 'XXXXXXXXX', 'XXXXXXXXX', 'XXXXXXXXX', 'XXXXXXXXX', 'XXXXXXXXX', 'XXXXXXXXX'],
+  hero: ['..XXXXX..', '.XXXXXXX.', 'XXXXXXXXX', 'XXXXXXXXX', 'X..XXX..X', 'X..XXX..X', 'XXXXXXXXX', '.XX...XX.'],
+  board: ['XXXXXXXXX', 'XXXXXXXXX', 'X.XXXXX.X', 'X.XXXXX.X', '.XXXXXXX.', '...XXX...', '...XXX...', '..XXXXX..', '.XXXXXXX.'],
+  awards: ['....X....', '...XXX...', 'XXXXXXXXX', '.XXXXXXX.', '..XXXXX..', '..XXXXX..', '.XXX.XXX.', '.XX...XX.'],
+  account: ['...XXX...', '..XXXXX..', '..XXXXX..', '...XXX...', '.XXXXXXX.', 'XXXXXXXXX', 'XXXXXXXXX', 'XXXXXXXXX'],
+  friends: ['.XX...XX.', 'XXXX.XXXX', 'XXXX.XXXX', '.XX...XX.', 'XXXXXXXXX', 'XXXXXXXXX', 'XXXXXXXXX'],
+  settings: ['...XXX...', '.X.XXX.X.', '..XXXXX..', 'XXXX.XXXX', 'XXXX.XXXX', 'XXXX.XXXX', '..XXXXX..', '.X.XXX.X.', '...XXX...'],
+};
+function homeButtons() {
+  const W = STAGE_W, H = STAGE_H, RC = IS_MOBILE ? 78 : 46, PW = IS_MOBILE ? 156 : 130;                                    // Handy: breitere Symbolknoepfe, die Beschriftung waechst dort
+  return [
+    { id: 'play', x: W - PW - 12, y: H - 72, w: PW, h: 60, label: 'PLAY', big: true, col: 'yellow' },
+    { id: 'shop', x: 12, y: H - 92, w: 130, h: 38, label: 'SHOP', col: 'cyan' },
+    { id: 'hero', x: 12, y: H - 48, w: 130, h: 38, label: 'HERO', col: 'violet' },
+    { id: 'settings', x: W - RC - 8, y: 8, w: RC, h: 46, label: 'SETUP', icon: true, col: 'blue' },          // rechte Spalte: ein Knopf unter dem anderen, Einstellungen und Konto oben
+    { id: 'account', x: W - RC - 8, y: 60, w: RC, h: 46, label: 'ACCOUNT', icon: true, col: 'cyan' },
+    { id: 'board', x: W - RC - 8, y: 112, w: RC, h: 46, label: 'RANKS', icon: true, col: 'orange' },
+    { id: 'awards', x: W - RC - 8, y: 164, w: RC, h: 46, label: 'AWARDS', icon: true, col: 'green' },
+    { id: 'friends', x: W - RC - 8, y: 216, w: RC, h: 46, label: 'FRIENDS', icon: true, col: 'violet' },
+  ];
+}
+// Knopf im Stil der Levelanzeige: dunkle, leicht eingefaerbte Flaeche mit duennem Neon-Rahmen in der Knopffarbe; bei Auswahl/Maus weisser Rahmen und Glow
+function drawChunkyButton(ctx, b, on, t) {
+  const P = STYLE.pal, T = STYLE.type;
+  const acc = { yellow: P.yellow, cyan: P.cyan, violet: P.purple, orange: P.orange, blue: '#4a90ff', green: P.green }[b.col];
+  const tint = { yellow: '#2e2606', cyan: '#07242e', violet: '#1a0f34', orange: '#2e1707', blue: '#0a1a38', green: '#082a16' }[b.col];
+  const x = b.x, y = b.y, w = b.w, h = b.h;
+  uiPanel(ctx, x, y, w, h, { color: on ? P.ice : acc, fill: tint, alpha: 0.95, glow: on || b.big });
+  ctx.save();
+  ctx.fillStyle = acc; ctx.globalAlpha = on ? 0.5 : 0.3; ctx.fillRect(x + 3, y + h - 6, w - 6, 3);                // Farbstreifen unten
+  ctx.globalAlpha = 1;
+  const art = HOME_ICONS[b.id], sc = 3, aw = art[0].length * sc, ah = art.length * sc, ink = on ? P.ice : acc;
+  if (b.icon) {                                                                                      // Symbol-Knopf: Symbol oben, kleines Wort darunter
+    const ax = x + Math.round((w - aw) / 2), ay = y + 6;
+    ctx.fillStyle = ink; art.forEach((row, ry) => { for (let rx = 0; rx < row.length; rx++) if (row[rx] === 'X') ctx.fillRect(ax + rx * sc, ay + ry * sc, sc, sc); });
+    ctx.restore();
+    uiText(ctx, b.label, x + w / 2, y + h - 9, { size: T.small, color: ink, align: 'center', maxW: w - 4 });
+    return;
+  }
+  const ax = x + (b.big ? (IS_MOBILE ? 12 : 20) : 12), ay = Math.round(y + (h - ah) / 2 - 2), tx0 = ax + aw + 8;
+  ctx.fillStyle = ink; art.forEach((row, ry) => { for (let rx = 0; rx < row.length; rx++) if (row[rx] === 'X') ctx.fillRect(ax + rx * sc, ay + ry * sc, sc, sc); });
+  ctx.restore();
+  uiText(ctx, b.label, tx0 + (x + w - 8 - tx0) / 2, Math.round(y + h / 2) + (b.big ? 8 : 5), { size: b.big ? (IS_MOBILE ? 18 : T.h1) : T.h2, color: ink, align: 'center', glow: b.big ? acc : undefined, maxW: x + w - 8 - tx0 });
+}
+function drawHomeScreen(ctx) {
+  const P = STYLE.pal, T = STYLE.type, t = G.realTime, m = Input.mouse, btns = homeButtons(), cx = STAGE_W / 2;
+  drawTitleBg(ctx, 36, true, true);
+  // Buehne: Held (mit den gewaehlten Cosmetics) schwebt ueber einem leuchtenden Ring
+  const gy = 232;
+  ctx.save();                                                                              // Weicher Verlauf, aber grob gerastert (4-Pixel-Bloecke, aussen gerastert/dithered, innen flaechig): passt zum Pixel-Look
+  const PX = PIXEL * 2, ell = (rx, ry, dither) => {
+    for (let j = -Math.round(ry / PX); j <= Math.round(ry / PX); j++) {
+      const w = Math.floor(rx / PX * Math.sqrt(Math.max(0, 1 - (j * PX / ry) ** 2)));
+      for (let i = -w; i <= w; i++) if (!dither || (i + j) % 2 === 0) ctx.fillRect(Math.round(cx / PX + i) * PX, Math.round(gy / PX + j) * PX, PX, PX);
+    }
+  };
+  for (let k = 3; k >= 0; k--) { ctx.globalAlpha = 0.14 + (3 - k) * 0.07; ctx.fillStyle = k % 2 ? P.cyan : P.violet; ell(56 + k * 14, 11 + k * 3, k >= 2); }
+  ctx.globalAlpha = 0.95; ctx.fillStyle = P.cyan;
+  for (let k = 0; k < 96; k++) { const a = k / 96 * Math.PI * 2; ctx.fillRect(Math.round((cx + Math.cos(a) * 56) / PX) * PX, Math.round((gy + Math.sin(a) * 11) / PX) * PX, PX, PX); }
+  ctx.restore();
+  try {
+    const py = STAGE_H / 2 - (gy - 66) + Math.sin(t * 1.6) * 4, ship = Cos.sprite(Hero.sprite(), 'skin');
+    Cos.drawAura(ctx, Cos.cur('aura'), 0, py, t); Cos.drawGear(ctx, Cos.cur('gear'), 0, py, 90, t, 'back');
+    Cos.drawShip(ctx, ship, 0, py, 90, 960, {}, Cos.cur('skin'), t); Cos.drawGear(ctx, Cos.cur('gear'), 0, py, 90, t, 'front');
+  } catch (e) { drawSprite(ctx, Hero.sprite(), 0, STAGE_H / 2 - (gy - 66), 90, 960); }
+  const hot = m.x >= cx - 80 && m.x <= cx + 80 && m.y >= 90 && m.y <= 250;                 // Held anklicken = gleiches Menue wie der HERO-Knopf
+  UIHit.add(cx - 80, 90, 160, 160, () => {}, { act: () => G.homeGo('armory') });
+  if (hot) { uiPanel(ctx, cx - 70, 96, 140, 144, { color: P.cyan, fill: P.void, alpha: 0.12, glow: true }); uiText(ctx, 'ARMORY', cx, 256 - 14, { size: T.small, color: P.cyan, align: 'center' }); }
+  const H = CFG.heroes[Save.heroSelected()];
+  uiText(ctx, H && H.name ? H.name.toUpperCase() : 'HERO', cx, 268, { size: T.h2, color: P.ice, align: 'center', glow: P.cyan });
+  const chips = ['BEST ' + (Save.data.best > 0 ? formatTime(Save.data.best) : '-'), 'RUNS ' + Save.data.runs].concat(Save.data.wins ? ['WINS ' + Save.data.wins] : []);
+  const cw = 78, cg = 6, cx0 = cx - (chips.length * cw + (chips.length - 1) * cg) / 2;
+  chips.forEach((c, i) => { const x = cx0 + i * (cw + cg); uiPanel(ctx, x, 276, cw, 18, { color: P.greyMid, fill: P.void, alpha: 0.85 }); uiText(ctx, c, x + cw / 2, 289, { size: T.small, color: P.grey, align: 'center' }); });
+  const I = Save.levelInfo(), name = Account.on && Account.meta.name ? Account.meta.name.toUpperCase() : 'PLAYER';
+  // Profil (nur Anzeige): Level-Plakette links, rechts Name, Credits, Balken und XP
+  ctx.save(); ctx.translate(0, 56);                                                          // Profil unter dem Titel (der Titel braucht die ganze Breite oben)
+  const pw = 204, ph = 52, bx = 58, bw = pw - 8 - bx + 8 - 8;
+  uiPanel(ctx, 8, 8, pw, ph, { color: P.cyan, fill: P.void, alpha: 0.9 });
+  uiPanel(ctx, 14, 14, 36, 40, { color: P.yellow, fill: P.voidLight, alpha: 0.95 });
+  uiText(ctx, 'LV', 32, 26, { size: T.small, color: P.yellow, align: 'center' });
+  uiText(ctx, String(I.lv), 32, 47, { size: T.h1, color: P.ice, align: 'center' });
+  if (!IS_MOBILE) uiText(ctx, name, bx, 24, { size: T.small, color: P.cyan, maxW: 70 });                  // Handy: kein Platz neben den Credits
+  uiText(ctx, 'CREDITS ' + Save.data.souls, 8 + pw - 8, 24, { size: T.small, color: P.yellow, align: 'right' });
+  const f = I.need ? clamp(I.xp / I.need, 0, 1) : 1;
+  ctx.save(); ctx.fillStyle = P.greyDark; ctx.fillRect(bx, 31, bw, 8); ctx.fillStyle = P.yellow; ctx.fillRect(bx, 31, Math.round(bw * f), 8); ctx.restore();
+  uiText(ctx, I.need ? I.xp + ' / ' + I.need + ' XP' : 'MAX', bx + bw, 51, { size: T.small, color: P.grey, align: 'right' });
+  ctx.restore();
+  drawSyncIndicator(ctx);
+  // kleine Symbole unter dem Profil: Konto, Installieren, Statistik (Ton/Effekte stehen in den Einstellungen)
+  if (PWA.visible) drawMenuIcons(ctx, ['install'], 8, 122);
+  // Knoepfe
+  btns.forEach((b, i) => {
+    const hot = m.x >= b.x && m.x <= b.x + b.w && m.y >= b.y && m.y <= b.y + b.h, on = G.homeSel === i || hot;
+    UIHit.add(b.x, b.y, b.w, b.h, () => { G.homeSel = i; }, { act: () => G.homeGo(b.id) });
+    drawChunkyButton(ctx, b, on, t);
+    const dot = (b.id === 'play' && !Save.data.tutorialDone) || (b.id === 'hero' && ((Save.data.tutorialDone && !Save.data.upgradesSeen) || guideStep())) || (b.id === 'settings' && !Save.data.settingsSeen) || (b.id === 'awards' && Ach.unseen() > 0) || (b.id === 'account' && Account.configured && !Account.on) || (b.id === 'friends' && Social.badge());
+    if (dot) { ctx.save(); ctx.fillStyle = b.id === 'account' ? P.orange : P.red; ctx.fillRect(b.x + b.w - 8, b.y - 6, 12, 12); if (b.id !== 'account') { ctx.fillStyle = P.ice; ctx.fillRect(b.x + b.w - 5, b.y - 3, 6, 6); } ctx.restore(); }
+  });
 }
 
 // Sync-Anzeige oben links im Hauptmenue: drehender Pixelring waehrend des Abgleichs, danach kurz "SAVED" (gruen) oder "SYNC FAILED" / "OFFLINE"
 function drawSyncIndicator(ctx) {
   const upd = PWA.updateAt > 0;
   if (!Account.on && !upd) return;
-  const P = STYLE.pal, T = STYLE.type, now = Date.now(), busy = upd || Account.syncing > 0 || now < Account.spinUntil, since = now - Account.doneAt, x = 36, y = 34;
+  const P = STYLE.pal, T = STYLE.type, now = Date.now(), busy = upd || Account.syncing > 0 || now < Account.spinUntil, since = now - Account.doneAt, x = G.mode === 'start' ? 22 : 36, y = G.mode === 'start' ? 106 : 34;
   if (!busy && !(since < 2200 && Account.doneAt)) return;
   ctx.save();
   if (busy) {
@@ -510,7 +649,6 @@ function drawSyncIndicator(ctx) {
 // ---- Kleine Symbole oben rechts im Hauptmenue: Konto, Musik, Sound, Effekte, Vollbild ----
 const MENU_ICON_ART = {
   board: ['XXXXXXXXX', 'X.XXXXX.X', 'X.XXXXX.X', '.XXXXXXX.', '..XXXXX..', '...XXX...', '....X....', '...XXX...', '..XXXXX..'],
-  stats: ['......X..', '......X..', '..X...X..', '..X...X.X', '..X.X.X.X', 'X.X.X.X.X', 'X.X.X.X.X', 'X.X.X.X.X'],
   install: ['....X....', '....X....', '....X....', '..X.X.X..', '...XXX...', '....X....', 'X.......X', 'XXXXXXXXX'],
   account: ['...XXX...', '..XXXXX..', '..XXXXX..', '...XXX...', '.XXXXXXX.', 'XXXXXXXXX', 'XXXXXXXXX', 'XXXXXXXXX'],
   music: ['....XXXX', '....XXXX', '....X..X', '....X...', '....X...', '..XXX...', '.XXXX...', '.XXXX...', '..XX....'],
@@ -518,12 +656,11 @@ const MENU_ICON_ART = {
   fx: ['....X....', '....X....', '...XXX...', '..XXXXX..', 'XXXXXXXXX', '..XXXXX..', '...XXX...', '....X....', '....X....'],
   fullscreen: ['XXX...XXX', 'X.......X', 'X.......X', '.........', '.........', '.........', 'X.......X', 'X.......X', 'XXX...XXX'],
 };
-function drawMenuIcons(ctx) {
+function drawMenuIcons(ctx, only, ax, ay) {
   const P = STYLE.pal, T = STYLE.type, t = G.realTime, m = Input.mouse, S = 26, GAP = 4;
-  const ids = (statsOpen() ? ['stats'] : []).concat(['board', 'account'], PWA.visible ? ['install'] : [], ['music', 'sfx', 'fx', 'fullscreen']);
+  const ids = only || [].concat(['board', 'account'], PWA.visible ? ['install'] : [], ['music', 'sfx', 'fx', 'fullscreen']);
   const pct = (v) => Math.round(v * 100) + '%';
   const info = {
-    stats: { name: 'STATISTICS (ALL SLOTS)', lvl: -1 },
     board: { name: 'LEADERBOARD [B]', lvl: -1 },
     install: { name: 'INSTALL AS APP' + (PWA.offlineReady ? ' (OFFLINE READY)' : ''), lvl: -1 },
     account: { name: Account.on ? 'ACCOUNT: ' + Account.meta.name.toUpperCase() : (Account.configured ? 'NOT LOGGED IN - CLICK TO LOG IN' : 'ACCOUNT (NOT SET UP)'), lvl: -1 },
@@ -532,12 +669,12 @@ function drawMenuIcons(ctx) {
     fx: { name: 'EFFECTS: ' + ['OFF', 'REDUCED', 'FULL'][Juice.level], lvl: Juice.level / 2 },
     fullscreen: { name: 'FULLSCREEN: ' + (document.fullscreenElement ? 'ON' : 'OFF'), lvl: -1 },
   };
-  const x0 = STAGE_W - 8 - ids.length * S - (ids.length - 1) * GAP, y = 8;
+  const x0 = ax !== undefined ? ax : STAGE_W - 8 - ids.length * S - (ids.length - 1) * GAP, y = ay !== undefined ? ay : 8;
   let tip = null;
   ids.forEach((id, i) => {
     const x = x0 + i * (S + GAP), hot = m.x >= x && m.x <= x + S && m.y >= y && m.y <= y + S + 6;
     const off = (id === 'music' || id === 'sfx') && info[id].lvl <= 0.001 || (id === 'fx' && Juice.level === 0);
-    const col = id === 'stats' || id === 'board' ? P.yellow : id === 'install' ? P.green : id === 'account' ? (Account.on ? P.green : P.orange) : off ? P.greyMid : P.cyan;
+    const col = id === 'board' ? P.yellow : id === 'install' ? P.green : id === 'account' ? (Account.on ? P.green : P.orange) : off ? P.greyMid : P.cyan;
     UIHit.add(x, y, S, S + 6, () => {}, { act: () => G.menuQuick(id) });
     uiPanel(ctx, x, y, S, S, { color: hot ? P.ice : col, fill: P.void, alpha: 0.9, glow: hot });
     const art = MENU_ICON_ART[id], sc = 2, aw = art[0].length * sc, ah = art.length * sc, ax = x + Math.round((S - aw) / 2), ay = y + Math.round((S - ah) / 2);
@@ -553,87 +690,45 @@ function drawMenuIcons(ctx) {
     ctx.restore();
     if (hot) tip = info[id].name;
   });
-  if (tip) uiText(ctx, tip, STAGE_W - 8, y + S + 18, { size: T.small, color: P.ice, align: 'right' });
+  if (tip) uiText(ctx, tip, ax !== undefined ? ax : STAGE_W - 8, y + S + 18, { size: T.small, color: P.ice, align: ax !== undefined ? 'left' : 'right' });
 }
 
-// Modus-Auswahl nach PLAY: Regular / Infinite / Tutorial, darunter eine Kurzbeschreibung des gewählten Modus
+// Modus-Auswahl nach PLAY: Singleplayer / PvP / Lobby, darunter eine Kurzbeschreibung des gewählten Modus
 function drawModeSelectScreen(ctx) {
   const P = STYLE.pal, T = STYLE.type, t = G.realTime;
-  const labels = { regular: 'REGULAR', infinite: 'INFINITE MODE', speedrun: 'SPEEDRUN', multiplayer: 'MULTIPLAYER', tutorial: 'TUTORIAL', back: 'BACK' };
+  const labels = { regular: 'SINGLEPLAYER', pvp: 'PVP', create: 'CREATE LOBBY', join: 'JOIN LOBBY', back: 'BACK' };
   const descs = {
-    regular: ['The classic run on a walled map. Choose map and difficulty next.', 'Survive the waves and bosses, face Death at the end.'],
-    infinite: ['An endless map without walls. Choose map and final boss time next.', 'Credits grow the longer you survive. Own best time.'],
-    speedrun: ['Race the clock: all bosses back to back, then Death. Your best time goes on the leaderboard.', 'Same standard loadout for everyone (you only pick your weapons). No credits, no XP. Death ends the run.'],
-    multiplayer: ['Play with other players online. Pick a multiplayer mode next.', 'Currently: PVP Arena. Needs an internet connection.'],
-    tutorial: ['A short guided level that teaches the basics.', 'You cannot die. Nothing is saved.'],
+    regular: ['Fight the waves and bosses on your own. Choose a map next.', 'Survive, beat the bosses and face Death at the end.'],
     back: ['Back to the main menu.', ''],
+    pvp: ['Jump into a free-for-all against other players. Fight with your own gear and be the last one standing.', 'Every round earns credits and XP. Needs an internet connection.'],
+    create: ['Open a private lobby for you and your friends and share the code. The host chooses what to play there.', 'PVP: fight each other, alone or in teams. CO-OP: play a run together with up to 5 friends on the standard maps.'],
+    join: ['Enter the code of a friend\'s lobby to join it.', 'You need an internet connection.'],
   };
   drawMenuBg(ctx, 'keysettings');
   drawEmbers(ctx);
   uiText(ctx, 'CHOOSE A MODE', STAGE_W / 2, 56, { size: T.h1, color: P.yellow, align: 'center', glow: P.yellow });
+  if (Pvp.msg && Date.now() - Pvp.msgAt < 4000) uiText(ctx, Pvp.msg, STAGE_W / 2, 76, { size: T.body, color: Pvp.msgCol || P.red, align: 'center' });          // Meldung vom Multiplayer (z. B. Verbindung fehlgeschlagen)
   const lw = 300, lcx = 40 + lw / 2, PX = 40 + lw + 24, PW = STAGE_W - 40 - PX, top = 90, GAP = 38, RH = 30;          // 6 Modi, zusammen so hoch wie das Info-Feld          // links die Modi, rechts das Info-Feld
   MODE_ITEMS.forEach((id, i) => {
     const y = top + i * GAP;
-    const lock = CFG.level.gates[id] && !Save.gateOpen(id) ? CFG.level.gates[id] : 0;
-    drawMenuRow(ctx, y, labels[id], G.modeSel === i, { w: lw, h: RH, cx: lcx, hit: () => { G.modeSel = i; }, locked: lock });
-    if (id === 'tutorial' && !Save.data.tutorialDone) uiHintDot(ctx, 40 + lw + 8, y + 18, t);
+    drawMenuRow(ctx, y, labels[id], G.modeSel === i, { w: lw, h: RH, cx: lcx, hit: () => { G.modeSel = i; } });
   });
-  const id = MODE_ITEMS[G.modeSel], d = descs[id], mc = { regular: P.yellow, infinite: P.cyan, speedrun: P.orange, multiplayer: P.red, tutorial: P.green }[id] || P.ice;
-  uiPanel(ctx, PX, top, PW, MODE_ITEMS.length * GAP - (GAP - RH), { color: mc, fill: P.void, alpha: 0.92, glow: true });
+  const id = MODE_ITEMS[G.modeSel], d = descs[id], mc = { regular: P.yellow, pvp: P.red, create: P.orange, join: P.orange }[id] || P.ice;
+  uiPanel(ctx, PX, top, PW, 210, { color: mc, fill: P.void, alpha: 0.92, glow: true });
   uiText(ctx, labels[id], PX + 14, top + 24, { size: T.h1, color: mc });
   let ty = top + 48;
   ty += 13 * uiWrap(ctx, d[0], PX + 14, ty, PW - 28, 13, { size: T.body, color: P.ice }) + 6;
   ty += 13 * uiWrap(ctx, d[1], PX + 14, ty, PW - 28, 13, { size: T.body, color: P.grey }) + 6;
-  if (CFG.level.gates[id] && !Save.gateOpen(id)) uiWrap(ctx, 'LOCKED: reach player level ' + CFG.level.gates[id] + ' (you are level ' + Save.plevel() + '). Every run earns XP.', PX + 14, ty, PW - 28, 13, { size: T.body, color: P.orange });
-}
-
-// Untermenue MULTIPLAYER: PVP ARENA
-function drawMultiSelectScreen(ctx) {
-  const P = STYLE.pal, T = STYLE.type;
-  const labels = { coop: 'CO-OP RUN', pvp: 'PVP ARENA', back: 'BACK' };
-  drawMenuBg(ctx, 'keysettings');
-  drawEmbers(ctx);
-  uiText(ctx, 'MULTIPLAYER', STAGE_W / 2, 56, { size: T.h1, color: P.red, align: 'center', glow: P.red });
-  const lw = 300, PX = 40 + lw + 24, PW = STAGE_W - 40 - PX, top = 90, GAP = 38, RH = 30;
-  MULTI_ITEMS.forEach((id, i) => drawMenuRow(ctx, top + i * GAP, labels[id], G.multiSel === i, { w: lw, h: RH, cx: 40 + lw / 2, hit: () => { G.multiSel = i; }, locked: CFG.level.gates[id] && !Save.gateOpen(id) ? CFG.level.gates[id] : 0 }));
-  const id = MULTI_ITEMS[G.multiSel];
-  uiPanel(ctx, PX, top, PW, 6 * GAP - (GAP - RH), { color: P.red, fill: P.void, alpha: 0.92, glow: true });
-  uiText(ctx, labels[id], PX + 14, top + 24, { size: T.h1, color: P.red });
-  const d = id === 'coop' ? ['Play a run together with up to 3 friends on the standard maps, only bigger. Create a lobby and share the code.', 'Everyone keeps their own gear, upgrades and hero. More players means a much harder run: 2 players are about 2.7x, 4 players about 8x as hard. Fallen players come back after the next boss.'] : id === 'pvp' ? ['Fight other players in an arena. Create a lobby and share the code, or join a friend with their code.', 'Up to 4 players, all vs all or in teams. Your own weapons, abilities and upgrades count. Needs an internet connection.'] : ['Back to the mode selection.', ''];
-  let ty = top + 48;
-  ty += 13 * uiWrap(ctx, d[0], PX + 14, ty, PW - 28, 13, { size: T.body, color: P.ice }) + 6;
-  ty += 13 * uiWrap(ctx, d[1], PX + 14, ty, PW - 28, 13, { size: T.body, color: P.grey }) + 6;
-  if (CFG.level.gates[id] && !Save.gateOpen(id)) uiWrap(ctx, 'LOCKED: reach player level ' + CFG.level.gates[id] + ' (you are level ' + Save.plevel() + '). Every run earns XP.', PX + 14, ty, PW - 28, 13, { size: T.body, color: P.orange });
-}
-
-// Endlos-Modus vor dem Start: Zeitpunkt des finalen Bosses wählen
-function drawInfSetupScreen(ctx) {
-  const P = STYLE.pal, T = STYLE.type, m = CFG.infinite.finalMinutes[Save.data.infSel];
-  drawMenuBg(ctx, 'keysettings');
-  drawEmbers(ctx);
-  uiText(ctx, 'INFINITE MODE', STAGE_W / 2, 56, { size: T.h1, color: P.cyan, align: 'center', glow: P.cyan });
-  const mapName = CFG.maps[Save.mapUnlocked(Save.data.mapSel) ? Save.data.mapSel : 0].name;
-  const rows = ['FINAL BOSS: ' + (m === null ? 'NEVER (ENDLESS)' : 'AFTER ' + m + ' MIN'), 'MAP: ' + mapName, 'START', 'BACK'];
-  const lw = 330, PX = 40 + lw + 24, PW = STAGE_W - 40 - PX, top = 90, GAP = 46;
-  rows.forEach((r, i) => drawMenuRow(ctx, top + i * GAP, r, G.infSel === i, { w: lw, h: 36, cx: 40 + lw / 2, hit: () => { G.infSel = i; }, lr: i < 2 }));
-  uiPanel(ctx, PX, top, PW, rows.length * GAP - 10, { color: P.cyan, fill: P.void, alpha: 0.92, glow: true });
-  uiText(ctx, 'HOW IT WORKS', PX + 14, top + 20, { size: T.h2, color: P.cyan });
-  let ty = top + 40;
-  ty += 12 * uiWrap(ctx, 'An endless map without walls. Enemies keep coming from every side.', PX + 14, ty, PW - 28, 12, { size: T.body, color: P.ice }) + 6;
-  ty += 12 * uiWrap(ctx, 'Choose when the final boss (Death) arrives. Beat him to win.', PX + 14, ty, PW - 28, 12, { size: T.body, color: P.grey }) + 10;
-  const E = CFG.endless;
-  ty += 12 * uiWrap(ctx, 'CREDITS GROW THE LONGER YOU SURVIVE: x' + E.creditBase + ' AT THE START, x' + E.creditMax + ' AFTER ' + Math.round((E.creditMax - E.creditBase) / E.creditPerMin) + ' MIN.', PX + 14, ty, PW - 28, 12, { size: T.body, color: P.yellow }) + 4;
-  uiText(ctx, 'OWN BEST TIME: ' + (Save.data.bestInf > 0 ? formatTime(Save.data.bestInf) : '-'), PX + 14, ty + 4, { size: T.body, color: P.yellow });
 }
 
 // Kartenauswahl nach PLAY: drei Karten nebeneinander, gesperrte zeigen, was zum Freischalten fehlt
 function drawMapSelectScreen(ctx) {
-  const P = STYLE.pal, T = STYLE.type, n = CFG.maps.length, gap = n > 3 ? 6 : 12, w = Math.min(140, Math.floor((STAGE_W - 20 - (n - 1) * gap) / n)), x0 = STAGE_W / 2 - (n * w + (n - 1) * gap) / 2, y = 70, h = 215, small = w < 130;
+  const P = STYLE.pal, T = STYLE.type, n = CFG.maps.length, gap = n > 3 ? 6 : 12, w = Math.min(140, Math.floor((STAGE_W - 20 - (n - 1) * gap) / n)), x0 = STAGE_W / 2 - (n * w + (n - 1) * gap) / 2, y = 62, h = 212, small = w < 130;
   drawMenuBg(ctx, 'keysettings');
-  uiText(ctx, 'CHOOSE A MAP', STAGE_W / 2, 44, { size: T.h1, color: P.yellow, align: 'center' });
+  uiText(ctx, 'SINGLEPLAYER', STAGE_W / 2, 36, { size: T.h1, color: P.yellow, align: 'center' });
   CFG.maps.forEach((M, i) => {
     const x = x0 + i * (w + gap), sel = Save.data.mapSel === i, open = Save.mapUnlocked(i), yy = sel ? y - 6 : y, col = open ? M.frame : P.greyMid;
-    UIHit.add(x, y - 6, w, h + 6, () => { Save.data.mapSel = i; G.mapBack = false; });
+    UIHit.add(x, y - 6, w, h + 6, () => { Save.data.mapSel = i; });          // Klick/Antippen waehlt die Karte und startet sie (gesperrte Karten: Ton)
     uiPanel(ctx, x, yy, w, h, { color: sel ? col : P.greyMid, fill: P.void, alpha: 0.95, glow: sel });
     const im = IMG[M.ground];
     if (im && im.ok) { ctx.save(); ctx.globalAlpha = open ? 1 : 0.25; ctx.drawImage(im.img, 0, 0, 400, 240, x + 5, yy + 5, w - 10, 78); ctx.restore(); }
@@ -648,30 +743,37 @@ function drawMapSelectScreen(ctx) {
       (M.hazards && M.hazards.length ? M.hazards : ['NONE']).forEach((hz, k) => uiText(ctx, hz, x + 10, yy + 193 + k * 11, { size: T.small, color: M.hazards ? P.orange : P.greyMid }));
     } else {
       uiText(ctx, 'LOCKED', x + w / 2, yy + 172, { size: T.h2, color: P.red, align: 'center' });
-      uiText(ctx, 'REACH ' + formatTime(Save.mapNeed(i)), x + w / 2, yy + 188, { size: T.small, color: P.grey, align: 'center' });
+      uiText(ctx, 'BEAT THE FINAL BOSS', x + w / 2, yy + 188, { size: T.small, color: P.grey, align: 'center' });
       uiText(ctx, 'ON ' + CFG.maps[i - 1].name, x + w / 2, yy + 200, { size: T.small, color: P.grey, align: 'center' });
     }
   });
-  drawMenuRow(ctx, 292, 'BACK', G.mapBack, { w: 190, h: 22, hit: () => { G.mapBack = true; } });
 }
 
+// Eine Zeile Erklaerung je Reiter der HERO-Seite (neue Spieler wissen sonst nicht, was Credits, Items und Abilities sind)
+const TAB_INFO = {
+  stats: 'PERMANENT BONUSES FOR EVERY RUN.',
+  weapons: 'WEAPONS AND IMPLANTS: BUY ONCE, THEN EQUIP THEM IN THE ARMORY.',
+  abilities: 'UNLOCK ABILITIES TO FIND THEM IN YOUR RUNS, LEVEL THEM UP FOR MORE POWER.',
+  heroes: 'EACH HERO CHANGES YOUR STATS AND ARTIFACT. SOME NEED A MILESTONE FIRST.',
+};
 function drawUpgradesScreen(ctx) {
   const P = STYLE.pal, T = STYLE.type;
   drawMenuBg(ctx, 'keysettings');
-  uiText(ctx, 'UPGRADES', STAGE_W / 2, 40, { size: T.h1, color: P.yellow, align: 'center' });
-  uiText(ctx, 'CREDITS: ' + Save.data.souls, STAGE_W / 2, 58, { size: T.h2, color: P.yellow, align: 'center' });
+  uiText(ctx, 'HERO', STAGE_W / 2, 40, { size: T.h1, color: P.yellow, align: 'center' });
+  uiText(ctx, 'CREDITS: ' + Save.data.souls + '   (EARNED IN EVERY RUN)', STAGE_W / 2, 58, { size: T.h2, color: P.yellow, align: 'center' });
   const guide = guideStep();
-  // Reiter
+  // Reiter: STATS / ITEMS / ABILITIES / HEROES (gelber Rahmen = darin ist etwas bezahlbar)
   const tw = Math.min(130, (STAGE_W - 40) / UPGRADE_TABS.length);
   UPGRADE_TABS.forEach((t, i) => {
-    const tx = STAGE_W / 2 - (UPGRADE_TABS.length * tw) / 2 + i * tw, on = G.upgradeTab === i;
+    const tx = STAGE_W / 2 - (UPGRADE_TABS.length * tw) / 2 + i * tw, on = G.upgradeTab === i, buy = !on && upgradeRows(t.id).some(shopAffordable);
     UIHit.add(tx + 2, 66, tw - 4, 18, () => { if (G.upgradeTab !== i) { G.upgradeTab = i; G.upgradeSel = 0; } }, { noConfirm: true });
-    uiPanel(ctx, tx + 2, 66, tw - 4, 18, { color: on ? P.yellow : P.greyMid, fill: P.void, alpha: 0.9, glow: on });
+    uiPanel(ctx, tx + 2, 66, tw - 4, 18, { color: on ? P.yellow : buy ? '#8a7410' : P.greyMid, fill: P.void, alpha: 0.9, glow: on });
     uiText(ctx, t.label, tx + tw / 2, 79, { size: T.small, color: on ? P.yellow : P.grey, align: 'center' });
     if (guide && guide.tab === t.id && !on) uiHintDot(ctx, tx + tw - 9, 75, G.realTime);          // gefuehrter Kauf: Punkt am Reiter
   });
   const rows = upgradeRows(UPGRADE_TABS[G.upgradeTab].id).concat([{ kind: 'back' }]);
   const GROUP_COLORS = [P.cyan, P.yellow, P.orange, P.green, P.purple];
+  uiText(ctx, TAB_INFO[UPGRADE_TABS[G.upgradeTab].id] || '', 24 + 372, 98, { size: T.small, color: P.greyMid, align: 'right', maxW: 240 });
   const curRow = rows[G.upgradeSel];
   if (curRow && curRow.kind !== 'back') {                              // Gruppe der gewaehlten Zeile + Position darin
     const g = upgradeGroup(curRow), same = rows.filter((q) => q.kind !== 'back' && upgradeGroup(q).label === g.label);
@@ -686,7 +788,8 @@ function drawUpgradesScreen(ctx) {
     const i = off + k, sel = G.upgradeSel === i, y = Y0 + k * GAP;
     if (r.kind === 'back') { drawMenuRow(ctx, y + 2, 'BACK', sel, { w: 190, cx: x + w / 2, hit: () => { G.upgradeSel = i; } }); return; }
     UIHit.add(x, y, w, H, () => { G.upgradeSel = i; }, { noConfirm: true });        // Klick waehlt nur aus, gekauft wird ueber den Knopf rechts (oder per Leertaste)
-    uiPanel(ctx, x, y, w, H, { color: sel ? P.cyan : P.greyMid, fill: P.void, alpha: 0.9, glow: sel });
+    const buy = shopAffordable(r);                                        // bezahlbar: gelber Rahmen
+    uiPanel(ctx, x, y, w, H, { color: sel ? P.cyan : buy ? P.yellow : P.greyMid, fill: P.void, alpha: 0.9, glow: sel });
     const g = upgradeGroup(r);                                          // farbiger Streifen links = Gruppe, wechselt die Farbe, beginnt eine neue Gruppe
     ctx.fillStyle = GROUP_COLORS[g.idx % GROUP_COLORS.length]; ctx.fillRect(x + 1, y + 3, 3, H - 6);
     const nameCol = sel ? P.ice : P.grey;
@@ -694,7 +797,7 @@ function drawUpgradesScreen(ctx) {
     if (r.kind === 'up') {
       const U = CFG.meta.upgrades[r.id], lvl = Save.level(r.id), maxed = lvl >= U.max, afford = Save.data.souls >= Save.cost(r.id);
       uiText(ctx, U.name, x + 10, y + 14, { size: T.h2, color: nameCol });
-      uiText(ctx, lvl ? U.desc(Save.bonus(r.id)) : 'NOT PURCHASED', x + 10, y + 27, { size: T.small, color: P.grey });
+      uiText(ctx, lvl ? U.desc(Save.bonus(r.id), lvl) : 'NOT PURCHASED', x + 10, y + 27, { size: T.small, color: P.grey, maxW: w - 110, minK: 0.6 });
       const bw = U.max > 6 ? 8 : 14;                                      // viele Stufen: schmalere Balken
       for (let n = 0; n < U.max; n++) uiBar(ctx, x + w - 10 - (U.max - n) * bw, y + 5, bw - 3, 5, n < lvl ? 1 : 0, P.cyan);
       uiText(ctx, maxed ? 'MAX' : Save.cost(r.id) + ' CREDITS', x + w - 10, y + 27, { size: T.small, color: maxed ? P.cyan : afford ? P.yellow : P.red, align: 'right' });
@@ -723,7 +826,7 @@ function drawUpgradesScreen(ctx) {
       uiText(ctx, bot, x + w - 10, y + 27, { size: T.small, color: !owned && !open ? P.grey : P.yellow, align: 'right' });
     } else if (r.kind === 'milestone') {
       const m = CFG.milestones.find((q) => q.id === r.id), done = Save.milestoneDone(m.id);
-      const fmt = (stat, v) => stat === 'best' || stat === 'bestInf' || String(stat).startsWith('mapbest:') ? formatTime(v) : String(Math.floor(v));
+      const fmt = (stat, v) => stat === 'best' || String(stat).startsWith('mapbest:') ? formatTime(v) : String(Math.floor(v));
       uiText(ctx, m.name, x + 10, y + 14, { size: T.body, color: done ? P.ice : P.grey });
       uiText(ctx, 'REWARD: ' + milestoneRewardText(m), x + 10, y + 27, { size: T.small, color: done ? P.cyan : m.reward.cores ? P.yellow : P.grey });
       uiBar(ctx, x + w - 130, y + 6, 120, 6, Math.min(1, Save.statValue(m.stat) / m.need), done ? P.cyan : P.yellow);
@@ -801,7 +904,8 @@ function detailWrapped(ctx, row, maxW) { const l = upgradeDetail(row); return [w
 function upgradeDetail(r) {
   if (r.kind === 'up') {
     const U = CFG.meta.upgrades[r.id], lvl = Save.level(r.id), next = (lvl + 1) * U.step;
-    return [U.info || U.name, 'LEVEL ' + lvl + '/' + U.max + '   NOW: ' + (lvl ? U.desc(Save.bonus(r.id)) : '-') + (lvl < U.max ? '   NEXT: ' + U.desc(next) : '   (MAX)')];
+    const now = lvl ? U.desc(Save.bonus(r.id), lvl) : '-', nxt = lvl < U.max ? U.desc(next, lvl + 1) : '';
+    return [U.info || U.name, 'LEVEL ' + lvl + '/' + U.max + '   NOW: ' + now + (nxt && nxt.length <= 40 ? '   NEXT: ' + nxt : lvl >= U.max ? '   (MAX)' : '')];
   }
   if (r.kind === 'ability') {
     const A = CFG.loadout.abilities[r.id];
@@ -992,135 +1096,210 @@ function drawGearMeter(ctx, id, x, y, w, col) {
   }
 }
 
+// ---------- Armory: der Held in der Mitte, rundherum die vier Waffen-/Implant-Slots und die drei Ability-Slots; rechts die grosse Info-Box des gewaehlten Slots ----------
+// Auswahl G.invSel: 0-3 = Item-Slots (CFG.items.slots), danach eine Ability je Gruppe (CFG.loadout.tiers), dann der Held (Mitte), zuletzt BACK.
+// Klick/Leertaste auf einen Slot oeffnet das Auswahlfenster (G.invPick). Die Abilities sind die fuer die Kaempfe (PvP) gewaehlten (Save.abilityLoadout), im normalen Lauf waehlt man sie nach den Bossen.
+const ARMORY = { cx: 147, cy: 168, rx: 92, ry: 80, ts: 46, tierCol: { weak: 'cyan', medium: 'yellow', strong: 'orange' } };
+function armoryNodes() {
+  const P = STYLE.pal;
+  return CFG.items.slots.map((S) => ({ kind: 'item', id: S.id, label: S.label, col: slotColor(S.id) }))
+    .concat(CFG.loadout.tiers.map((tr) => ({ kind: 'ability', id: tr.id, label: tr.label + ' ABILITY', col: P[ARMORY.tierCol[tr.id]] || P.cyan })));
+}
+
+// Held als Bild (mit Skin) an Bildschirmposition (x, y); size in Prozent des Sprites
+function drawHeroLook(ctx, spriteId, x, y, size, t, flip) {
+  const ox = x - STAGE_W / 2, oy = STAGE_H / 2 - y;
+  try { Cos.drawShip(ctx, Cos.sprite(spriteId, 'skin'), ox, oy, 90, size, {}, Cos.cur('skin'), t); }
+  catch (e) { drawSprite(ctx, spriteId, ox, oy, 90, size); }
+}
+
 function drawInventoryScreen(ctx) {
-  const P = STYLE.pal, T = STYLE.type, t = G.realTime, slots = CFG.items.slots;
+  const P = STYLE.pal, T = STYLE.type, t = G.realTime, A = ARMORY, nodes = armoryNodes(), N = nodes.length, heroIdx = N, backIdx = N + 1;
   drawMenuBg(ctx, 'keysettings');
   drawEmbers(ctx);
   uiText(ctx, 'ARMORY', 24, 40, { size: T.h1, color: P.yellow, glow: P.yellow });
   drawCoreCount(ctx);
-  drawLevelBar(ctx, 190, 38, 150);                                   // Spielerlevel mit Fortschrittsbalken
 
-  // links: die vier Slots
-  const lx = 24, lw = 170, H = 52, GAP = 6, Y0 = 56;
-  slots.forEach((S, i) => {
-    const sel = G.invSel === i, y = Y0 + i * (H + GAP), col = slotColor(S.id), id = Save.equipped(S.id), I = id ? CFG.items.catalog[id] : null;
-    const x = lx + (sel ? 6 : 0), w = lw - (sel ? 6 : 0);
-    UIHit.add(lx, y, lw, H, () => { G.invSel = i; });
-    uiPanel(ctx, x, y, w, H, { color: sel ? col : P.greyMid, fill: sel ? P.voidLight : P.void, alpha: 0.92, glow: sel });
-    ctx.save(); ctx.globalAlpha = sel ? 1 : 0.45; ctx.fillStyle = col; ctx.fillRect(x + 1, y + 4, 3, H - 8); ctx.restore();           // Farbstreifen = Slot-Farbe
-    uiPanel(ctx, x + 9, y + 8, 30, 30, { color: sel ? col : P.greyMid, fill: P.ink, alpha: 1, notch: 3 });
-    if (I) drawIcon(ctx, I.icon, x + 24, y + 23 + (sel ? Math.round(Math.sin(t * 4)) : 0), Math.min(24, I.iconW + 4), 1);
-    else uiText(ctx, '?', x + 24, y + 28, { size: T.h2, color: P.greyMid, align: 'center' });
-    uiText(ctx, S.label, x + 46, y + 17, { size: T.small, color: col });
-    uiText(ctx, I ? uiFit(ctx, I.name, w - 54, T.body) : 'EMPTY', x + 46, y + 29, { size: T.body, color: I ? (sel ? P.ice : P.grey) : P.greyMid });
-    if (I) drawGearBar(ctx, id, x + 46, y + 34, w - 54);
-    if (id) evoRecipesOf(id).slice(0, 3).forEach((eid, k) => drawEvoChip(ctx, x + w - 12 - k * 15, y + 12, evoPartner(CFG.evolutions.list[eid], false), 12));      // Rezept-Hinweis
+  // links: Held in der Mitte, die Slots im Kreis darum (zuerst die Verbindungslinien, damit sie hinter Held und Slots liegen)
+  const slotPos = (i) => { const ang = (-90 + i * 360 / N) * Math.PI / 180; return [Math.round(A.cx + Math.cos(ang) * A.rx - A.ts / 2), Math.round(A.cy + Math.sin(ang) * A.ry - A.ts / 2 - 4)]; };
+  nodes.forEach((nd, i) => { const [lx2, ly2] = slotPos(i); ctx.save(); ctx.globalAlpha = G.invSel === i ? 0.55 : 0.2; ctx.strokeStyle = nd.col; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(A.cx, A.cy - 6); ctx.lineTo(lx2 + A.ts / 2, ly2 + A.ts / 2); ctx.stroke(); ctx.restore(); });
+  const heroSel = G.invSel === heroIdx, HS = 64, hx = A.cx - HS / 2, hy = A.cy - HS / 2 - 6, Hc = CFG.heroes[Save.ownHero()];
+  UIHit.add(hx - 6, hy - 6, HS + 12, HS + 30, () => { G.invSel = heroIdx; });
+  ctx.save(); ctx.globalAlpha = (heroSel ? 0.2 : 0.1) + 0.06 * Math.sin(t * 3); ctx.fillStyle = P.purple; pxGlow(ctx, A.cx, hy + HS / 2, HS * 0.75); ctx.restore();
+  uiPanel(ctx, hx, hy, HS, HS, { color: heroSel ? P.purple : P.greyMid, fill: P.ink, alpha: 0.95, glow: heroSel, notch: 4 });
+  if (heroSel) uiCorners(ctx, hx - 3, hy - 3, HS + 6, HS + 6, P.purple);
+  drawHeroLook(ctx, Hc.sprite, A.cx, hy + HS / 2 + Math.round(Math.sin(t * 2) * 1.5), 520, t);
+  uiText(ctx, Hc.name, A.cx, hy + HS + 14, { size: T.h2, color: heroSel ? P.ice : P.grey, align: 'center', glow: heroSel ? P.purple : undefined, maxW: 100, minK: 0.6 });
+
+  nodes.forEach((nd, i) => {
+    const sel = G.invSel === i, [tx, ty] = slotPos(i);
+    const id = nd.kind === 'item' ? Save.equipped(nd.id) : Save.abilityLoadout()[nd.id], I = id ? (nd.kind === 'item' ? CFG.items.catalog[id] : CFG.loadout.abilities[id]) : null;
+    UIHit.add(tx - 3, ty - 3, A.ts + 6, A.ts + 18, () => { G.invSel = i; });
+    uiPanel(ctx, tx, ty, A.ts, A.ts, { color: sel ? nd.col : P.greyMid, fill: sel ? P.voidLight : P.void, alpha: 0.95, glow: sel, notch: 4 });
+    if (sel) uiCorners(ctx, tx - 3, ty - 3, A.ts + 6, A.ts + 6, nd.col);
+    if (I) drawIcon(ctx, I.icon, tx + A.ts / 2, ty + A.ts / 2 + (sel ? Math.round(Math.sin(t * 4)) : 0), Math.min(28, (I.iconW || 20) + 6), 1);
+    else uiText(ctx, '?', tx + A.ts / 2, ty + A.ts / 2 + 6, { size: T.h2, color: P.greyMid, align: 'center' });
+    uiText(ctx, I18n.t(nd.label.replace(' ABILITY', '')).split(' ')[0], tx + A.ts / 2, ty + A.ts + 9, { size: T.small, color: sel ? nd.col : P.greyMid, align: 'center', maxW: A.ts + 34 });
   });
-  const by = Y0 + slots.length * (H + GAP) + 2, backSel = G.invSel === slots.length;
-  UIHit.add(lx, by, lw, 24, () => { G.invSel = slots.length; });
+  const lx = 24, lw = 246, by = 290, backSel = G.invSel === backIdx;
+  UIHit.add(lx, by, lw, 24, () => { G.invSel = backIdx; });
   uiPanel(ctx, lx, by, lw, 24, { color: backSel ? P.cyan : P.greyMid, fill: P.void, alpha: 0.9, glow: backSel });
   uiText(ctx, 'BACK', lx + lw / 2, by + 17, { size: T.h2, color: backSel ? P.ice : P.grey, align: 'center' });
   if (backSel) uiText(ctx, '>', lx + 10, by + 17, { size: T.h2, color: P.cyan });
 
-  // rechts: Details des gewaehlten Slots
-  const px = 206, pw = STAGE_W - 24 - px, py = 56, ph = by + 24 - py;
-  const si = Math.min(G.invSel, slots.length - 1), S = slots[si], col = slotColor(S.id), id = Save.equipped(S.id), I = id ? CFG.items.catalog[id] : null;
-  uiPanel(ctx, px, py, pw, ph, { color: backSel ? P.greyMid : col, fill: P.void, alpha: 0.92, glow: !backSel });
+  // rechts: grosse Info-Box des gewaehlten Slots
+  const px = 286, pw = STAGE_W - 24 - px, py = 56, ph = by + 24 - py;
   if (backSel) {
+    uiPanel(ctx, px, py, pw, ph, { color: P.greyMid, fill: P.void, alpha: 0.92 });
     uiText(ctx, 'BACK TO MAIN MENU', px + pw / 2, py + ph / 2, { size: T.h2, color: P.greyMid, align: 'center' });
-  } else {
-    // grosses Symbol mit pulsierendem Schein und Eckklammern
-    const ix = px + 14, iy = py + 12, isz = 54;
-    ctx.save(); ctx.globalAlpha = 0.14 + 0.08 * Math.sin(t * 3); ctx.fillStyle = col;
-    pxGlow(ctx, ix + isz / 2, iy + isz / 2, isz * 0.62); ctx.restore();
-    uiPanel(ctx, ix, iy, isz, isz, { color: col, fill: P.ink, alpha: 0.95, notch: 4 });
-    uiCorners(ctx, ix - 3, iy - 3, isz + 6, isz + 6, col);
-    if (I) drawIcon(ctx, I.icon, ix + isz / 2, iy + isz / 2 + Math.round(Math.sin(t * 2.5) * 2), 38, 1);
-    else uiText(ctx, '?', ix + isz / 2, iy + isz / 2 + 7, { size: T.h1, color: P.greyMid, align: 'center' });
-    uiText(ctx, S.label, ix + isz + 12, iy + 12, { size: T.small, color: col });
-    uiText(ctx, I ? uiFit(ctx, I.name, pw - isz - 40, 16) : 'EMPTY SLOT', ix + isz + 12, iy + 32, { size: 16, color: I ? P.ice : P.greyMid, glow: I ? col : undefined });
-    uiText(ctx, Save.ownedFor(S.id).length + ' OWNED', ix + isz + 12, iy + 48, { size: T.small, color: P.grey });
-    const tx = px + 14, tw = pw - 28;
-    let ty = iy + isz + 16;
-    if (I) {
-      ty += 11 * uiWrap(ctx, I.desc, tx, ty, tw, 11, { size: T.body, color: P.grey });
-      const f = itemFacts(id);
-      if (f) ty += 2 + 10 * uiWrap(ctx, f, tx, ty + 1, tw, 10, { size: T.small, color: P.cyan });
-      if (id === 'phoenix' && Save.cosOwned('revive', 'totem')) {                              // geheimes Cosmetic (Achievement POSTMORTAL): Animation der Wiederbelebung waehlen
-        const on = Save.cosEquipped('revive') === 'totem', m = Input.mouse, hot = m.x >= tx && m.x <= tx + tw && m.y >= ty + 4 && m.y <= ty + 24;
-        UIHit.add(tx, ty + 4, tw, 20, () => {}, { key: 'KeyT' });
-        uiPanel(ctx, tx, ty + 4, tw, 20, { color: hot ? P.ice : on ? P.green : P.greyMid, fill: hot ? P.voidLight : P.void, alpha: 0.95, glow: on || hot });
-        uiText(ctx, 'REVIVE ANIMATION: ' + (on ? 'TOTEM OF UNDYING' : 'REVIVAL RING'), tx + 8, ty + 18, { size: T.small, color: on ? P.green : P.grey });
-        uiText(ctx, '[T] SWITCH', tx + tw - 8, ty + 18, { size: T.small, color: P.yellow, align: 'right' });
-        ty += 28;
-      }
-    } else uiText(ctx, 'Nothing equipped. Press SPACE to choose an item.', tx, ty, { size: T.body, color: P.grey });
-    // Evolutions-Rezepte dieses Items: so viele, wie zwischen Beschreibung und Stufenblock wirklich Platz haben (nie darueber hinaus)
-    const my = py + ph - 58;                                                                  // Oberkante des Stufenblocks (Linie bei my - 14)
-    if (id) {
-      const all = evoRecipesOf(id).slice(0, 2), free = (my - 18) - (ty + 2);
-      const n = Math.max(0, Math.min(all.length, Math.floor((free - 12) / 37)));
-      if (n) {
-        const top = my - 18 - n * 37 - 12;
-        uiText(ctx, 'EVOLUTION  -  NEEDS ' + CFG.evolutions.minUps + ' BOSSES IN A RUN', tx, top + 7, { size: T.small, color: P.yellow });
-        all.slice(0, n).forEach((eid, k) => drawEvoRecipe(ctx, tx, top + 11 + k * 37, tw, eid));
-      }
-    }
-    // Stufe
-    if (I) {
-      const lv = Save.gearLv(id), max = Save.gearMax(), maxed = lv >= max, price = Save.gearPrice(id), afford = Save.data.souls >= price;
-      ctx.fillStyle = col; ctx.globalAlpha = 0.35; ctx.fillRect(tx, my - 14, tw, 1); ctx.globalAlpha = 1;
-      uiText(ctx, 'LEVEL ' + lv + ' / ' + max, tx, my - 3, { size: T.h2, color: P.yellow });
-      uiText(ctx, 'NOW +' + Math.round(lv * CFG.gear.step[Save.gearKind(id)] * 100) + '%' + (maxed ? '' : '   NEXT +' + Math.round((lv + 1) * CFG.gear.step[Save.gearKind(id)] * 100) + '%'), px + pw - 14, my - 3, { size: T.small, color: P.grey, align: 'right' });
-      drawGearMeter(ctx, id, tx, my + 4, tw, col);
-      uiText(ctx, uiFit(ctx, gearStepText(id) + '  -  FILLS WHILE YOU PLAY', tw, T.small), tx, my + 32, { size: T.small, color: P.greyMid });
-      const up = maxed ? 'MAX LEVEL' : '[U] LEVEL UP  -  ' + price + ' CREDITS';
-      if (!maxed) UIHit.add(tx - 4, my + 33, 170, 18, () => {}, { key: 'KeyU' });             // Antippen = U (Touch)
-      uiText(ctx, up, tx, my + 46, { size: T.body, color: maxed ? P.cyan : afford ? P.yellow : P.red });
-      uiText(ctx, '[SPACE] CHANGE', px + pw - 14, my + 46, { size: T.small, color: P.cyan, align: 'right' });
-    } else uiText(ctx, '[SPACE] CHOOSE ITEM', px + pw / 2, py + ph - 12, { size: T.body, color: P.cyan, align: 'center' });
-    // Level-up-Effekt: Ringe laufen vom Symbol nach aussen, kurzer Aufheller
-    const fx = t - (G.invFlashAt || -9);
-    if (fx >= 0 && fx < 0.7) {
-      ctx.save();
-      const k = fx / 0.7, cx = ix + isz / 2, cy = iy + isz / 2;
-      ctx.globalAlpha = 0.25 * (1 - k); ctx.fillStyle = P.white; ctx.fillRect(px, py, pw, ph);
-      ctx.fillStyle = P.yellow; ctx.globalAlpha = 1 - k;
-      pxRing(ctx, cx, cy, 20 + 60 * k, 2); pxRing(ctx, cx, cy, 10 + 40 * k, 1);
-      ctx.restore();
-      uiText(ctx, 'LEVEL UP!', px + pw - 14, iy + 12, { size: T.h2, color: P.yellow, align: 'right', glow: P.yellow });
-    }
-  }
+  } else if (G.invSel === heroIdx) drawArmoryHeroInfo(ctx, px, py, pw, ph, Hc);
+  else if (nodes[G.invSel].kind === 'item') drawArmoryItemInfo(ctx, px, py, pw, ph, G.invSel);
+  else drawArmoryAbilityInfo(ctx, px, py, pw, ph, nodes[G.invSel]);
   if (G.invPick) drawInvPick(ctx);
 }
 
-// Auswahlfenster im Inventar: alle gekauften Items des Slots als Karten mit Symbol, Kurzinfo, Stufe und Balken
+// Kopf der Info-Box: grosses Symbol (Bild oder Funktion), Gruppe, Name und eine Zeile Zusatz
+function drawArmoryHead(ctx, px, py, col, label, name, extra, drawLook) {
+  const P = STYLE.pal, t = G.realTime, ix = px + 14, iy = py + 12, isz = 54, pw = STAGE_W - 24 - px;
+  ctx.save(); ctx.globalAlpha = 0.14 + 0.08 * Math.sin(t * 3); ctx.fillStyle = col;
+  pxGlow(ctx, ix + isz / 2, iy + isz / 2, isz * 0.62); ctx.restore();
+  uiPanel(ctx, ix, iy, isz, isz, { color: col, fill: P.ink, alpha: 0.95, notch: 4 });
+  uiCorners(ctx, ix - 3, iy - 3, isz + 6, isz + 6, col);
+  drawLook(ix + isz / 2, iy + isz / 2 + Math.round(Math.sin(t * 2.5) * 2));
+  uiText(ctx, label, ix + isz + 12, iy + 12, { size: STYLE.type.small, color: col });
+  uiText(ctx, name ? uiFit(ctx, name, pw - isz - 40, 16) : 'EMPTY SLOT', ix + isz + 12, iy + 32, { size: 16, color: name ? P.ice : P.greyMid, glow: name ? col : undefined });
+  if (extra) uiText(ctx, extra, ix + isz + 12, iy + 48, { size: STYLE.type.small, color: P.grey });
+  return iy + isz + 16;
+}
+
+function drawArmoryAbilityInfo(ctx, px, py, pw, ph, nd) {
+  const P = STYLE.pal, T = STYLE.type, id = Save.abilityLoadout()[nd.id], Ab = id ? CFG.loadout.abilities[id] : null, col = nd.col, tx = px + 14, tw = pw - 28;
+  uiPanel(ctx, px, py, pw, ph, { color: col, fill: P.void, alpha: 0.92, glow: true });
+  let ty = drawArmoryHead(ctx, px, py, col, nd.label, Ab ? Ab.name : '', (Save.abilityChoices(nd.id).length - 1) + ' OWNED', (cx, cy) => { if (Ab) drawIcon(ctx, Ab.icon, cx, cy, 38, 1); else uiText(ctx, '?', cx, cy + 7, { size: T.h1, color: P.greyMid, align: 'center' }); });
+  if (Ab) ty += 11 * uiWrap(ctx, Ab.desc, tx, ty, tw, 11, { size: T.body, color: P.grey }); else uiText(ctx, 'Nothing chosen. Press SPACE to choose an ability.', tx, ty, { size: T.body, color: P.grey });
+  const tr = CFG.loadout.tiers.find((q) => q.id === nd.id);
+  uiText(ctx, 'KEY: ' + Input.label('ability_' + nd.id), tx, ty + 14, { size: T.small, color: P.cyan });
+  if (!IS_MOBILE) uiWrap(ctx, 'This is the ability you take into PvP matches. In a normal run you choose abilities after each boss. More abilities unlock under HERO > ABILITIES.', tx, py + ph - 52, tw, 11, { size: T.small, color: P.greyMid });
+  uiText(ctx, '[SPACE] CHANGE', px + pw - 14, py + ph - 12, { size: T.small, color: P.cyan, align: 'right' });
+}
+
+function drawArmoryHeroInfo(ctx, px, py, pw, ph, Hc) {
+  const P = STYLE.pal, T = STYLE.type, col = P.purple, tx = px + 14, tw = pw - 28, owned = CFG.heroes.order.filter((h) => Save.heroOwned(h)).length;
+  uiPanel(ctx, px, py, pw, ph, { color: col, fill: P.void, alpha: 0.92, glow: true });
+  let ty = drawArmoryHead(ctx, px, py, col, 'HERO', Hc.name, owned + ' / ' + CFG.heroes.order.length + ' OWNED', (cx, cy) => drawHeroLook(ctx, Hc.sprite, cx, cy, 400, G.realTime));
+  ty += 11 * uiWrap(ctx, Hc.blurb || '', tx, ty, tw, 11, { size: T.body, color: P.grey });
+  uiText(ctx, Hc.modText, tx, ty + 6, { size: T.small, color: P.cyan });
+  ty += 20;
+  if (Hc.artifact) {
+    const a = Hc.artifact;
+    uiText(ctx, 'HERO ARTIFACT', tx, ty + 8, { size: T.small, color: P.yellow });
+    uiText(ctx, a.name, tx, ty + 24, { size: T.h2, color: P.ice });
+    uiWrap(ctx, a.desc, tx, ty + 38, tw, 11, { size: T.small, color: P.grey });
+  }
+  if (!IS_MOBILE) uiWrap(ctx, 'Your hero counts in every run and in PvP. More heroes unlock under HERO > HEROES.', tx, py + ph - 52, tw, 11, { size: T.small, color: P.greyMid });
+  uiText(ctx, '[SPACE] CHANGE HERO', px + pw - 14, py + ph - 12, { size: T.small, color: P.cyan, align: 'right' });
+}
+
+function drawArmoryItemInfo(ctx, px, py, pw, ph, si) {
+  const P = STYLE.pal, T = STYLE.type, t = G.realTime, S = CFG.items.slots[si], col = slotColor(S.id), id = Save.equipped(S.id), I = id ? CFG.items.catalog[id] : null;
+  uiPanel(ctx, px, py, pw, ph, { color: col, fill: P.void, alpha: 0.92, glow: true });
+  // grosses Symbol mit pulsierendem Schein und Eckklammern
+  const ix = px + 14, iy = py + 12, isz = 54;
+  ctx.save(); ctx.globalAlpha = 0.14 + 0.08 * Math.sin(t * 3); ctx.fillStyle = col;
+  pxGlow(ctx, ix + isz / 2, iy + isz / 2, isz * 0.62); ctx.restore();
+  uiPanel(ctx, ix, iy, isz, isz, { color: col, fill: P.ink, alpha: 0.95, notch: 4 });
+  uiCorners(ctx, ix - 3, iy - 3, isz + 6, isz + 6, col);
+  if (I) drawIcon(ctx, I.icon, ix + isz / 2, iy + isz / 2 + Math.round(Math.sin(t * 2.5) * 2), 38, 1);
+  else uiText(ctx, '?', ix + isz / 2, iy + isz / 2 + 7, { size: T.h1, color: P.greyMid, align: 'center' });
+  uiText(ctx, S.label, ix + isz + 12, iy + 12, { size: T.small, color: col });
+  uiText(ctx, I ? uiFit(ctx, I.name, pw - isz - 40, 16) : 'EMPTY SLOT', ix + isz + 12, iy + 32, { size: 16, color: I ? P.ice : P.greyMid, glow: I ? col : undefined });
+  uiText(ctx, Save.ownedFor(S.id).length + ' OWNED', ix + isz + 12, iy + 48, { size: T.small, color: P.grey });
+  const tx = px + 14, tw = pw - 28;
+  let ty = iy + isz + 16;
+  if (I) {
+    ty += 11 * uiWrap(ctx, I.desc, tx, ty, tw, 11, { size: T.body, color: P.grey });
+    const f = itemFacts(id);
+    if (f) ty += 2 + 10 * uiWrap(ctx, f, tx, ty + 1, tw, 10, { size: T.small, color: P.cyan });
+    if (id === 'phoenix' && Save.cosOwned('revive', 'totem')) {                              // geheimes Cosmetic (Achievement POSTMORTAL): Animation der Wiederbelebung waehlen
+      const on = Save.cosEquipped('revive') === 'totem', m = Input.mouse, hot = m.x >= tx && m.x <= tx + tw && m.y >= ty + 4 && m.y <= ty + 24;
+      UIHit.add(tx, ty + 4, tw, 20, () => {}, { key: 'KeyT' });
+      uiPanel(ctx, tx, ty + 4, tw, 20, { color: hot ? P.ice : on ? P.green : P.greyMid, fill: hot ? P.voidLight : P.void, alpha: 0.95, glow: on || hot });
+      uiText(ctx, 'REVIVE ANIMATION: ' + (on ? 'TOTEM OF UNDYING' : 'REVIVAL RING'), tx + 8, ty + 18, { size: T.small, color: on ? P.green : P.grey });
+      uiText(ctx, '[T] SWITCH', tx + tw - 8, ty + 18, { size: T.small, color: P.yellow, align: 'right' });
+      ty += 28;
+    }
+  } else uiText(ctx, 'Nothing equipped. Press SPACE to choose an item.', tx, ty, { size: T.body, color: P.grey });
+  // Evolutions-Rezepte dieses Items: so viele, wie zwischen Beschreibung und Stufenblock wirklich Platz haben (nie darueber hinaus)
+  const my = py + ph - 58;                                                                  // Oberkante des Stufenblocks (Linie bei my - 14)
+  if (id) {
+    const all = evoRecipesOf(id).slice(0, 2), free = (my - 18) - (ty + 2);
+    const n = Math.max(0, Math.min(all.length, Math.floor((free - 12) / 37)));
+    if (n) {
+      const top = my - 18 - n * 37 - 12;
+      uiText(ctx, 'EVOLUTION  -  NEEDS ' + CFG.evolutions.minUps + ' BOSSES IN A RUN', tx, top + 7, { size: T.small, color: P.yellow });
+      all.slice(0, n).forEach((eid, k) => drawEvoRecipe(ctx, tx, top + 11 + k * 37, tw, eid));
+    }
+  }
+  // Stufe
+  if (I) {
+    const lv = Save.gearLv(id), max = Save.gearMax(), maxed = lv >= max, price = Save.gearPrice(id), afford = Save.data.souls >= price;
+    ctx.fillStyle = col; ctx.globalAlpha = 0.35; ctx.fillRect(tx, my - 14, tw, 1); ctx.globalAlpha = 1;
+    uiText(ctx, 'LEVEL ' + lv + ' / ' + max, tx, my - 3, { size: T.h2, color: P.yellow });
+    uiText(ctx, 'NOW +' + Math.round(lv * CFG.gear.step[Save.gearKind(id)] * 100) + '%' + (maxed ? '' : '   NEXT +' + Math.round((lv + 1) * CFG.gear.step[Save.gearKind(id)] * 100) + '%'), px + pw - 14, my - 3, { size: T.small, color: P.grey, align: 'right' });
+    drawGearMeter(ctx, id, tx, my + 4, tw, col);
+    uiText(ctx, uiFit(ctx, gearStepText(id) + '  -  FILLS WHILE YOU PLAY', tw, T.small), tx, my + 32, { size: T.small, color: P.greyMid });
+    const up = maxed ? 'MAX LEVEL' : '[U] LEVEL UP  -  ' + price + ' CREDITS';
+    if (!maxed) UIHit.add(tx - 4, my + 33, 170, 18, () => {}, { key: 'KeyU' });             // Antippen = U (Touch)
+    uiText(ctx, up, tx, my + 46, { size: T.body, color: maxed ? P.cyan : afford ? P.yellow : P.red });
+    uiText(ctx, '[SPACE] CHANGE', px + pw - 14, my + 46, { size: T.small, color: P.cyan, align: 'right' });
+  } else uiText(ctx, '[SPACE] CHOOSE ITEM', px + pw / 2, py + ph - 12, { size: T.body, color: P.cyan, align: 'center' });
+  // Level-up-Effekt: Ringe laufen vom Symbol nach aussen, kurzer Aufheller
+  const fx = t - (G.invFlashAt || -9);
+  if (fx >= 0 && fx < 0.7) {
+    ctx.save();
+    const k = fx / 0.7, cx = ix + isz / 2, cy = iy + isz / 2;
+    ctx.globalAlpha = 0.25 * (1 - k); ctx.fillStyle = P.white; ctx.fillRect(px, py, pw, ph);
+    ctx.fillStyle = P.yellow; ctx.globalAlpha = 1 - k;
+    pxRing(ctx, cx, cy, 20 + 60 * k, 2); pxRing(ctx, cx, cy, 10 + 40 * k, 1);
+    ctx.restore();
+    uiText(ctx, 'LEVEL UP!', px + pw - 14, iy + 12, { size: T.h2, color: P.yellow, align: 'right', glow: P.yellow });
+  }
+}
+
+// Auswahlfenster in der Armory: Items eines Slots, Abilities einer Gruppe oder die gekauften Helden als Karten mit Symbol und Kurzinfo
 function drawInvPick(ctx) {
-  const P = STYLE.pal, T = STYLE.type, K = G.invPick, S = CFG.items.slots.find((q) => q.id === K.slot), col = slotColor(K.slot), t = G.realTime;
+  const P = STYLE.pal, T = STYLE.type, K = G.invPick, t = G.realTime, item = K.kind === 'item';
+  const S = item ? CFG.items.slots.find((q) => q.id === K.slot) : null, tr = K.kind === 'ability' ? CFG.loadout.tiers.find((q) => q.id === K.slot) : null;
+  const col = item ? slotColor(K.slot) : K.kind === 'hero' ? P.purple : P[ARMORY.tierCol[K.slot]] || P.cyan, title = item ? S.label : K.kind === 'hero' ? 'HERO' : tr.label + ' ABILITY';
   const w = 380, H = 40, GAP = 44, VIS = 5, x = STAGE_W / 2 - w / 2, y0 = 92;
   UIHit.list.length = 0;                                           // das Auswahlfenster liegt oben: darunter ist nichts klickbar
   ctx.save(); ctx.globalAlpha = 0.8; ctx.fillStyle = P.ink; ctx.fillRect(0, 0, STAGE_W, STAGE_H); ctx.restore();
   const rows = Math.max(1, Math.min(VIS, K.list.length));
-  uiPanel(ctx, x - 12, y0 - 40, w + 24, 40 + rows * GAP + 54, { color: col, fill: P.void, alpha: 0.97, glow: true });
-  uiCorners(ctx, x - 15, y0 - 43, w + 30, 40 + rows * GAP + 60, col, 7);
-  uiText(ctx, S.label + ' - CHOOSE', STAGE_W / 2, y0 - 16, { size: T.h2, color: col, align: 'center', glow: col });
-  if (!K.list.length) { uiText(ctx, 'NOTHING PURCHASED YET (ITEMS)', STAGE_W / 2, y0 + 22, { size: T.body, color: P.grey, align: 'center' }); return; }
+  uiPanel(ctx, x - 12, y0 - 40, w + 24, 40 + rows * GAP + (item ? 54 : 34), { color: col, fill: P.void, alpha: 0.97, glow: true });
+  uiCorners(ctx, x - 15, y0 - 43, w + 30, 40 + rows * GAP + (item ? 60 : 40), col, 7);
+  uiText(ctx, title + ' - CHOOSE', STAGE_W / 2, y0 - 16, { size: T.h2, color: col, align: 'center', glow: col });
+  if (!K.list.length) { uiText(ctx, 'NOTHING PURCHASED YET', STAGE_W / 2, y0 + 22, { size: T.body, color: P.grey, align: 'center' }); return; }
   const off = clamp(K.sel - (VIS - 1), 0, Math.max(0, K.list.length - VIS));
   K.list.slice(off, off + VIS).forEach((id, k) => {
-    const i = off + k, sel = K.sel === i, y = y0 + k * GAP, I = id ? CFG.items.catalog[id] : null, eq = Save.equipped(K.slot) === id;
+    const i = off + k, sel = K.sel === i, y = y0 + k * GAP, dx = sel ? 4 : 0;
+    const I = !id ? null : item ? CFG.items.catalog[id] : K.kind === 'hero' ? CFG.heroes[id] : CFG.loadout.abilities[id];
+    const eq = item ? Save.equipped(K.slot) === id : K.kind === 'hero' ? Save.ownHero() === id : Save.abilityLoadout()[K.slot] === id;
     UIHit.add(x, y, w, H, () => { K.sel = i; });
-    uiPanel(ctx, x + (sel ? 4 : 0), y, w - (sel ? 4 : 0), H, { color: sel ? col : P.greyMid, fill: sel ? P.voidLight : P.void, alpha: 0.92, glow: sel });
-    uiPanel(ctx, x + 8 + (sel ? 4 : 0), y + 6, 28, 28, { color: sel ? col : P.greyMid, fill: P.ink, alpha: 1, notch: 3 });
-    if (I) drawIcon(ctx, I.icon, x + 22 + (sel ? 4 : 0), y + 20 + (sel ? Math.round(Math.sin(t * 4)) : 0), Math.min(22, I.iconW + 2), 1);
-    uiText(ctx, I ? I.name : 'EMPTY', x + 44 + (sel ? 4 : 0), y + 16, { size: T.h2, color: sel ? P.ice : P.grey });
-    uiText(ctx, I ? uiFit(ctx, itemFacts(id) || I.desc, 210, T.small) : 'Leave the slot empty', x + 44 + (sel ? 4 : 0), y + 30, { size: T.small, color: sel ? P.cyan : P.greyMid });
+    uiPanel(ctx, x + dx, y, w - dx, H, { color: sel ? col : P.greyMid, fill: sel ? P.voidLight : P.void, alpha: 0.92, glow: sel });
+    uiPanel(ctx, x + 8 + dx, y + 6, 28, 28, { color: sel ? col : P.greyMid, fill: P.ink, alpha: 1, notch: 3 });
+    if (I && K.kind === 'hero') drawHeroLook(ctx, I.sprite, x + 22 + dx, y + 20, 230, t);
+    else if (I) drawIcon(ctx, I.icon, x + 22 + dx, y + 20 + (sel ? Math.round(Math.sin(t * 4)) : 0), Math.min(22, (I.iconW || 18) + 2), 1);
+    uiText(ctx, I ? I.name : 'EMPTY', x + 44 + dx, y + 16, { size: T.h2, color: sel ? P.ice : P.grey });
+    const sub = !I ? 'Leave the slot empty' : item ? (itemFacts(id) || I.desc) : K.kind === 'hero' ? I.modText : I.desc;
+    uiText(ctx, uiFit(ctx, sub, item ? 210 : 280, T.small), x + 44 + dx, y + 30, { size: T.small, color: sel ? P.cyan : P.greyMid });
     if (eq) uiText(ctx, 'EQUIPPED', x + w - 10, y + 15, { size: T.small, color: P.cyan, align: 'right' });
-    if (id) evoRecipesOf(id).slice(0, 3).forEach((eid, k) => drawEvoChip(ctx, x + w - 70 - k * 15, y + 11, evoPartner(CFG.evolutions.list[eid], false), 12));
-    if (id) {
+    if (item && id) {
+      evoRecipesOf(id).slice(0, 3).forEach((eid, q) => drawEvoChip(ctx, x + w - 70 - q * 15, y + 11, evoPartner(CFG.evolutions.list[eid], false), 12));
       uiText(ctx, 'LV ' + Save.gearLv(id), x + w - 10 - 70, y + 31, { size: T.small, color: P.yellow, align: 'right' });
       uiBar(ctx, x + w - 10 - 64, y + 25, 64, 5, Save.gearFrac(id), Save.gearFrac(id) >= 1 ? P.yellow : col);
     }
   });
+  if (!item) { uiText(ctx, K.kind === 'hero' ? 'MORE HEROES: HERO > HEROES' : 'MORE ABILITIES: HERO > ABILITIES', STAGE_W / 2, y0 + rows * GAP + 12, { size: T.small, color: P.greyMid, align: 'center' }); return; }
   const sid = K.list[K.sel];                                                        // Touch: Knopf fuer die Stufe des markierten Items
   if (sid) {
     const maxed = Save.gearLv(sid) >= Save.gearMax(), bw = 200, bx = STAGE_W / 2 - bw / 2, by = y0 + rows * GAP + 18, m = Input.mouse;
@@ -1137,6 +1316,7 @@ function drawCosmeticsScreen(ctx) {
   drawMenuBg(ctx, 'keysettings');
   drawEmbers(ctx);
   uiText(ctx, 'COSMETICS', 24, 40, { size: T.h1, color: P.yellow, glow: P.yellow });
+  if (!IS_MOBILE) uiText(ctx, 'CHANGE HOW YOU LOOK. COSMETICS COST CREDITS AND DO NOT AFFECT FIGHTING.', 24, 58, { size: T.small, color: P.greyMid });       // Handy: kein Platz (die Schrift waechst dort)
   drawCoreCount(ctx);
 
   // Kategorien
@@ -1149,7 +1329,7 @@ function drawCosmeticsScreen(ctx) {
     const i = toff + k, x = tx0 + k * (tw + tg), sel = G.cosTab === i;
     UIHit.add(x, 50, tw, 20, () => { G.cosTab = i; G.cosSel = Math.max(0, Cos.items(c.id).findIndex((q) => q.id === Save.cosEquipped(c.id))); }, { noConfirm: true });
     uiPanel(ctx, x, 50, tw, 20, { color: sel ? P.cyan : P.greyMid, fill: sel ? P.voidLight : P.void, alpha: 0.92, glow: sel });
-    uiText(ctx, c.label, x + tw / 2, 64, { size: T.small, color: sel ? P.ice : P.grey, align: 'center' });
+    uiText(ctx, c.label, x + tw / 2, 64, { size: T.small, color: sel ? P.ice : P.grey, align: 'center', maxW: tw - 4, minK: 0.6 });
   });
   if (toff > 0) uiText(ctx, '<', 14, 64, { size: T.body, color: P.yellow, align: 'center' });
   if (toff + VISTAB < C.cats.length) uiText(ctx, '>', STAGE_W - 14, 64, { size: T.body, color: P.yellow, align: 'center' });
@@ -1173,9 +1353,9 @@ function drawCosmeticsScreen(ctx) {
     ctx.save(); ctx.fillStyle = it.color; ctx.globalAlpha = sel ? 1 : 0.5;
     ctx.fillRect(x + 8, y + 7, 14, 14); ctx.restore();                                           // Farbfeld des Items
     ctx.strokeStyle = P.ink; ctx.strokeRect(x + 8.5, y + 7.5, 13, 13);
-    uiText(ctx, it.name, x + 30, y + 18, { size: T.body, color: sel ? P.ice : P.grey });
+    uiText(ctx, it.name, x + 30, y + 18, { size: T.body, color: sel ? P.ice : P.grey, maxW: w - 30 - (IS_MOBILE ? 104 : 90), minK: 0.6 });
     const st = eq ? 'EQUIPPED' : owned ? 'OWNED' : it.cost + ' CREDITS';
-    uiText(ctx, st, x + w - 8, y + 18, { size: T.small, color: eq ? P.cyan : owned ? P.ice : afford ? P.yellow : P.red, align: 'right' });
+    uiText(ctx, st, x + w - 8, y + 18, { size: T.small, color: eq ? P.cyan : owned ? P.ice : afford ? P.yellow : P.red, align: 'right', maxW: 96, minK: 0.6 });
   });
   const by = Y0 + VIS * (H + GAP) + 2, backSel = G.cosSel === items.length;
   if (G.colorPick) drawColorPick(ctx, cat, selIt, lx, Y0 - 2, lw, by + 22 - Y0 + 2);
@@ -1247,7 +1427,6 @@ function drawCosmeticPreviewInner(ctx, cat, it, x, y, w, h) {
   const dt = clamp(t - pv.last, 0, 0.1); pv.last = t;
   const pick = (c) => (cat === c ? it : Cos.cur(c));
   const skin = pick('skin'), blade = pick('blade'), trail = pick('trail'), kill = pick('kill'), aura = pick('aura'), gear = pick('gear');
-  const endless = pick('endless');
   const ship = Cos.sprite(Hero.sprite(), 'skin', skin);
   const enemy = pick('enemy'), boss = pick('boss'), melee = Save.equipped('melee'), ranged = Save.equipped('ranged'), heavy = Save.equipped('heavy');
   const showShip = cat !== 'enemy' && cat !== 'boss';
@@ -1274,7 +1453,7 @@ function drawCosmeticPreviewInner(ctx, cat, it, x, y, w, h) {
   // Position und Blickrichtung des Vorschau-Schiffs
   let px = 0, py = 0, dir = 90 + Math.sin(t * 0.8) * 25, moving = false;
   const path = (tt) => [Math.cos(tt * 1.6) * 40, Math.sin(tt * 1.6) * 20];
-  if (cat === 'trail' || cat === 'gear' || cat === 'endless' || cat === 'skin') {
+  if (cat === 'trail' || cat === 'gear' || cat === 'skin') {
     // Skin-Vorschau: das Schiff laeuft 3.8 s und steht dann 1.7 s still (zeigt z. B. wie sich Pixel Dissolve wieder zusammensetzt)
     let pt = t;
     if (cat === 'skin') { pv.pathT = (pv.pathT || 0) + ((t % 5.5) < 3.8 ? dt : 0); pt = pv.pathT; moving = (t % 5.5) < 3.8; } else moving = true;
@@ -1294,7 +1473,6 @@ function drawCosmeticPreviewInner(ctx, cat, it, x, y, w, h) {
   else if (cat === 'trail') Cos.trailTick(pv.list, trail, fx, dt, moving, t);
   Cos.auraTick(pv.list, aura, px, py, dt);
   Cos.gearTick(pv.list, gear, px, py, dir, dt, moving);
-  Cos.endlessTick(pv.list, endless, { x: px, y: py, dir }, dt, moving);
   const swordDir = t * 200;
   if (cat === 'blade' || cat === 'proj') {                                            // Sandbox mit der gerade gezeigten Waffe pflegen und steppen (SHOTS: nur Waffen mit Projektilen)
     const list = (cat === 'proj' ? [ranged, heavy] : [melee, ranged, heavy]).filter(Boolean), slot = Math.floor(t / 3.6) % Math.max(1, list.length), id = list[slot];
@@ -1314,16 +1492,11 @@ function drawCosmeticPreviewInner(ctx, cat, it, x, y, w, h) {
   pv.ghosts = pv.ghosts.filter((g) => g.t < g.life);
 
   // Zeichnen
-  if (cat === 'endless') {                                                             // Boden-Effekte: die Kamera wandert, als wuerde man durch die Endlos-Karte fliegen
-    const cam = { x: t * 26, y: Math.sin(t * 0.5) * 30 };
-    Cos.drawEndlessGround(ctx, endless, cam, w / 2 + 2, h / 2 + 2, t);
-  }
   if (cat === 'kill' || (cat === 'trail' && Cos2.FLOOR_SHAPES[trail.shape])) Cos2.drawDecals(ctx);          // Bodenmarken liegen unter dem Schiff
   const drawShipStack = () => {                                                       // Schiff mit Aura und Gear (im Spiel liegen die Waffen dahinter)
     if (!showShip) return;
     for (const g of pv.ghosts) drawSprite(ctx, ship, g.x, g.y, g.dir, 250, { alpha: 0.4 * (1 - g.t / g.life) });
     Cos.drawAura(ctx, aura, px, py, t);
-    Cos.drawEndless(ctx, endless, px, py, t, { homeX: -w * 0.35, homeY: 0, mins: 5 * (1 + Math.floor(t / 1.2) % 8) });
     Cos.drawGear(ctx, gear, px, py, dir, t, 'back');
     Cos.drawShip(ctx, ship, px, py, dir, 250, {}, skin, t);
     Cos.drawGear(ctx, gear, px, py, dir, t, 'front');
@@ -1465,12 +1638,14 @@ function drawSettingsScreen(ctx) {
   const P = STYLE.pal, T = STYLE.type;
   drawMenuBg(ctx, 'keysettings');
   uiText(ctx, 'SETTINGS', STAGE_W / 2, 40, { size: T.h1, color: P.yellow, align: 'center' });
-  uiText(ctx, 'SOUND, EFFECTS AND FULLSCREEN: ICONS IN THE MAIN MENU', STAGE_W / 2, 54, { size: T.small, color: P.greyMid, align: 'center' });
   const rows = {
     attackmode: 'ATTACK: ' + (Save.data.attackMode === 'toggle' ? 'TOGGLE' : 'HOLD'),
     mouseaim: 'MOUSE AIMING: ' + (Save.data.mouseAim ? 'ON' : 'OFF'),
     touch: 'TOUCH CONTROLS: ' + (Save.data.touch ? 'ON' : 'OFF'),
     language: 'LANGUAGE: ' + (Save.data.lang === 'de' ? 'DEUTSCH' : 'ENGLISH'),
+    music: 'MUSIC: ' + Math.round(Save.data.musicVol * 100) + '%',
+    sfx: 'SOUND FX: ' + Math.round(Save.data.sfxVol * 100) + '%',
+    fx: 'EFFECTS: ' + ['OFF', 'REDUCED', 'FULL'][Juice.level],
     slot: 'SLOT  ' + [0, 1, 2].map((i) => i === Save.slot ? '[' + (i + 1) + ']' : ' ' + (i + 1) + ' ').join(' '),
     back: 'BACK',
     controls: 'CONTROLS',
@@ -1479,26 +1654,26 @@ function drawSettingsScreen(ctx) {
     transfer: 'EXPORT / IMPORT SAVE',
     resetAll: G.resetConfirm ? 'SURE? DELETE SLOT ' + (Save.slot + 1) : 'RESET SAVE FILE (SLOT ' + (Save.slot + 1) + ')',
   };
-  const colW = 300, gap = 20, ROW = 28;
+  const nc = SETTINGS_COLS.length, gap = 8, colW = Math.min(300, Math.floor((STAGE_W - 24 - gap * (nc - 1)) / nc)), ROW = 28;
   let idx = 0;
   SETTINGS_COLS.forEach((col, ci) => {
-    const cx = STAGE_W / 2 + (ci === 0 ? -1 : 1) * (colW / 2 + gap / 2), accent = ci === 0 ? P.cyan : P.orange;
+    const cx = STAGE_W / 2 + (ci - (nc - 1) / 2) * (colW + gap), accent = [P.green, P.cyan, P.orange][ci % 3];
     uiText(ctx, col.label, cx, 76, { size: T.h2, color: accent, align: 'center' });
     col.items.forEach((id, k) => {
       const i = idx++, y = 84 + k * ROW;
-      drawMenuRow(ctx, y, rows[id], G.settingsSel === i, { w: colW, h: 24, cx, hit: () => { G.settingsSel = i; }, lr: id === 'slot' });
+      drawMenuRow(ctx, y, rows[id], G.settingsSel === i, { size: IS_MOBILE ? T.body : T.h2, w: colW, h: 24, cx, hit: () => { G.settingsSel = i; }, lr: id === 'slot' || id === 'music' || id === 'sfx' || id === 'fx' });
       if (id === 'account' && Account.configured && !Account.on) uiHintDot(ctx, cx + colW / 2 - 12, y + 12, G.realTime);
     });
   });
   const backI = idx;
   const cw = 150, cg = 6, cx0 = STAGE_W / 2 - (3 * cw + 2 * cg) / 2;                  // die drei Spielstaende als Karten (Klick wechselt den Slot)
   for (let i = 0; i < Save.SLOTS; i++) {
-    const x = cx0 + i * (cw + cg), y = 254, on = i === Save.slot, I = Save.slotInfo(i);
-    UIHit.add(x, y, cw, 38, () => { Save.switchSlot(i); G.resetConfirm = false; }, { noConfirm: true });
-    uiPanel(ctx, x, y, cw, 38, { color: on ? P.yellow : P.greyMid, fill: on ? P.voidLight : P.void, alpha: 0.92, glow: on });
-    uiText(ctx, 'SLOT ' + (i + 1) + (on ? '  - ACTIVE' : ''), x + 8, y + 13, { size: T.small, color: on ? P.yellow : P.grey });
-    uiText(ctx, I ? 'BEST ' + (I.best > 0 ? formatTime(I.best) : '-') + '   RUNS ' + I.runs : 'EMPTY', x + 8, y + 25, { size: T.small, color: I ? P.ice : P.greyMid });
-    if (I) uiText(ctx, 'CREDITS ' + I.souls + (I.wins ? '   WINS ' + I.wins : ''), x + 8, y + 35, { size: T.small, color: P.yellow });
+    const mob = IS_MOBILE, ch = mob ? 54 : 38, d = mob ? 14 : 12, x = cx0 + i * (cw + cg), y = mob ? 246 : 254, on = i === Save.slot, I = Save.slotInfo(i);       // Handy: hoehere Karten, die Schrift waechst dort
+    UIHit.add(x, y, cw, ch, () => { Save.switchSlot(i); G.resetConfirm = false; }, { noConfirm: true });
+    uiPanel(ctx, x, y, cw, ch, { color: on ? P.yellow : P.greyMid, fill: on ? P.voidLight : P.void, alpha: 0.92, glow: on });
+    uiText(ctx, 'SLOT ' + (i + 1) + (on ? '  - ACTIVE' : ''), x + 8, y + d + 1, { size: T.small, color: on ? P.yellow : P.grey, maxW: cw - 14 });
+    uiText(ctx, I ? 'BEST ' + (I.best > 0 ? formatTime(I.best) : '-') + '   RUNS ' + I.runs : 'EMPTY', x + 8, y + d * 2 + 1, { size: T.small, color: I ? P.ice : P.greyMid, maxW: cw - 14 });
+    if (I) uiText(ctx, 'CREDITS ' + I.souls + (I.wins ? '   WINS ' + I.wins : ''), x + 8, y + d * 3 + 1, { size: T.small, color: P.yellow, maxW: cw - 14 });
   }
   drawMenuRow(ctx, 308, rows.back, G.settingsSel === backI, { w: 190, h: 22, hit: () => { G.settingsSel = backI; } });
 }
@@ -1557,7 +1732,7 @@ function drawKeysScreen(ctx) {
   panel(C2, 208, 2 * W + 12, 78, 'MENUS', P.green);
   const mrow = (x, y, key, text, kw) => { uiText(ctx, key, x, y, { size: T.small, color: P.ice }); uiText(ctx, text, x + kw, y, { size: T.small, color: P.grey, maxW: W - kw - 6 }); };
   [['W/S, ARROWS', 'SELECT (OR MOUSE)'], ['A/D, ARROWS', 'CHANGE / SWITCH TAB'], ['SPACE, ENTER', 'CONFIRM / BUY / EQUIP'], ['ESC, X, R-CLICK', 'BACK']].forEach(([k, t], i) => mrow(C2 + 8, 230 + i * 12, k, t, 84));
-  [['U', 'LEVEL UP GEAR (ARMORY)'], ['TAB', 'RUN DETAILS / OWN DATA'], ['P, BACKSPACE', 'PAUSE (ALSO ESC)'], ['L M N V F' + (PWA.visible ? ' I' : '') + (statsOpen() ? ' T' : ''), 'MAIN MENU ICONS']].forEach(([k, t], i) => mrow(C2 + W + 18, 230 + i * 12, k, t, 62));
+  [['U', 'LEVEL UP GEAR (ARMORY)'], ['TAB', 'RUN DETAILS / OWN DATA'], ['P, BACKSPACE', 'PAUSE (ALSO ESC)'], ['L M N V F' + (PWA.visible ? ' I' : ''), 'MAIN MENU ICONS']].forEach(([k, t], i) => mrow(C2 + W + 18, 230 + i * 12, k, t, 62));
 
   uiText(ctx, 'SURVIVE.', STAGE_W / 2, 296, { size: T.h2, color: P.red, align: 'center', glow: P.red });
   UIHit.add(STAGE_W / 2 - 80, 306, 160, 24, () => {});                // Klick = zurueck
@@ -1647,7 +1822,7 @@ function drawEndingScreen(ctx) {
     uiText(ctx, a, STAGE_W / 2 - 70, 190 + i * 18, { size: T.h2, color: P.grey });
     uiText(ctx, b, STAGE_W / 2 + 70, 190 + i * 18, { size: T.h2, color: P.ice, align: 'right' });
   });
-  if (G.levelRes) uiText(ctx, '+' + G.levelRes.xp + ' XP   -   LV ' + G.levelRes.to + (G.levelRes.to > G.levelRes.from ? '   LEVEL UP!' : ''), STAGE_W / 2, 264, { size: T.small, color: P.yellow, align: 'center' });
+  if (G.levelRes) uiText(ctx, '+' + G.levelRes.xp + ' XP   -   LV ' + G.levelRes.to + (G.levelRes.to > G.levelRes.from ? '   LEVEL UP!  +' + G.levelRes.reward + ' CREDITS' : ''), STAGE_W / 2, 264, { size: T.small, color: P.yellow, align: 'center' });
   milestoneLines().forEach((l, i) => uiText(ctx, l, STAGE_W / 2, 275 + i * 11, { size: T.small, color: P.cyan, align: 'center' }));
   ctx.restore();
   if (t > ENDING_MENU_AT && !G.deathDetails) drawKeyButtons(ctx, [[G.coop ? 'LOBBY [SPACE]' : 'MENU [SPACE]', 'Space'], ['DETAILS [TAB]', 'Tab']], 322);
@@ -1661,18 +1836,30 @@ function drawLevelResult(ctx, R, ry) {
   uiText(ctx, '+' + r.xp + ' XP   (LV ' + r.to + ')', R, ry, { size: T.small, color: P.yellow, align: 'right' }); ry += 11;
   if (r.to > r.from) {
     uiText(ctx, 'LEVEL UP!  LV ' + r.from + ' > ' + r.to, R, ry, { size: T.small, color: P.green, align: 'right', glow: P.green }); ry += 11;
-    for (const id of Object.keys(CFG.level.gates)) {
-      const g = CFG.level.gates[id];
-      if (g > r.from && g <= r.to) { uiText(ctx, 'UNLOCKED: ' + id.toUpperCase(), R, ry, { size: T.small, color: P.green, align: 'right' }); ry += 11; }
-    }
+    if (r.reward) { uiText(ctx, '+' + r.reward + ' CREDITS', R, ry, { size: T.small, color: P.yellow, align: 'right' }); ry += 11; }
   }
   return ry;
 }
 
+// Was der Spieler nach dem Tod als Naechstes tun kann: gefuehrter Kauf, sonst bezahlbare Upgrades, sonst weiterspielen
+function deathTip() {
+  const gs = guideStep();
+  if (gs) return 'TIP: BUY ' + (gs.kind === 'item' ? CFG.items.catalog[gs.id].name : CFG.meta.upgrades[gs.id].name) + ' UNDER HERO';
+  if (UPGRADE_TABS.some((t) => upgradeRows(t.id).some(shopAffordable))) return 'TIP: SPEND YOUR CREDITS UNDER HERO TO GET STRONGER';
+  return 'EVERY RUN EARNS CREDITS AND XP. KEEP GOING!';
+}
+// Meldung in Menues (G.toast): kurz oben in der Mitte
+function drawToast(ctx) {
+  if (!G.toastText || G.realTime - G.toastAt > 3.5) return;
+  const P = STYLE.pal, T = STYLE.type, a = Math.min(1, (3.5 - (G.realTime - G.toastAt)) * 2), w = Math.min(STAGE_W - 40, 430);
+  ctx.save(); ctx.globalAlpha = a;
+  uiPanel(ctx, STAGE_W / 2 - w / 2, 62, w, 26, { color: P.orange, fill: P.void, alpha: 0.95, glow: true });
+  uiText(ctx, G.toastText, STAGE_W / 2, 79, { size: T.small, color: P.ice, align: 'center', maxW: w - 16 });
+  ctx.restore();
+}
 function drawDeathScreen(ctx) {
   const name = deathScreenFor(G.time);
   drawMenuBg(ctx, name, true);
-  if (G.infinite) uiText(ctx, 'INFINITE MODE', 12, 24, { size: STYLE.type.h2, color: STYLE.deathTints[name] || STYLE.pal.red });
   drawDeathTexts(ctx, name);
   const tint = STYLE.deathTints[name] || STYLE.pal.red;
   if (!G.deathDetails && G.deadAge > 1) drawKeyButtons(ctx, G.coop ? [['LOBBY [SPACE]', 'Space'], ['DETAILS [TAB]', 'Tab']] : [['MENU [SPACE]', 'Space'], ['RETRY [R]', 'KeyR'], ['DETAILS [TAB]', 'Tab']], 338, tint);
@@ -1685,6 +1872,7 @@ function drawDeathScreen(ctx) {
   if (G.newBest) uiText(ctx, 'NEW BEST TIME!', STAGE_W / 2, 24, { size: STYLE.type.h2, color: STYLE.pal.yellow, align: 'center', glow: STYLE.pal.yellow });
   outlinedText(ctx, 'Time: ' + formatTime(G.time) + '  (' + G.time.toFixed(1) + ' s)', STAGE_W / 2, 292, 22, STYLE.pal.ice);
   if (sm) uiText(ctx, 'KILLED BY: ' + sm.killer, STAGE_W / 2, 312, { size: STYLE.type.small, color: STYLE.pal.ice, align: 'center' });
+  if (!G.deathDetails && G.deadAge > 1 && !G.coop) uiText(ctx, deathTip(), STAGE_W / 2, 325, { size: STYLE.type.small, color: STYLE.pal.green, align: 'center' });
   if (G.deathDetails && sm) drawRunDetails(ctx, sm);
 }
 
@@ -1768,3 +1956,11 @@ function drawPickScreen(ctx) {
     uiText(ctx, 'AUTO-PICK IN ' + Math.ceil(T2 - k.age) + 'S', bx + bw + 8, by + 6, { size: T.small, color: col });
   }
 }
+
+if (typeof I18n !== 'undefined' && I18n.add) I18n.add({
+  'Jump into a free-for-all against other players. Fight with your own gear and be the last one standing.': 'Spring in eine Runde jeder gegen jeden gegen andere Spieler. Kämpfe mit deinem eigenen Gear und überlebe als Letzter.', 'Every round earns credits and XP. Needs an internet connection.': 'Jede Runde bringt Credits und XP. Braucht eine Internetverbindung.', '   (EARNED IN EVERY RUN)': '   (DU VERDIENST SIE IN JEDEM LAUF)', 'NEXT UNLOCK: ': 'NÄCHSTE FREISCHALTUNG: ', ' AT LEVEL ': ' AB LEVEL ',
+  'PERMANENT BONUSES FOR EVERY RUN.': 'DAUERHAFTE BONI FÜR JEDEN LAUF.', 'WEAPONS AND IMPLANTS: BUY ONCE, THEN EQUIP THEM IN THE ARMORY.': 'WAFFEN UND IMPLANTATE: EINMAL KAUFEN, DANN IN DER ARMORY AUSRÜSTEN.',
+  'UNLOCK ABILITIES TO FIND THEM IN YOUR RUNS, LEVEL THEM UP FOR MORE POWER.': 'ABILITIES FREISCHALTEN, DANN FINDEST DU SIE IN DEINEN LÄUFEN. STUFEN ERHÖHEN SIE.', 'EACH HERO CHANGES YOUR STATS AND ARTIFACT. SOME NEED A MILESTONE FIRST.': 'JEDER HELD ÄNDERT WERTE UND ARTEFAKT. MANCHE BRAUCHEN ZUERST EINEN MEILENSTEIN.',
+  'CHANGE HOW YOU LOOK. COSMETICS COST CREDITS AND DO NOT AFFECT FIGHTING.': 'ÄNDERE DEIN AUSSEHEN. COSMETICS KOSTEN CREDITS UND HABEN KEINEN EINFLUSS AUF DEN KAMPF.',
+  'TIP: SPEND YOUR CREDITS UNDER HERO TO GET STRONGER': 'TIPP: GIB DEINE CREDITS UNTER HERO AUS, UM STÄRKER ZU WERDEN', 'EVERY RUN EARNS CREDITS AND XP. KEEP GOING!': 'JEDER LAUF BRINGT CREDITS UND XP. WEITER SO!',
+});

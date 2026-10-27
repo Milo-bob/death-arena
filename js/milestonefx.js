@@ -7,14 +7,14 @@ const MsFx = {
   queue: [], cur: null, t: 0, seen: new Set(), parts: [], checkT: 0,
   TOTAL: 4.8, IN: 0.45, OUT: 0.6,
   // Zeit-Hinweise (schlichte Variante der Fanfare): nach 5 / 10 / 15 Minuten Spielzeit. G.time zaehlt nur die Wellen, Bosskaempfe stehen still,
-  // also zaehlen Bosse nicht mit. 15 Min. gibt es nur im Endlos-Modus (der Standardlauf endet bei CFG.finalBoss.at). Faellt ein Zeitpunkt mit einer
+  // also zaehlen Bosse nicht mit. Faellt ein Zeitpunkt mit einer
   // Meilenstein-Fanfare zusammen (laeuft oder steht an), entfaellt der Zeit-Hinweis, die Botschaft ist ja schon da.
   get TIME_MARKS() { return CFG.player.ramp.marks; }, TIME_TOTAL: 3.2, timeSeen: new Set(), tpop: null,
 
   reset() { this.queue = []; this.cur = null; this.t = 0; this.seen = new Set(); this.parts = []; this.checkT = 0; this.timeSeen = new Set(); this.tpop = null; },
 
   checkTime() {
-    if (Tutorial.active || G.cheated || G.victory > 0 || Save.srOn || G.pvp) return;
+    if (Tutorial.active || G.cheated || G.victory > 0 || G.pvp) return;
     for (const mark of this.TIME_MARKS) {
       if (this.timeSeen.has(mark) || G.time < mark) continue;
       this.timeSeen.add(mark);
@@ -27,14 +27,11 @@ const MsFx = {
 
   // Stand eines Meilenstein-Wertes mitten im Lauf (gespeicherter Wert plus aktueller Lauf). null = nur am Laufende pruefbar.
   liveValue(stat) {
-    const d = Save.data, inf = G.infinite, st = d.stats || {};
+    const d = Save.data, st = d.stats || {};
     switch (stat) {
-      case 'best': return inf ? d.best || 0 : Math.max(d.best || 0, G.time);
-      case 'bestInf': return inf ? Math.max(d.bestInf || 0, G.time) : d.bestInf || 0;
+      case 'best': return Math.max(d.best || 0, G.time);
       case 'bosses': return (st.bosses || 0) + G.bosses;
       case 'kills': return (st.kills || 0) + G.kills;
-      case 'infBosses': return (st.infBosses || 0) + (inf ? G.bosses : 0);
-      case 'infKills': return (st.infKills || 0) + (inf ? G.kills : 0);
       default: return null;
     }
   },
@@ -43,7 +40,7 @@ const MsFx = {
     this.checkT -= dt;
     if (this.checkT > 0 && !force) return;
     this.checkT = 0.5;
-    if (Tutorial.active || G.cheated || G.victory > 0 || Save.srOn || G.pvp) return;
+    if (Tutorial.active || G.cheated || G.victory > 0 || G.pvp) return;
     for (const m of CFG.milestones) {
       if (this.seen.has(m.id) || Save.milestoneDone(m.id)) continue;
       const v = this.liveValue(m.stat);

@@ -142,12 +142,12 @@ function logout() { KEY = ''; store.del(); S.users = null; S.sel = null; S.logs 
 
 // ====== Rahmen ======
 function renderMain() {
-  const tabs = [['players', 'PLAYERS'], ['create', 'CREATE ACCOUNTS'], ['stats', 'STATISTICS'], ['gifts', 'GIFTS'], ['audit', 'ACTION LOG']];
+  const tabs = [['players', 'PLAYERS'], ['create', 'CREATE ACCOUNTS'], ['stats', 'STATISTICS'], ['gifts', 'GIFTS'], ['cheats', 'CHEATS'], ['audit', 'ACTION LOG']];
   $('#app').innerHTML = '<header><h1>DEATHARENA ADMIN</h1><nav>' + tabs.map(([id, l]) => '<button data-t="' + id + '" class="' + (S.tab === id ? 'on' : '') + '">' + l + '</button>').join('') + '</nav><span class="sp"></span><span class="muted">' + (S.users ? S.users.length + ' accounts' : '') + '</span><button id="rl">RELOAD</button>' + instBtn() + '<button id="lo" class="warn">LOG OUT</button></header><div class="wrap" id="main"></div>';
   document.querySelectorAll('nav button').forEach((b) => { b.onclick = () => { S.tab = b.dataset.t; renderMain(); }; });
   $('#lo').onclick = logout;
   $('#rl').onclick = async () => { try { S.users = await rpc('adm_users'); S.logs = null; S.allSaves = null; if (S.sel) await loadSel(); toast('Reloaded'); renderMain(); } catch (e) { toast(e.message, true); } };
-  ({ players: viewPlayers, create: viewCreate, stats: viewStats, gifts: viewGifts, audit: viewAudit }[S.tab])();
+  ({ players: viewPlayers, create: viewCreate, stats: viewStats, gifts: viewGifts, cheats: viewCheats, audit: viewAudit }[S.tab])();
 }
 
 // ====== Spieler ======
@@ -439,6 +439,17 @@ async function viewGifts() {
   const m = $('#main'); m.innerHTML = '<span class="muted">Loading...</span>';
   let list; try { list = await rpc('adm_gifts', { p_user: null }); } catch (e) { m.innerHTML = '<span class="err">' + esc(e.message) + '</span>'; return; }
   m.innerHTML = '<div class="card" style="overflow:auto"><table><tr><th>WHEN</th><th>PLAYER</th><th>SLOT</th><th>CREDITS</th><th>XP</th><th>NOTE</th><th>STATE</th></tr>' + list.map((g) => '<tr><td>' + fmtD(g.created_at) + '</td><td>' + esc(g.name) + '</td><td>' + (g.slot + 1) + '</td><td>' + (g.credits > 0 ? '+' : '') + g.credits + '</td><td>' + (g.xp > 0 ? '+' : '') + (g.xp || 0) + '</td><td>' + esc(g.note) + '</td><td>' + (g.claimed_at ? '<span class="ok">collected ' + fmtD(g.claimed_at) + '</span>' : '<span class="yel">waiting</span>') + '</td></tr>').join('') + (list.length ? '' : '<tr><td colspan="6" class="muted">No gifts yet. Give credits from a player\'s slot card.</td></tr>') + '</table></div>';
+}
+// Anticheat: Verstoesse (tools/supabase_anticheat.sql). Schweregrad 1-3; wer 3 Punkte in 30 Tagen hat, gilt als verdaechtig und steht in keiner Rangliste.
+async function viewCheats() {
+  const m = $('#main'); m.innerHTML = '<span class="muted">Loading...</span>';
+  let list; try { list = await rpc('adm_flags', { p_limit: 300 }); } catch (e) { m.innerHTML = '<span class="err">' + esc(e.message.replace('run tools/supabase_admin.sql', 'run tools/supabase_anticheat.sql')) + '</span>'; return; }
+  const sus = [...new Set(list.filter((f) => f.suspect).map((f) => f.name))];
+  const WHAT = { run_time: 'run longer than real time', run_stats: 'impossible run values', run_quota: 'too many offline runs', save_gain_credits: 'credits gained without runs', save_gain_xp: 'XP gained without runs', save_counters: 'counters above the verified total', save_absurd: 'impossible save (rejected)', save_format: 'unreadable save' };
+  m.innerHTML = '<div class="card"><b>' + (sus.length ? 'SUSPECTED: ' + sus.map((n) => '<span class="tag err">' + esc(n) + '</span> <button class="small" data-clear="' + esc(n) + '">CLEAR</button>').join(' ') : 'Nobody is suspected right now.') + '</b>' +
+    '<div class="muted" style="margin-top:6px">Severity 1-3, 3 points within 30 days = suspected (removed from leaderboards, no guild rewards). CLEAR marks all flags of a player as reviewed. An honest player can be flagged after playing offline or with an old app version.</div></div>' +
+    '<div class="card" style="overflow:auto"><table><tr><th>WHEN</th><th>PLAYER</th><th>SLOT</th><th>WHAT</th><th>SEV</th><th>DETAIL</th><th>STATE</th></tr>' + (list.length ? list.map((f) => '<tr><td>' + fmtD(f.at) + '</td><td><b>' + esc(f.name) + '</b></td><td>' + (f.slot == null ? '-' : f.slot + 1) + '</td><td>' + esc(WHAT[f.code] || f.code) + '</td><td>' + f.sev + '</td><td class="muted">' + esc(JSON.stringify(f.detail)) + '</td><td>' + (f.cleared ? 'reviewed' : f.suspect ? '<span class="err">suspected</span>' : 'open') + '</td></tr>').join('') : '<tr><td colspan="7" class="muted">No flags yet.</td></tr>') + '</table></div>';
+  m.querySelectorAll('[data-clear]').forEach((b) => { b.onclick = () => act('Flags cleared', 'adm_ac_clear', { p_user_name: b.dataset.clear }, viewCheats); });
 }
 async function viewAudit() {
   const m = $('#main'); m.innerHTML = '<span class="muted">Loading...</span>';

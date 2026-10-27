@@ -109,7 +109,7 @@ const Tutorial = {
       uiText(ctx, 'You know every basic now. Spend credits in UPGRADES and', STAGE_W / 2, 160, { size: T.body, color: P.ice, align: 'center' });
       uiText(ctx, 'ARMORY, then take on bosses, events and evolutions.', STAGE_W / 2, 173, { size: T.body, color: P.ice, align: 'center' });
       if (this.firstTime) uiText(ctx, 'FIRST TIME BONUS: +' + TUT_BONUS_CORES + ' CREDITS', STAGE_W / 2, 194, { size: T.h2, color: P.yellow, align: 'center' });
-      if (this.levelRes) uiText(ctx, '+' + this.levelRes.xp + ' XP   -   ' + (this.levelRes.to > this.levelRes.from ? 'LEVEL UP!  LV ' + this.levelRes.from + ' > ' + this.levelRes.to : 'LV ' + this.levelRes.to), STAGE_W / 2, 208, { size: T.small, color: P.green, align: 'center' });
+      if (this.levelRes) uiText(ctx, '+' + this.levelRes.xp + ' XP   -   ' + (this.levelRes.to > this.levelRes.from ? 'LEVEL UP!  LV ' + this.levelRes.from + ' > ' + this.levelRes.to + '   +' + this.levelRes.reward + ' CREDITS' : 'LV ' + this.levelRes.to), STAGE_W / 2, 208, { size: T.small, color: P.green, align: 'center' });
       if (this.newMs.length) uiText(ctx, 'MILESTONE: ' + this.newMs[0].name, STAGE_W / 2, 221, { size: T.small, color: P.cyan, align: 'center' });
       drawPrompt(ctx, 'MENU [SPACE]', 232);
       return;

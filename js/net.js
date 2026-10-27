@@ -8,7 +8,7 @@
 const Net = {
   CODE_CHARS: 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789',           // ohne I, O, 0, 1 (leicht zu verwechseln)
   CODE_LEN: 5,
-  MAX_PLAYERS: 4,
+  MAX_PLAYERS: 6,
 
   // Reservierte Dev-Lobbys: enthalten 0/1 (nie in CODE_CHARS), also vergibt newCode sie nie und cleanCode laesst sie bei normalen Spielern nicht durch.
   DEV_CODES: ['DEV01', 'DEV02', 'DEV03'],
@@ -74,7 +74,9 @@ const Net = {
       ws.onclose = () => { if (ch.ws === ws) lost(); };
     };
     connect();
-    ch.send = (event, payload) => send('broadcast', { type: 'broadcast', event, payload: Object.assign({ from: id }, payload || {}) });
+    // Stau im Sendepuffer (langsame Leitung): Zustandspakete verwerfen statt anzuhaeufen, sonst waechst die Verzoegerung immer weiter
+    const LIVE = { world: 1, cstate: 1, state: 1, bots: 1, dm: 1 };
+    ch.send = (event, payload) => LIVE[event] && ch.ws && ch.ws.bufferedAmount > 48000 ? undefined : send('broadcast', { type: 'broadcast', event, payload: Object.assign({ from: id }, payload || {}) });
     // Anwesenheit aktualisieren: schnelle Folgen (z. B. beim Durchblaettern der Sets) werden zu einer Nachricht zusammengefasst, sonst drosselt/beendet der Server die Verbindung
     ch.update = (meta) => {
       Object.assign(ch.meta, meta);

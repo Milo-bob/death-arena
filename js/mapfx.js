@@ -16,9 +16,9 @@ const MapFx = {
     if (G.bossFight || G.victory > 0 || Tutorial.active) return false;
     if (G.finalAt !== null && G.finalAt - G.time < 12 && G.finalAt - G.time > 0) return true;
     const st = CFG.boss.steps, len = (G.map.bossOrder || CFG.boss.order).length;
-    if (!G.infinite && G.bossCount >= len) return false;
+    if (G.bossCount >= len) return false;
     const next = Math.ceil((G.time + 0.01) / st) * st;
-    return next - G.time < 12 && (G.infinite || next <= st * len);
+    return next - G.time < 12 && next <= st * len;
   },
 
   // ---------- Partikel ----------
@@ -75,7 +75,7 @@ const MapFx = {
       this.pings = this.pings.filter((p) => p.t < 1.6);
     }
     // Funken am Kartenrand, wenn man nah dran ist
-    if (!CFG.map.infinite && lv > 0 && this.kind) this.edgeSparks(dt);
+    if (lv > 0 && this.kind) this.edgeSparks(dt);
   },
   // Rand: Abstand zum naechsten Kartenrand (Weltkoordinaten)
   edgeDist(x, y) {
@@ -148,26 +148,24 @@ const MapFx = {
       }
     }
     // Kartenrand: laufende Striche, stark wenn man nah dran ist, im Boss schneller
-    if (!CFG.map.infinite) {
-      const hw = CFG.map.halfW * G.arenaScale, hh = CFG.map.halfH * G.arenaScale, d = this.edgeDist(G.player.x, G.player.y), near = clamp(1 - d / 150, 0, 1);
-      const sp = 26 + 40 * b, col = G.map.frame;
-      ctx.fillStyle = col;
-      const edge = (ax, ay, bx, by) => {                                // Linie von (ax,ay) nach (bx,by) in Weltkoordinaten, Striche wandern
-        const len = Math.hypot(bx - ax, by - ay), n = Math.floor(len / 16), ux = (bx - ax) / len, uy = (by - ay) / len, off = (t * sp) % 16;
-        for (let i = -1; i < n; i++) {
-          const u = i * 16 + off;
-          if (u < 0 || u > len - 6) continue;
-          const wx = ax + ux * u, wy = ay + uy * u;
-          if (wx < x0 || wx > x1 || wy < y0 || wy > y1) continue;
-          ctx.globalAlpha = (0.2 + 0.7 * near) * lv; pxFill(ctx, sx(wx), sy(wy) - 1, 2); pxFill(ctx, sx(wx + ux * 4), sy(wy + uy * 4) - 1, 2);
-        }
-      };
-      edge(-hw, hh - 4, hw, hh - 4); edge(hw, -hh + 4, -hw, -hh + 4); edge(-hw + 4, -hh, -hw + 4, hh); edge(hw - 4, hh, hw - 4, -hh);
-      if (near > 0) {                                                   // Naehe zum Rand: Warnleuchten an der Wand
-        const p = G.player, nx = hw - Math.abs(p.x) < hh - Math.abs(p.y);
-        ctx.globalAlpha = 0.1 * near * lv; ctx.fillStyle = col;
-        pxGlow(ctx, sx(nx ? Math.sign(p.x || 1) * hw : p.x), sy(nx ? p.y : Math.sign(p.y || 1) * hh), 70);
+    const hw = CFG.map.halfW * G.arenaScale, hh = CFG.map.halfH * G.arenaScale, d = this.edgeDist(G.player.x, G.player.y), near = clamp(1 - d / 150, 0, 1);
+    const sp = 26 + 40 * b, col = G.map.frame;
+    ctx.fillStyle = col;
+    const edge = (ax, ay, bx, by) => {                                // Linie von (ax,ay) nach (bx,by) in Weltkoordinaten, Striche wandern
+      const len = Math.hypot(bx - ax, by - ay), n = Math.floor(len / 16), ux = (bx - ax) / len, uy = (by - ay) / len, off = (t * sp) % 16;
+      for (let i = -1; i < n; i++) {
+        const u = i * 16 + off;
+        if (u < 0 || u > len - 6) continue;
+        const wx = ax + ux * u, wy = ay + uy * u;
+        if (wx < x0 || wx > x1 || wy < y0 || wy > y1) continue;
+        ctx.globalAlpha = (0.2 + 0.7 * near) * lv; pxFill(ctx, sx(wx), sy(wy) - 1, 2); pxFill(ctx, sx(wx + ux * 4), sy(wy + uy * 4) - 1, 2);
       }
+    };
+    edge(-hw, hh - 4, hw, hh - 4); edge(hw, -hh + 4, -hw, -hh + 4); edge(-hw + 4, -hh, -hw + 4, hh); edge(hw - 4, hh, hw - 4, -hh);
+    if (near > 0) {                                                   // Naehe zum Rand: Warnleuchten an der Wand
+      const p = G.player, nx = hw - Math.abs(p.x) < hh - Math.abs(p.y);
+      ctx.globalAlpha = 0.1 * near * lv; ctx.fillStyle = col;
+      pxGlow(ctx, sx(nx ? Math.sign(p.x || 1) * hw : p.x), sy(nx ? p.y : Math.sign(p.y || 1) * hh), 70);
     }
     ctx.restore();
   },

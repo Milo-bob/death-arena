@@ -25,9 +25,7 @@ class Director {
   }
 
   // Wartezeit-Faktor für alle Gegner außer den vier Grundtypen (die laufen über waves()): CFG.spawnAll.rate mal Kartenfaktor
-  get spawnAllFactor() { return CFG.spawnAll.rate * G.diff.allRate * G.diff.spawn * this.infRate * Hero.world().allRate; }
-  get infRate() { return G.infinite ? CFG.infinite.spawnRate : 1; }       // Endlos-Modus: mehr Gegner (kuerzere Wartezeiten)
-  get infCap() { return G.infinite ? CFG.infinite.capMul : 1; }
+  get spawnAllFactor() { return CFG.spawnAll.rate * G.diff.allRate * G.diff.spawn * Hero.world().allRate; }
 
   // Spawn-Intervalle zur aktuellen Spielzeit (Sekunden zwischen zwei Gegnern)
   waves(time) {
@@ -45,7 +43,7 @@ class Director {
     if (w.sMin < 2.5) w.sMax = 2.5;
     w.sMin = Math.max(0, w.sMin);
     // insgesamt etwas schneller spawnen, im Blutmond noch einmal
-    const factor = W.rateFactor * G.diff.rate * (G.bloodMoon ? CFG.bloodMoon.spawnFactor : 1) * G.diff.spawn * this.infRate * Hero.world().rate;
+    const factor = W.rateFactor * G.diff.rate * (G.bloodMoon ? CFG.bloodMoon.spawnFactor : 1) * G.diff.spawn * Hero.world().rate;
     const trim = G.map.trim || {};                         // Kartenspezifisch: manche normale Gegner seltener (c/t/r/s), weil Karten-Gegner sie ersetzen
     const TYPE_OF = { c: 'circle', t: 'triangle', r: 'rhombus', s: 'square' };
     for (const k of Object.keys(w)) w[k] *= factor * (trim[k[0]] || 1) * Hero.type(TYPE_OF[k[0]]).wait;       // Held-Modifier (Harbinger): Wartezeit je Typ
@@ -90,7 +88,7 @@ class Director {
     const gShrink = time >= GD.shrinkFrom ? Math.floor((time - GD.shrinkFrom) / 60) + 1 : 0;
     active.g = time >= GD.from;
     const SS = CFG.supportSpawn;
-    active.p = time >= SS.from && G.enemies.filter((e) => e.alive && e.type === 'support').length < Math.ceil(SS.maxAlive * CFG.spawnAll.capMul * G.diff.capMul * this.infCap * Hero.world().cap);
+    active.p = time >= SS.from && G.enemies.filter((e) => e.alive && e.type === 'support').length < Math.ceil(SS.maxAlive * CFG.spawnAll.capMul * G.diff.capMul * Hero.world().cap);
     ranges.p = [SS.min, SS.max];
     ranges.g = [Math.max(GD.floor, GD.min - gShrink), Math.max(GD.floor, GD.max - gShrink)];
     const sa = this.spawnAllFactor;
@@ -125,7 +123,7 @@ class Director {
   spawnExtra(dt) {
     for (const type of Object.keys(CFG.extraSpawn)) {
       const C0 = CFG.extraSpawn[type], C = G.eliteUp && C0.up ? Object.assign({}, C0, C0.up) : C0;       // Elite-Gegner: nach dem Upgrade kuerzerer Takt und mehr gleichzeitig
-      if (G.time < C.from || G.enemies.filter((e) => e.alive && e.type === type).length >= (C.fixedCap ? C.maxAlive : Math.ceil(C.maxAlive * CFG.spawnAll.capMul * G.diff.capMul * this.infCap * (C.fixedCap ? 1 : Hero.world().cap)))) continue;
+      if (G.time < C.from || G.enemies.filter((e) => e.alive && e.type === type).length >= (C.fixedCap ? C.maxAlive : Math.ceil(C.maxAlive * CFG.spawnAll.capMul * G.diff.capMul * (C.fixedCap ? 1 : Hero.world().cap)))) continue;
       if (this.extraT[type] === undefined) this.extraT[type] = rand(C.min, C.max) * this.spawnAllFactor * ((G.map.trim || {})[type] || 1) * Hero.type(type).wait;
       this.extraT[type] -= dt;
       if (this.extraT[type] > 0) continue;
@@ -218,8 +216,7 @@ class Director {
     const C = CFG.obstacles, p = G.player;
     for (let t = 0; t < 30; t++) {
       let x, y;
-      if (CFG.map.infinite) { const a = rand(0, 360), d = rand(150, 380); x = p.x + fwdX(a) * d; y = p.y + fwdY(a) * d; }          // unendliche Karte: in der Nähe des Spielers aufstellen
-      else [x, y] = clampToMap(rand(-CFG.map.halfW, CFG.map.halfW), rand(-CFG.map.halfH, CFG.map.halfH), C.margin);
+      [x, y] = clampToMap(rand(-CFG.map.halfW, CFG.map.halfW), rand(-CFG.map.halfH, CFG.map.halfH), C.margin);
       if (dist2(x, y, p.x, p.y) < C.minPlayer * C.minPlayer) continue;
       if (G.obstacles.some((o) => o.alive && dist2(x, y, o.x, o.y) < C.minOther * C.minOther)) continue;
       if (G.spawnPointList().some(([sx, sy]) => dist2(x, y, sx, sy) < C.minSpawn * C.minSpawn)) continue;
@@ -254,10 +251,10 @@ class Director {
   }
 
   // Schrumpfende Arena: pro Welle einmal würfeln (Zustand ergibt sich aus der Spielzeit). G.arenaScale wird hier weich verändert;
-  // im Bosskampf gehört sie dem Arena-Boss (endBossFight setzt sie zurück), im Endlos-Modus gibt es keine Wände.
+  // im Bosskampf gehört sie dem Arena-Boss (endBossFight setzt sie zurück).
   updateCollapse(dt) {
     const C = CFG.collapse, L = CFG.waves.length;
-    if (CFG.map.infinite || G.bossFight) { this.setCollapse(false); return; }
+    if (G.bossFight) { this.setCollapse(false); return; }
     const wave = Math.floor(G.time / L), into = G.time - wave * L;
     if (wave !== this.collapseWave) {
       this.collapseWave = wave;
@@ -395,7 +392,7 @@ class Director {
   updateBosses() {
     if (G.bossFight || G.finalStarted) return;
     if (G.finalAt !== null && G.time >= G.finalAt) { G.finalStarted = true; G.startBossFight('reaper'); return; }       // das Spiel endet nur über diesen Boss
-    if (!G.infinite && G.bossCount >= (G.map.bossOrder || CFG.boss.order).length) return;       // Standardmodus: jeder Boss genau einmal, danach kommt direkt der finale Boss (Endlos-Modus loopt)
+    if (G.bossCount >= (G.map.bossOrder || CFG.boss.order).length) return;       // jeder Boss genau einmal, danach kommt direkt der finale Boss
     const steps = CFG.boss.steps;
     if (G.time > steps * G.bossStageOctagon - 0.1) {
       if (G.time > 239.9) G.bossStageOctagon++;

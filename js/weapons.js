@@ -65,7 +65,7 @@ const Loadout = {
   },
 
   // Anzahl Ziele, durch die ein Blaster-Schuss fliegt: Waffen-Upgrades dieses Laufs + Bonus fuer die hoechste Ausruestungsstufe
-  shotPierce() { const C = CFG.shot.pierce; return Math.min(C.max, Math.floor(this.shot.ups / C.every)) + (Save.gearLv('shot') >= Save.gearMax() ? C.maxGearBonus : 0); },
+  shotPierce() { const C = CFG.shot.pierce; return Math.min(C.max, Math.floor(this.shot.ups / C.every)) + (Save.gearLv('shot') >= Save.gearMax() ? C.maxGearBonus : 0) + Hero.mods().pierce; },
 
   // Perk "Weapon Tuning" (XP-Level-up): derselbe Stufenschritt wie nach einem Boss, aber ohne Meldung, Boss-Zähler und Auswahl. time = 0: keine zeitgebundenen Klingen-Sprünge.
   tune() { this.upgradeStats(0); },
@@ -191,7 +191,7 @@ class Shot {
     this.growth = ((Loadout.shot.size - 1) * 5) / 15;   // Prozent pro Bild
     this.sizePct = 150;
     this.ghost = 0;
-    this.framesLeft = o.frames || (bounce ? CFG.bounce.frames : CFG.shot.frames);
+    this.framesLeft = (o.frames || (bounce ? CFG.bounce.frames : CFG.shot.frames)) * (o.from && o.from === G.player ? Hero.mods().range : 1);       // Held Voyager: Schuesse fliegen weiter
   }
   update(dt) {
     if (this.touched) { this.alive = false; Juice.sparks(this.x, this.y, STYLE.pal.cyan, 2, 1.5); return; }       // Blaster: hat im Bild davor etwas getroffen, jetzt ist der Schuss weg
@@ -207,7 +207,7 @@ class Shot {
       if (best) steerTowards(this, best.x, best.y, S.turn * f);
     }
     moveForward(this, this.speed * f);
-    if (this.bounce && !CFG.map.infinite) {
+    if (this.bounce) {
       const hw = CFG.map.halfW * G.arenaScale, hh = CFG.map.halfH * G.arenaScale;
       if (Math.abs(this.x) > hw) { this.x = clamp(this.x, -hw, hw); this.dir = -this.dir; }
       if (Math.abs(this.y) > hh) { this.y = clamp(this.y, -hh, hh); this.dir = 180 - this.dir; }

@@ -58,7 +58,7 @@ const STYLE = {
 
 // Mindestgröße (Apple HIG: Text nie unter 11 pt): auf Handys/Tablets wird jede Schrift so vergrößert,
 // dass sie auf dem Bildschirm mindestens UI_MIN_CSS_PX CSS-Pixel hoch ist. Am Desktop (große Skalierung) ändert sich nichts.
-const UI_MIN_CSS_PX = 12;
+const UI_MIN_CSS_PX = 10;
 let uiCssPerUnit = 0, uiCssStamp = 0;
 function uiSize(px) {
   if (typeof IS_MOBILE === 'undefined' || !IS_MOBILE) return px;
@@ -82,6 +82,10 @@ function uiText(ctx, text, x, y, opts = {}) {
   ctx.textAlign = opts.align || 'left';
   ctx.textBaseline = opts.baseline || 'alphabetic';
   ctx.lineJoin = 'round';
+  if (opts.maxW) {                           // zu breit: mit .. kuerzen (die Schriftgroesse bleibt in einer Gruppe immer gleich, nie pro Text verkleinern)
+    let w = ctx.measureText(text).width;
+    while (w > opts.maxW && text.length > 3) { text = text.slice(0, -1); w = ctx.measureText(text + '..').width; if (w <= opts.maxW) text = text.trimEnd() + '..'; }
+  }
   if (opts.glow) {                           // harter Pixel-Schein: gefärbter Umriss statt weichem Leuchten
     ctx.lineWidth = Math.min(4, Math.max(2, size / 5)) + 2; ctx.strokeStyle = opts.glow; ctx.globalAlpha = 0.45;
     ctx.strokeText(text, x, y); ctx.globalAlpha = 1;

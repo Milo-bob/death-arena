@@ -6,38 +6,22 @@
 const Board = {
   pages: {},                          // Liste-ID -> { rows: [{ rank, name, val, mine }], total, me: { rank, val } | null, error, at }
   loading: {}, optIn: null, busy: false, error: '', admin: false, banAsk: null,
-  tab: 0, top: 0, sub: 0,
+  tab: 0, top: 0,
   LIMIT: 100, TTL: 60000,
 
   // Listen: id = Name der Liste in der Datenbank, fmt = Anzeige des Wertes
   tabs() {
     const f = (v) => String(Math.floor(v));
     const list = [
-      { id: 'total', label: 'TOTAL', hint: 'ALL LISTS COMBINED (POINTS)', fmt: f, unit: 'PTS' },
-      { id: 'inf', label: 'ENDLESS TIME', hint: 'BEST TIME IN INFINITE MODE', fmt: formatTime },
-      { id: 'wins', label: 'WINS', hint: 'DEATH DEFEATED', fmt: f },
+      { id: 'total', label: 'TOTAL', hint: 'SOLO WINS, PVP WINS AND ACHIEVEMENTS, A LITTLE FOR BOSSES AND KILLS (POINTS)', fmt: f, unit: 'PTS' },
+      { id: 'wins', label: 'WINS', hint: 'DEATH DEFEATED IN SINGLEPLAYER', fmt: f },
+      { id: 'pvp', label: 'PVP WINS', hint: 'PVP ROUNDS WON AGAINST OTHER PLAYERS', fmt: f },
       { id: 'ach', label: 'ACHIEVEMENTS', hint: 'ACHIEVEMENTS UNLOCKED', fmt: f },
       { id: 'plv', label: 'PLAYER LEVEL', hint: 'LEVEL OF THE SAVE FILE', fmt: (v) => 'LV ' + Save.levelInfo(v).lv },
-      { id: 'rlv', label: 'RUN LEVEL', hint: 'HIGHEST LEVEL REACHED IN ONE RUN', fmt: f },
-      { id: 'boss', label: 'BOSSES', hint: 'BOSSES DEFEATED IN TOTAL', fmt: f },
-      { id: 'kill', label: 'KILLS', hint: 'ENEMIES DEFEATED IN TOTAL', fmt: f },
     ];
-    // Speedrun: schnellste Zeit zuerst (Server: lb_sr_page). Zufalls-Seed = beste Zeit ueber alle Zufalls-Seeds, Daily = Seed des heutigen Tages, Gewaehlter Seed = beste Zeit ueber alle Seeds, die Spieler selbst gewaehlt haben (nicht pro Seed)
-    // Gauntlet und Seed Run sind abgeschaltet (CFG.speedrun.order): ihre Reiter sind weg, seedTab()/seedSubs() bleiben fuer eine spaetere Rueckkehr
-    list.push({ id: 'sr:rush', label: 'SPEEDRUN - BOSS RUSH', hint: 'FASTEST TIME', fmt: srFmt, sr: true });
     if (this.admin) list.push({ id: 'banned', label: 'BANNED', hint: 'HIDDEN FROM ALL LISTS  -  UNBAN TO BRING THEM BACK', fmt: () => '' });   // nur fuer Admins                                                          // alle Seed-Run-Listen = eine Kategorie, unten wechselt man zwischen ihnen (Q/E)
     return list;
   },
-  // Seed Run: Zufalls-Seed = beste Zeit ueber alle Zufalls-Seeds, Daily = Seed des heutigen Tages, Gewaehlter Seed = beste Zeit ueber alle Seeds, die Spieler selbst gewaehlt haben (nicht pro Seed)
-  seedSubs() {
-    return [
-      { id: 'sr:rnd', sub: 'RANDOM SEED', hint: 'FASTEST TIME WITH ANY RANDOM SEED' },
-      { id: 'sr:daily:' + SpeedRun.today(), sub: 'DAILY SEED', hint: 'FASTEST TIME ON THE DAILY SEED (' + SpeedRun.today() + ')' },
-      { id: 'sr:fixed', sub: 'CHOSEN SEED', hint: 'FASTEST TIME WITH A SEED THE PLAYER CHOSE' },
-    ];
-  },
-  seedTab() { const s = this.seedSubs()[this.sub]; return Object.assign({ label: 'SEED RUN', fmt: srFmt, sr: true, group: true }, s); },
-  setSub(i) { const n = this.seedSubs().length; this.sub = (i + n) % n; this.top = 0; Sfx.play('tick'); this.load(this.cur().id); },
   cur() { return this.tabs()[this.tab]; },
   page() { return this.pages[this.cur().id] || null; },
 
@@ -50,7 +34,7 @@ const Board = {
     if (!Account.configured) { this.error = 'CLOUD SAVES ARE NOT SET UP YET'; return; }
     this.loading[id] = true;
     try {
-      const fnPage = id === 'banned' ? 'lb_banned' : id.startsWith('sr:') ? 'lb_sr_page' : 'lb_page', fnMe = id.startsWith('sr:') ? 'lb_sr_me' : 'lb_me';
+      const fnPage = id === 'banned' ? 'lb_banned' : 'lb_page', fnMe = 'lb_me';
       const a = await Account.http('POST', '/rest/v1/rpc/' + fnPage, Object.assign({ p_board: id, p_limit: this.LIMIT, p_offset: 0 }, this.admin ? { p_key: this.key() } : {}), Account.on ? await Account.token() : null);
       if (!a.ok) { this.pages[id] = old || { rows: null, total: 0, me: null, at: 0 }; this.pages[id].error = a.offline ? 'NO CONNECTION' : 'LEADERBOARD IS NOT SET UP YET'; return; }
       const rows = (a.json || []).map((r) => ({ rank: r.rank, name: r.name, val: +r.val, mine: !!r.mine, uid: r.uid || null }));
@@ -114,7 +98,6 @@ const Board = {
     if (Input.pressed('ArrowRight') || Input.pressed('KeyD')) this.step(1);
     if (Input.pressed('ArrowUp') || Input.pressed('KeyW')) this.top = Math.max(0, this.top - 1);
     if (Input.pressed('ArrowDown') || Input.pressed('KeyS')) this.top = Math.max(0, Math.min(n - vis, this.top + 1));
-    if (tb.group) { if (Input.pressed('KeyQ')) this.setSub(this.sub - 1); if (Input.pressed('KeyE')) this.setSub(this.sub + 1); }
     if (Input.pressed('KeyR')) { this.loadOptIn(); this.load(this.cur().id, true); }
     if (Input.pressed('Space') || Input.pressed('Enter')) this.toggle();
   },
@@ -131,7 +114,7 @@ const Board = {
     uiText(ctx, '<', cx - 180, 70, { size: T.h1, color: P.cyan, align: 'center' });
     uiText(ctx, '>', cx + 180, 70, { size: T.h1, color: P.cyan, align: 'center' });
     uiText(ctx, tb.label, cx, 70, { size: T.h1, color: P.ice, align: 'center' });
-    uiText(ctx, tb.hint, cx, 84, { size: T.small, color: P.grey, align: 'center' });
+    uiText(ctx, tb.hint, cx, 84, { size: T.small, color: P.grey, align: 'center', maxW: STAGE_W - 60, minK: 0.6 });
     for (let i = 0; i < tabs.length; i++) {                                             // Punkte: welche Liste ist gerade offen
       ctx.fillStyle = i === this.tab ? P.yellow : P.greyDark;
       ctx.fillRect(cx - tabs.length * 6 + i * 12, 92, 8, 4);
@@ -170,15 +153,6 @@ const Board = {
     if (err) uiText(ctx, err, cx, 334, { size: T.small, color: P.red, align: 'center' });
     // Knoepfe
     const by = 338, bw = 130;
-    if (tb.group) {                                                                     // Unterliste des Seed Run: Q/E oder Klick
-      const subs = this.seedSubs(), sw = 92, gx = cx - (subs.length * sw + (subs.length - 1) * 4) / 2;
-      subs.forEach((s2, i) => {
-        const x = gx + i * (sw + 4), on = i === this.sub;
-        UIHit.add(x, by, sw, 18, () => {}, { act: () => this.setSub(i) });
-        uiPanel(ctx, x, by, sw, 18, { color: on ? P.yellow : P.greyMid, fill: on ? P.voidLight : P.void, alpha: 0.9 });
-        uiText(ctx, s2.sub, x + sw / 2, by + 13, { size: T.small, color: on ? P.yellow : P.grey, align: 'center', maxW: sw - 6 });
-      });
-    }
     if (Account.on && this.optIn !== null) {
       UIHit.add(24, by, bw, 18, () => {}, { act: () => this.toggle() });
       uiPanel(ctx, 24, by, bw, 18, { color: this.optIn ? P.red : P.green, fill: P.void, alpha: 0.9 });

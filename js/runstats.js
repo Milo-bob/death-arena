@@ -71,7 +71,7 @@ const Stats = {
   // Nicht protokolliert: Tutorial. Laeufe mit Dev-Cheats (G.cheated) werden mit dv: true markiert (Dev-Lauf) und lassen sich in der Statistik ausblenden (Taste X), standardmaessig sind sie sichtbar.
   CAP: { deaths: 300, bosses: 600, impDeaths: 2000, impBosses: 4000 },
   newId() { return Math.random().toString(36).slice(2, 10); },
-  logging() { return !Tutorial.active && !Save.srOn && !G.coop; },
+  logging() { return !Tutorial.active && !G.coop; },
   devRun() { return !!G.cheated; },
   push(list, entry, cap) { list.push(entry); if (list.length > cap) list.splice(0, list.length - cap); },
   loadout() {
@@ -85,17 +85,17 @@ const Stats = {
   bossEnd(result) {
     const f = this.fight; this.fight = null;
     if (!f || !this.logging()) return;
-    this.push(Save.data.bossLog, Object.assign({ i: this.newId(), ty: f.ty, at: f.at, d: Math.round(G.bossTimer * 10) / 10, r: result, dm: Math.round(this.taken - f.dmg0), n: G.bossCount, map: G.map.id, inf: !!G.infinite, sl: Save.slot }, this.devRun() ? { dv: true } : {}, this.loadout()), this.CAP.bosses);
+    this.push(Save.data.bossLog, Object.assign({ i: this.newId(), ty: f.ty, at: f.at, d: Math.round(G.bossTimer * 10) / 10, r: result, dm: Math.round(this.taken - f.dmg0), n: G.bossCount, map: G.map.id, sl: Save.slot }, this.devRun() ? { dv: true } : {}, this.loadout()), this.CAP.bosses);
   },
 
   // Lauf zu Ende (Tod, Aufgeben oder Sieg). Gibt die Zusammenfassung zurueck und merkt sie fuer den Todesbildschirm.
-  finish(time, bosses, mapId, infinite, win = false) {
+  finish(time, bosses, mapId, win = false) {
     const killer = win ? 'VICTORY' : this.lastSrc || 'UNKNOWN';
     this.summary = { killer, level: Xp.level, taken: this.taken, hitCount: this.hitCount, savedDmg: this.savedDmg, savedHits: this.savedHits, dmg: this.sorted(this.dmg), hits: this.hits, kills: this.sorted(this.kills) };
     const fy = this.fight ? this.fight.ty : null;
     this.bossEnd(win ? 'win' : 'died');
     if (this.logging()) {
-      const e = { i: this.newId(), t: Math.round(time), b: bosses, by: killer, map: mapId, inf: !!infinite, k: G.kills, dm: Math.round(this.taken), h: this.hitCount, lv: Xp.level, win: !!win, sl: Save.slot };
+      const e = { i: this.newId(), t: Math.round(time), b: bosses, by: killer, map: mapId, k: G.kills, dm: Math.round(this.taken), h: this.hitCount, lv: Xp.level, win: !!win, sl: Save.slot };
       if (fy) e.fy = fy;
       if (this.devRun()) e.dv = true;
       this.push(Save.data.deathLog, Object.assign(e, this.loadout()), this.CAP.deaths);
@@ -104,8 +104,8 @@ const Stats = {
   },
 
   // ---------- Auswertung ----------
-  filterList() { return [{ id: 'all', label: 'ALL MAPS' }].concat(CFG.maps.map((m) => ({ id: m.id, label: m.name || m.id }))).concat([{ id: 'inf', label: 'ENDLESS' }]); },
-  // Eintraege (eigene + importierte) passend zum Filter: 'all' = Standardmodus aller Karten, Karten-ID = diese Karte, 'inf' = Endlos
+  filterList() { return [{ id: 'all', label: 'ALL MAPS' }].concat(CFG.maps.map((m) => ({ id: m.id, label: m.name || m.id }))); },
+  // Eintraege (eigene + importierte) passend zum Filter: 'all' = Standardmodus aller Karten, Karten-ID = diese Karte
   // Protokolle aus ALLEN Slots dieses Geraets (auch aelteren, die das Protokoll noch im Slot-Spielstand selbst trugen, und Slots, in die importiert wurde),
   // ohne Duplikate (Eintrags-ID). Das aktive Slot-Objekt zaehlt aus dem Speicher, nicht von der Platte.
   slotLogs(kind, imported = false) {
@@ -124,7 +124,7 @@ const Stats = {
   },
   pick(kind, filter, ownOnly, showDev = true) {
     const D = Save.data, own = this.slotLogs(kind), ownIds = new Set(own.map((e) => e.i)), imp = ownOnly ? [] : this.slotLogs(kind, true).filter((e) => !ownIds.has(e.i));
-    return own.concat(imp).filter((e) => (showDev || !e.dv) && (filter === 'inf' ? e.inf : filter === 'all' ? !e.inf : !e.inf && e.map === filter));
+    return own.concat(imp).filter((e) => (showDev || !e.dv) && (filter === 'all' ? !e.inf : !e.inf && e.map === filter));
   },
   pct(sorted, p) { return sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor(p * sorted.length))] : 0; },
   avg(a) { return a.length ? a.reduce((s, x) => s + x, 0) / a.length : 0; },

@@ -331,11 +331,12 @@ class BlackHole {
 
 // ---------- Kampfdrohne (mittlere Ability): kreist um den Spieler und schiesst auf Gegner in der Naehe ----------
 class Drone {
-  constructor(player) {
+  constructor(player, phase = 0, dur = CFG.drone.duration) {           // phase: Startwinkel auf der Bahn, dur: Lebensdauer (Held Conjurer: mehrere Drohnen)
     this.kind = 'drone';
     this.damaging = false;
     this.alive = true;
     this.player = player;
+    this.phase = phase; this.dur = dur;
     this.age = 0;
     this.fireT = 0.4;
     this.x = player.x; this.y = player.y;
@@ -344,8 +345,8 @@ class Drone {
   update(dt) {
     const C = CFG.drone, p = this.player;
     this.age += dt;
-    if (this.age >= C.duration) { this.alive = false; return; }
-    const a = this.age * 200;
+    if (this.age >= this.dur) { this.alive = false; return; }
+    const a = this.age * 200 + this.phase;
     this.x = p.x + fwdX(a) * C.orbit; this.y = p.y + fwdY(a) * C.orbit;
     this.fireT -= dt;
     if (this.fireT <= 0) {
@@ -357,7 +358,7 @@ class Drone {
   draw(ctx) {
     const P = STYLE.pal, [cx, cy] = toScreen(this.x, this.y);
     ctx.save();
-    ctx.globalAlpha = this.age > CFG.drone.duration - 1 && Math.floor(this.age * 8) % 2 === 0 ? 0.4 : 1;
+    ctx.globalAlpha = this.age > this.dur - 1 && Math.floor(this.age * 8) % 2 === 0 ? 0.4 : 1;
     const pts = [[cx, cy - 5], [cx + 5, cy], [cx, cy + 5], [cx - 5, cy]];
     ctx.fillStyle = P.cyanMid; pxPolyFill(ctx, pts);
     ctx.fillStyle = P.ice; pxPoly(ctx, pts, true, 1);
@@ -532,7 +533,7 @@ class Rocket {
     this.age += dt;
     moveForward(this, Math.max(1, C.speed + this.addSpeed) * framesOf(dt));
     if (Math.random() < 0.6) Juice.sparks(this.x - fwdX(this.dir) * 8, this.y - fwdY(this.dir) * 8, STYLE.pal.yellow, 1, 1);
-    if (!CFG.map.infinite) { const [cx, cy] = clampToMap(this.x, this.y, C.radius); if (cx !== this.x || cy !== this.y) { this.explode(); return; } }
+    { const [cx, cy] = clampToMap(this.x, this.y, C.radius); if (cx !== this.x || cy !== this.y) { this.explode(); return; } }
     for (const e of G.enemies) {
       if (!e.alive || this.touched.has(e) || !circlesOverlap(this.x, this.y, C.radius, e.x, e.y, e.radius)) continue;
       if (e.hitsLeft > C.strongHits) { this.explode(); return; }          // starker Gegner: Einschlag

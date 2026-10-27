@@ -5,7 +5,7 @@
 
 // Erste Waffe, die einen Gegner verletzt (Schwert, Schuss, Dash-Spur, Beam)
 function weaponHit(x, y, r) {
-  for (const a of G.attacks) if (a.alive && a.damaging && a.hitsCircle(x, y, r)) return a;
+  for (const a of G.attacks) if (a.alive && a.damaging && a.hitsCircle(x, y, r) && !(G.pvp && PvpCover.shields(a, x, y))) return a;       // PvP: Deckung zwischen Angriff und Ziel schluckt den Treffer
   return null;
 }
 
@@ -133,7 +133,6 @@ class Enemy {
     // im Bosskampf und während Ultimate/Bloodburst verschwinden alle normalen Gegner
     if ((G.clearing || G.bossFight) && !this.minion) { this.alive = false; return; }
     if (this.minion && !G.bossFight) { this.alive = false; return; }       // Minions verschwinden mit dem Boss
-    if (this.dormant && SpeedRun.sleeping(this)) return;                    // Speedrun: schlafende Gegner (Gauntlet-Gruppen, Seed-Traeger) warten, bis der Spieler nah ist
     Coop.focus = this;                                                       // Koop: Gegner zielen auf den naechsten Spieler (Player.target)
     this.age += dt;
     this.hitFlash = Math.max(0, this.hitFlash - dt);

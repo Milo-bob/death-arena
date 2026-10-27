@@ -2,8 +2,7 @@
 // Im Tutorial gelten nur Aussehen, kein Modifier und kein Artefakt (damit die Lektionen immer gleich bleiben).
 
 // cores = Faktor auf die Cores eines Laufs, xp = Faktor auf XP-Kugeln, luck = Faktor auf die Drop-Chance
-// infRamp / infMut: nur im Endlos-Modus (Endless.ramp/bonus): Wachstum des Credit-Multiplikators und Credit-Bonus der Mutationen
-const HERO_NEUTRAL = { hp: 0, speed: 1, atk: 1, ult: 1, startUlt: 0, dmgTaken: 1, cores: 1, xp: 1, luck: 1, infRamp: 1, infMut: 1 };
+const HERO_NEUTRAL = { hp: 0, speed: 1, atk: 1, ult: 1, startUlt: 0, dmgTaken: 1, cores: 1, xp: 1, luck: 1, cd: 1, range: 1, pierce: 0, rage: 0, regen: 0 };
 // World = Run-Modifier, der die Gegnerwelt veraendert (Harbinger): rate / allRate = Faktor auf die Wartezeiten (kleiner = mehr Gegner), cap = Faktor auf die Obergrenzen,
 // hits / speed = Faktor auf Leben und Tempo aller Gegner, bossHp = Faktor auf Boss-Leben, types = pro Gegnertyp { hits, speed, wait } (wait = Faktor auf die Wartezeit dieses Typs)
 const HERO_WORLD_NEUTRAL = { rate: 1, allRate: 1, cap: 1, hits: 1, speed: 1, bossHp: 1, types: {} };
@@ -14,9 +13,9 @@ const Hero = {
   cfg() { return CFG.heroes[this.id()]; },
   // Sprite eines Helden (Standard: der ausgewaehlte). Mit Skin: Cos.sprite(Hero.sprite(), 'skin')
   sprite(id) { return CFG.heroes[id || this.id()].sprite; },
-  live() { return !(typeof Tutorial !== 'undefined' && Tutorial.active) && !Save.srOn && Save.pvpKind() !== 'set'; },       // im Tutorial und im Speedrun (Standard-Loadout) gelten keine Held-Modifier
-  mods() { return Endless.modsFor(this.live() ? Object.assign({}, HERO_NEUTRAL, this.cfg().mod) : HERO_NEUTRAL); },       // Endlos-Mutationen legen sich darueber (endless.js)
-  world() { return Endless.worldFor(this.live() && this.cfg().mod.world ? Object.assign({}, HERO_WORLD_NEUTRAL, this.cfg().mod.world) : HERO_WORLD_NEUTRAL); },
+  live() { return !(typeof Tutorial !== 'undefined' && Tutorial.active) && Save.pvpKind() !== 'set'; },       // im Tutorial gelten keine Held-Modifier
+  mods() { return this.live() ? Object.assign({}, HERO_NEUTRAL, this.cfg().mod) : HERO_NEUTRAL; },
+  world() { return this.live() && this.cfg().mod.world ? Object.assign({}, HERO_WORLD_NEUTRAL, this.cfg().mod.world) : HERO_WORLD_NEUTRAL; },
   type(t) { const W = this.world(); return W.types[t] ? Object.assign({}, HERO_TYPE_NEUTRAL, W.types[t]) : HERO_TYPE_NEUTRAL; },
   artifact() { return this.live() ? this.cfg().artifact || null : null; },
 };

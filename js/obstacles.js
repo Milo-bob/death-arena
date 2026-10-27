@@ -22,7 +22,6 @@ class Obstacle {
   update(dt) {
     const C = CFG.obstacles;
     if (G.bossFight) { this.vanish(); return; }            // im Bosskampf ist die Arena frei
-    if (CFG.map.infinite && dist2(this.x, this.y, G.player.x, G.player.y) > 600 * 600) { this.alive = false; G.director.obstFill = true; return; }       // unendliche Karte: weit entfernte Barrikaden werden still abgebaut (der Director baut nahe neue auf)
     this.age += dt;
     this.hitCd = Math.max(0, this.hitCd - dt);
     this.flash = Math.max(0, this.flash - dt);

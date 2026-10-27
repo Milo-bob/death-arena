@@ -13,7 +13,7 @@ const IS_MOBILE = (() => {
 
 const Save = {
   KEY: 'deatharena.save.v1',
-  data: { ach: { done: {}, cnt: {}, seen: 0 }, upgradesSeen: false, settingsSeen: false,best: 0, runs: 0, lang: 'en', musicVol: 0.5, sfxVol: 0.6, mouseAim: false, attackMode: IS_MOBILE ? 'toggle' : 'hold', touch: IS_MOBILE, tutorialDone: false, wins: 0, last: null, bestInf: 0, infSel: CFG.infinite.defaultSel, mapSel: 0, lastMode: 'regular', mapBest: {}, seenKeys: false, souls: 0, upgrades: {}, unlocked: {},
+  data: { ach: { done: {}, cnt: {}, seen: 0 }, upgradesSeen: false, settingsSeen: false,best: 0, runs: 0, lang: 'de', musicVol: 0.5, sfxVol: 0.6, mouseAim: false, attackMode: IS_MOBILE ? 'toggle' : 'hold', touch: IS_MOBILE, tutorialDone: false, wins: 0, last: null, mapSel: 0, lastMode: 'regular', mapBest: {}, mapWon: {}, seenKeys: false, souls: 0, upgrades: {}, unlocked: {},
     items: JSON.parse(JSON.stringify(CFG.items.start)),     // Inventar: besessene und ausgeruestete Items
     gear: {},       // Stufe und XP je Item/Ability
     cosmetics: { owned: {}, equipped: {}, color: {} },      // gekaufte Cosmetics ("kategorie:id"), ausgeruestete je Kategorie und gewaehlte Farbe je Kategorie (CFG.cosmetics.colors)
@@ -25,15 +25,13 @@ const Save = {
     dev: false,                                  // Dev-Modus (Cheat-Tasten + Statistik-Bildschirm), wird mit der Dev-Save-Datei freigeschaltet (tools/dev-save.deatharena)
     deathLog: [], bossLog: [],                   // Protokoll fuer das Balancing (siehe runstats.js), gilt fuer alle Slots
     imported: { deaths: [], bosses: [] },        // importierte Spieldaten anderer Spieler
-    sr: { kind: 'rush', loadout: JSON.parse(JSON.stringify(CFG.speedrun.loadoutStart)), seedMode: 'random', seedNum: 1, best: {} },       // Speedrun (js/speedrun.js): gewaehlte Karte, Standard-Loadout, Seed-Wahl, Bestzeiten je Karte/Seed
     binds: {} },     // eigene Tastenbelegung (siehe Input.actions)
-  srOn: false,       // true waehrend eines Speedrun-Laufs: Standard-Loadout (keine Upgrades, Stufen, Implants, alle Abilities frei), siehe SpeedRun
   // Geraetedaten, die bei Slot-Wechsel, Reset und Import bleiben (kein Teil eines einzelnen Spielstands)
   LOG_KEYS: ['deathLog', 'bossLog', 'imported'],       // nur diese Geraetedaten (anonyme Balancing-Protokolle, gross) wandern NICHT in Codes/Cloud; Einstellungen, Tasten und Dev-Modus schon
-  KEEP: ['lang', 'musicVol', 'sfxVol', 'mouseAim', 'attackMode', 'touch', 'fx', 'binds', 'deathLog', 'bossLog', 'imported'],       // 'dev' gehoert bewusst NICHT dazu: der Dev-Modus gilt nur fuer den Slot, in den die Dev-Datei importiert wurde
+  KEEP: ['musicVol', 'sfxVol', 'mouseAim', 'attackMode', 'touch', 'fx', 'binds', 'deathLog', 'bossLog', 'imported'],       // 'dev' gehoert bewusst NICHT dazu: der Dev-Modus gilt nur fuer den Slot, in den die Dev-Datei importiert wurde
 
   // Abilities: frei, wenn Preis 0 oder gekauft
-  isUnlocked(id) { return this.srOn || this.pvpKind() === 'all' || CFG.loadout.abilities[id].unlock === 0 || !!(this.data.unlocked && this.data.unlocked[id]); },
+  isUnlocked(id) { return this.pvpKind() === 'all' || CFG.loadout.abilities[id].unlock === 0 || !!(this.data.unlocked && this.data.unlocked[id]); },
   unlock(id) {
     const price = CFG.loadout.abilities[id].unlock;
     if (this.isUnlocked(id) || this.data.souls < price) return false;
@@ -51,12 +49,13 @@ const Save = {
     return (this.data.upgrades && this.data.upgrades[id]) || 0;
   },
   bonus(id) {
-    if (this.srOn || RETIRED_BONUS.includes(id)) return 0;                // frühere Meilenstein-Waffenboni gibt es nicht mehr (Belohnung = Cores/Cosmetics)
-    return this.level(id) * CFG.meta.upgrades[id].step;
+    if (RETIRED_BONUS.includes(id)) return 0;                // frühere Meilenstein-Waffenboni gibt es nicht mehr (Belohnung = Cores/Cosmetics)
+    const E = CFG.meta.effects[id];                                                            // Teil eines Buendels: Stufe des Haupt-Stats mal eigener Schritt
+    return E ? this.level(E.of) * E.step : this.level(id) * CFG.meta.upgrades[id].step;
   },
 
   // ---- Meilensteine ----
-  statValue(stat) { if (String(stat).startsWith('mapbest:')) return this.data.mapBest[stat.slice(8)] || 0; return stat === 'wins' ? (this.data.wins || 0) : stat === 'tutorial' ? (this.data.tutorialDone ? 1 : 0) : stat === 'best' ? this.data.best : stat === 'bestInf' ? this.data.bestInf || 0 : stat === 'runs' ? this.data.runs : (this.data.stats[stat] || 0); },
+  statValue(stat) { if (String(stat).startsWith('mapbest:')) return this.data.mapBest[stat.slice(8)] || 0; return stat === 'wins' ? (this.data.wins || 0) : stat === 'tutorial' ? (this.data.tutorialDone ? 1 : 0) : stat === 'best' ? this.data.best : stat === 'runs' ? this.data.runs : (this.data.stats[stat] || 0); },
   milestoneDone(id) { return !!this.data.milestones[id]; },
   // Prueft alle Meilensteine, gibt die neu erreichten zurueck
   checkMilestones() {
@@ -74,13 +73,23 @@ const Save = {
   // ---- Inventar ----
   owns(id) { return !!this.data.items.owned[id]; },
   // ---- PvP-Regeln (Lobby-Einstellung): own = eigene Werte, set = festes Set ohne Upgrades, all = alles auf Maximum und alles frei ----
+  // PVP-Staerke (Wertung der offenen Runde), siehe CFG.pvp.rating
+  pvpRating() { const r = Number(this.data.pvpRating); return Number.isFinite(r) && r > 0 ? Math.round(r) : CFG.pvp.rating.start; },
+  // Ausruestungsbonus auf die PVP-Staerke: Upgrade-Stufen plus Stufen des ausgeruesteten Gears (PvP-Ausruestung bzw. normales Inventar) und der gewaehlten Abilities
+  pvpGearBonus() {
+    const R = CFG.pvp.rating, d = this.data, ups = Object.values(d.upgrades || {}).reduce((s, v) => s + (v || 0), 0), E = d.pvpEquip || {}, lv = (id) => (id && d.gear && d.gear[id] && d.gear[id].lv) || 0;
+    let g = 0;
+    for (const S of CFG.items.slots) g += lv(S.id in E ? E[S.id] : d.items.equipped[S.id]);
+    for (const id of Object.values(d.pvpLoadout || {})) g += lv(id);
+    return Math.min(R.gearCap, Math.round(ups * R.perUpgrade + g * R.perGearLevel));
+  },
+  pvpStrength() { return this.pvpRating() + this.pvpGearBonus(); },          // fuer Matchmaking und Bots; der Spieler sieht sie nie
   pvpKind() { return typeof G !== 'undefined' && G.pvp ? G.pvp.rule || 'own' : null; },
   pvpRuleNow() { const k = this.pvpKind(); return k || (typeof Pvp !== 'undefined' ? Pvp.ruleKind() : 'own'); },
   pvpSet() { const id = typeof G !== 'undefined' && G.pvp ? G.pvp.setId : (typeof Pvp !== 'undefined' ? Pvp.setNow().id : null); return CFG.pvp.sets.find((s) => s.id === id) || CFG.pvp.sets[0]; },
   // Held im PvP: SET = Vanguard, sonst die in der Lobby gewaehlte (ALL: jeder, OWN: gekaufte), sonst der normale
   pvpHero(kind) { if (kind === 'set') return 'vanguard'; const id = this.data.pvpHeroSel; return CFG.heroes[id] && (kind === 'all' || this.heroOwned(id)) ? id : this.ownHero(); },
   equipped(slot) {
-    if (this.srOn) return this.data.sr.loadout[slot] || null;
     if (typeof G !== 'undefined' && G.pvp) return this.pvpEquipped(slot);                       // PvP-Kampf: die in der Lobby gewaehlte Ausruestung
     return this.data.items.equipped[slot] || null;
   },
@@ -120,13 +129,13 @@ const Save = {
     if (I) return I.slot === 'artifact' ? 'implant' : 'weapon';
     return CFG.loadout.abilities[id].passive ? 'passive' : 'ability';
   },
-  gearLv(id) { const k = this.pvpKind(); if (k) return k === 'all' ? this.gearMax() : k === 'set' ? 0 : this.pvpOwnGear(id); return this.srOn ? 0 : (id && this.data.gear[id] && this.data.gear[id].lv) || 0; },
+  gearLv(id) { const k = this.pvpKind(); if (k) return k === 'all' ? this.gearMax() : k === 'set' ? 0 : this.pvpOwnGear(id); return (id && this.data.gear[id] && this.data.gear[id].lv) || 0; },
   gearMax() { return CFG.gear.need.length; },
   gearMul(id) { return !id || !this.gearLv(id) ? 1 : 1 + this.gearLv(id) * CFG.gear.step[this.gearKind(id)]; },                // Faktor auf Staerke/Tempo
   gearFrac(id) { const lv = this.gearLv(id); return lv >= this.gearMax() ? 1 : Math.min(1, ((this.data.gear[id] && this.data.gear[id].xp) || 0) / CFG.gear.need[lv]); },
   // XP im Hintergrund sammeln (wird beim Laufende mit gespeichert); im Tutorial nichts
   gearXp(id, n) {
-    if (!id || this.srOn || this.pvpKind() || (typeof Tutorial !== 'undefined' && Tutorial.active)) return;
+    if (!id || this.pvpKind() || (typeof Tutorial !== 'undefined' && Tutorial.active)) return;
     const lv = this.gearLv(id);
     if (lv >= this.gearMax()) return;
     const g = this.data.gear[id] || (this.data.gear[id] = { lv, xp: 0 });
@@ -175,6 +184,10 @@ const Save = {
   },
 
   // ---- Helden (siehe CFG.heroes und js/heroes.js): Meilenstein erreicht + Cores bezahlt = Held gehoert dir ----
+  // Abilities fuer die Kaempfe (PvP, Armory): je Gruppe eine gekaufte Ability oder keine (gleiches System wie die Lobby-Ausruestung, Save.data.pvpLoadout)
+  abilityChoices(tier) { return [null].concat(Object.keys(CFG.loadout.abilities).filter((id) => CFG.loadout.abilities[id].tier === tier && (CFG.loadout.abilities[id].unlock === 0 || (this.data.unlocked && this.data.unlocked[id])))); },
+  abilityLoadout() { const S = this.data.pvpLoadout || {}, out = {}; for (const t of CFG.loadout.tiers) out[t.id] = S[t.id] && this.abilityChoices(t.id).includes(S[t.id]) ? S[t.id] : null; return out; },
+  setAbility(tier, id) { this.data.pvpLoadout = Object.assign({}, this.abilityLoadout(), { [tier]: id }); this.write(); },
   heroOwned(id) { return id === 'vanguard' || !!(this.data.heroes && this.data.heroes[id]); },
   heroSelected() { const k = this.pvpKind(); return k ? this.pvpHero(k) : this.ownHero(); },
   ownHero() { const id = this.data.hero; return CFG.heroes[id] && this.heroOwned(id) ? id : 'vanguard'; },
@@ -196,9 +209,11 @@ const Save = {
   // Alle Kaeufe loeschen und von vorne anfangen (Seelen, Upgrades, Abilities, Items). Bestzeit, Statistik und Meilensteine bleiben.
   // Alles im aktiven Slot zurück auf Anfang (Bestzeiten, Statistik, Meilensteine, Käufe, Karten, Tutorial). Nur Lautstärken, Effekte und Tastenbelegung bleiben.
   resetAll() {
+    const lang = this.data.lang, langSet = this.data.langSet;
     const keep = {}; for (const k of this.KEEP) keep[k] = this.data[k];
     this.data = JSON.parse(this.DEFAULTS);
     for (const k of Object.keys(keep)) if (keep[k] !== undefined) this.data[k] = keep[k];
+    this.data.lang = lang; this.data.langSet = langSet;                // beim Zuruecksetzen bleibt die Sprache des Slots
     this.write();
   },
   resetPurchases() {
@@ -244,8 +259,16 @@ const Save = {
     try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { /* ignorieren */ }
   },
   // Alte Spielstaende: die Bestzeit aus der Zeit vor den Karten gehoert zu Karte 1
+  // Sprache je Slot: ein frischer Slot, der nur wegen des frueheren Standards Englisch hat, bekommt Deutsch (ein Slot mit Fortschritt oder bewusst gewaehltem Englisch bleibt)
+  fixLang() { const d = this.data; if (!d.langSet && d.lang === 'en' && !d.tutorialDone && !d.runs) d.lang = 'de'; },
   migrate() {
     const d = this.data;
+    this.fixLang();
+    if (!d.statsMerged) {                                            // 18 Stats wurden zu 10: ein Buendel bekommt die hoechste Stufe seiner alten Teile (niemand verliert etwas)
+      d.statsMerged = true;
+      const U = d.upgrades || (d.upgrades = {}), merge = { resist: ['recovery'], regen: ['heal', 'blood'], ult: ['startUlt'], luck: ['buffTime', 'magnet'], souls: ['coreDrop', 'bounty'] };
+      for (const to of Object.keys(merge)) for (const old of merge[to]) { U[to] = Math.max(U[to] || 0, U[old] || 0); delete U[old]; }
+    }
     if (!d.pxpSeeded) {                                              // Spielerlevel gibt es erst seit kurzem: alte Spielstaende bekommen XP aus ihrer Statistik
       d.pxpSeeded = true;
       const L = CFG.level, s = d.stats || {};
@@ -253,6 +276,7 @@ const Save = {
       if (L.seedFromOldSave && d.tutorialDone) d.pxp = (d.pxp || 0) + L.tutorialXp;
     }
     if (!d.mapBest) d.mapBest = {};
+    if (!d.mapWon) d.mapWon = {};
     if (!Object.keys(d.mapBest).length && d.best > 0) d.mapBest[CFG.maps[0].id] = d.best;
     // Cosmetics umgezogen: Stempel von HITS nach KILLS, Boden-Spuren von FLOOR nach TRAIL (gekaufte und ausgeruestete Items mitnehmen)
     const c = d.cosmetics;
@@ -313,6 +337,7 @@ const Save = {
     this.data = JSON.parse(this.DEFAULTS);
     try { const raw = localStorage.getItem(this.keyFor(i)); if (raw) Object.assign(this.data, JSON.parse(raw)); } catch (e) { /* leer */ }
     for (const k of Object.keys(keep)) if (keep[k] !== undefined) this.data[k] = keep[k];
+    this.fixLang(); try { I18n.set(this.data.lang); } catch (e) { /* egal */ }                // die Sprache gehoert zum Slot (neuer Slot: Deutsch)
     try { localStorage.setItem(this.SLOT_KEY, String(i)); } catch (e) { /* ignorieren */ }
     this.write();
     return true;
@@ -381,32 +406,33 @@ const Save = {
     return { lv, xp, need: lv >= L.max ? 0 : this.levelNeed(lv) };
   },
   plevel() { return this.levelInfo().lv; },
-  // Ist ein Menuepunkt (CFG.level.gates) frei? Dev-Modus umgeht alle Sperren.
-  gateOpen(id) { return this.data.dev === true || this.plevel() >= (CFG.level.gates[id] || 1); },
-  gateLevel(id) { return CFG.level.gates[id] || 1; },
-  // XP eines Laufs gutschreiben, gibt { xp, from, to } zurueck (Level vorher/nachher)
+  // Credits fuer das Erreichen von Level lv (CFG.level.reward)
+  levelReward(lv) { const R = CFG.level.reward; return R.base + R.perLevel * lv; },
+  // XP eines Laufs gutschreiben, gibt { xp, from, to, reward } zurueck (Level vorher/nachher, Credits fuer die erreichten Level; die Credits sind schon im Spielstand)
   addPlayerXp(n) {
     const from = this.plevel(); this.data.pxp = Math.floor((this.data.pxp || 0) + n);
-    return { xp: n, from, to: this.plevel() };
+    const to = this.plevel(); let reward = 0;
+    for (let lv = from + 1; lv <= to; lv++) reward += this.levelReward(lv);
+    this.data.souls += reward;
+    return { xp: n, from, to, reward };
   },
 
   // Lauf zu Ende: gibt true zurück, wenn es eine neue Bestzeit ist
   // ---- Karten ----
   mapNeed(i) { return CFG.maps[i].unlockFrac ? CFG.maps[i].unlockFrac * CFG.finalBoss.at : 0; },        // Sekunden auf der vorherigen Karte
-  mapUnlocked(i) { return i === 0 || (this.data.dev && this.data.devUnlockAll) || (this.data.mapBest[CFG.maps[i - 1].id] || 0) >= this.mapNeed(i); },
+  mapWon(i) { return !!(this.data.mapWon && this.data.mapWon[CFG.maps[i].id]); },                    // finalen Boss auf dieser Karte besiegt (normaler Modus)
+  mapUnlocked(i) { return i === 0 || (this.data.dev && this.data.devUnlockAll) || this.mapWon(i - 1); },
   mapBestTime(i) { return this.data.mapBest[CFG.maps[i].id] || 0; },
 
-  finishRun(time, bosses, kills, infinite = false, mapId = null, coop = false) {
+  finishRun(time, bosses, kills, mapId = null, coop = false) {
     this.data.runs++;
-    if (!infinite && mapId && !coop && time > (this.data.mapBest[mapId] || 0)) this.data.mapBest[mapId] = time;       // Koop-Laeufe zaehlen nicht fuer Bestzeit und Kartenfreischaltung        // Bestzeit je Karte (schaltet die nächste frei)
-    this.data.last = { time, bosses, kills, infinite };            // fuer die Anzeige im Hauptmenue
-    // Endlos-Modus hat eine eigene Bestzeit (sonst wären die Zeit-Meilensteine dort leichter zu holen)
-    const key = infinite ? 'bestInf' : 'best', isBest = !coop && time > (this.data[key] || 0);
-    if (isBest) this.data[key] = time;
+    if (mapId && !coop && time > (this.data.mapBest[mapId] || 0)) this.data.mapBest[mapId] = time;       // Koop-Laeufe zaehlen nicht fuer Bestzeit und Kartenfreischaltung        // Bestzeit je Karte (schaltet die nächste frei)
+    this.data.last = { time, bosses, kills };            // fuer die Anzeige im Hauptmenue
+    const isBest = !coop && time > (this.data.best || 0);
+    if (isBest) this.data.best = time;
     this.data.stats.bosses += bosses;
     this.data.stats.kills += kills;
-    if (!infinite && mapId && !coop) { const S = this.data.stats; S['mapbosses:' + mapId] = (S['mapbosses:' + mapId] || 0) + bosses; S['mapkills:' + mapId] = (S['mapkills:' + mapId] || 0) + kills; }       // Karten-Meilensteine
-    if (infinite) { this.data.stats.infBosses = (this.data.stats.infBosses || 0) + bosses; this.data.stats.infKills = (this.data.stats.infKills || 0) + kills; }       // Endlos-Meilensteine
+    if (mapId && !coop) { const S = this.data.stats; S['mapbosses:' + mapId] = (S['mapbosses:' + mapId] || 0) + bosses; S['mapkills:' + mapId] = (S['mapkills:' + mapId] || 0) + kills; }       // Karten-Meilensteine
     const got = this.checkMilestones();
     this.write();
     return { isBest, got };

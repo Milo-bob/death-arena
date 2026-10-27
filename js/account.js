@@ -18,6 +18,7 @@ const Account = {
   changed: false,      // seit dem letzten Abgleich wurde etwas gespeichert -> beim naechsten Hauptmenue abgleichen
   syncing: 0, spinUntil: 0, doneAt: 0, doneOk: true, doneOffline: false, inMenu: false,
   status: '', statusColor: null, busy: false, pushing: false, timer: null, started: false,
+  noSavePut: false, flagged: false,   // noSavePut = Server kennt save_put noch nicht (alter direkter Weg), flagged = der Server hat den letzten Stand als auffaellig vermerkt
   conflicts: {},      // slot -> { local, cloud } (Code-Texte), wartet auf die Wahl des Nutzers
   el: null, refresh: null,
 
@@ -100,8 +101,18 @@ const Account = {
       return { best: d.best || 0, runs: d.runs || 0, souls: d.souls || 0, wins: d.wins || 0 };
     } catch (e) { return null; }
   },
+  // Hochladen laeuft ueber die Datenbankfunktion save_put (Anticheat, tools/supabase_anticheat.sql): vorher werden offene Lauf-Berichte gemeldet, damit der Server den Stand pruefen kann.
+  // Antwort: 'ok' | 'flagged' (gespeichert, aber auffaellig) | 'rejected:<Grund>' (nicht gespeichert). Gibt es die Funktion noch nicht, gilt der alte direkte Weg.
   async upload(i, code) {
-    const r = await this.rest('POST', '/rest/v1/saves?on_conflict=user_id,slot', [{ user_id: this.meta.uid, slot: i, code }], { Prefer: 'resolution=merge-duplicates,return=minimal' });
+    try { if (typeof Anticheat !== 'undefined') await Anticheat.flush(); } catch (e) { /* ein Fehler beim Melden darf das Speichern nie verhindern */ }
+    let r = this.noSavePut ? null : await this.rest('POST', '/rest/v1/rpc/save_put', { p_slot: i, p_code: code });
+    if (r && !r.ok && (r.status === 404 || /could not find the function|schema cache/i.test(String((r.json && (r.json.message || r.json.msg)) || '')))) { this.noSavePut = true; r = null; }
+    if (!r) r = await this.rest('POST', '/rest/v1/saves?on_conflict=user_id,slot', [{ user_id: this.meta.uid, slot: i, code }], { Prefer: 'resolution=merge-duplicates,return=minimal' });
+    else if (r.ok) {
+      const res = String(r.json || '');
+      if (res.startsWith('rejected')) r = { ok: false, status: 422, json: { msg: 'SERVER REJECTED THIS SAVE (' + res.slice(9) + ')' } };
+      else this.flagged = res === 'flagged';
+    }
     if (r.ok) { this.meta.base[i] = this.hash(code); this.saveMeta(); }
     return r;
   },

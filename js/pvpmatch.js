@@ -64,6 +64,7 @@ class RemotePlayer extends Enemy {
     const tx = this.nx + this.vx * f, ty = this.ny + this.vy * f, k = Math.min(1, dt * 14);
     this.x += (tx - this.x) * k; this.y += (ty - this.y) * k;
     const dd = ((this.nd - this.dir + 540) % 360) - 180; this.dir += dd * Math.min(1, dt * 14);
+    [this.x, this.y] = clampToMap(this.x, this.y, 12);                              // Druckwellen und Sog duerfen niemanden aus der Arena schieben
     this.px = this.x; this.py = this.y;
     if (live && this.hitGap <= 0 && !this.blink) {
       const w = weaponHit(this.x, this.y, this.radius);
@@ -82,7 +83,6 @@ class RemotePlayer extends Enemy {
     Juice.sparks(this.x, this.y, STYLE.pal.yellow, 4, 2.5);
     Sfx.play('hit');
     Cos2.hit(this.x, this.y);
-    if (!PvpMatch.botSwap) G.addUlt(0.4 * n);                // Treffer laden das Ultimate (Kills gibt es im PvP nicht)
   }
   // Ultimate & Co. rufen die() auf: im PvP ein schwerer Treffer (hoechstens einmal pro Sekunde)
   die() {
@@ -142,6 +142,7 @@ class MeTarget extends Enemy {
   // nach dem Angriffsbild: vorgemerkten Schaden und Betaeubung auf den echten Spieler anwenden
   flush() {
     const pl = G.player, lv = this.bot.lv;
+    if (this.q.length && G.pvp) G.pvp.lastHit = { id: this.bot.pid, t: G.realTime };
     for (const n of this.q) pl.hit('pvp', Math.min(CFG.pvp.maxUnits, n) * CFG.pvp.dmgMul * lv.dmg, this.bot.name);
     this.q = [];
     if (this.stun > 0) { if (!(pl.shield || pl.blinkT > 0 || pl.dashLeft > 0)) pl.pvpStun(Math.min(this.stun, CFG.pvp.maxStun)); this.stun = 0; }
@@ -188,6 +189,7 @@ class BotPlayer extends RemotePlayer {
     this.alive = true;
     const P = G.pvp;
     if (!P || this.dead) { this.attacks = []; return; }
+    [this.x, this.y] = clampToMap(this.x, this.y, 12);                              // Rueckstoss anderer Angriffe (Druckwelle, Sog) endet an der Arena-Grenze und an der Deckung
     const C = CFG.pvp.bot, L = this.lv, I = { attack: false, beamHold: false, press: false };
     this.hitFlash = Math.max(0, this.hitFlash - dt); this.hitGap = Math.max(0, this.hitGap - dt); this.dieGap = Math.max(0, this.dieGap - dt); this.meT.hitGap = Math.max(0, this.meT.hitGap - dt); this.meT.dieGap = Math.max(0, this.meT.dieGap - dt);
     this.dashCd -= dt; this.shieldCd -= dt; this.dashT -= dt; this.shieldT -= dt; this.heavyWait -= dt;
@@ -225,14 +227,22 @@ class BotPlayer extends RemotePlayer {
     if (this.shieldCd <= 0 && this.hp < this.mhp * 0.5 && d < 150 && Math.random() < L.shield * dt * 4) { this.shieldT = C.shieldTime; this.shieldCd = C.shieldCd; }
     // Bewegung: Nahkaempfer ran, Gunner auf Abstand; dazwischen seitlich laufen
     const prefer = this.close ? reach * 0.8 : 150;
-    if (d > prefer + 25) { const a = want + (d > prefer + 90 ? 0 : 35 * this.side); this.x += fwdX(a) * f; this.y += fwdY(a) * f; }
+    const hidden = PvpCover.blocked(this.x, this.y, best.x, best.y);          // Deckung zwischen Bot und Ziel: kein Schuss, seitlich um sie herumlaufen
+    if (hidden) {
+      const moved = this.sx === undefined ? 99 : Math.hypot(this.x - this.sx, this.y - this.sy); this.sx = this.x; this.sy = this.y;
+      this.stuck = moved < f * 0.25 ? (this.stuck || 0) + dt : 0;
+      if (this.stuck > 0.35) { this.side = -this.side; this.sideT = 1.5; this.stuck = 0; }       // haengt an der Wand: andere Richtung versuchen
+      const a = want + 65 * this.side; this.x += fwdX(a) * f; this.y += fwdY(a) * f;
+    }
+    else if (d > prefer + 25) { const a = want + (d > prefer + 90 ? 0 : 35 * this.side); this.x += fwdX(a) * f; this.y += fwdY(a) * f; }
     else if (!this.close && d < prefer - 40) { this.x -= fwdX(want) * f * 0.8; this.y -= fwdY(want) * f * 0.8; }
     else { this.x += fwdX(want + 90 * this.side) * f * 0.7; this.y += fwdY(want + 90 * this.side) * f * 0.7; }
+    if (!hidden) this.sx = undefined;
     [this.x, this.y] = clampToMap(this.x, this.y, 12);
     // Eingaben: nah = Nahkampfwaffe, sonst Fernkampfwaffe; die starke Waffe nach Art
     const melee = d < reach + 22;
     this.o.weapon = melee ? WEAPON.SWORD : WEAPON.SHOT;
-    I.attack = !this.shield && d < (melee ? reach + 22 : C.shootMax);
+    I.attack = !this.shield && !hidden && d < (melee ? reach + 22 : C.shootMax);
     const hv = this.items.heavy;
     if (hv === 'beam') {
       if (this.beamPh === 'idle' && this.heavyWait <= 0 && d > 60 && d < 300) { this.beamPh = 'hold'; this.beamT = 0.8 + Math.random() * 0.4; I.press = true; }
@@ -241,6 +251,7 @@ class BotPlayer extends RemotePlayer {
       const F = this.o.fire;
       if (!F.on && d < 220 && F.fuel >= CFG.fire.minStart) I.press = true; else if (F.on && (d > 320 || F.fuel < 0.1)) I.press = true;
     } else if (hv && this.heavyWait <= 0 && d < 260) { I.press = true; this.heavyWait = 0.8; }
+    if (hidden) { I.beamHold = false; if (hv !== 'firetrail') I.press = false; }
   }
   // Angriffsbild: Player.useWeapon mit Bot-Eingaben und Bot-Ausruestung, danach die Angriffe des Bots aktualisieren und auf seine Gegner anwenden.
   // Eingaben, Save.equipped, Save.gearXp, G.attacks und G.enemies werden nur fuer diesen Aufruf ersetzt (try/finally).
@@ -250,7 +261,7 @@ class BotPlayer extends RemotePlayer {
     o.attackCd = Math.max(0, o.attackCd - dt / this.lv.react); o.reloadT = Math.max(0, o.reloadT - dt);
     if (this.gearErr > 5) { this.attacks = []; return; }
     const hostile = this.hostile(), S = { ad: Input.actDown, ap: Input.actPressed, eq: Save.equipped, gx: Save.gearXp, at: G.attacks, en: G.enemies };
-    PvpMatch.botSwap = true;
+    PvpMatch.botSwap = true; PvpMatch.atk = this.pid;
     try {
       Input.actDown = (a) => a === 'attack' ? !!I.attack : a === 'beam' ? !!I.beamHold : false;
       Input.actPressed = (a) => a === 'beam' && !!I.press;
@@ -259,10 +270,11 @@ class BotPlayer extends RemotePlayer {
       G.attacks = this.attacks; G.enemies = hostile;
       if (act) Player.prototype.useWeapon.call(o, dt, f);
       for (const a of this.attacks) a.update(dt);
-      for (const a of this.attacks) if (a.alive && a.damaging) for (const t of hostile) if (a.hitsCircle(t.x, t.y, t.radius)) t.takeHit(true, a.kind);
+      PvpCover.stopShots(this.attacks);
+      for (const a of this.attacks) if (a.alive && a.damaging) for (const t of hostile) if (a.hitsCircle(t.x, t.y, t.radius) && !PvpCover.shields(a, t.x, t.y)) t.takeHit(true, a.kind);
       this.attacks = this.attacks.filter((a) => a.alive);
     } catch (e) { this.gearErr++; this.attacks = []; if (this.gearErr === 1) console.warn('bot gear error', e); }
-    finally { Input.actDown = S.ad; Input.actPressed = S.ap; Save.equipped = S.eq; Save.gearXp = S.gx; G.attacks = S.at; G.enemies = S.en; PvpMatch.botSwap = false; }
+    finally { Input.actDown = S.ad; Input.actPressed = S.ap; Save.equipped = S.eq; Save.gearXp = S.gx; G.attacks = S.at; G.enemies = S.en; PvpMatch.botSwap = false; PvpMatch.atk = null; }
     this.meT.flush();
   }
   takeHit(stun = true, src = null) {
@@ -270,27 +282,27 @@ class BotPlayer extends RemotePlayer {
     if (!P || P.over || P.cd > 0 || this.hitGap > 0 || this.dead || this.blink) return;
     this.hitGap = CFG.pvp.hitGap;
     const n = this.hitUnits() * damageBoost();
-    this.hurt(n);
-    if (!PvpMatch.botSwap) G.addUlt(0.4 * n);
+    this.hurt(n, PvpMatch.botSwap ? PvpMatch.atk : P.me);          // Angreifer: ein anderer Bot oder der Host-Spieler
   }
-  die() { this.alive = true; if (this.dieGap > 0) return; this.dieGap = 1; this.hurt(CFG.pvp.dieUnits); }
-  hurt(units) {
-    if (this.dead || this.shield) { if (this.shield) { this.hitFlash = 0.1; Sfx.play('hit'); } return; }
+  die() { this.alive = true; if (this.dieGap > 0) return; this.dieGap = 1; this.hurt(CFG.pvp.dieUnits, PvpMatch.botSwap ? PvpMatch.atk : (G.pvp && G.pvp.me)); }
+  hurt(units, by) {
+    if (by) this.lastBy = by;
+    if (this.dead || this.shield || G.realTime < (this.protUntil || 0)) { if (this.shield) { this.hitFlash = 0.1; Sfx.play('hit'); } return; }
     this.hp -= units * CFG.pvp.bot.hpPerUnit; this.hitFlash = 0.14;
     Juice.sparks(this.x, this.y, STYLE.pal.yellow, 4, 2.5); Sfx.play('hit'); Cos2.hit(this.x, this.y);
-    if (this.hp <= 0) { this.hp = 0; Sfx.play('killBig'); this.attacks = []; PvpMatch.markDead(this.pid, ''); }
+    if (this.hp <= 0) { this.hp = 0; Sfx.play('killBig'); this.attacks = []; PvpMatch.markDead(this.pid, '', this.lastBy || ''); }
   }
   draw(ctx) {
     if (this.dead) return;
     for (const a of this.attacks) { try { a.draw(ctx); } catch (e) { /* ein Zeichenfehler darf das Bild nicht stoeren */ } }
     super.draw(ctx);
-    uiText(ctx, this.tag, STAGE_W / 2 + this.x, STAGE_H / 2 - this.y + 22, { size: STYLE.type.small, color: STYLE.pal.grey, align: 'center' });
   }
 }
 
 const PvpMatch = {
   classes: null, bad: {},
 
+  isTeam(mode) { return mode === 'teams' || mode === 'dm'; },
   teamOf(id) { const p = G.pvp && G.pvp.players.find((q) => q.id === id); return p ? p.team : -1; },
   get remotes() { return G.enemies.filter((e) => e.isRemote); },
   remoteOf(id) { return G.enemies.find((e) => e.isRemote && e.pid === id) || null; },
@@ -305,17 +317,23 @@ const PvpMatch = {
     if (!order.includes(ch.id) || (order.length + nb < 2 && !Pvp.isDevLobby())) return false;
     const byId = {}; for (const p of Pvp.players) byId[p.id] = p;
     if (order.some((id) => !byId[id])) return false;
-    const mode = info && info.mode === 'teams' ? 'teams' : 'ffa', C = CFG.pvp, n = order.length + nb;
-    const players = order.map((id, i) => ({ id, name: byId[id].name, team: mode === 'teams' ? i % 2 : i }));
+    const mode = info && (info.mode === 'teams' || info.mode === 'dm') ? info.mode : 'ffa', C = CFG.pvp, n = order.length + nb, tm = this.isTeam(mode);
+    const players = order.map((id, i) => ({ id, name: byId[id].name, team: tm ? i % 2 : i }));
     const pool = CFG.pvp.sets.slice().sort(() => Math.random() - 0.5);
-    for (let b = 0; b < nb; b++) { const i = order.length + b; players.push({ id: 'bot' + (b + 1), name: 'BOT ' + (b + 1), team: mode === 'teams' ? i % 2 : i, bot: true, set: pool[b % pool.length] }); }
-    G.begin(false, false, 'pvp');
+    const botR = CFG.pvp.rating.botRating[clamp((info && info.botLevel | 0) || 0, 0, CFG.pvp.rating.botRating.length - 1)];
+    for (let b = 0; b < nb; b++) { const i = order.length + b; players.push({ id: 'bot' + (b + 1), name: Pvp.botName(b), team: tm ? i % 2 : i, bot: true, set: pool[b % pool.length] }); }
+    PvpCover.load(info && info.pmap);                                                    // Karte (Deckung, Radius) vom Host; vor G.begin, damit schon der erste Bildaufbau passt
+    G.begin(false, 'pvp');
+    Anticheat.start('pvp', 'pvp', false, order.length >= 2);          // Ticket fuer die Belohnung (zaehlt fuer die Rangliste nur mit mindestens einem anderen echten Spieler)
     // Startplaetze im Kreis, Teamkameraden nebeneinander; der Host (Index 0) beginnt links
     const spawn = players.slice().sort((a, b) => a.team - b.team || order.indexOf(a.id) - order.indexOf(b.id));
     spawn.forEach((p, i) => { const a = Math.PI + i * 2 * Math.PI / n; p.x = Math.cos(a) * C.spawnX; p.y = Math.sin(a) * C.spawnX; p.dir = dirTo(p.x, p.y, 0, 0); });
     const me = players.find((p) => p.id === ch.id);
-    G.pvp = { over: false, result: null, endAt: 0, cd: C.countdown, sendT: 0, t0: G.realTime, escAt: 0, mode, rule: info && ['own', 'set', 'all'].includes(info.rule) ? info.rule : 'own', setId: info && info.rule === 'set' && info.setId ? info.setId : Save.data.pvpSet, players, me: ch.id, dead: {}, out: false, spec: 0, winTeam: null, gone: {}, lastSeen: {}, why: '', scored: false };
-    CFG.map.halfW = C.camHalf[0]; CFG.map.halfH = C.camHalf[1];
+    G.pvp = { over: false, result: null, endAt: 0, cd: C.countdown, sendT: 0, t0: G.realTime, escAt: 0, mode, rule: info && ['own', 'set', 'all'].includes(info.rule) ? info.rule : 'own', setId: info && info.rule === 'set' && info.setId ? info.setId : Save.data.pvpSet, players, me: ch.id, dead: {}, out: false, spec: 0, winTeam: null, gone: {}, lastSeen: {}, why: '', scored: false,
+      map: PvpCover.id, kills: [0, 0], tLeft: CFG.pvp.dm.timeLimit, syncT: 0, respAt: 0, resp: {}, left: {},
+      stats: Object.fromEntries(players.map((p) => [p.id, { k: 0, d: 0 }])), final: null, reward: null, lastHit: null,
+      order: [], ratings: Object.fromEntries(players.map((p) => [p.id, p.bot ? botR : Pvp.cleanRating(byId[p.id] && byId[p.id].rating)])) };          // order: Reihenfolge der Ausgeschiedenen, ratings: PVP-Staerke aller zu Beginn       // stats: Kills/Tode je Spieler (der Host ist massgebend), final: Statistik vom Host, reward: Belohnung dieser Runde       // kills/tLeft/resp/left: nur im Deathmatch
+    CFG.map.halfW = C.radius; CFG.map.halfH = C.radius;
     const P = G.player;
     P.x = me.x; P.y = me.y; P.dir = me.dir;
     G.cam = { x: 0, y: 0 };
@@ -326,10 +344,23 @@ const PvpMatch = {
     for (let i = 1; i <= C.weaponUps; i++) Loadout.upgradeStats(step * i + 0.5);
     this.applyLoadout(P);
     P.hp = P.maxHp;
-    G.enemies = players.filter((p) => p.id !== ch.id).map((p) => new (p.bot && Pvp.isHost ? BotPlayer : RemotePlayer)({ set: p.set, x: p.x, y: p.y, dir: p.dir, name: p.name, id: p.id, team: p.team, friendly: mode === 'teams' && p.team === me.team }));
+    G.ultCharge = 0; G.ultStock = 0; G.ultNext = 0;                                    // PvP: kein Ultimate (Startladung aus Meta-Upgrade/Held wegnehmen)
+    G.enemies = players.filter((p) => p.id !== ch.id).map((p) => new (p.bot && Pvp.isHost ? BotPlayer : RemotePlayer)({ set: p.set, x: p.x, y: p.y, dir: p.dir, name: p.name, id: p.id, team: p.team, friendly: tm && p.team === me.team }));
     G.enemies.forEach((e) => { e.dir = e.nd; });
     Pvp.say('');
     return true;
+  },
+
+  // Host-Wechsel mitten in der Runde: die Mitspieler, die der alte Host gerechnet hat (Namen mit id 'bot...'), laufen ab jetzt auf diesem Geraet weiter (gleicher Ort, gleiches Leben)
+  takeOver() {
+    const P = G.pvp;
+    if (!P) return;
+    G.enemies = G.enemies.map((e) => {
+      if (!e.isRemote || e.isBot || e.dead || !String(e.pid).startsWith('bot')) return e;
+      const pl = P.players.find((q) => q.id === e.pid), b = new BotPlayer({ set: pl && pl.set, x: e.x, y: e.y, dir: e.dir, name: e.name, id: e.pid, team: e.team, friendly: e.friendly });
+      b.hp = e.hp; b.mhp = e.mhp; b.nd = e.nd; b.dir = e.dir;
+      return b;
+    });
   },
 
   // Abilities aus der Lobby (Save.data.pvpLoadout: je Gruppe eine gekaufte Ability) und die Evolutionen, deren Waffe und Partner man hat
@@ -350,29 +381,39 @@ const PvpMatch = {
     const P = G.pvp; if (!P || !p) return;
     if (ev === 'bots') {                                             // Gast: Bilder der Bots vom Host
       if (Pvp.isHost || !Array.isArray(p.l)) return;
-      for (const b of p.l.slice(0, 3)) {
+      for (const b of p.l.slice(0, CFG.pvp.maxPlayers - 1)) {
         const e = this.remoteOf(b.i); if (!e || e.isBot) continue;
         if (b.dd) { this.markDead(b.i, ''); continue; }
+        if (P.mode === 'dm' && P.dead[b.i]) this.revive(b.i);                          // Bot ist zurueck (Deathmatch)
         e.nx = b.x; e.ny = b.y; e.nd = b.d; e.vx = 0; e.vy = 0; e.at = G.realTime; e.hp = b.hp; e.mhp = b.mh; e.blink = false; e.shield = !!b.sh;
         this.ghostsFrom(e, Array.isArray(b.a) ? b.a : []);
       }
       return;
     }
+    if (ev === 'pstats' && !Pvp.isHost && p.s && typeof p.s === 'object') { P.final = p.s; this.tryReward(); return; }          // Gast: Kills/Tode vom Host
+    if (P.mode === 'dm' && !Pvp.isHost) {                            // Gast: Punktestand und Ende kommen vom Host
+      if (ev === 'dm') { if (Array.isArray(p.k)) P.kills = [p.k[0] | 0, p.k[1] | 0]; if (Number.isFinite(p.t)) P.tLeft = p.t; return; }
+      if (ev === 'dmend') { const me = P.players.find((q) => q.id === P.me), w = Number.isFinite(p.w) ? p.w : -1; if (Array.isArray(p.k)) P.kills = [p.k[0] | 0, p.k[1] | 0]; this.finish(w < 0 ? 'draw' : w === me.team ? 'win' : 'lose', w < 0 ? null : w); return; }
+    }
     const r = this.remoteOf(p.from);
     if (!r) return;
     if (ev === 'hit' && Pvp.isHost && typeof p.to === 'string' && p.to.startsWith('bot')) {          // ein Gast hat einen Bot getroffen
       const bot = this.remoteOf(p.to), n = Math.min(CFG.pvp.maxUnits, Math.max(0, +p.n || 0));
-      if (bot && bot.isBot && n > 0) bot.hurt(n);
+      if (bot && bot.isBot && n > 0) bot.hurt(n, p.from);
       return;
     }
     if (ev === 'state') {
+      if (P.mode === 'dm' && P.dead[p.from] && !P.left[p.from]) { this.revive(p.from); r.snap = true; }
+      if (P.mode === 'dm' && P.dead[p.from] && !P.left[p.from]) this.revive(p.from);        // wer wieder Zustand sendet, ist zurueck
       r.nx = p.x; r.ny = p.y; r.nd = p.d; r.vx = p.vx; r.vy = p.vy; r.at = G.realTime; r.hp = p.hp; r.mhp = p.mh;
       r.spr = p.spr || 'player'; r.blink = !!p.bl; r.shield = !!p.sh; if (p.cs && typeof p.cs === 'object') r.cs = p.cs;
+      if (r.snap) { r.x = p.x; r.y = p.y; r.snap = false; }
       this.ghostsFrom(r, p.a || []);
       P.lastSeen[p.from] = G.realTime;
     } else if (ev === 'hit') {
       if (p.to !== P.me || P.over || P.out || P.cd > 0 || r.friendly || r.dead) return;
       const n = Math.min(CFG.pvp.maxUnits, Math.max(0, +p.n || 0));
+      if (n > 0) P.lastHit = { id: p.from, t: G.realTime };
       if (n > 0) G.player.hit('pvp', n * CFG.pvp.dmgMul, typeof p.sn === 'string' ? p.sn.slice(0, 14) : r.name);
     } else if (ev === 'fx') {
       if (p.to !== P.me || P.over || P.out || P.cd > 0 || r.friendly || r.dead) return;
@@ -383,7 +424,7 @@ const PvpMatch = {
       if (m > 0) [pl.x, pl.y] = clampToMap(pl.x + dx, pl.y + dy, 12);
       if (+p.st > 0) pl.pvpStun(+p.st);
     } else if (ev === 'dead') {
-      this.markDead(p.from, '');
+      this.markDead(p.from, '', typeof p.k === 'string' ? p.k : '');
     }
   },
 
@@ -446,24 +487,26 @@ const PvpMatch = {
   update(dt) {
     const P = G.pvp, C = CFG.pvp;
     if (!P) return;
+    const dm = P.mode === 'dm';
     if (P.over) { if (G.realTime - P.endAt > C.endDelay) { this.score(); G.mode = 'pvpend'; } return; }
     for (const pl of P.players) {                                  // wer ist noch da?
-      if (pl.id === P.me || P.dead[pl.id] || pl.bot) continue;
+      if (pl.id === P.me || pl.bot || P.left[pl.id] || (!dm && P.dead[pl.id])) continue;
       const present = Pvp.ch && Pvp.players.some((q) => q.id === pl.id);
       P.gone[pl.id] = present ? 0 : (P.gone[pl.id] || 0) + dt;
       if (P.gone[pl.id] > 1.5) this.markDead(pl.id, 'AN OPPONENT LEFT');
-      else if (P.cd <= 0 && G.realTime - (P.lastSeen[pl.id] || P.t0) > 6) this.markDead(pl.id, 'AN OPPONENT LEFT');
+      else if (P.cd <= 0 && !P.dead[pl.id] && G.realTime - (P.lastSeen[pl.id] || P.t0) > 6) this.markDead(pl.id, 'AN OPPONENT LEFT');
       if (P.over) return;
     }
     if (P.cd > 0) { P.cd = Math.max(0, P.cd - dt); if (P.cd <= 0) P.startShown = G.realTime; }
-    if (P.out) { this.spectate(); return; }
+    if (dm && P.cd <= 0) { this.dmTick(dt); if (P.over) return; }
+    if (P.out) { this.spectate(); if (!dm) return; }
     P.sendT -= dt;
     if (P.sendT <= 0) {
       P.sendT = 1 / (P.players.length > 2 ? C.sendHzMany : C.sendHz);
       const pl = G.player, r1 = (v) => Math.round(v * 10) / 10;
-      this.send('state', { x: r1(pl.x), y: r1(pl.y), d: r1(pl.dir), vx: r1(pl.velX || 0), vy: r1(pl.velY || 0), hp: Math.round(pl.hp), mh: Math.round(pl.maxHp),
+      if (!P.out) this.send('state', { x: r1(pl.x), y: r1(pl.y), d: r1(pl.dir), vx: r1(pl.velX || 0), vy: r1(pl.velY || 0), hp: Math.round(pl.hp), mh: Math.round(pl.maxHp),
         spr: Hero.sprite(), bl: pl.blinkT > 0 ? 1 : 0, sh: pl.shield ? 1 : 0, a: this.snapshot(), cs: (P.csN = (P.csN || 0) + 1) % 20 === 1 ? Coop.lookPack() : undefined });       // Cosmetics (Skin, Aura, Gear) nur alle 20 Pakete mitschicken
-      if (Pvp.isHost && P.players.some((q) => q.bot)) {              // der Host schickt die Bots mit
+      if (Pvp.isHost && P.players.some((q) => q.bot)) {              // der Host schickt die Bots mit (auch wenn er im Deathmatch gerade tot ist)
         const r1b = (v) => Math.round(v * 10) / 10;
         this.send('bots', { l: this.remotes.filter((e) => e.isBot).map((e) => ({ i: e.pid, x: r1b(e.x), y: r1b(e.y), d: r1b(e.dir), hp: Math.round(e.hp), mh: Math.round(e.mhp), sh: e.shield ? 1 : 0, dd: e.dead ? 1 : 0, a: e.dead ? [] : this.snapshot(e.attacks) })) });
       }
@@ -487,19 +530,98 @@ const PvpMatch = {
     G.player.x = t.x; G.player.y = t.y;
   },
 
-  markDead(id, why) {
+  // Wer hat mich zuletzt getroffen (innerhalb von 8 s)? Id oder ''
+  killerOf() { const P = G.pvp; return P && P.lastHit && G.realTime - P.lastHit.t < 8 ? P.lastHit.id : ''; },
+  tally(id, killer) {
+    const P = G.pvp; if (!P || !P.stats) return;
+    if (P.stats[id]) P.stats[id].d++;
+    if (killer && killer !== id && P.stats[killer]) P.stats[killer].k++;
+  },
+  markDead(id, why, killer) {
     const P = G.pvp;
+    if (P && P.mode === 'dm') { this.dmDead(id, why, killer); return; }
     if (!P || P.dead[id]) return;
-    P.dead[id] = true;
+    P.dead[id] = true; P.order.push(id);
+    this.tally(id, killer);
     const r = this.remoteOf(id); if (r) { r.dead = true; r.ghosts = []; }
     if (why && !P.why) P.why = why;
     this.check();
   },
+  // ---- Team-Deathmatch (mode 'dm'): Kills fuer das Gegnerteam, Rueckkehr nach CFG.pvp.dm.respawn Sekunden. Der Host fuehrt Punkte und Zeit und meldet sie ('dm', 'dmend') ----
+  dmDead(id, why, killer) {
+    const P = G.pvp, D = CFG.pvp.dm;
+    if (why === 'AN OPPONENT LEFT') { P.left[id] = true; if (!P.why) P.why = why; }
+    if (P.dead[id] && !P.left[id]) return;
+    const was = !!P.dead[id];
+    P.dead[id] = true;
+    if (!was && why !== 'AN OPPONENT LEFT') this.tally(id, killer);
+    const r = this.remoteOf(id); if (r) { r.dead = true; r.ghosts = []; }
+    if (P.left[id]) { this.dmLonely(); return; }
+    if (!Pvp.isHost || was) return;
+    this.dmScore(id);
+    if (r && r.isBot) P.resp[id] = G.realTime + D.respawn;
+  },
+  dmLonely() {                                                      // niemand mehr da, gegen den man spielen koennte (kein Mensch, kein Bot)
+    const P = G.pvp;
+    if (!P || P.over || P.players.some((q) => q.bot)) return;
+    if (P.players.some((q) => q.id !== P.me && !P.left[q.id])) return;
+    const me = P.players.find((q) => q.id === P.me);
+    this.finish('win', me.team);
+  },
+  dmLocalDeath() {
+    const P = G.pvp, D = CFG.pvp.dm, killer = this.killerOf();
+    this.send('dead', { k: killer }); this.tally(P.me, killer);
+    P.dead[P.me] = true; P.out = true; G.attacks = []; G.player.hp = 0; P.respAt = G.realTime + D.respawn;
+    Sfx.play('death'); Juice.shake(3);
+    if (Pvp.isHost) this.dmScore(P.me);
+  },
+  respawnMe() {
+    const P = G.pvp, D = CFG.pvp.dm, pl = G.player, me = P.players.find((q) => q.id === P.me);
+    P.out = false; P.dead[P.me] = false; P.sendT = 0;
+    pl.hp = pl.maxHp; pl.x = me.x; pl.y = me.y; pl.dir = me.dir; pl.velX = pl.velY = 0; pl.stunT = 0; pl.hitCd = D.spawnProt;
+    Sfx.play('levelUp');
+  },
+  // Spieler/Bot ist wieder da (er sendet wieder Zustand bzw. der Host meldet den Bot als lebendig)
+  revive(id) {
+    const P = G.pvp; if (!P) return;
+    P.dead[id] = false;
+    const r = this.remoteOf(id); if (r) r.dead = false;
+  },
+  reviveBot(id) {
+    const P = G.pvp, D = CFG.pvp.dm, e = this.remoteOf(id), pl = P.players.find((q) => q.id === id);
+    if (!e || !pl || P.over) return;
+    P.dead[id] = false; e.dead = false; e.hp = e.mhp; e.x = e.nx = pl.x; e.y = e.ny = pl.y; e.dir = e.nd = pl.dir; e.attacks = []; e.stun = 0; e.shield = false; e.protUntil = G.realTime + D.spawnProt;
+  },
+  dmTick(dt) {
+    const P = G.pvp, D = CFG.pvp.dm;
+    P.tLeft = Math.max(0, P.tLeft - dt);
+    if (P.out && !P.over && G.realTime >= P.respAt) this.respawnMe();
+    if (!Pvp.isHost) return;
+    for (const id of Object.keys(P.resp)) if (G.realTime >= P.resp[id]) { delete P.resp[id]; this.reviveBot(id); }
+    P.syncT -= dt;
+    if (P.syncT <= 0) { P.syncT = D.sync; this.send('dm', { k: P.kills, t: Math.round(P.tLeft * 10) / 10 }); }
+    if (P.tLeft <= 0) this.dmFinish(P.kills[0] === P.kills[1] ? -1 : P.kills[0] > P.kills[1] ? 0 : 1);
+  },
+  dmScore(id) {
+    const P = G.pvp, D = CFG.pvp.dm, t = this.teamOf(id);
+    if (t < 0 || P.over) return;
+    P.kills[1 - t]++; P.syncT = 0;
+    if (P.kills[1 - t] >= D.killTarget) this.dmFinish(1 - t);
+  },
+  dmFinish(w) {
+    const P = G.pvp; if (!P || P.over) return;
+    this.send('dmend', { w, k: P.kills });
+    const me = P.players.find((q) => q.id === P.me);
+    this.finish(w < 0 ? 'draw' : w === me.team ? 'win' : 'lose', w < 0 ? null : w);
+  },
+
   localDeath(why) {
     const P = G.pvp;
     if (!P || P.over || P.out) return;
-    this.send('dead', {});
-    P.dead[P.me] = true; P.out = true; G.attacks = []; G.player.hp = 0;
+    if (P.mode === 'dm') { this.dmLocalDeath(); return; }
+    const killer = why ? '' : this.killerOf();
+    this.send('dead', { k: killer }); this.tally(P.me, killer);
+    P.dead[P.me] = true; P.order.push(P.me); P.out = true; G.attacks = []; G.player.hp = 0;
     Sfx.play('death'); Juice.shake(3);
     if (why) P.why = why;
     this.check();
@@ -508,7 +630,7 @@ const PvpMatch = {
   // Rundenende: nur noch ein Spieler (jeder gegen jeden) bzw. ein Team uebrig
   check() {
     const P = G.pvp;
-    if (!P) return;
+    if (!P || P.mode === 'dm') return;                              // Deathmatch endet ueber Punkte/Zeit (dmScore, dmTick)
     const alive = P.players.filter((p) => !P.dead[p.id]), teams = new Set(alive.map((p) => p.team));
     if (P.over) {                                                   // beide fast gleichzeitig: Unentschieden
       if (P.result === 'lose' && !alive.length && G.realTime - P.endAt < 0.6) { P.result = 'draw'; P.winTeam = null; }
@@ -531,9 +653,38 @@ const PvpMatch = {
     const P = G.pvp;
     if (!P || P.scored) return;
     P.scored = true;
+    if (Pvp.isHost) this.send('pstats', { s: Object.fromEntries(Object.entries(P.stats).map(([id, v]) => [id, [v.k, v.d]])) });          // Kills/Tode der ganzen Runde fuer alle
+    this.tryReward();
     if (P.winTeam === null || P.winTeam === undefined) return;
     Pvp.scores = Pvp.scores || {};
     for (const p of P.players) if (p.team === P.winTeam) Pvp.scores[p.id] = (Pvp.scores[p.id] || 0) + 1;
+  },
+  // Belohnung einmal pro Runde: der Host sofort, Gaeste sobald seine Statistik da ist (oder nach 4 s mit der eigenen)
+  tryReward() {
+    const P = G.pvp, R = CFG.pvp.reward;
+    if (!P || !P.scored || P.reward) return;
+    if (!Pvp.isHost && !P.final && G.realTime - P.endAt < 4) return;
+    const played = G.realTime - P.t0 - CFG.pvp.countdown - (G.realTime - P.endAt), mine = P.final && P.final[P.me] ? { k: P.final[P.me][0], d: P.final[P.me][1] } : P.stats[P.me] || { k: 0, d: 0 };
+    if (played < R.minSeconds) { P.reward = { none: true }; Anticheat.drop('pvp'); return; }
+    const win = P.result === 'win', credits = R.base + mine.k * R.perKill + (win ? R.win : 0), xp = R.xpBase + mine.k * R.xpKill + (win ? R.xpWin : 0);
+    Save.data.souls += credits;
+    Anticheat.end({ kind: 'pvp', time: played, kills: mine.k, bosses: 0, win });
+    const res = Save.addPlayerXp(xp), S = Save.data.pvpStats || (Save.data.pvpStats = { m: 0, w: 0, k: 0, d: 0 });
+    S.m++; if (win) S.w++; S.k += mine.k; S.d += mine.d;
+    if (P.players.filter((p) => !p.bot).length >= 2) { S.hm = (S.hm || 0) + 1; if (win) S.hw = (S.hw || 0) + 1; }       // Rangliste PVP WINS: nur Runden mit mindestens einem anderen echten Spieler (Siege gegen Bots zaehlen dort nicht)
+    Save.write();
+    P.reward = { credits, xp, from: res.from, to: res.to, lvCredits: res.reward };
+    if (Pvp.pub && P.mode === 'ffa') P.reward.rating = this.rate();
+  },
+  // PVP-Staerke: Platzierung (1 = Sieger, danach umgekehrt zur Reihenfolge des Ausscheidens) gegen die mittlere Staerke der Gegner, Elo-artig
+  rate() {
+    const P = G.pvp, R = CFG.pvp.rating, n = P.players.length;
+    if (n < 2) return null;
+    const from = Save.pvpRating(), eff = Save.pvpStrength(), opp = P.players.filter((p) => p.id !== P.me).map((p) => P.ratings[p.id] || R.start), avg = opp.reduce((s, v) => s + v, 0) / opp.length;
+    const di = P.order.indexOf(P.me), place = P.result === 'win' ? 1 : di >= 0 ? n - di : n;
+    const score = (n - place) / (n - 1), expected = 1 / (1 + Math.pow(10, (avg - eff) / 400)), to = Math.max(R.min, Math.round(from + R.k * (score - expected)));
+    Save.data.pvpRating = to; Save.write();
+    return { from, to, place, n };
   },
   // ESC im Kampf: zweimal schnell = aufgeben bzw. (als Zuschauer) die Runde verlassen; eine Pause gibt es online nicht
   escape() {
@@ -545,23 +696,38 @@ const PvpMatch = {
   },
 
   updateEnd() {
-    if (Input.pressed('Space') || Input.pressed('Enter')) { Sfx.play('select'); this.leaveMatch(); }
+    this.tryReward();
+    if (Input.pressed('Space') || Input.pressed('Enter')) { Sfx.play('select'); if (this.canAgain()) this.again(); else this.leaveMatch(); }
+    else if (Input.pressed('Escape')) { Sfx.play('select'); this.leaveMatch(); }
   },
-  leaveMatch() { G.pvp = null; G.mode = 'pvp'; if (Pvp.st === 'lobby') Pvp.sel = 0; },
+  // NOCHMAL: offene Runde = neue Suche; private Lobby = nur der Host startet sofort die naechste Runde
+  canAgain() { return Pvp.pub || (Pvp.isHost && !!Pvp.ch); },
+  again() {
+    if (Pvp.pub) { G.pvp = null; G.mode = 'pvp'; Pvp.leave(true); Pvp.startQueue(); return; }
+    G.pvp = null; G.mode = 'pvp'; Pvp.st = 'lobby'; Pvp.startRound();
+  },
+  leaveMatch() { G.pvp = null; G.mode = 'pvp'; if (Pvp.pub) { Pvp.leave(); Pvp.pub = false; Pvp.st = 'menu'; Pvp.sel = 0; } else if (Pvp.st === 'lobby') Pvp.sel = 0; },
 
   // ---- Anzeigen ----
   // Spieler-Leiste oben: Name, Punkte, ausgeschiedene Spieler grau; im Team-Modus Team A/B farbig
   drawBoard(ctx) {
     const P = G.pvp, T = STYLE.type, S = STYLE.pal, sc = Pvp.scores || {}, me = P.players.find((p) => p.id === P.me), w = 112, x0 = STAGE_W / 2 - P.players.length * w / 2;
     P.players.forEach((p, i) => {
-      const mine = P.mode === 'teams' ? p.team === me.team : p.id === P.me, col = P.dead[p.id] ? S.greyMid : mine ? S.cyan : S.red, x = x0 + i * w + w / 2;
+      const dm = P.mode === 'dm', mine = this.isTeam(P.mode) ? p.team === me.team : p.id === P.me, col = P.dead[p.id] ? S.greyMid : mine ? S.cyan : S.red, x = x0 + i * w + w / 2;
       uiText(ctx, p.name, x, 12, { size: T.small, color: col, align: 'center', maxW: w - 8 });
-      uiText(ctx, (P.mode === 'teams' ? (p.team ? 'B' : 'A') + '  ' : '') + (sc[p.id] || 0) + (P.dead[p.id] ? '  OUT' : ''), x, 22, { size: T.small, color: col, align: 'center' });
+      uiText(ctx, dm ? (P.dead[p.id] ? 'DEAD' : '') : (this.isTeam(P.mode) ? (p.team ? 'B' : 'A') + '  ' : '') + (sc[p.id] || 0) + (P.dead[p.id] ? '  OUT' : ''), x, 22, { size: T.small, color: col, align: 'center' });
     });
+    if (P.mode === 'dm') {                                          // Punktestand: eigenes Team links (tuerkis), Gegner rechts (rot), dazwischen die Restzeit
+      const s = Math.ceil(P.tLeft), cx = STAGE_W / 2;
+      uiText(ctx, String(P.kills[me.team]), cx - 44, 46, { size: T.h1, color: S.cyan, align: 'center', glow: S.cyan });
+      uiText(ctx, String(P.kills[1 - me.team]), cx + 44, 46, { size: T.h1, color: S.red, align: 'center', glow: S.red });
+      uiText(ctx, Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'), cx, 40, { size: T.body, color: S.ice, align: 'center' });
+      uiText(ctx, 'FIRST TO ' + CFG.pvp.dm.killTarget, cx, 52, { size: T.small, color: S.grey, align: 'center' });
+    }
   },
   resultTexts() {
     const P = G.pvp, win = P.result === 'win', draw = P.result === 'draw';
-    return { text: draw ? 'DRAW' : win ? (P.mode === 'teams' ? 'YOUR TEAM WINS!' : 'YOU WIN!') : (P.mode === 'teams' ? 'YOUR TEAM LOSES' : 'YOU LOSE'), col: draw ? STYLE.pal.ice : win ? STYLE.pal.green : STYLE.pal.red };
+    return { text: draw ? 'DRAW' : win ? (this.isTeam(P.mode) ? 'YOUR TEAM WINS!' : 'YOU WIN!') : (this.isTeam(P.mode) ? 'YOUR TEAM LOSES' : 'YOU LOSE'), col: draw ? STYLE.pal.ice : win ? STYLE.pal.green : STYLE.pal.red };
   },
   drawOverlay(ctx) {
     const P = G.pvp, T = STYLE.type, S = STYLE.pal;
@@ -569,7 +735,8 @@ const PvpMatch = {
     this.drawBoard(ctx);
     if (P.cd > 0) uiText(ctx, String(Math.ceil(P.cd)), STAGE_W / 2, STAGE_H / 2 - 20, { size: T.title, color: S.yellow, align: 'center', glow: S.yellow });
     else if (P.startShown !== undefined && G.realTime - P.startShown < 0.8) uiText(ctx, 'FIGHT!', STAGE_W / 2, STAGE_H / 2 - 20, { size: T.h1, color: S.red, align: 'center' });
-    if (P.out && !P.over) uiText(ctx, 'WATCHING ' + (P.watching || '') + '  [SPACE: NEXT]', STAGE_W / 2, STAGE_H - 24, { size: T.body, color: S.orange, align: 'center' });
+    if (P.out && !P.over && P.mode === 'dm') uiText(ctx, 'RESPAWN IN ' + Math.max(1, Math.ceil(P.respAt - G.realTime)), STAGE_W / 2, STAGE_H - 24, { size: T.h2, color: S.orange, align: 'center' });
+    else if (P.out && !P.over) uiText(ctx, 'WATCHING ' + (P.watching || '') + '  [SPACE: NEXT]', STAGE_W / 2, STAGE_H - 24, { size: T.body, color: S.orange, align: 'center' });
     if (P.over) {
       const R = this.resultTexts();
       ctx.save(); ctx.globalAlpha = 0.35; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, STAGE_W, STAGE_H); ctx.restore();
@@ -581,18 +748,47 @@ const PvpMatch = {
   drawEnd(ctx) {
     const P = G.pvp, T = STYLE.type, S = STYLE.pal;
     if (!P) return;
-    ctx.save(); ctx.globalAlpha = 0.6; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, STAGE_W, STAGE_H); ctx.restore();
-    const R = this.resultTexts();
-    uiText(ctx, R.text, STAGE_W / 2, 100, { size: T.title, color: R.col, align: 'center', glow: R.col });
-    if (P.why) uiText(ctx, P.why, STAGE_W / 2, 124, { size: T.body, color: S.grey, align: 'center' });
-    this.drawBoard(ctx);
-    uiText(ctx, 'BACK TO THE LOBBY [SPACE]', STAGE_W / 2, 250, { size: T.h2, color: S.cyan, align: 'center' });
-    UIHit.add(STAGE_W / 2 - 110, 232, 220, 26, () => {}, { act: () => this.leaveMatch() });
+    ctx.save(); ctx.globalAlpha = 0.94; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, STAGE_W, STAGE_H); ctx.restore();
+    const R = this.resultTexts(), cx = STAGE_W / 2, tm = this.isTeam(P.mode), me = P.players.find((p) => p.id === P.me);
+    uiText(ctx, R.text, cx, 52, { size: T.h1, color: R.col, align: 'center', glow: R.col });
+    if (P.why) uiText(ctx, P.why, cx, 68, { size: T.small, color: S.grey, align: 'center' });
+    // Tabelle: Name, Kills, Tode (Sieger zuerst; im Team-Modus erst das Siegerteam)
+    const st = (p) => (P.final && P.final[p.id] ? { k: P.final[p.id][0], d: P.final[p.id][1] } : P.stats[p.id] || { k: 0, d: 0 });
+    const rows = P.players.slice().sort((a, b) => (b.team === P.winTeam) - (a.team === P.winTeam) || (tm ? a.team - b.team : 0) || st(b).k - st(a).k || st(a).d - st(b).d);
+    const w = 380, x = cx - w / 2, y0 = 84, RH = 20;
+    uiText(ctx, 'PLAYER', x + 34, y0 + 10, { size: T.small, color: S.grey });
+    uiText(ctx, 'KILLS', x + w - 70, y0 + 10, { size: T.small, color: S.grey, align: 'right' });
+    uiText(ctx, 'DEATHS', x + w - 10, y0 + 10, { size: T.small, color: S.grey, align: 'right' });
+    rows.forEach((p, i) => {
+      const y = y0 + 16 + i * RH, mine = p.id === P.me, win = p.team === P.winTeam, col = mine ? S.cyan : tm && p.team === me.team ? S.cyan : S.grey;
+      uiPanel(ctx, x, y, w, RH - 3, { color: mine ? S.cyan : win ? S.yellow : S.greyMid, fill: S.void, alpha: 0.9 });
+      if (win) uiText(ctx, 'W', x + 10, y + 13, { size: T.small, color: S.yellow });
+      if (tm) uiText(ctx, p.team ? 'B' : 'A', x + 24, y + 13, { size: T.small, color: p.team ? S.red : S.cyan });
+      uiText(ctx, p.name + (mine ? '  (YOU)' : ''), x + 38, y + 13, { size: T.body, color: mine ? S.ice : col, maxW: w - 150 });
+      uiText(ctx, String(st(p).k), x + w - 70, y + 13, { size: T.body, color: S.ice, align: 'right' });
+      uiText(ctx, String(st(p).d), x + w - 10, y + 13, { size: T.body, color: S.ice, align: 'right' });
+    });
+    // Belohnung
+    const ry = y0 + 22 + rows.length * RH + 8, rw = P.reward;
+    if (rw && !rw.none) uiText(ctx, 'REWARD  +' + rw.credits + ' CREDITS   +' + rw.xp + ' XP' + (rw.to > rw.from ? '   LEVEL UP! LV ' + rw.to + '  +' + rw.lvCredits + ' CREDITS' : ''), cx, ry + 6, { size: T.h2, color: S.yellow, align: 'center' });
+    else if (rw) uiText(ctx, 'MATCH TOO SHORT - NO REWARD', cx, ry + 6, { size: T.body, color: S.grey, align: 'center' });
+    else uiText(ctx, 'COUNTING ...', cx, ry + 6, { size: T.body, color: S.grey, align: 'center' });
+    // Knoepfe: NOCHMAL (offene Runde oder Host) und Zurueck
+    const again = this.canAgain(), by = 296, bw = 170, bx0 = again ? cx - bw - 6 : cx - bw / 2;
+    if (again) {
+      UIHit.add(bx0, by, bw, 28, () => {}, { act: () => { Sfx.play('select'); this.again(); } });
+      uiPanel(ctx, bx0, by, bw, 28, { color: S.yellow, fill: S.voidLight, alpha: 0.95, glow: true });
+      uiText(ctx, 'PLAY AGAIN [SPACE]', bx0 + bw / 2, by + 19, { size: T.h2, color: S.yellow, align: 'center' });
+    }
+    const lx = again ? cx + 6 : bx0;
+    UIHit.add(lx, by, bw, 28, () => {}, { act: () => { Sfx.play('select'); this.leaveMatch(); } });
+    uiPanel(ctx, lx, by, bw, 28, { color: S.cyan, fill: S.void, alpha: 0.95 });
+    uiText(ctx, Pvp.pub ? 'LEAVE' : again ? 'BACK TO LOBBY' : 'BACK TO THE LOBBY [SPACE]', lx + bw / 2, by + 19, { size: T.h2, color: S.cyan, align: 'center' });
   },
 };
 
 if (typeof I18n !== 'undefined' && I18n.add) I18n.add({
   'YOU WIN!': 'DU GEWINNST!', 'YOU LOSE': 'DU VERLIERST', 'DRAW': 'UNENTSCHIEDEN', 'FIGHT!': 'KAMPF!', 'AN OPPONENT LEFT': 'EIN GEGNER IST WEG', 'YOU GAVE UP': 'DU HAST AUFGEGEBEN',
   'PRESS ESC AGAIN TO GIVE UP': 'ESC NOCHMAL DRÜCKEN ZUM AUFGEBEN', 'PRESS ESC AGAIN TO LEAVE': 'ESC NOCHMAL DRÜCKEN ZUM VERLASSEN', 'BACK TO THE LOBBY [SPACE]': 'ZURÜCK ZUR LOBBY [LEERTASTE]',
-  'YOUR TEAM WINS!': 'DEIN TEAM GEWINNT!', 'YOUR TEAM LOSES': 'DEIN TEAM VERLIERT', 'YOU ARE OUT - WATCH THE REST': 'DU BIST RAUS - SCHAU DEN REST AN', 'OUT': 'RAUS',
+  'YOUR TEAM WINS!': 'DEIN TEAM GEWINNT!', 'PLAY AGAIN [SPACE]': 'NOCHMAL [LEERTASTE]', 'BACK TO LOBBY': 'ZUR LOBBY', 'LEAVE': 'VERLASSEN', 'PLAYER': 'SPIELER', 'KILLS': 'KILLS', 'DEATHS': 'TODE', 'MATCH TOO SHORT - NO REWARD': 'RUNDE ZU KURZ - KEINE BELOHNUNG', 'COUNTING ...': 'ZÄHLE ...', 'DEAD': 'TOT', 'FIRST TO ': 'ERSTE ZU ', 'RESPAWN IN ': 'NEUSTART IN ', 'YOUR TEAM LOSES': 'DEIN TEAM VERLIERT', 'YOU ARE OUT - WATCH THE REST': 'DU BIST RAUS - SCHAU DEN REST AN', 'OUT': 'RAUS',
 });

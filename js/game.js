@@ -6,11 +6,9 @@ const ctx = canvas.getContext('2d');
 canvas.width = CANVAS_W * SCALE;
 canvas.height = STAGE_H * SCALE;
 
-// Begrenzt eine Position auf die Karte (bei unendlicher Karte unverändert). margin = Abstand zum Rand.
+// Begrenzt eine Position auf die Karte. margin = Abstand zum Rand.
 function clampToMap(x, y, margin = 0) {
-  if (CFG.map.infinite) return [x, y];
-  if (G.pvp) { const R = CFG.pvp.radius - margin, d = Math.hypot(x, y); return d > R ? [x * R / d, y * R / d] : [x, y]; }       // PvP-Arena: Kreis
-  if (G.sr && G.sr.bounds) { const b = G.sr.bounds; return [clamp(x, b.x0 + margin, b.x1 - margin), clamp(y, b.y0 + margin, b.y1 - margin)]; }       // Speedrun-Gauntlet: Streifen, nach dem Tor nur noch die Boss-Arena
+  if (G.pvp) { const R = CFG.pvp.radius - margin, d = Math.hypot(x, y); if (d > R) { x *= R / d; y *= R / d; } return PvpCover.push(x, y, margin); }       // PvP-Arena: Kreis, dazu Wände und Säulen (pvpcover.js)
   const hw = CFG.map.halfW * G.arenaScale, hh = CFG.map.halfH * G.arenaScale;      // Arena-Boss verkleinert die Karte (G.arenaScale)
   return [clamp(x, -(hw - margin), hw - margin), clamp(y, -(hh - margin), hh - margin)];
 }
@@ -31,7 +29,6 @@ function drawGround(ctx) {
       ctx.drawImage(im.img, sx, sy, tile, tile);
     }
   }
-  if (CFG.map.infinite) return;
   const M = { halfW: CFG.map.halfW * G.arenaScale, halfH: CFG.map.halfH * G.arenaScale }, P = STYLE.pal;
   const L = STAGE_W / 2 + (-M.halfW - c.x), R = STAGE_W / 2 + (M.halfW - c.x);
   const T = STAGE_H / 2 - (M.halfH - c.y), B = STAGE_H / 2 - (-M.halfH - c.y);
@@ -49,31 +46,26 @@ function drawGround(ctx) {
   ctx.restore();
 }
 
-const MENU_ITEMS = ['play', 'inventory', 'upgrades', 'achievements', 'cosmetics', 'settings'];
+const MENU_ITEMS = ['play', 'inventory', 'upgrades', 'achievements', 'cosmetics', 'settings'];           // (nur noch fuer Tastenkuerzel/Altlasten; der Homescreen nutzt homeButtons() in ui.js)
 const menuItems = () => MENU_ITEMS;
-const statsOpen = () => !!Save.data.dev;       // der Statistik-Bildschirm (Symbol im Hauptmenue) gehoert zum Dev-Modus und gilt nur im Slot, in den die Dev-Datei importiert wurde (die Daten selbst kommen aus allen Slots, siehe Stats.slotLogs)
-const MODE_ITEMS = ['regular', 'infinite', 'speedrun', 'multiplayer', 'tutorial', 'back'];        // Auswahl nach PLAY
-const MULTI_ITEMS = ['coop', 'pvp', 'back'];          // Untermenue von MULTIPLAYER
-const MENU_MUSIC_MODES = ['start', 'stats', 'modeselect', 'multiselect', 'infsetup', 'srsetup', 'mapselect', 'keys', 'binds', 'inventory', 'cosmetics', 'upgrades', 'achievements', 'leaderboard', 'settings'];       // hier läuft die Menümusik (Tasten-Menü aus der Pause heraus nicht)
+const MODE_ITEMS = ['regular', 'pvp', 'create', 'join', 'back'];        // Auswahl nach PLAY
+const MENU_MUSIC_MODES = ['splash', 'friends', 'start', 'modeselect', 'mapselect', 'keys', 'binds', 'inventory', 'cosmetics', 'upgrades', 'achievements', 'leaderboard', 'settings'];       // hier läuft die Menümusik (Tasten-Menü aus der Pause heraus nicht)
 // Upgrade-Menü: drei Reiter. Jede Zeile ist { kind: 'up' | 'ability', id }
 const UPGRADE_TABS = [
   { id: 'stats', label: 'STATS' },
   { id: 'weapons', label: 'ITEMS' },
   { id: 'abilities', label: 'ABILITIES' },
   { id: 'heroes', label: 'HEROES' },
-  { id: 'milestones', label: 'MILESTONES' },
 ];
 // Reihenfolge im Upgrade-Menue: immer nach Gruppen sortiert, innerhalb einer Gruppe nach Preis bzw. Ziel.
 // Neue Eintraege landen automatisch in ihrer Gruppe (Werte: hier eintragen, sonst unter SONSTIGES).
 const STAT_GROUPS = [
-  { label: 'SURVIVAL', ids: ['health', 'resist', 'regen', 'heal', 'recovery', 'blood'] },
-  { label: 'COMBAT', ids: ['power', 'attackSpeed'] },
-  { label: 'SPEED', ids: ['speed', 'cooldown'] },
-  { label: 'ULTIMATE', ids: ['ult', 'startUlt'] },
-  { label: 'LOOT', ids: ['souls', 'coreDrop', 'bounty', 'luck', 'magnet', 'buffTime'] },
+  { label: 'SURVIVAL', ids: ['health', 'resist', 'regen'] },
+  { label: 'COMBAT', ids: ['power', 'attackSpeed', 'speed', 'cooldown', 'ult'] },
+  { label: 'LOOT', ids: ['luck', 'souls'] },
 ];
 const ABILITY_GROUPS = [{ id: 'weak', label: 'WEAK ABILITIES' }, { id: 'medium', label: 'MEDIUM ABILITIES' }, { id: 'strong', label: 'STRONG ABILITIES' }];
-const MILESTONE_GROUPS = [{ id: 'best', label: 'SURVIVAL TIME' }, { id: 'bosses', label: 'BOSSES' }, { id: 'kills', label: 'ENEMIES' }, { id: 'runs', label: 'RUNS' }, { id: 'endless', label: 'ENDLESS MODE' }, { id: 'tutorial', label: 'TUTORIAL' }, { id: 'heroes', label: 'HERO UNLOCKS' }, { id: 'cryo', label: 'CRYO STATION' }];
+const MILESTONE_GROUPS = [{ id: 'best', label: 'SURVIVAL TIME' }, { id: 'bosses', label: 'BOSSES' }, { id: 'kills', label: 'ENEMIES' }, { id: 'runs', label: 'RUNS' }, { id: 'tutorial', label: 'TUTORIAL' }, { id: 'heroes', label: 'HERO UNLOCKS' }, { id: 'cryo', label: 'CRYO STATION' }];
 
 // Gruppe einer Zeile: { idx (Reihenfolge, fuer Farbe), label }
 function upgradeGroup(r) {
@@ -106,6 +98,9 @@ function guideStep() {
   return GUIDE_BUYS.slice(1).find((s) => !owned(s) && Save.data.souls >= price(s)) || null;
 }
 
+// Kann man diesen Eintrag gerade bezahlen? (Aktion mit Preis in Gelb)
+function shopAffordable(r) { const a = upgradeAction(r); return !!(a && a.color === STYLE.pal.yellow); }
+
 function upgradeRows(tab) {
   let rows;
   if (tab === 'abilities') {
@@ -127,9 +122,10 @@ function upgradeRows(tab) {
   }
   return rows;
 }
-// Einstellungen: zwei Spalten nebeneinander, kein Scrollen. Sound/Video sind kleine Symbole im Hauptmenue (G.menuQuick). W/S geht die Spalten der Reihe nach durch, unten immer 'back'.
+// Einstellungen: drei Spalten nebeneinander, kein Scrollen (Ton und Effekte sind jetzt hier). W/S geht die Spalten der Reihe nach durch, unten immer 'back'.
 const SETTINGS_COLS = [
-  { label: 'CONTROLS', items: ['controls', 'binds', 'attackmode', 'mouseaim', 'touch', 'language'] },
+  { label: 'GENERAL', items: ['language', 'music', 'sfx', 'fx'] },
+  { label: 'CONTROLS', items: ['controls', 'binds', 'attackmode', 'mouseaim', 'touch'] },
   { label: 'SAVE & ACCOUNT', items: ['slot', 'account', 'transfer', 'resetAll'] },
 ];
 const settingsList = () => [].concat(...SETTINGS_COLS.map((c) => c.items), ['back']);
@@ -138,7 +134,8 @@ const PAUSE_ITEMS = ['resume', 'abilities', 'music', 'sfx', 'binds', 'quit'];
 const pauseItems = () => (G.hostFullscreen ? ['resume', 'abilities', 'music', 'sfx', 'binds', 'exitfs', 'quit'] : PAUSE_ITEMS);
 
 const G = {
-  mode: 'loading',
+  mode: 'splash',         // Startbildschirm von Anfang an (zeigt den Ladestand der Bilder)
+  splashAge: 0, splashShown: 0, splashDone: 0, assetsReady: false, homeSel: 0,
   realTime: 0,            // echte Zeit seit Programmstart (für Animationen)
   time: 0,                // Spielzeit in Sekunden (Original: Timer), steht still im Bosskampf
   deadAge: 0,
@@ -162,9 +159,6 @@ const G = {
 
   boss: null,
   finalAt: CFG.finalBoss.at,   // Spielzeit, ab der der finale Boss erscheint (pro Lauf, null = nie)
-  infinite: false,        // dieser Lauf ist ein Endlos-Lauf
-  sr: null,               // Speedrun-Lauf (js/speedrun.js): { kind, t (Uhr), splits, ... } oder null
-  srSel: 0,               // gewaehlte Zeile im Speedrun-Setup
   map: CFG.maps[0],       // gewählte Karte (CFG.maps)
   mapIdx: 0,
   diff: CFG.maps[0].diff, // Schwierigkeitsfaktoren der Karte
@@ -201,11 +195,8 @@ const G = {
 
   seenKeys: Save.data.seenKeys,   // Tastenübersicht schon gesehen? (gespeichert)
   cosTab: 0, cosSel: 0,   // Cosmetics-Menue: Kategorie und gewaehltes Item
-  multiSel: 0,
   modeSel: 0,             // gewählter Punkt in der Modus-Auswahl nach PLAY
   menuSel: 0,           // gewählter Menüpunkt im Hauptmenü
-  infSel: 0,             // gewählte Zeile im Endlos-Setup
-  mapBack: false,         // Kartenauswahl: BACK-Knopf gewaehlt
   upgradeSel: 0,          // gewählte Zeile im Upgrade-Menü (die letzte Zeile ist Zurück)
   swapSel: 0,             // gewaehlte Zeile im Ability-Tausch
   pauseSel: 0,            // gewaehlte Zeile im Pausemenue
@@ -213,7 +204,7 @@ const G = {
   bindsBack: 'settings',  // wohin das Tasten-Menue zurueckfuehrt (settings oder pause)
   bindSel: 0,             // gewaehlte Zeile im Tasten-Menue
   bindWait: false,        // wartet auf die neue Taste
-  invSel: 0,              // gewaehlter Slot im Inventar (letzte Zeile = Zurueck)
+  invSel: 0,              // gewaehlter Slot in der Armory (Items, Abilities, Held, zuletzt Zurueck)
   resetConfirm: false,    // 'Alle Kaeufe zuruecksetzen' wartet auf zweite Bestaetigung
   invPick: null,          // offene Slot-Auswahl im Inventar: { slot, list, sel } oder null
   upgradeTab: 0,        // gewählter Reiter im Upgrade-Menü
@@ -226,23 +217,18 @@ const G = {
   god: false,             // unsterblich (nur noch für Tests/Smoke-Test, keine Taste mehr)
 
   // withTutorial: Hinweise im Lauf (erster Lauf automatisch, sonst über das Hauptmenü)
-  // infinite: Endlos-Modus (unendliche Karte, finaler Boss nach der gewählten Zeit)
-  // srKind: Speedrun-Lauf ('rush' | 'gauntlet' | 'seed', siehe js/speedrun.js); schaltet Save.srOn (Standard-Loadout) fuer die Dauer des Laufs
-  begin(withTutorial = false, infinite = false, srKind = null) {
+  // kind: null (Singleplayer) | 'pvp' | 'coop'
+  begin(withTutorial = false, kind = null) {
     setView(false);
     this.mode = 'play';
     this.pvp = null;                                                                       // PvP-Kampf: setzt PvpMatch.begin nach diesem Aufruf
     this.coop = null; this.mates = []; Coop.focus = null;                                  // Koop-Lauf: setzt Coop.begin nach diesem Aufruf
-    this.sr = srKind && srKind !== 'pvp' && srKind !== 'coop' && !withTutorial ? SpeedRun.create(srKind) : null;
-    Save.srOn = !!this.sr;
-    this.infinite = (infinite || !!(this.sr && this.sr.infinite)) && !withTutorial;
-    CFG.map.infinite = this.infinite;                       // die Kartenregeln (Wände, Kamera, Boss-Kamera) hängen an diesem Schalter
     this.seenKeys = true;
     Save.data.seenKeys = true; Save.write();
     this.newBest = false;
     this.bosses = 0; this.kills = 0; this.earned = 0; this.newMilestones = []; this.levelRes = null;
     Ach.beginRun(); Stats.reset(); this.deathDetails = false; this.cheated = !!this.god;       // Cheat-Laeufe werden als Dev-Lauf markiert (Statistik kann sie ausblenden)
-    Xp.reset(); this.xpOrbs = []; Endless.reset();                             // XP und Perks beginnen jeden Lauf von vorn; Endlos-Credits und Mutationen ebenso
+    Xp.reset(); this.xpOrbs = [];                                              // XP und Perks beginnen jeden Lauf von vorn
     this.time = 0;
     this.deadAge = 0;
     Cos2.reset();                                                              // Cosmetics: Bodenmarken, Begleiter, Animationen zuruecksetzen
@@ -250,13 +236,10 @@ const G = {
     this.spawners = []; this.powerups = []; this.drops = []; this.texts = []; this.events = [];
     this.boss = null; this.intro = null; this.bossShots = [];
     this.arenaScale = 1; this.arenaTarget = 1; this.bossCount = 0; this.eliteUp = false;
-    const mi = withTutorial || srKind === 'pvp' ? 0 : srKind === 'coop' && CFG.maps[this.coopMap] ? this.coopMap : !Save.mapUnlocked(Save.data.mapSel) ? 0 : Save.data.mapSel;          // gewählte Karte (Tutorial immer Karte 1, Koop: die Karte des Hosts)
+    const mi = withTutorial || kind === 'pvp' ? 0 : kind === 'coop' && CFG.maps[this.coopMap] ? this.coopMap : !Save.mapUnlocked(Save.data.mapSel) ? 0 : Save.data.mapSel;          // gewählte Karte (Tutorial immer Karte 1, Koop: die Karte des Hosts)
     this.mapIdx = mi; this.map = CFG.maps[mi]; this.diff = this.map.diff;
     CFG.map.halfW = this.map.half[0]; CFG.map.halfH = this.map.half[1];
-    if (this.sr) SpeedRun.applyMap();                                                    // Speedrun: eigene Streifenkarte (Gauntlet) bzw. Karte 1
-    const fm = CFG.infinite.finalMinutes[Save.data.infSel];
-    this.finalAt = this.infinite ? (fm === null || fm === undefined ? null : fm * 60) : CFG.finalBoss.at; this.finalStarted = false; this.victory = 0;
-    if (this.sr) this.finalAt = this.sr.finalAt;                                         // Boss Rush: Death nach dem letzten Boss, sonst kein finaler Boss
+    this.finalAt = CFG.finalBoss.at; this.finalStarted = false; this.victory = 0;
     this.bossFight = false; this.bossTimer = 0;
     this.cam = { x: 0, y: 0 };
     this.bossStageOctagon = 1; this.bossStageKite = 3;
@@ -274,7 +257,7 @@ const G = {
     this.director = new Director();
     MapEnv.init(); MapFx.reset(); SafeSpot.reset();                                         // Gefahren der gewählten Karte aufstellen (Karte 2 und 3)
     if (withTutorial) Tutorial.start(); else Tutorial.active = false;
-    if (this.sr) SpeedRun.setup();                                                       // Gegner, Spieler- und Kameraposition des Speedruns
+    if (kind !== 'pvp') { if (withTutorial) Anticheat.drop('run'); else Anticheat.start('run', this.map.id, !!this.infinite, kind === 'coop'); }       // Lauf-Ticket vom Server (PvP: PvpMatch.begin)
     this.player.hp = this.player.maxHp; this.ultCharge += Hero.mods().startUlt;          // Held-Modifier (im Tutorial neutral, deshalb erst nach dem Tutorial-Flag)
   },
 
@@ -282,7 +265,6 @@ const G = {
   // alle Gegner und Geschosse verschwinden und es spawnt nichts mehr, damit man nicht kurz vor dem Sieg noch sterben kann (Todesbildschirm statt Ende).
   startVictory(text) {
     if (this.victory > 0) return;
-    if (this.sr) SpeedRun.stop();                                                        // Speedrun: die Uhr haelt beim Fall des letzten Bosses an
     this.victory = CFG.ending.victoryDelay;
     this.player.hp = Math.max(this.player.hp, 1);
     for (const list of [this.enemies, this.shots, this.bossShots, this.spawners, this.blasts, this.meteors]) for (const e of list) e.alive = false;
@@ -294,13 +276,12 @@ const G = {
     if (this.pvp) { PvpMatch.localDeath(); return; }                   // PvP: Runde verloren, kein Todesbildschirm/keine Abrechnung
     if (this.coop && !this.coop.over) { Coop.localDeath(); return; }    // Koop: erst ausgeschieden, der Lauf endet, wenn alle ausgeschieden sind
     if (Tutorial.active) { Tutorial.exit(); return; }                  // Tutorial verlassen: nichts wird gespeichert
-    if (this.sr) { SpeedRun.fail(); return; }                          // Speedrun: Tod = Abbruch, eigener Ergebnisbildschirm
     this.mode = 'dead';
     this.deadAge = 0;
     Cos2.dfx = Cos2.deathStart(this.player) || Cos2.deathPlain(this.player);       // Cosmetic DEATH: Animation vor dem Todesbildschirm (ohne Cosmetic eine kurze neutrale Phase)
     Sfx.play('death');
     this.settleRun(0);
-    Stats.finish(this.time, this.bosses, this.map.id, this.infinite);       // Todesursache + Zusammenfassung (Save.write passiert unten in settleRun schon, daher hier nochmal)
+    Stats.finish(this.time, this.bosses, this.map.id);       // Todesursache + Zusammenfassung (Save.write passiert unten in settleRun schon, daher hier nochmal)
     Ach.runEnd(false);
     Save.write();
     // Todesphase: Uhr steht (nur im Modus play zaehlt die Zeit), alle Gegner und Geschosse weg, nur die Todes-Animation laeuft
@@ -312,10 +293,11 @@ const G = {
 
   // Lauf abrechnen (Tod und Sieg): Bestzeit, Statistik, Meilensteine, Cores. bonus = zusätzliche Cores (Sieg)
   settleRun(bonus) {
-    const res = Save.finishRun(this.time, this.bosses, this.kills, this.infinite, Tutorial.active ? null : this.map.id, !!this.coop);
+    const res = Save.finishRun(this.time, this.bosses, this.kills, Tutorial.active ? null : this.map.id, !!this.coop);
     this.newBest = res.isBest; this.newMilestones = res.got;
-    // Endlos-Modus: die Cores der Zeit wurden live mit dem steigenden Multiplikator gesammelt (Endless.credit), Bosse zaehlen zum Multiplikator am Ende
-    const base = Endless.on() ? Endless.credit + this.bosses * CFG.meta.perBoss * Endless.mult(this.time) : this.time * CFG.meta.perSecond + this.bosses * CFG.meta.perBoss;
+    if (!Tutorial.active && !this.cheated) Anticheat.end({ kind: 'run', time: this.time, kills: this.kills, bosses: this.bosses, win: this.mode === 'ending' });       // Server prueft den Lauf und fuehrt Buch (auch Gilden-Punkte)
+    else Anticheat.drop('run');
+    const base = this.time * CFG.meta.perSecond + this.bosses * CFG.meta.perBoss;
     let run = Math.floor(base * (1 + Save.bonus('souls') + Save.bonus('soulgain')) * this.diff.cores * Hero.mods().cores);
     const S = CFG.meta.starter, n = Save.data.runs - 1;                      // Save.finishRun hat den Lauf schon mitgezaehlt: n = 0 fuer den ersten Lauf
     this.starterBonus = null;
@@ -329,7 +311,7 @@ const G = {
     const L = CFG.level;                                                     // Spielerlevel: XP aus Zeit, Bossen, Kills (+ Sieg), nicht im Tutorial und bei Cheat-Laeufen
     this.levelRes = null;
     if (!Tutorial.active && !this.cheated) {
-      const xp = (this.time * L.perSecond + this.bosses * L.perBoss + this.kills * L.perKill + (this.victory > 0 || this.mode === 'ending' ? L.winBonus : 0)) * (this.infinite ? L.infiniteFactor : 1);
+      const xp = (this.time * L.perSecond + this.bosses * L.perBoss + this.kills * L.perKill + (this.victory > 0 || this.mode === 'ending' ? L.winBonus : 0));
       this.levelRes = Save.addPlayerXp(Math.floor(xp));
     }
     Save.write();
@@ -338,14 +320,14 @@ const G = {
   // Sieg (finaler Boss besiegt): kein Todesbildschirm, sondern die Ending-Sequenz (drawEndingScreen)
   win() {
     if (this.mode !== 'play' || Tutorial.active) return;
-    if (this.sr) { SpeedRun.finish(); return; }                        // Speedrun: Ergebnisbildschirm statt Ending, keine Credits/XP
     this.mode = 'ending';
     this.endAge = 0;
     Sfx.play('ultimate');
     const first = !Save.data.wins;
     Save.data.wins = (Save.data.wins || 0) + 1;
+    if (this.map) { Save.data.mapWon = Save.data.mapWon || {}; Save.data.mapWon[this.map.id] = true; }       // schaltet die nächste Karte frei
     this.settleRun(first ? CFG.ending.firstWinCores : CFG.ending.winCores);
-    Stats.finish(this.time, this.bosses, this.map.id, this.infinite, true);       // Sieg ins Protokoll
+    Stats.finish(this.time, this.bosses, this.map.id, true);       // Sieg ins Protokoll
     Ach.runEnd(true);
     Save.write();
   },
@@ -389,32 +371,66 @@ const G = {
     else if (id === 'account') Account.open();
     else if (id === 'install') PWA.open();
     else if (id === 'board') { this.mode = 'leaderboard'; Board.open(); }
-    else if (id === 'stats' && statsOpen()) { this.mode = 'stats'; StatsScreen.open(); }
   },
 
-  // Hauptmenü: W/S oder Pfeile wählen, Leertaste/Enter bestätigt
+  // Startbildschirm: kurze Ladezeit, danach kommt der Homescreen von selbst (keine Eingabe noetig). Der Balken laeuft weich auf (splashShown), bleibt kurz voll (READY) und geht dann weiter.
+  updateSplash(dt) {
+    this.splashAge += dt;
+    const settled = !(Account.syncing > 0) || this.splashAge > 4;
+    this.splashReady = this.assetsReady && this.splashAge >= 1.2 && settled;
+    const goal = this.splashReady ? 1 : Math.min(0.96, clamp(this.splashAge / 1.2, 0, 1), ASSETS.total ? ASSETS.done / ASSETS.total : 0);
+    this.splashShown += (goal - this.splashShown) * Math.min(1, dt * 7);
+    if (this.splashReady && this.splashShown > 0.985) this.splashDone += dt;
+    if (this.splashDone >= 0.4) { this.mode = 'start'; this.homeSel = 0; Sfx.play('select'); if (this.newSlot()) this.begin(true); }
+  },
+  // Homescreen: Pfeile/WASD springen zum naechsten Knopf in der Richtung, Leertaste/Enter oeffnet, Tastenkuerzel wie bisher
   updateMenu() {
-    const items = menuItems(), n = items.length;
-    for (const [key, id] of [['KeyM', 'music'], ['KeyN', 'sfx'], ['KeyV', 'fx'], ['KeyF', 'fullscreen'], ['KeyL', 'account'], ['KeyT', 'stats'], ['KeyB', 'board'], ['KeyI', 'install']]) if (Input.pressed(key) && (id !== 'install' || PWA.visible)) this.menuQuick(id);
-    if (this.menuSel >= n) this.menuSel = 0;
-    if (Input.pressed('ArrowUp') || Input.pressed('KeyW')) this.menuSel = (this.menuSel + n - 1) % n;
-    if (Input.pressed('ArrowDown') || Input.pressed('KeyS')) this.menuSel = (this.menuSel + 1) % n;
-    if (!(Input.pressed('Space') || Input.pressed('Enter'))) return;
-    const item = items[this.menuSel];
-    if (CFG.level.gates[item] && !Save.gateOpen(item)) { Sfx.play('deny'); return; }          // gesperrt bis zum noetigen Spielerlevel
-    if (item === 'play') { this.mode = 'modeselect'; this.modeSel = 0; }        // REGULAR ist immer vorgewählt (nur markiert, nicht gestartet); die Infobox rechts zeigt dessen Text
-    else if (item === 'inventory') { this.mode = 'inventory'; this.invSel = 0; this.invPick = null; }
-    else if (item === 'cosmetics') { this.mode = 'cosmetics'; this.colorPick = null; this.cosTab = 0; this.cosSel = Math.max(0, Cos.items('skin').findIndex((q) => q.id === Save.cosEquipped('skin'))); }
-    else if (item === 'upgrades') { Save.data.upgradesSeen = true; Save.write(); this.mode = 'upgrades'; this.upgradeSel = 0; this.upgradeTab = 0;
-      const gs = guideStep();                                                  // gefuehrter Kauf: Reiter und Zeile schon vorgewaehlt
-      if (gs) { this.upgradeTab = UPGRADE_TABS.findIndex((t) => t.id === gs.tab); this.upgradeSel = Math.max(0, upgradeRows(gs.tab).findIndex((r) => r.id === gs.id)); }
+    for (const [key, id] of [['KeyL', 'account'], ['KeyB', 'board'], ['KeyI', 'install']]) if (Input.pressed(key) && (id !== 'install' || PWA.visible)) this.menuQuick(id);
+    const btns = homeButtons();
+    if (this.homeSel >= btns.length || this.homeSel < 0) this.homeSel = 0;
+    const dx = (Input.pressed('ArrowRight') || Input.pressed('KeyD') ? 1 : 0) - (Input.pressed('ArrowLeft') || Input.pressed('KeyA') ? 1 : 0), dy = (Input.pressed('ArrowDown') || Input.pressed('KeyS') ? 1 : 0) - (Input.pressed('ArrowUp') || Input.pressed('KeyW') ? 1 : 0);
+    if (dx || dy) {
+      const c = (b) => [b.x + b.w / 2, b.y + b.h / 2], [sx, sy] = c(btns[this.homeSel]);
+      let best = -1, bs = 1e9;
+      btns.forEach((b, i) => { if (i === this.homeSel) return; const [bx, by] = c(b), ax = (bx - sx) * dx, ay = (by - sy) * dy; if (ax + ay <= 0) return; const sc = Math.hypot(bx - sx, by - sy) - (ax + ay) * 0.5; if (sc < bs) { bs = sc; best = i; } });
+      if (best >= 0) { this.homeSel = best; Sfx.play('tick'); }
     }
-    else if (item === 'achievements') { this.mode = 'achievements'; Ach.open(); }
-    else if (item === 'settings') { Save.data.settingsSeen = true; Save.write(); this.mode = 'settings'; this.settingsSel = 0; }
-    else if (item === 'stats') { this.mode = 'stats'; StatsScreen.open(); }
+    if (Input.pressed('Space') || Input.pressed('Enter')) this.homeGo(btns[this.homeSel].id);
+  },
+  // Neuer Spielstand (nichts gespielt, Tutorial nicht gemacht): das Tutorial startet von selbst
+  // Kurze Meldung in Menues (z. B. warum etwas gesperrt ist), siehe drawToast in ui.js
+  toast(text) { this.toastText = text; this.toastAt = this.realTime; Sfx.play('deny'); },
+  newSlot() { return !Save.data.tutorialDone && !Save.data.runs; },
+  homeGo(id) {
+    if (id === 'play') {
+      if (this.newSlot()) { this.begin(true); return; }
+      const last = MODE_ITEMS.includes(Save.data.lastMode) ? Save.data.lastMode : 'regular';          // noch nie gewaehlt (oder ein alter, entfernter Modus): Singleplayer                                              // zuletzt gewaehlter Punkt: Singleplayer geht direkt zur Kartenwahl, alles andere (PVP, Lobby) zur ersten Auswahl
+      if (last === 'regular') { this.mode = 'mapselect'; Save.data.mapSel = Save.mapUnlocked(Save.data.mapSel) ? Save.data.mapSel : 0; }
+      else { this.mode = 'modeselect'; this.modeSel = Math.max(0, MODE_ITEMS.indexOf(last)); }
+    }        // SINGLEPLAYER ist immer vorgewählt (nur markiert, nicht gestartet); die Infobox rechts zeigt dessen Text
+    else if (id === 'shop') { if (!this.openCosmetics()) return; }                  // Shop = nur Cosmetics
+    else if (id === 'hero') this.openHeroPage();                                    // Held: Reiter STATS / ITEMS / ABILITIES / HEROES
+    else if (id === 'armory') this.openArmory();                                    // Klick auf den Helden in der Mitte (Platzhalter bis zur eigenen Oberflaeche)
+    else if (id === 'board') { this.mode = 'leaderboard'; Board.open(); }
+    else if (id === 'awards') { this.mode = 'achievements'; Ach.open(); }
+    else if (id === 'friends') Social.open('start');
+    else if (id === 'account') Account.open();
+    else if (id === 'settings') { Save.data.settingsSeen = true; Save.write(); this.mode = 'settings'; this.settingsSel = 0; }
+    Sfx.play('select');
+  },
+  // Shop (nur Cosmetics), Held-Seite (Upgrade-Reiter) und Armory
+  openCosmetics() {
+    this.mode = 'cosmetics'; this.colorPick = null; this.cosTab = 0; this.cosSel = Math.max(0, Cos.items('skin').findIndex((q) => q.id === Save.cosEquipped('skin')));
+    return true;
+  },
+  openArmory() { this.mode = 'inventory'; this.invSel = 0; this.invPick = null; },
+  openHeroPage() {
+    Save.data.upgradesSeen = true; Save.write(); this.mode = 'upgrades'; this.upgradeSel = 0; this.upgradeTab = UPGRADE_TABS.findIndex((t) => t.id === 'heroes');
+    const gs = guideStep();                                                  // gefuehrter Kauf: Reiter und Zeile schon vorgewaehlt
+    if (gs) { this.upgradeTab = UPGRADE_TABS.findIndex((t) => t.id === gs.tab); this.upgradeSel = Math.max(0, upgradeRows(gs.tab).findIndex((r) => r.id === gs.id)); }
   },
 
-  // Modus-Auswahl nach PLAY: Regular (-> Kartenwahl), Infinite (-> Endlos-Setup mit Karte), Tutorial (startet direkt), ESC zurück
+  // Modus-Auswahl nach PLAY: Singleplayer (-> Kartenwahl), PvP, Lobby erstellen/beitreten, ESC zurück
   updateModeSelect() {
     const n = MODE_ITEMS.length;
     if (Input.pressed('ArrowUp') || Input.pressed('KeyW')) this.modeSel = (this.modeSel + n - 1) % n;
@@ -422,57 +438,29 @@ const G = {
     if (Input.pressed('Escape')) { this.mode = 'start'; return; }
     if (!(Input.pressed('Space') || Input.pressed('Enter'))) return;
     const item = MODE_ITEMS[this.modeSel];
-    if (CFG.level.gates[item] && !Save.gateOpen(item)) { Sfx.play('deny'); return; }          // Endlos-Modus erst ab dem noetigen Spielerlevel
-    if (item !== 'back') { Save.data.lastMode = item; Save.write(); }
-    if (item === 'regular') { this.mode = 'mapselect'; Save.data.mapSel = Save.mapUnlocked(Save.data.mapSel) ? Save.data.mapSel : 0; }
-    else if (item === 'infinite') { this.mode = 'infsetup'; this.infSel = 0; }
-    else if (item === 'speedrun') { this.mode = 'srsetup'; this.srSel = 0; SpeedRun.openSetup(); }
-    else if (item === 'multiplayer') { this.mode = 'multiselect'; this.multiSel = 0; }
-    else if (item === 'tutorial') this.begin(true);
-    else this.mode = 'start';
+    if (item === 'back') { this.mode = 'start'; return; }
+    Save.data.lastMode = item; Save.write();
+    if (item === 'regular') { this.mode = 'mapselect'; Save.data.mapSel = Save.mapUnlocked(Save.data.mapSel) ? Save.data.mapSel : 0; }       // Singleplayer: Kartenwahl und START
+    else if (item === 'pvp' || item === 'create' || item === 'join') {                                                 // PVP = offene Runde sofort; Lobby erstellen/beitreten (der Host waehlt dort PVP oder CO-OP)
+      if (!Net.available) { Pvp.say('NO CONNECTION POSSIBLE ON THIS DEVICE', STYLE.pal.red); Sfx.play('deny'); return; }
+      this.mode = 'pvp'; Pvp.open(item === 'create' ? 'coop' : 'pvp');          // neue Lobby: zuerst CO-OP (der Host kann auf PVP umschalten)
+      if (item === 'pvp') Pvp.startQueue();
+      else if (item === 'create') Pvp.connect(Net.newCode(), true);
+      else { Pvp.st = 'join'; Pvp.sel = 0; Pvp.input = ''; Pvp.say(''); }
+    }
   },
 
-  // Untermenue MULTIPLAYER: PVP ARENA, BACK
-  updateMultiSelect() {
-    const n = MULTI_ITEMS.length;
-    if (Input.pressed('ArrowUp') || Input.pressed('KeyW')) this.multiSel = (this.multiSel + n - 1) % n;
-    if (Input.pressed('ArrowDown') || Input.pressed('KeyS')) this.multiSel = (this.multiSel + 1) % n;
-    if (Input.pressed('Escape')) { this.mode = 'modeselect'; return; }
-    if (!(Input.pressed('Space') || Input.pressed('Enter'))) return;
-    const it = MULTI_ITEMS[this.multiSel];
-    if (CFG.level.gates[it] && !Save.gateOpen(it)) { Sfx.play('deny'); return; }          // PvP erst ab dem noetigen Spielerlevel
-    if (it === 'pvp' || it === 'coop') { this.mode = 'pvp'; Pvp.open(it); }
-    else this.mode = 'modeselect';
-  },
-
-  // Kartenauswahl nach PLAY: A/D wechselt, Leertaste startet (nur freigeschaltete Karten), ESC zurück
+  // Singleplayer: A/D waehlt die Karte, Leertaste startet, ESC zurueck
   updateMapSelect() {
     const n = CFG.maps.length;
     const dir = (Input.pressed('ArrowRight') || Input.pressed('KeyD') ? 1 : 0) - (Input.pressed('ArrowLeft') || Input.pressed('KeyA') ? 1 : 0);
-    if (dir) { Save.data.mapSel = (Save.data.mapSel + dir + n) % n; this.mapBack = false; }
-    if (Input.pressed('ArrowDown') || Input.pressed('KeyS')) this.mapBack = true;                // BACK-Knopf unter den Karten
-    if (Input.pressed('ArrowUp') || Input.pressed('KeyW')) this.mapBack = false;
-    if (Input.pressed('Space') || Input.pressed('Enter')) {
-      if (this.mapBack) { this.mapBack = false; Save.write(); this.mode = 'modeselect'; }
-      else if (Save.mapUnlocked(Save.data.mapSel)) { Save.write(); this.begin(false, false); } else Sfx.play('deny');
-    } else if (Input.pressed('Escape')) { this.mapBack = false; Save.write(); this.mode = 'modeselect'; }
+    if (dir) Save.data.mapSel = (Save.data.mapSel + dir + n) % n;
+    if (Input.pressed('Space') || Input.pressed('Enter')) this.startFromMapSelect();
+    else if (Input.pressed('Escape')) { Save.write(); this.mode = 'modeselect'; }
   },
-
-  // Endlos-Modus vor dem Start: Zeile 0 = Zeitpunkt des finalen Bosses (A/D oder Leertaste wechselt), Zeile 1 = Start, Zeile 2 = Zurück
-  updateInfSetup() {
-    const n = 4, opts = CFG.infinite.finalMinutes, nm = CFG.maps.length;
-    if (Input.pressed('ArrowUp') || Input.pressed('KeyW')) this.infSel = (this.infSel + n - 1) % n;
-    if (Input.pressed('ArrowDown') || Input.pressed('KeyS')) this.infSel = (this.infSel + 1) % n;
-    const dir = (Input.pressed('ArrowRight') || Input.pressed('KeyD') ? 1 : 0) - (Input.pressed('ArrowLeft') || Input.pressed('KeyA') ? 1 : 0);
-    const ok = Input.pressed('Space') || Input.pressed('Enter');
-    if (this.infSel === 0 && (dir || ok)) { Save.data.infSel = (Save.data.infSel + (dir || 1) + opts.length) % opts.length; Save.write(); }
-    else if (this.infSel === 1 && (dir || ok)) {                       // Karte wählen (nur freigeschaltete)
-      let m = Save.data.mapSel;
-      for (let i = 0; i < nm; i++) { m = (m + (dir || 1) + nm) % nm; if (Save.mapUnlocked(m)) break; }
-      Save.data.mapSel = m; Save.write();
-    }
-    else if (this.infSel === 2 && ok) { if (!Save.mapUnlocked(Save.data.mapSel)) Save.data.mapSel = 0; this.begin(false, true); }
-    else if ((this.infSel === 3 && ok) || Input.pressed('Escape')) this.mode = 'modeselect';
+  startFromMapSelect() {
+    if (!Save.mapUnlocked(Save.data.mapSel)) { Sfx.play('deny'); return; }
+    Save.write(); this.begin(false);
   },
 
   // Cosmetics: A/D wechselt die Kategorie, W/S waehlt, Leertaste kauft (falls noetig) und ruestet aus, letzte Zeile / ESC zurueck
@@ -537,7 +525,8 @@ const G = {
   // Upgrade-Menü: A/D wechselt den Reiter, W/S wählt die Zeile, Leertaste kauft, letzte Zeile (oder ESC) geht zurück
   updateUpgrades() {
     if (this.confirm) { this.updateConfirm(); return; }
-    const rows = upgradeRows(UPGRADE_TABS[this.upgradeTab].id), n = rows.length + 1;
+    const tabId = UPGRADE_TABS[this.upgradeTab].id;
+    const rows = upgradeRows(tabId), n = rows.length + 1;
     if (Input.pressed('ArrowUp') || Input.pressed('KeyW')) this.upgradeSel = (this.upgradeSel + n - 1) % n;
     if (Input.pressed('ArrowDown') || Input.pressed('KeyS')) this.upgradeSel = (this.upgradeSel + 1) % n;
     const dir = (Input.pressed('ArrowRight') || Input.pressed('KeyD') ? 1 : 0) - (Input.pressed('ArrowLeft') || Input.pressed('KeyA') ? 1 : 0);
@@ -566,25 +555,31 @@ const G = {
     if (Input.pressed('Escape')) this.mode = 'start';
   },
 
-  // Inventar (eigener Menuepunkt): W/S waehlt den Slot, Leertaste oeffnet die Auswahl, letzte Zeile / ESC geht zurueck
+  // Armory: Pfeile/WASD waehlen den Slot (erst die vier Item-Slots, dann die drei Abilities, dann der Held in der Mitte, zuletzt BACK), Leertaste oeffnet die Auswahl, ESC geht zurueck
   updateInventory() {
     if (this.invPick) { this.updateInvPick(); return; }
-    const n = CFG.items.slots.length + 1;
-    if (Input.pressed('ArrowUp') || Input.pressed('KeyW')) this.invSel = (this.invSel + n - 1) % n;
-    if (Input.pressed('ArrowDown') || Input.pressed('KeyS')) this.invSel = (this.invSel + 1) % n;
+    const nItems = CFG.items.slots.length, nTiers = CFG.loadout.tiers.length, heroIdx = nItems + nTiers, n = heroIdx + 2;
+    if (Input.pressed('ArrowUp') || Input.pressed('KeyW') || Input.pressed('ArrowLeft') || Input.pressed('KeyA')) this.invSel = (this.invSel + n - 1) % n;
+    if (Input.pressed('ArrowDown') || Input.pressed('KeyS') || Input.pressed('ArrowRight') || Input.pressed('KeyD')) this.invSel = (this.invSel + 1) % n;
     const ok = Input.pressed('Space') || Input.pressed('Enter');
-    if (Input.pressed('KeyU') && this.invSel < n - 1) {                       // U = Stufe der ausgeruesteten Waffe kaufen
+    if (Input.pressed('KeyU') && this.invSel < nItems) {                       // U = Stufe der ausgeruesteten Waffe kaufen
       const id = Save.equipped(CFG.items.slots[this.invSel].id);
       if (id) { const ok = Save.gearUp(id); Sfx.play(ok ? 'buy' : 'deny'); if (ok) this.invFlashAt = this.realTime; }
     }
-    if (Input.pressed('KeyT') && this.invSel < n - 1 && Save.equipped(CFG.items.slots[this.invSel].id) === 'phoenix' && Save.cosOwned('revive', 'totem')) {       // geheimes Cosmetic: Totem of Undying statt Revival Ring
+    if (Input.pressed('KeyT') && this.invSel < nItems && Save.equipped(CFG.items.slots[this.invSel].id) === 'phoenix' && Save.cosOwned('revive', 'totem')) {       // geheimes Cosmetic: Totem of Undying statt Revival Ring
       Save.cosEquip('revive', Save.cosEquipped('revive') === 'totem' ? 'default' : 'totem'); Sfx.play('select');
     }
     if (ok && this.invSel === n - 1) this.mode = 'start';
-    else if (ok) {
+    else if (ok && this.invSel === heroIdx) {                                                 // Held in der Mitte: gekaufte Helden zur Auswahl
+      const list = CFG.heroes.order.filter((h) => Save.heroOwned(h));
+      this.invPick = { kind: 'hero', slot: 'hero', list, sel: Math.max(0, list.indexOf(Save.ownHero())) };
+    } else if (ok && this.invSel >= nItems) {                                                 // Ability-Slot: gekaufte Abilities der Gruppe
+      const tier = CFG.loadout.tiers[this.invSel - nItems].id, list = Save.abilityChoices(tier);
+      this.invPick = { kind: 'ability', slot: tier, list, sel: Math.max(0, list.indexOf(Save.abilityLoadout()[tier])) };
+    } else if (ok) {
       const slot = CFG.items.slots[this.invSel].id, canEmpty = slot !== 'melee' && slot !== 'ranged';
       const list = (canEmpty ? [null] : []).concat(Save.ownedFor(slot)), cur = list.indexOf(Save.equipped(slot));
-      this.invPick = { slot, list, sel: Math.max(0, cur) };
+      this.invPick = { kind: 'item', slot, list, sel: Math.max(0, cur) };
     }
     if (Input.pressed('Escape')) this.mode = 'start';
   },
@@ -596,10 +591,12 @@ const G = {
     if (!n) { if (Input.pressed('Space') || Input.pressed('Enter')) this.invPick = null; return; }
     if (Input.pressed('ArrowUp') || Input.pressed('KeyW')) P.sel = (P.sel + n - 1) % n;
     if (Input.pressed('ArrowDown') || Input.pressed('KeyS')) P.sel = (P.sel + 1) % n;
-    if (Input.pressed('KeyU') && P.list[P.sel]) { const ok = Save.gearUp(P.list[P.sel]); Sfx.play(ok ? 'buy' : 'deny'); if (ok) this.invFlashAt = this.realTime; }
+    if (Input.pressed('KeyU') && P.kind === 'item' && P.list[P.sel]) { const ok = Save.gearUp(P.list[P.sel]); Sfx.play(ok ? 'buy' : 'deny'); if (ok) this.invFlashAt = this.realTime; }
     if (Input.pressed('Space') || Input.pressed('Enter')) {
       const id = P.list[P.sel];
-      if (id === null) Save.unequip(P.slot);
+      if (P.kind === 'hero') { if (Save.heroSelect(id)) { Save.data.pvpHeroSel = id; Save.write(); Sfx.play('select'); } }          // der Held gilt im Lauf und im PvP
+      else if (P.kind === 'ability') { Save.setAbility(P.slot, id); Sfx.play('select'); }
+      else if (id === null) Save.unequip(P.slot);
       else if (Save.equipped(P.slot) !== id) Save.equipItem(id);
       this.invPick = null;
     }
@@ -658,6 +655,13 @@ const G = {
   },
 
   // Einstellungen: Lautstärken (A/D), Effekte, Vollbild, Steuerung, Zurücksetzen, Zurück
+  // Ton und Effekte in den Einstellungen: links/rechts (oder Klick) schaltet die Stufen durch
+  settingsStep(id, dir) {
+    if (id === 'fx') { Save.data.fx = (Juice.level + dir + 3) % 3; Save.write(); Sfx.play('select'); return; }
+    const STEPS = [0, 0.3, 0.6, 1], cur = id === 'music' ? Save.data.musicVol : Save.data.sfxVol, i = STEPS.findIndex((v) => Math.abs(v - cur) < 0.05), n = (Math.max(0, i) + dir + STEPS.length) % STEPS.length;
+    if (id === 'music') setMusicVolume(STEPS[n]); else Sfx.setVolume(STEPS[n]);
+    Save.write(); Sfx.play('select');
+  },
   updateSettings() {
     const n = settingsList().length;
     if (Input.pressed('ArrowUp') || Input.pressed('KeyW')) this.settingsSel = (this.settingsSel + n - 1) % n;
@@ -668,7 +672,8 @@ const G = {
     if (item === 'mouseaim' && (dir || ok)) { Save.data.mouseAim = !Save.data.mouseAim; Save.write(); Sfx.play('select'); }
     else if (item === 'attackmode' && (dir || ok)) { Save.data.attackMode = Save.data.attackMode === 'toggle' ? 'hold' : 'toggle'; Save.write(); Sfx.play('select'); }
     else if (item === 'touch' && (dir || ok)) { Save.data.touch = !Save.data.touch; Save.write(); Sfx.play('select'); }
-    else if (item === 'language' && (dir || ok)) { Save.data.lang = Save.data.lang === 'de' ? 'en' : 'de'; I18n.set(Save.data.lang); Save.write(); Sfx.play('select'); }
+    else if ((item === 'music' || item === 'sfx' || item === 'fx') && (dir || ok)) this.settingsStep(item, dir || 1);
+    else if (item === 'language' && (dir || ok)) { Save.data.lang = Save.data.lang === 'de' ? 'en' : 'de'; Save.data.langSet = true; I18n.set(Save.data.lang); Save.write(); Sfx.play('select'); }
     else if (item === 'slot' && (dir || ok)) Save.switchSlot((Save.slot + (dir || 1) + Save.SLOTS) % Save.SLOTS);
     else if (item === 'controls' && ok) this.mode = 'keys';
     else if (item === 'binds' && ok) { this.mode = 'binds'; this.bindSel = 0; this.bindWait = false; this.bindsBack = 'settings'; }
@@ -740,11 +745,8 @@ const G = {
     this.swapFlash = Math.max(0, (this.swapFlash || 0) - 1 / 60);
   },
 
-  // Bosskampf mit festem Bild (Kamera steht, Spieler bleibt im Bild): nur auf der unendlichen Karte nötig.
-  // Auf der begrenzten Karte kann der Spieler eh nicht weglaufen, dort erscheint der Boss in der Kartenmitte.
-  // Spawnpunkte der Gegner: auf der begrenzten Karte fest, auf der unendlichen Karte relativ zur Kamera (wandern mit)
-  spawnPointList() { if (this.coop) return Coop.spawnPoints(); return CFG.map.infinite ? CFG.infinite.spawnPoints.map(([x, y]) => [x + this.cam.x, y + this.cam.y]) : CFG.spawnPoints; },
-  get bossLock() { return this.bossFight && CFG.map.infinite; },
+  // Spawnpunkte der Gegner (fest auf der Karte)
+  spawnPointList() { if (this.coop) return Coop.spawnPoints(); return CFG.spawnPoints; },
   // Koop (Host): Orte fuer Tor, Heilkreuz und Meteoriten richten sich nach einem zufaelligen lebenden Spieler statt nach der Kamera
   focusCam() { return this.coop && Coop.host ? Coop.randomPlayer() : this.cam; },
 
@@ -756,6 +758,7 @@ const G = {
   },
   // Ladung kommt zuerst in die große Kugel; ist sie voll, füllt der Überschuss die kleine Kugel (gestapeltes Ultimate), jedes weitere lädt langsamer
   addUlt(n) {
+    if (this.pvp) return;                                       // PvP: es gibt kein Ultimate
     const U = CFG.ult, full = U.readyAt + 1;
     let pts = n * U.chargeFactor * Hero.mods().ult * (1 + Save.bonus('ult') + Xp.val('charge') + (this.player && this.player.has('capacitor') ? CFG.passives.capacitor.ult * Save.gearMul('capacitor') : 0));
     if (this.ultCharge < full) {
@@ -809,7 +812,6 @@ const G = {
 
   endBossFight(result = 'win') {       // result fuers Protokoll: 'win' | 'timeout'
     Coop.bossEnded(result);                                                        // Koop-Host: Gaeste benachrichtigen
-    if (this.sr) SpeedRun.bossEnded(result, this.boss && this.boss.type);       // Speedrun: Zwischenzeit, Pause bis zum naechsten Boss (Boss Rush)
     Stats.bossEnd(result);
     this.bossFight = false;
     this.boss = null;
@@ -821,17 +823,14 @@ const G = {
   // Kamera: bleibt stehen, solange der Spieler im kleinen Mittelraum ist, sonst folgt sie weich.
   // Im Bosskampf steht sie still, damit der Spieler nicht wegläuft (siehe Player.update: er bleibt im Bild).
   updateCamera(dt) {
-    if (this.bossLock) return;
     const C = CFG.camera, p = this.player, c = this.cam;
     const tx = p.x - clamp(p.x - c.x, -C.deadW, C.deadW);
     const ty = p.y - clamp(p.y - c.y, -C.deadH, C.deadH);
     const k = 1 - Math.exp(-C.follow * dt);
     c.x += (tx - c.x) * k;
     c.y += (ty - c.y) * k;
-    if (!CFG.map.infinite) {
-      c.x = clamp(c.x, -(CFG.map.halfW - STAGE_W / 2), CFG.map.halfW - STAGE_W / 2);
-      c.y = clamp(c.y, -(CFG.map.halfH - STAGE_H / 2), CFG.map.halfH - STAGE_H / 2);
-    }
+    c.x = clamp(c.x, -(CFG.map.halfW - STAGE_W / 2), CFG.map.halfW - STAGE_W / 2);
+    c.y = clamp(c.y, -(CFG.map.halfH - STAGE_H / 2), CFG.map.halfH - STAGE_H / 2);
   },
 
   // Menü-Klänge zentral: Auswahl bewegen, bestätigen, zurück (nicht im Spiel selbst und nicht, solange eine Taste belegt wird)
@@ -856,7 +855,6 @@ const G = {
 
   update(dt) {
     this.realTime += dt;
-    if (this.sr && (this.mode === 'play' || this.mode === 'pick')) SpeedRun.tick(dt);           // Speedrun-Uhr: Echtzeit, auch in Auswahlbildschirmen, nicht im Pausenmenue
     setView(this.isMenuView());
     if (canvas.style) canvas.style.cursor = this.mode === 'play' ? 'none' : '';       // Komfort: im Spiel kein Mauszeiger
     if (this.mode !== 'play' && this.mode !== 'loading') UIHit.update();      // Maus in den Menues
@@ -868,32 +866,27 @@ const G = {
     else if (this.mode === 'ending') playMusic(this.endAge < ENDING_SPLIT ? 'dead' : 'menu');
     if (Save.data.dev) this.devKeys();
     Account.menuTick(this.mode);
+    Social.tick(this.mode); Social.keys(); Daily.tick(this.mode);
     PWA.tick(this.mode);
-    if (this.mode === 'start') {
+    if (this.mode === 'splash') {
+      this.updateSplash(dt);
+    } else if (this.mode === 'friends') {
+      Social.update();
+    } else if (this.mode === 'start') {
       if (this.coop) Coop.exit();                                                   // Koop-Lauf vorbei: Verbindung schliessen
-      this.updateMenu();
+      if (Daily.open) Daily.update(); else this.updateMenu();
     } else if (this.mode === 'achievements') {
       Ach.updateScreen();
     } else if (this.mode === 'leaderboard') {
       Board.update();
-    } else if (this.mode === 'stats') {
-      StatsScreen.update();
     } else if (this.mode === 'modeselect') {
       this.updateModeSelect();
-    } else if (this.mode === 'multiselect') {
-      this.updateMultiSelect();
     } else if (this.mode === 'cosmetics') {
       this.updateCosmetics();
-    } else if (this.mode === 'infsetup') {
-      this.updateInfSetup();
     } else if (this.mode === 'pvp') {
       Pvp.update();
     } else if (this.mode === 'pvpend') {
       PvpMatch.updateEnd();
-    } else if (this.mode === 'srsetup') {
-      SpeedRun.updateSetup();
-    } else if (this.mode === 'srend') {
-      SpeedRun.updateEnd(dt);
     } else if (this.mode === 'mapselect') {
       this.updateMapSelect();
     } else if (this.mode === 'keys') {
@@ -920,7 +913,7 @@ const G = {
       if (this.deadAge > 0.6 && Input.pressed('Tab')) { this.deathDetails = !this.deathDetails; Sfx.play('select'); }
       const ready = this.deadAge > 1 && Cos2.deathFadeIn() >= 1;                // erst wenn die Todes-Animation vorbei und der Deathscreen eingeblendet ist
       if (ready && Input.pressed('Space')) { if (this.coop) Coop.toLobby(); else this.mode = 'start'; }      // nach dem Tod zurück ins Menü (hier wird später Build/Leveln ausgebaut)
-      else if (ready && !this.coop && Input.pressed('KeyR')) { Sfx.play('select'); this.begin(false, this.infinite); }      // Komfort: sofort noch ein Lauf, gleicher Modus und gleiche Karte
+      else if (ready && !this.coop && Input.pressed('KeyR')) { Sfx.play('select'); this.begin(false); }      // Komfort: sofort noch ein Lauf, gleiche Karte
     } else if (this.mode === 'pick') {
       this.updatePick(dt);
       if (this.coop && this.mode === 'pick') this.updatePlay(dt);                  // Koop: die Welt laeuft waehrend der Wahl weiter (der Spieler ist solange unverwundbar)
@@ -957,16 +950,15 @@ const G = {
     this.updateCamera(dt);
 
     for (const a of this.attacks) a.update(dt);
+    if (this.pvp) PvpCover.stopShots(this.attacks);                                           // PvP: Schüsse und Raketen enden an der Deckung
     this.attacks = this.attacks.filter((a) => a.alive);
     this.clearing = this.attacks.some((a) => a.clearing);
 
     if (this.coop) Coop.update(dt);                                                      // Koop: Mitspieler, Netz, Bild der Welt
     if (this.victory > 0) { this.victory -= dt; if (this.victory <= 0) { this.win(); return; } }     // Siegphase: kein Director, keine neuen Gegner
-    if (!this.bossFight && !Tutorial.active && !this.pvp && !(this.sr && this.sr.kind === 'rush')) this.time += dt;       // Boss Rush: G.time springt von Boss zu Boss (SpeedRun.update)
-    Endless.tick(dt);                                                                       // Endlos-Modus: Credits sammeln, Mutationen starten/beenden (sonst ohne Wirkung)
+    if (!this.bossFight && !Tutorial.active && !this.pvp) this.time += dt;
     Loadout.updateByTime(this.time);
-    if (this.sr) { if (!(this.victory > 0)) SpeedRun.update(dt); }                         // Speedrun: kein Director, SpeedRun.update spawnt und steuert die Bosse
-    else if (this.pvp) PvpMatch.update(dt);                                                    // PvP: kein Director, nur der Fernspieler
+    if (this.pvp) PvpMatch.update(dt);                                                    // PvP: kein Director, nur der Fernspieler
     else if (!Tutorial.active && !(this.victory > 0)) { Coop.noticesOn(true); this.director.update(dt); this.director.updateBosses(); Coop.noticesOn(false); }       // im Tutorial führt Tutorial.update die Szenarien
     MapEnv.update(dt);
     if (!Coop.guest) Elite.update();                                                        // (Koop-Gast: die Geister kommen fertig vom Host)
@@ -979,7 +971,7 @@ const G = {
     }
     if (this.boss) {
       if (!Tutorial.active) this.bossTimer += dt;                      // im Tutorial gibt es kein Zeitlimit
-      if (this.bossTimer > CFG.boss.timeout && this.boss.type !== 'reaper' && !this.sr && !Coop.guest) {      // der finale Boss hat kein Zeitlimit
+      if (this.bossTimer > CFG.boss.timeout && this.boss.type !== 'reaper' && !Coop.guest) {      // der finale Boss hat kein Zeitlimit
         this.later(0.25, () => Loadout.weaponUp(this.time));
         this.endBossFight('timeout');
       } else {
@@ -1035,33 +1027,26 @@ const G = {
     ctx.imageSmoothingEnabled = false;
     if (!menuView) { ctx.save(); ctx.beginPath(); ctx.rect(0, 0, STAGE_W, STAGE_H); ctx.clip(); }       // Lauf (4:3): nichts darf in die Seitenstreifen ragen
 
-    if (this.mode === 'loading') {
-      uiText(ctx, 'LOADING ...', 20, 30, { size: STYLE.type.h2, color: STYLE.pal.cyan });
+    if (this.mode === 'splash') {
+      drawSplashScreen(ctx);
+    } else if (this.mode === 'friends') {
+      Social.draw(ctx);
     } else if (this.mode === 'start') {
-      drawStartScreen(ctx);
+      drawHomeScreen(ctx);
+      Daily.draw(ctx);
     } else if (this.mode === 'achievements') {
       Ach.drawScreen(ctx);
     } else if (this.mode === 'leaderboard') {
       Board.draw(ctx);
-    } else if (this.mode === 'stats') {
-      StatsScreen.draw(ctx);
     } else if (this.mode === 'modeselect') {
       drawModeSelectScreen(ctx);
-    } else if (this.mode === 'multiselect') {
-      drawMultiSelectScreen(ctx);
     } else if (this.mode === 'cosmetics') {
       drawCosmeticsScreen(ctx);
-    } else if (this.mode === 'infsetup') {
-      drawInfSetupScreen(ctx);
     } else if (this.mode === 'pvp') {
       Pvp.draw(ctx);
     } else if (this.mode === 'pvpend') {
       this.drawPlay(ctx);
       PvpMatch.drawEnd(ctx);
-    } else if (this.mode === 'srsetup') {
-      SpeedRun.drawSetup(ctx);
-    } else if (this.mode === 'srend') {
-      SpeedRun.drawEnd(ctx);
     } else if (this.mode === 'mapselect') {
       drawMapSelectScreen(ctx);
     } else if (this.mode === 'keys') {
@@ -1096,7 +1081,9 @@ const G = {
       this.drawPlay(ctx);
     }
     if (this.confirm && ['upgrades', 'cosmetics'].includes(this.mode)) drawConfirm(ctx);
-    if (['achievements', 'leaderboard', 'stats', 'modeselect', 'multiselect', 'cosmetics', 'infsetup', 'srsetup', 'mapselect', 'keys', 'binds', 'inventory', 'upgrades', 'settings', 'swap', 'pause'].includes(this.mode)) drawCloseX(ctx);
+    drawToast(ctx);
+    Social.drawInvite(ctx);
+    if (['pvp', 'friends', 'achievements', 'leaderboard', 'modeselect', 'cosmetics', 'mapselect', 'keys', 'binds', 'inventory', 'upgrades', 'settings', 'swap', 'pause'].includes(this.mode)) drawCloseX(ctx);
     if (!menuView) ctx.restore();
     Ach.drawToasts(ctx);
   },
@@ -1105,7 +1092,6 @@ const G = {
     Cos2.victorySync();
     Juice.begin(ctx);                       // Zoom-Puls und Wackeln um die Bildmitte (HUD bleibt fest)
     drawGround(ctx);
-    if (this.infinite) { const [mx, my] = Juice.margin; Cos.drawEndlessGround(ctx, Cos.cur('endless'), this.cam, STAGE_W / 2 + mx, STAGE_H / 2 + my, this.realTime); }      // Endlos-Cosmetics: Raster/Sterne
     const dying = this.mode === 'dead' && Cos2.dfx, posing = !dying && Cos2.vic && this.victory > 0;
     if (dying || posing) {            // Todes-/Siegeranimation: nur Kartenhintergrund und Spieler/Animation, keine Waffen, Gegner, Lebens- und Schadensanzeigen
       ctx.save();
@@ -1119,14 +1105,13 @@ const G = {
     // Alles in der Welt wird um die Kamera verschoben gezeichnet, das HUD danach fest auf dem Bildschirm
     ctx.save();
     ctx.translate(-this.cam.x, this.cam.y);
-    if (!CFG.map.infinite && !this.pvp && !this.coop) for (const [x, y] of this.spawnPointList()) drawSprite(ctx, 'spawnPoint', x, y, 90, 200, { alpha: 0.8 });      // im Endlos-Modus sind die Spawnpunkte unsichtbar
+    if (!this.pvp && !this.coop) for (const [x, y] of this.spawnPointList()) drawSprite(ctx, 'spawnPoint', x, y, 90, 200, { alpha: 0.8 });      // Spawnpunkte
     MapFx.drawBelow(ctx);
     MapEnv.draw(ctx);
     SafeSpot.draw(ctx);
     Cos2.drawDecals(ctx);                                                          // Cosmetics: Stempel, Spuren, Tinte, Grabsteine am Boden
     for (const e of this.meteors) e.drawGround(ctx);
     Tutorial.drawWorld(ctx);
-    if (this.sr) SpeedRun.drawWorld(ctx);                                          // Speedrun: Start/Tor/Portal/Haendler/Pfeile
     for (const e of this.obstacles) e.draw(ctx);
     for (const e of this.spawners) e.draw(ctx);
     for (const e of this.powerups) e.draw(ctx);
@@ -1212,5 +1197,5 @@ function loop(now) {
 const hostMsg = (msg) => { try { if (window.parent !== window) window.parent.postMessage(msg, '*'); } catch (e) { /* egal */ } };
 
 window.addEventListener('message', (e) => { if (e.source === window.parent && e.data && e.data.type === 'fullscreen') G.hostFullscreen = !!e.data.value; });      // Holiday Games meldet, ob der Player im Vollbild ist
-loadAssets(() => { G.mode = 'start'; hostMsg({ type: 'ready', exitFullscreen: true }); });
+loadAssets(() => { G.assetsReady = true; hostMsg({ type: 'ready', exitFullscreen: true }); });
 requestAnimationFrame(loop);

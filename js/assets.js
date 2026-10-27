@@ -14,7 +14,7 @@ function imageList() {
     'thrustersIcon', 'scannerIcon', 'barrierIcon', 'capacitorIcon', 'overclockIcon', 'aegisIcon',
     'surgeIcon', 'decoyIcon', 'bombardIcon', 'bounceIcon', 'thornsIcon', 'vampireIcon', 'luckyIcon',
     'deathSecret1', 'deathSecret2', 'deathSecret3', 'deathSecret4',
-    'heroBulwark', 'heroSpecter', 'heroArchon', 'heroAlchemist', 'heroHarbinger', 'heroVoyager', 'fortressIcon', 'riftIcon', 'chronoIcon', 'catalystIcon',
+    'heroBulwark', 'heroSpecter', 'heroArchon', 'heroAlchemist', 'heroHarbinger', 'heroVoyager', 'heroConjurer', 'heroReaver', 'heroTinker', 'swarmIcon', 'rushIcon', 'rewireIcon', 'fortressIcon', 'riftIcon', 'chronoIcon', 'catalystIcon',
     'player', 'sword', 'bubble', 'shot', 'dash1', 'dash2',
     'beamLoad1', 'beamLoad2', 'beam1', 'beam2',
     'ult1', 'ult2', 'ult3', 'ult4', 'ultFlash', 'blood1', 'blood2', 'blood3',
@@ -33,10 +33,12 @@ function imageList() {
   return names;
 }
 
+const ASSETS = { done: 0, total: 0 };                                  // Ladestand fuer den Startbildschirm
 function loadAssets(onDone) {
   const names = imageList();
   let pending = names.length;
-  const finish = () => { if (--pending === 0) onDone(); };
+  ASSETS.total = names.length;
+  const finish = () => { ASSETS.done++; if (--pending === 0) onDone(); };
   for (const name of names) {
     const img = new Image();
     const entry = { img, ok: false, res: 2, w: 0, h: 0, rcx: 0, rcy: 0 };   // alle Bilder sind mit doppelter Auflösung gezeichnet

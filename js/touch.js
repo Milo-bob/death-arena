@@ -116,7 +116,7 @@ const Touch = {
     Cos2.hudBegin();
     try {
       for (const b of this.buttons) {
-        if (b.id === 'art' && !D.artifact) { b.el.style.display = 'none'; continue; }
+        if ((b.id === 'art' && !D.artifact) || (b.id === 'ult' && G.pvp)) { b.el.style.display = 'none'; continue; }       // PvP: kein Ultimate
         b.el.style.display = 'block';
         ctx.save();
         ctx.translate(b.r.x / u, b.r.y / u);

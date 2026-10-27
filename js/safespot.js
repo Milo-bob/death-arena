@@ -18,7 +18,7 @@ const SafeSpot = {
     for (let n = 0; n < 30; n++) {
       const a = rand(0, 360), d = rand(C.minDist, C.maxDist);
       let x = p.x + fwdX(a) * d, y = p.y + fwdY(a) * d;
-      if (!CFG.map.infinite) [x, y] = clampToMap(x, y, C.radius + 6);
+      [x, y] = clampToMap(x, y, C.radius + 6);
       if (G.obstacles.some((o) => o.alive && dist2(x, y, o.x, o.y) < (o.r + C.radius + 6) ** 2)) continue;
       return [x, y];
     }
@@ -47,7 +47,7 @@ const SafeSpot = {
     if (!s) { this.inside = false; return; }
     if (!anyEvent) { this.end(); return; }
     s.age += dt;
-    if (!CFG.map.infinite) [s.x, s.y] = clampToMap(s.x, s.y, C.radius + 6);          // z. B. bei verkleinerter Arena
+    [s.x, s.y] = clampToMap(s.x, s.y, C.radius + 6);          // z. B. bei verkleinerter Arena
     const p = G.player;
     this.inside = dist2(p.x, p.y, s.x, s.y) <= C.radius * C.radius;
     if (!this.inside) return;

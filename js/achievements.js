@@ -92,8 +92,6 @@ const ACH_LIST = [
   { id: 'walls',     br: 'world', name: 'WALLS CLOSING IN',     desc: 'Survive the arena shrinking.',                   icon: 'barrierIcon',  key: 'evCollapse', need: 1,   reward: { cores: 20 } },
   { id: 'hotstuff',  br: 'world', name: 'HOT STUFF',            desc: 'Unlock Ember Foundry.',                          icon: 'fireIcon',     key: 'maps',      need: 2,    reward: { cores: 25 } },
   { id: 'chemrom',   br: 'world', name: 'CHEMICAL ROMANCE',     desc: 'Unlock Toxic Core.',                             icon: 'buffRegen',    key: 'maps',      need: 3,    reward: { cores: 40 } },
-  { id: 'void',      br: 'world', name: 'INTO THE VOID',        desc: 'Finish an Endless Mode run.',                    icon: 'spawnPoint',   key: 'infRuns',   need: 1,    reward: { cores: 20 } },
-  { id: 'neverend',  br: 'world', name: 'NEVER-ENDING STORY',   desc: 'Survive 15 minutes in Endless Mode.',            icon: 'ult2',         key: 'timeInf',   need: 900,  reward: { cores: 50 } },
   { id: 'coldopen',  br: 'world', name: 'COLD OPEN',            desc: 'Unlock Cryo Station.',                           icon: 'frostIcon',    key: 'maps',      need: 4,    reward: { cores: 40 } },
 
   // ---- DUMB DEATHS (wer oder was dich erwischt hat) ----
@@ -165,7 +163,7 @@ const ACH_LIST = [
 // Cosmetics gibt es nur noch fuer Credits: Belohnungen, die frueher ein Cosmetic waren, zahlen dessen Wert in Credits aus (cosRewardCredits in config.js)
 for (const a of ACH_LIST) if (a.reward && a.reward.cos) a.reward = { cores: cosRewardCredits(a.reward.cos) };
 
-const ACH_TIME_KEYS = /^(time|timeInf|tm_.*|attackT)$/;       // Zaehler in Sekunden: als m:ss anzeigen
+const ACH_TIME_KEYS = /^(time|tm_.*|attackT)$/;       // Zaehler in Sekunden: als m:ss anzeigen
 
 // Zaehler, die direkt aus dem Spielstand folgen (kein eigener Haken noetig)
 const ACH_DERIVED = {
@@ -178,7 +176,7 @@ const ACH_DERIVED = {
   upgrades: () => Object.values(Save.data.upgrades || {}).reduce((s, v) => s + v, 0),
   gearLv: () => Math.max(0, ...Object.values(Save.data.gear || {}).map((g) => g.lv || 0)),
   heroes: () => Object.keys(Save.data.heroes || {}).length,
-  maps: () => CFG.maps.reduce((n, m, i) => n + (i === 0 || Save.mapBestTime(i - 1) >= Save.mapNeed(i) ? 1 : 0), 0),
+  maps: () => CFG.maps.reduce((n, m, i) => n + (i === 0 || Save.mapWon(i - 1) ? 1 : 0), 0),
   types: () => Object.keys(Ach.data().cnt.types || {}).length,
   bossTypes: () => Object.keys(Ach.data().cnt.bossTypes || {}).length,
   heroRuns: () => Object.keys(Ach.data().cnt.heroRuns || {}).length,
@@ -198,13 +196,28 @@ const Ach = {
     return d.ach;
   },
   running() { return G.mode === 'play' && this.ok(); },
-  ok() { return !(typeof Tutorial !== 'undefined' && Tutorial.active) && !G.cheated && !Save.srOn && !G.pvp; },       // Tutorial, Cheat-Laeufe, Speedruns und PvP zaehlen nicht
-  done(id) { return !!this.data().done[id]; },
+  ok() { return !(typeof Tutorial !== 'undefined' && Tutorial.active) && !G.cheated && !G.pvp; },       // Tutorial, Cheat-Laeufe und PvP zaehlen nicht
+  // Meilensteine (CFG.milestones, Logik in Save) erscheinen hier als zusaetzliche Zweige: gleiche Knoten, Fortschritt aus dem Spielstand, Belohnung wie bisher
+  msBranches() { return MILESTONE_GROUPS.map((g) => ({ id: 'ms_' + g.id, label: g.label })); },
+  msList() {
+    if (this._ms) return this._ms;
+    const icon = (m) => m.reward.hero ? 'player' : m.stat === 'wins' ? 'deathSecret2' : m.stat === 'tutorial' ? 'shot' : /boss/i.test(m.stat) ? 'octagon' : /kill/i.test(m.stat) ? 'circle' : /best/.test(m.stat) ? 'ult1' : 'player';
+    this._ms = CFG.milestones.map((m) => ({ id: 'ms_' + m.id, br: 'ms_' + (m.cat || m.stat), name: m.name, desc: m.reward.hero ? 'Milestone: lets you buy this hero in the shop.' : 'Milestone: the reward is paid out once.', icon: icon(m), ms: m, need: m.need }));
+    return this._ms;
+  },
+  branches() { return ACH_BRANCHES.concat(this.msBranches()); },
+  msDone() { return this.msList().filter((a) => this.done(a.id)).length; },
+  val(a) { return a.ms ? Save.statValue(a.ms.stat) : this.value(a.key); },
+  isTime(a) { return a.ms ? /^(best|mapbest:.*)$/.test(a.ms.stat) : ACH_TIME_KEYS.test(a.key); },
+  done(id) { return String(id).startsWith('ms_') ? Save.milestoneDone(String(id).slice(3)) : !!this.data().done[id]; },
   total() { return ACH_LIST.length; },
   doneCount() { return ACH_LIST.filter((a) => this.done(a.id)).length; },
   unseen() { return Math.max(0, this.doneCount() - (this.data().seen || 0)); },
   value(key) { return ACH_DERIVED[key] ? ACH_DERIVED[key]() : this.data().cnt[key] || 0; },
-  rows() { return ACH_BRANCHES.map((b) => ACH_LIST.filter((a) => a.br === b.id)); },
+  rows() {
+    const ms = this.msList().slice().sort((a, b) => String(a.ms.stat).localeCompare(String(b.ms.stat)) || a.need - b.need);
+    return this.branches().map((b) => (b.id.startsWith('ms_') ? ms : ACH_LIST).filter((a) => a.br === b.id)).filter((r, i) => r.length || i < ACH_BRANCHES.length);
+  },
 
   // ---- Haken ----
   add(key, n = 1, force = false) {
@@ -241,7 +254,6 @@ const Ach = {
       if (k === 'METEOR') this.add('killMeteor');
     }
     if (Stats.dmg && Stats.dmg['STANDING STILL'] > 0) this.add('afk');
-    if (G.infinite) this.add('infRuns');
     // Dumb Deaths, Loadout, Heroes, Maps
     if (!win && k) this.add('d_' + k);
     const hid = Hero.id();
@@ -262,7 +274,7 @@ const Ach = {
     if (!this.ok()) return;
     const p = G.player;
     this.max('combo', G.combo); this.max('killsRun', G.kills); this.max('bossesRun', G.bosses); this.max('lvl', Xp.level);
-    this.max('time', G.time); if (G.infinite) this.max('timeInf', G.time);
+    this.max('time', G.time);
     if (G.finalStarted) this.max('finalBoss', 1);
     if (p) {
       if (p.evolved && Object.values(p.evolved).some(Boolean)) this.max('evolved', 1);
@@ -286,14 +298,14 @@ const Ach = {
     R.px = p.x; R.py = p.y;
     if (R.weapon !== null && p.weapon !== R.weapon) this.add('switches');
     R.weapon = p.weapon;
-    if (!G.infinite && G.map && G.map.half && (Math.abs(p.x) > G.map.half[0] - 24 || Math.abs(p.y) > G.map.half[1] - 24)) this.acc('wallhug', dt);
+    if (G.map && G.map.half && (Math.abs(p.x) > G.map.half[0] - 24 || Math.abs(p.y) > G.map.half[1] - 24)) this.acc('wallhug', dt);
     for (const id of ['fortress', 'rift', 'chrono', 'catalyst']) {                       // Held-Artefakt eingesetzt = Abklingzeit springt hoch
       const c = p.cds[id] || 0;
       if (c > (R.cd[id] || 0) + 0.5) this.add('art_' + id);
       R.cd[id] = c;
     }
     this.max('t_' + hid, G.time);
-    if (!G.infinite && G.map) this.max('tm_' + G.map.id, G.time);
+    if (G.map) this.max('tm_' + G.map.id, G.time);
     if (G.time >= 300 && !Save.equipped('heavy') && !Save.equipped('artifact')) this.max('minimal', 1);
   },
 
@@ -315,6 +327,7 @@ const Ach = {
     try { Sfx.play('buy'); } catch (e) { /* kein Ton */ }
   },
   rewardText(a) {
+    if (a.ms) return milestoneRewardText(a.ms) || 'COSMETIC / CREDITS';
     return a.reward.secret ? 'SECRET: TOTEM OF UNDYING' : '+' + a.reward.cores + ' CREDITS';
   },
 
@@ -371,13 +384,13 @@ const Ach = {
     drawMenuBg(ctx, 'keysettings');
     drawEmbers(ctx);
     uiText(ctx, 'ACHIEVEMENTS', 24, 40, { size: T.h1, color: P.yellow, glow: P.yellow });
-    uiText(ctx, this.doneCount() + ' / ' + this.total(), STAGE_W - 56, 38, { size: T.h2, color: P.yellow, align: 'right', glow: P.yellow });
+    uiText(ctx, this.doneCount() + ' / ' + this.total() + '    MILESTONES ' + this.msDone() + ' / ' + this.msList().length, STAGE_W - 56, 38, { size: T.h2, color: P.yellow, align: 'right', glow: P.yellow });
     const X0 = 150, DX = 52, NS = 36, Y0 = 56, DY = 41, top = s.top || 0, vis = Math.min(ACH_VISIBLE, rows.length);
     let tip = null;
     UIScroll.bar(ctx, 'ach', STAGE_W - 20, Y0, 6, vis * DY - 13, true, rows.length, vis, top, (v) => { s.top = v; });
     rows.forEach((row, r) => {
       if (r < top || r >= top + vis) return;                                    // nur der sichtbare Ausschnitt
-      const y = Y0 + (r - top) * DY, B = ACH_BRANCHES[r], got = row.filter((a) => this.done(a.id)).length;
+      const y = Y0 + (r - top) * DY, B = this.branches().find((q) => q.id === row[0].br), got = row.filter((a) => this.done(a.id)).length;
       uiText(ctx, B.label, 24, y + 13, { size: T.body, color: got === row.length ? P.yellow : P.ice });
       uiText(ctx, got + '/' + row.length, 24, y + 25, { size: T.small, color: P.grey });
       row.forEach((a, c) => {                                                     // Verbindungslinie zum vorigen Knoten
@@ -409,7 +422,7 @@ const Ach = {
     uiText(ctx, uiFit(ctx, a.name, w - 20, T.h2), x + 10, y + 17, { size: T.h2, color: d ? P.yellow : P.ice });
     uiWrap(ctx, a.desc, x + 10, y + 31, w - 20, 11, { size: T.small, color: P.grey });
     // Fortschritt: Balken unten, daneben Zahl (Aufgaben mit Ziel 1 zeigen 0/1, Zeiten als m:ss)
-    const v = d ? a.need : Math.min(a.need, Math.floor(this.value(a.key))), fmt = ACH_TIME_KEYS.test(a.key) ? formatTime : String;
+    const v = d ? a.need : Math.min(a.need, Math.floor(this.val(a))), fmt = this.isTime(a) ? formatTime : String;
     uiText(ctx, d ? 'DONE  -  ' + this.rewardText(a) : 'REWARD  ' + this.rewardText(a), x + 10, y + h - 20, { size: T.small, color: d ? P.cyan : P.yellow, maxW: w - 70 });
     uiText(ctx, fmt(v) + '/' + fmt(a.need), x + w - 10, y + h - 20, { size: T.small, color: d ? P.cyan : P.ice, align: 'right' });
     uiBar(ctx, x + 10, y + h - 13, w - 20, 5, a.need > 0 ? v / a.need : 1, d ? P.yellow : P.cyan);

@@ -2,7 +2,6 @@
 // Karte 2: Lava-Schlote (LavaVent: Ruhe -> Vorwarnung -> Ausbruch, trifft Spieler UND Gegner) und Schlackenbänder (SlagBelt: schieben Figuren, kehren
 // nach einer Vorwarnung um). Karte 3: Säurepfützen (AcidPool: bremsen und schaden, stoßen von Zeit zu Zeit eine Giftwolke aus, siehe mapspecial.js).
 // Alle Gefahren stehen in G.hazards und werden über MapEnv gesteuert. Im Bosskampf, im Tutorial und in der Siegphase ruhen sie (gedimmt, ohne Wirkung).
-// Im Endlos-Modus werden sie um den Spieler herum aufgestellt und still umgesetzt, wenn sie weit weg sind.
 // Gezeichnet wird mit den Pixel-Helfern aus style.js.
 
 // ---------- Lava-Schlot (Karte 2) ----------
@@ -271,16 +270,15 @@ const MapEnv = {
     if (E.ice) make(IcePatch, E.ice.count, 50);
   },
 
-  // Freie Stelle: Abstand zum Spieler (minPlayer), zu anderen Gefahren (Radius + gap) und zu den Spawnpunkten. Endlos-Modus: im Ring um den Spieler. null = nichts gefunden
+  // Freie Stelle: Abstand zum Spieler (minPlayer), zu anderen Gefahren (Radius + gap) und zu den Spawnpunkten. null = nichts gefunden
   spot(h, minPlayer) {
     const p = G.player;
     for (let n = 0; n < 40; n++) {
       let x, y;
-      if (CFG.map.infinite) { const a = rand(0, 360), d = rand(150, 420); x = p.x + fwdX(a) * d; y = p.y + fwdY(a) * d; }
-      else [x, y] = clampToMap(rand(-CFG.map.halfW, CFG.map.halfW), rand(-CFG.map.halfH, CFG.map.halfH), h.reach + 40);
+      [x, y] = clampToMap(rand(-CFG.map.halfW, CFG.map.halfW), rand(-CFG.map.halfH, CFG.map.halfH), h.reach + 40);
       if (dist2(x, y, p.x, p.y) < minPlayer * minPlayer) continue;
       if (G.hazards.some((o) => o !== h && dist2(x, y, o.x, o.y) < (o.reach + h.reach + h.gap) ** 2)) continue;
-      if (!CFG.map.infinite && G.spawnPointList().some(([sx, sy]) => dist2(x, y, sx, sy) < (h.reach + 30) ** 2)) continue;
+      if (G.spawnPointList().some(([sx, sy]) => dist2(x, y, sx, sy) < (h.reach + 30) ** 2)) continue;
       return [x, y];
     }
     return null;
@@ -291,12 +289,6 @@ const MapEnv = {
     if (!G.hazards.length) return;
     const on = this.on;
     for (const h of G.hazards) h.update(dt, on);
-    if (!on || !CFG.map.infinite) return;
-    for (const h of G.hazards) {                                                  // Endlos-Modus: weit entfernte, ruhende Gefahren nahe beim Spieler neu aufstellen
-      if (!h.idle || dist2(h.x, h.y, G.player.x, G.player.y) < 650 * 650) continue;
-      const pos = this.spot(h, 140);
-      if (pos) { [h.x, h.y] = pos; h.reset(); }
-    }
   },
 
   // Schub aller Bänder auf eine Figur (Einheiten pro Bild, mit framesOf(dt) malnehmen)

@@ -19,7 +19,7 @@ class Player {
     this.pulseCd = 0;          // Abklingzeit der Druckwelle
     this.bloodCd = 0;
     this.slots = Object.assign({}, CFG.loadout.start);   // gewählte Ability je Gruppe (weak/medium/strong) oder null
-    this.cds = { blink: 0, frost: 0, surge: 0, decoy: 0, bombard: 0, shockstep: 0, adrenaline: 0, drone: 0, overcharge: 0, storm: 0, berserk: 0, hack: 0, necromancy: 0, stims: 0, fortress: 0, rift: 0, chrono: 0, catalyst: 0 };   // fortress/rift/chrono = Helden-Artefakte (CFG.heroes)
+    this.cds = { blink: 0, frost: 0, surge: 0, decoy: 0, bombard: 0, shockstep: 0, adrenaline: 0, drone: 0, overcharge: 0, storm: 0, berserk: 0, hack: 0, necromancy: 0, stims: 0, fortress: 0, rift: 0, chrono: 0, catalyst: 0, swarm: 0, rush: 0, rewire: 0 };   // fortress/rift/chrono = Helden-Artefakte (CFG.heroes)
     this.fortressT = 0;        // Bulwark: Restzeit der Schadensminderung nach Fortress Slam
     this.sinceHit = 99;        // Sekunden seit dem letzten Treffer (Nano Regen)
     this.aegisCd = 0;          // Aegis-Protokoll (passiv): Pause bis zum naechsten Schutz
@@ -53,9 +53,9 @@ class Player {
   }
 
   // Abklingzeiten laufen schneller ab: Meta-Upgrade und Coolant-Buff
-  get cdRate() { return (1 + Save.bonus('cooldown') + Xp.val('cooldown')) * (this.buffs.coolant > 0 ? CFG.drops.types.coolant.rate : 1); }
+  get cdRate() { return (1 + Save.bonus('cooldown') + Xp.val('cooldown')) * (this.buffs.coolant > 0 ? CFG.drops.types.coolant.rate : 1) * Hero.mods().cd; }
   // Angriffstempo durch den Raserei-Drop: Schwert dreht schneller (siehe SwordSwing), Schuss feuert schneller
-  get hasteFactor() { return (this.buffs.rapid > 0 ? 1 / CFG.drops.types.rapid.mult : 1) * (this.has('overclock') ? 1 + (CFG.passives.overclock.rate - 1) * Save.gearMul('overclock') : 1) * (1 + Save.bonus('attackSpeed') + Xp.val('rapid')) * Hero.mods().atk; }
+  get hasteFactor() { return (this.buffs.rapid > 0 ? 1 / CFG.drops.types.rapid.mult : 1) * (this.has('overclock') ? 1 + (CFG.passives.overclock.rate - 1) * Save.gearMul('overclock') : 1) * (1 + Save.bonus('attackSpeed') + Xp.val('rapid')) * Hero.mods().atk * (1 + Hero.mods().rage * (1 - clamp(this.hpPct / 100, 0, 1))); }
   // Angriffstempo je Waffe: alle Tempo-Boni (Rapid-Buff, Overclock, Attack Speed, Quick Hands, Helden) wirken auf die Plasma Blade staerker als auf den Blaster (CFG.hasteScale)
   hasteFor(kind) { const h = this.hasteFactor, k = CFG.hasteScale[kind]; return k === undefined ? h : 1 + (h - 1) * k; }
   evo(id) { return this.evolved[CFG.evolutions.list[id].slot] === id; }       // Evolution dieses Laufs aktiv?
@@ -226,7 +226,6 @@ class Player {
       if (tr.shape === 'echo') { if (moving) Juice.ghost(this, 0.5); } else Cos.trailTick(Juice.particles, tr, this, dt, moving, G.realTime);
       Cos.auraTick(Juice.particles, Cos.cur('aura'), this.x, this.y, dt);
       Cos.gearTick(Juice.particles, Cos.cur('gear'), this.x, this.y, this.dir, dt, moving);
-      if (G.infinite) Cos.endlessTick(Juice.particles, Cos.cur('endless'), this, dt, moving);
       this.cosMoving = moving;
       Cos2.floorTick(dt, this, moving);                                      // Spuren am Boden (FLOOR)
       Cos2.petTick(dt, this, moving);                                        // Begleiter (PET)
@@ -234,15 +233,9 @@ class Player {
     if (this.has('blades') && !(this.bladesObj && this.bladesObj.alive)) { this.bladesObj = new OrbitBlades(this); G.attacks.push(this.bladesObj); }
     this.sinceHit += dt;
 
-    if (G.bossLock) {
-      // Kamera steht still: der Spieler bleibt im Bild und kann nicht vor dem Boss davonlaufen
-      this.x = clamp(this.x, G.cam.x - (STAGE_W / 2 - 5), G.cam.x + (STAGE_W / 2 - 5));
-      this.y = clamp(this.y, G.cam.y - 175, G.cam.y + 175);
-    } else if (!CFG.map.infinite) {
-      [this.x, this.y] = clampToMap(this.x, this.y, 12);
-    }
+    [this.x, this.y] = clampToMap(this.x, this.y, 12);
     if (this.buffs.regen > 0 && this.hp > 0) this.hp = Math.min(this.maxHp, this.hp + CFG.drops.types.regen.hps * dt);       // Repair-Buff
-    const regen = (Save.equipped('artifact') === 'regen' ? CFG.items.regen.perSecond * Save.gearMul('regen') : 0) + Save.bonus('regen') + Xp.val('regen') + (this.has('nano') ? CFG.nano.perSecond * Save.gearMul('nano') * (this.sinceHit >= CFG.nano.calmAfter ? CFG.nano.calmMul : 1) : 0);
+    const regen = (Save.equipped('artifact') === 'regen' ? CFG.items.regen.perSecond * Save.gearMul('regen') : 0) + Save.bonus('regen') + Xp.val('regen') + Hero.mods().regen + (this.has('nano') ? CFG.nano.perSecond * Save.gearMul('nano') * (this.sinceHit >= CFG.nano.calmAfter ? CFG.nano.calmMul : 1) : 0);
     if (regen > 0 && this.hp > 0) this.hp = Math.min(this.maxHp, this.hp + regen * dt);
     if (this.hp < 0.1) {
       if (Save.equipped('artifact') === 'phoenix' && !this.phoenixUsed) {       // Artefakt Extra-Leben: einmal pro Lauf zurueck
@@ -452,6 +445,24 @@ class Player {
       this.levelFlash = 0.25; Juice.zoomPulse(1.03, 0.3);
       G.trigger('CATALYST!', STYLE.pal.green, { flash: 0.2, radius: 100, rings: 3 });
     });
+    else if (A.id === 'swarm') this.tryCast('swarm', () => {                              // Conjurer: mehrere Drohnen mit verschobener Bahn
+      const C = CFG.swarm;
+      for (let i = 0; i < C.count; i++) G.attacks.push(new Drone(this, i * 360 / C.count, C.duration));
+      G.trigger('SWARM!', STYLE.pal.cyan, { flash: 0.15, radius: 90, rings: 2 });
+    });
+    else if (A.id === 'rush') this.tryCast('rush', () => {                                // Reaver: Leben als Preis, dann Rapid Fire und Speed
+      const C = CFG.rush;
+      this.hp = Math.max(1, this.hp - C.cost);
+      this.buffs.rapid = Math.max(this.buffs.rapid || 0, C.duration); this.buffs.haste = Math.max(this.buffs.haste || 0, C.duration);
+      this.levelFlash = 0.25; Juice.shake(1.5);
+      G.trigger('BLOOD RUSH!', STYLE.pal.red, { flash: 0.2, radius: 80, rings: 2 });
+    });
+    else if (A.id === 'rewire') this.tryCast('rewire', () => {                            // Tinker: alle Abklingzeiten zurueck auf 0
+      for (const k of Object.keys(this.cds)) if (k !== 'rewire') this.cds[k] = 0;
+      this.dashCd = 0; this.pulseCd = 0;
+      this.levelFlash = 0.25; Juice.zoomPulse(1.03, 0.3);
+      G.trigger('REWIRE!', STYLE.pal.cyan, { flash: 0.2, radius: 100, rings: 3 });
+    });
   }
 
   // Rift Step: springt in Blickrichtung und trifft alles auf der Strecke (Gegner C.hits mal, Bosse C.bossDmg)
@@ -460,8 +471,8 @@ class Player {
     if (this.cds.rift > 0 || this.canMove === 0) return;
     const x0 = this.x, y0 = this.y;
     this.x += fwdX(this.dir) * C.distance; this.y += fwdY(this.dir) * C.distance;
-    if (G.bossLock) { this.x = clamp(this.x, G.cam.x - (STAGE_W / 2 - 5), G.cam.x + (STAGE_W / 2 - 5)); this.y = clamp(this.y, G.cam.y - 175, G.cam.y + 175); }
-    else if (!CFG.map.infinite) [this.x, this.y] = clampToMap(this.x, this.y, 12);
+    if (G.pvp) [this.x, this.y] = PvpCover.clip(x0, y0, this.x, this.y, 12);        // PvP: nicht durch Wände springen
+    [this.x, this.y] = clampToMap(this.x, this.y, 12);
     pushOutOfObstacles(this, this.radius);
     for (const e of G.enemies) {
       if (!e.alive || !segHitsCircle(x0, y0, this.x, this.y, C.width, e.x, e.y, e.radius)) continue;
@@ -954,7 +965,6 @@ class Player {
       ctx.restore();
     }
     Cos.drawAura(ctx, Cos.cur('aura'), this.x, this.y, t);
-    if (G.infinite) Cos.drawEndless(ctx, Cos.cur('endless'), this.x, this.y, t, { homeX: 0, homeY: 0, mins: G.time / 60 });
     Cos.gearMoving = !!this.cosMoving;
     Cos2.state.moving = !!this.cosMoving; Cos2.state.dash = this.dashLeft > 0; Cos2.state.hp = clamp(this.hp / this.maxHp, 0, 1);       // Zustand fuer Skins mit Verhalten (Cosmetics)
     const vm = Cos2.victoryMod(Cos2.vic);                                    // Cosmetic Siegerpose "Victory Spin": huepft und dreht sich kurz

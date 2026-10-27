@@ -1,4 +1,4 @@
-// Koop-Lauf (PLAY > MULTIPLAYER > CO-OP): bis zu 4 Spieler spielen gemeinsam einen Lauf auf einer der vier Standardkarten (Karte 1.7x so gross, Zahlen in CFG.coop).
+// Koop-Lauf (PLAY > MULTIPLAYER > CO-OP): bis zu 6 Spieler spielen gemeinsam einen Lauf auf einer der vier Standardkarten (Karte 1.7x so gross, Zahlen in CFG.coop).
 // Lobby und Verbindung sind dieselben wie in der PvP-Arena (pvp.js, net.js).
 //
 //   Host   rechnet die ganze Welt wie im normalen Spiel (Director, Gegner, Bosse, Geschosse, Gefahren). Gegner und Bosse zielen auf den naechsten Spieler;
@@ -219,7 +219,7 @@ const Coop = {
     const byId = {}; for (const p of Pvp.players) byId[p.id] = p;
     if (order.some((id) => !byId[id])) return false;
     const role = Pvp.isHost ? 'host' : 'guest', mapIdx = clamp((info && info.map) | 0, 0, CFG.maps.length - 1), n = order.length, mult = C.mult(n);
-    G.coopMap = mapIdx; G.begin(false, false, 'coop'); G.coopMap = undefined;
+    G.coopMap = mapIdx; G.begin(false, 'coop'); G.coopMap = undefined;
     const base = CFG.maps[mapIdx];
     G.map = Object.assign({}, base, { half: base.half.map((v) => Math.round(v * C.mapScale)) });          // gleiche Karte, groesser
     CFG.map.halfW = G.map.half[0]; CFG.map.halfH = G.map.half[1];
@@ -268,7 +268,7 @@ const Coop = {
   randomPlayer() { const l = this.livePlayers(); return l.length ? l[randInt(0, l.length - 1)] : G.player; },
   // Spawnpunkte rund um alle lebenden Spieler (ausserhalb des Bildes), auf die Karte begrenzt
   spawnPoints() {
-    const pts = [], off = CFG.infinite.spawnPoints;
+    const pts = [], off = CFG.coopSpawnOffsets;
     for (const q of this.livePlayers()) for (const [dx, dy] of off) pts.push(clampToMap(q.x + dx, q.y + dy, 10));
     return pts.length ? pts : CFG.spawnPoints;
   },
@@ -288,7 +288,7 @@ const Coop = {
     if (!Pvp.ch) { this.abort('CONNECTION LOST'); return; }
     // Mitspieler: wer laenger weg ist, wird entfernt; ist der Host weg, endet der Lauf fuer die Gaeste
     const present = (id) => Pvp.players.some((q) => q.id === id);
-    if (C.role === 'guest') { C.hostGone = Pvp.players.some((p) => p.host) ? 0 : C.hostGone + dt; if (C.hostGone > 4) { this.abort('THE HOST LEFT'); return; } }
+    if (C.role === 'guest') { C.hostGone = Pvp.players.some((p) => p.host) ? 0 : C.hostGone + dt; if (C.hostGone > 4) { this.runOver('THE HOST LEFT'); return; } }       // Host weg: der Lauf endet fuer die Gaeste mit Abrechnung (Credits/XP fuer die Zeit), die Welt laesst sich nicht uebergeben
     for (const m of G.mates) {
       m.gone = present(m.id) ? 0 : (m.gone || 0) + dt;
       if (m.gone > 2) { m.dead = true; m.left = true; }
@@ -304,7 +304,7 @@ const Coop = {
       this.send('cstate', { x: r1(pl.x), y: r1(pl.y), d: r1(pl.dir), vx: r1(pl.velX || 0), vy: r1(pl.velY || 0), hp: Math.round(pl.hp), mh: Math.round(pl.maxHp),
         spr: Hero.sprite(), bl: pl.blinkT > 0 ? 1 : 0, sh: pl.shield ? 1 : 0, dd: C.out ? 1 : 0, a: C.out ? [] : PvpMatch.snapshot(),
         ul: Math.round(clamp(G.ultCharge / (CFG.ult.readyAt + 1), 0, 1) * 100) / 100, ur: G.ultCharge > CFG.ult.readyAt ? 1 : 0, un: 1 + (G.ultStock || 0),
-        cs: this.lookPack(), sp: SafeSpot.inside && SafeSpot.spot ? [Math.round(SafeSpot.spot.x), Math.round(SafeSpot.spot.y)] : 0 });
+        cs: (C.csN = (C.csN || 0) + 1) % 20 === 1 ? this.lookPack() : undefined, sp: SafeSpot.inside && SafeSpot.spot ? [Math.round(SafeSpot.spot.x), Math.round(SafeSpot.spot.y)] : 0 });
     }
     if (C.role === 'host') {
       C.worldT -= dt;
@@ -387,6 +387,7 @@ const Coop = {
       return out;
     };
     const flag = (e) => (e.mini ? 1 : 0) | (e.blooded ? 2 : 0) | (e.stun > 0 ? 4 : 0) | (e.minion ? 8 : 0) | (e.elite ? 16 : 0) | (e.splitlet ? 32 : 0) | (e.raised ? 64 : 0) | (e.attached ? 128 : 0) | (e.hasteT > 0 ? 256 : 0) | (e.amp > 0 ? 512 : 0);
+    const wn = C.wn = (C.wn || 0) + 1, slow = (n) => wn % n === 1;
     const enemies = [];
     for (const e of G.enemies) {
       if (!e.alive || enemies.length >= K.maxEnemies) continue;
@@ -406,8 +407,10 @@ const Coop = {
     const bosses = G.bossList().map((b, i) => ({ i: id(b), ty: b.type, f: coopFields(b, COOP_BOSS_SKIP), main: b === G.boss ? 1 : 0, tw: b.twin ? 1 : 0 }));
     const w = {
       t: Math.round(G.time * 100) / 100, q: C.seq, e: enemies, b: bosses,
-      sh: gen(G.shots, K.maxShots), bs: gen(G.bossShots, K.maxShots), bl: gen(G.blasts, K.maxShots), me: gen(G.meteors, 24), sp: gen(G.spawners, 8, new Set([...COOP_SKIP, 'warn']), false),
-      ob: gen(G.obstacles, 30, COOP_SKIP, false), pu: gen(G.powerups, 8, COOP_SKIP, false), hz: gen(G.hazards, 40, new Set([...COOP_SKIP, 'hit', 'hitPlayer']), false),
+      sh: gen(G.shots, K.maxShots), bs: gen(G.bossShots, K.maxShots), bl: gen(G.blasts, K.maxShots), me: gen(G.meteors, 24), pu: gen(G.powerups, 8, COOP_SKIP, false),
+      // langsame Listen (Spawner, Hindernisse, Gefahren) nur jedes n-te Bild: der Gast behaelt bis dahin den letzten Stand (spart den Grossteil der Daten)
+      sp: slow(4) ? gen(G.spawners, 8, new Set([...COOP_SKIP, 'warn']), false) : undefined,
+      ob: slow(4) ? gen(G.obstacles, 30, COOP_SKIP, false) : undefined, hz: slow(2) ? gen(G.hazards, 40, new Set([...COOP_SKIP, 'hit', 'hitPlayer']), false) : undefined,
       fl: { fl: G.flood ? 1 : 0, bm: G.bloodMoon ? 1 : 0, bml: Math.round(G.bloodMoonLeft || 0), ms: G.meteorShower ? 1 : 0, mll: Math.round(G.meteorLeft || 0), co: G.collapse ? 1 : 0, cw: G.collapseWarn ? 1 : 0,
         cl: Math.round(G.collapseLeft || 0), as: Math.round(G.arenaScale * 1000) / 1000, at: G.arenaTarget, bf: G.bossFight ? 1 : 0, bc: G.bossCount, fs: G.finalStarted ? 1 : 0, eu: G.eliteUp ? 1 : 0, bt: Math.round(G.bossTimer * 10) / 10 },
       bz: MapEnv.blz ? coopPack(MapEnv.blz) : null,
@@ -449,7 +452,7 @@ const Coop = {
     this.syncList('spawners', w.sp, (g) => { g.update = coopSpawnerContact; g.hp0 = g.hp; });
     this.syncList('obstacles', w.ob, (g) => { g.update = coopGhostUpdate; g.contact = coopObstacleContact; g.hp0 = g.hp; g.flash = 0; g.hitCd = 0; });
     this.syncList('powerups', w.pu, (g) => { delete g.update; });
-    this.syncHazards(w.hz || []);
+    if (w.hz) this.syncHazards(w.hz);
     if (f.bf && !G.bossFight && G.boss) G.startBossFight(G.boss.type);              // falls die Meldung 'Bosskampf beginnt' verloren ging
     const now = G.realTime; for (const [k, t] of C.gone) if (now - t > 2) C.gone.delete(k);
   },
@@ -708,7 +711,7 @@ const Coop = {
 
 if (typeof I18n !== 'undefined' && I18n.add) I18n.add({
   'CO-OP': 'KOOP', 'AUTO-PICK IN #S': 'AUTO-WAHL IN #S', 'Play a co-op run together with another player.': 'Spiele einen Koop-Lauf zusammen mit einem anderen Spieler.', 'CONNECTION LOST': 'VERBINDUNG VERLOREN', 'THE HOST LEFT': 'DER HOST IST WEG', 'YOU LEFT THE RUN': 'DU HAST DEN LAUF VERLASSEN', 'ALL PLAYERS ARE DOWN': 'ALLE SPIELER SIND AUSGESCHIEDEN',
-  'Play a run together with up to 3 friends on the standard maps, only bigger. Create a lobby and share the code.': 'Spielt einen Lauf zusammen mit bis zu 3 Freunden auf den Standardkarten, nur größer. Erstelle eine Lobby und teile den Code.',
+  'Play a run together with up to 5 friends on the standard maps, only bigger. Create a lobby and share the code.': 'Spielt einen Lauf zusammen mit bis zu 5 Freunden auf den Standardkarten, nur größer. Erstelle eine Lobby und teile den Code.',
   'Everyone keeps their own gear, upgrades and hero. More players means a much harder run: 2 players are about 2.7x, 4 players about 8x as hard. Fallen players come back after the next boss.': 'Jeder behält seine eigene Ausrüstung, Upgrades und seinen Helden. Mehr Spieler bedeuten einen viel härteren Lauf: 2 Spieler sind etwa 2,7x, 4 Spieler etwa 8x so schwer. Gefallene Spieler kommen nach dem nächsten Boss zurück.',
   'Share the code. Everyone plays together on the bigger map; more players make the run harder. Choose the map, then start.': 'Teile den Code. Alle spielen zusammen auf der größeren Karte; mehr Spieler machen den Lauf härter. Wähle die Karte und starte.',
   'Your own gear, upgrades and hero count. Only the host can start the run.': 'Deine eigene Ausrüstung, Upgrades und dein Held zählen. Nur der Host kann den Lauf starten.',

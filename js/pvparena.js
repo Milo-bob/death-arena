@@ -1,7 +1,8 @@
 // PvP-Arena: die runde Kampffläche im Stil eines Kolosseums, aber futuristisch (rötliche Töne, Neonlinien statt Fackeln aus Stein).
 // Aufbau von aussen nach innen: Zuschauerränge (Stufen mit Gängen) -> Mauer mit Bögen und Säulen -> Neon-Rand -> Sandboden mit Raster und Mitten-Zeichen.
 // Alles wird EINMAL in ein Offscreen-Bild gezeichnet (Pixel-Look wie der Rest, siehe px*-Helfer in style.js); pro Bild kommen nur Fackelschein und Pulsieren dazu.
-// Die Grenze der Kampffläche ist ein Kreis mit Radius CFG.pvp.radius (clampToMap in game.js).
+// Die Grenze der Kampffläche ist ein Kreis mit Radius CFG.pvp.radius (clampToMap in game.js). Die Deckung der gewählten Karte (PvpCover, js/pvpcover.js) wird mit ins Bodenbild gemalt;
+// die offene Karte 'colosseum' hat keine, das ursprüngliche Design ist also unverändert.
 
 const PvpArena = {
   cv: null, S: 0, torches: [],
@@ -73,12 +74,13 @@ const PvpArena = {
     x.fillStyle = 'rgba(255,200,120,0.5)';
     for (let k = 0; k < 4; k++) { const a = k * 1.5708, [x0, y0] = polar(34, a), [x1, y1] = polar(44, a); pxLine(x, x0, y0, x1, y1, 1); }
     for (const sx of [-CFG.pvp.spawnX, CFG.pvp.spawnX]) { x.fillStyle = 'rgba(255,170,90,0.55)'; pxRing(x, c + sx, c, 14, 1, 12); x.fillStyle = 'rgba(255,170,90,0.2)'; pxGlow(x, c + sx, c, 10); }
-    this.cv = cv;
+    PvpCover.bake(x, c);                                                     // Wände und Säulen der gewählten Karte (bei 'colosseum' nichts)
+    this.cv = cv; this.mapId = PvpCover.id;
   },
 
   // Boden unter allem (wird von drawGround in game.js statt der Kachelkarte gerufen). ctx steht noch auf Bildschirmkoordinaten, Kamera = G.cam.
   drawGround(ctx) {
-    if (!this.cv || this.R !== CFG.pvp.radius) this.build();
+    if (!this.cv || this.R !== CFG.pvp.radius || this.mapId !== PvpCover.id) this.build();
     const P = STYLE.pal, c = G.cam, [mx, my] = Juice.margin;
     ctx.fillStyle = '#07020a'; ctx.fillRect(-mx, -my, STAGE_W + 2 * mx, STAGE_H + 2 * my);
     if (!this.cv) return;

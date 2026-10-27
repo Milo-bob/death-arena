@@ -60,7 +60,7 @@ const CFG = {
     afkDamage: 0.5,
     hitDamageMin: 8,
     hitDamageMax: 10,
-    ramp: { marks: [300, 600, 900], add: [0.5, 1.0, 1.5] },        // Gegner machen ab diesen Wellen-Sekunden (5 / 10 / 15 Min.; 15 nur im Endlos-Modus) mehr Schaden: dieser Wert wird zum Karten-Schadensfaktor (diff.damage) ADDIERT, der Wert ersetzt den vorigen (nicht im Tutorial). Karte 1 ist so bei der Haelfte (7 Min.) bei 1.5 = Basiswert von Karte 2
+    ramp: { marks: [300, 600, 900], add: [0.5, 1.0, 1.5] },        // Gegner machen ab diesen Wellen-Sekunden (5 / 10 / 15 Min.) mehr Schaden: dieser Wert wird zum Karten-Schadensfaktor (diff.damage) ADDIERT, der Wert ersetzt den vorigen (nicht im Tutorial). Karte 1 ist so bei der Haelfte (7 Min.) bei 1.5 = Basiswert von Karte 2
     kiteBaseDamage: 7.5,      // Kite-Boss: fester Schaden = 7.5 + Boss-Stufe
     // [Leben größer als, Schadensfaktor] (der rote Rand hängt nicht an diesen Stufen, siehe `warn`)
     // Original: 0.65 / 0.55 / 0.5 / 0.35 / 0.15 (das Sicherheitsnetz machte fast unsterblich). Jetzt deutlich weniger Nachlass.
@@ -276,7 +276,6 @@ const CFG = {
       { id: 'gear',  label: 'GEAR',  desc: 'Parts attached to your ship: wings, horns, a crown, a jetpack.' },
       { id: 'enemy', label: 'FOES',  desc: 'How normal enemies look. Shield enemies and elites keep their colors, but get the effects. Any color is free: press [C].' },
       { id: 'boss',  label: 'BOSSES', desc: 'How bosses look: glitches, shadows, flames, crowns. Any color is free: press [C].' },
-      { id: 'endless', label: 'ENDLESS', desc: 'Only shown in Infinite Mode: floor effects and markers for the wall-less map. Some need an Endless survival time.' },
       // Neu: gelten immer fuer die ganze Kategorie (alle Waffen, alle Kills, alle Treffer ...), nie nur fuer eine einzelne Waffe oder Faehigkeit
       { id: 'proj',  label: 'SHOTS',  desc: 'The look of ALL your projectiles: shots, pellets, rockets, discs, grenades. Uses your Glow color.' },
       { id: 'hit',   label: 'HITS',   desc: 'What every hit shows, from any weapon: comic words.' },
@@ -285,7 +284,7 @@ const CFG = {
       { id: 'hud',   label: 'HUD',    desc: 'New frames and colors for the in-game HUD: hotbar, orb, bars.' },
       { id: 'numbers', label: 'DIGITS', desc: 'Style of the damage numbers that float up from you.' },
       { id: 'sound', label: 'SOUND',  desc: 'Sound pack for hits, kills, shots and impacts. Select one to hear it.' },
-      { id: 'menubg', label: 'MENU',  desc: 'Animated background of the main menu.' },
+      { id: 'menubg', label: 'MENU',  desc: 'Animated background for the main screen and all menus.' },
       { id: 'death', label: 'DEATH',  desc: 'How your ship goes down when you die.' },
       { id: 'intro', label: 'INTRO',  desc: 'The title card that appears when a boss shows up. Works for every boss.' },
       { id: 'victory', label: 'WIN',  desc: 'A little celebration after every boss you defeat.' },
@@ -321,7 +320,7 @@ const CFG = {
         { id: 'obsidian', name: 'OBSIDIAN',   cost: 240, color: STYLE.pal.greyMid, filter: 'grayscale(1) brightness(0.45) contrast(1.4)', special: true },
         { id: 'aurora',  name: 'AURORA',      cost: 330, color: STYLE.pal.teal,   filter: 'hue-rotate(-120deg) brightness(1.2)', fx: 'holo' },
         { id: 'scorch',  name: 'SCORCHED',    cost: 380, color: STYLE.pal.red,    filter: 'hue-rotate(100deg) brightness(0.7)', fx: 'ember' },
-        // Neu: Meilenstein-/Achievement-Belohnungen (Cryo Station, Endless, Elite) und zwei mit Effekt
+        // Neu: Meilenstein-/Achievement-Belohnungen (Cryo Station, Elite) und zwei mit Effekt
         { id: 'royal',   name: 'ROYAL BLUE',  cost: 130, color: STYLE.pal.cyan,   filter: 'hue-rotate(-35deg) brightness(0.9) saturate(1.5)' },
         { id: 'tangerine', name: 'TANGERINE', cost: 120, color: STYLE.pal.orange, filter: 'hue-rotate(110deg) brightness(1.25) saturate(1.3)' },
         { id: 'sakura',  name: 'SAKURA',      cost: 120, color: STYLE.pal.pink,   filter: 'hue-rotate(35deg) brightness(1.4) saturate(0.8)' },
@@ -464,19 +463,6 @@ const CFG = {
         { id: 'permafrost', name: 'PERMAFROST', cost: 330, color: STYLE.pal.ice,  filter: 'hue-rotate(185deg) brightness(1.2)', fx: 'static' },
         { id: 'cryoking', name: 'FROST KING',  cost: 380, color: STYLE.pal.cyan,   filter: 'hue-rotate(170deg) brightness(1.1)', fx: 'crown' },
         { id: 'blizzard', name: 'BLIZZARD',    cost: 340, color: STYLE.pal.white,  filter: 'grayscale(1) brightness(1.4)', fx: 'orbit' },
-      ],
-      // Endlos-Modus (wirken nur im Endlos-Lauf, die Karte hat dort keine Waende).
-      // fx: beacon (Pfeil zum Startpunkt), sonar (Ping-Ringe), chrono (Siegel = 1 pro 5 Min Laufzeit), warp (Tempolinien),
-      //     grid (Bodenraster, Farbe = color), stars (Sternenfeld mit Tiefe)
-      endless: [
-        { id: 'none',    name: 'NOTHING',        cost: 0,   color: STYLE.pal.greyMid, fx: null },
-        { id: 'beacon',  name: 'HOME BEACON',    cost: 150, color: STYLE.pal.green,   fx: 'beacon' },
-        { id: 'sonar',   name: 'SONAR PING',     cost: 200, color: STYLE.pal.cyan,    fx: 'sonar' },
-        { id: 'grid',    name: 'NEON GRID',      cost: 220, color: STYLE.pal.cyan,    fx: 'grid' },
-        { id: 'stars',   name: 'DEEP SPACE',     cost: 300, color: STYLE.pal.ice,     fx: 'stars' },
-        { id: 'bloodgrid', name: 'BLOOD GRID',   cost: 280, color: STYLE.pal.red,     fx: 'grid' },
-        { id: 'chrono',  name: 'CHRONO SIGILS',  cost: 340, color: STYLE.pal.yellow,  fx: 'chrono' },
-        { id: 'warp',    name: 'WARP LINES',     cost: 380, color: STYLE.pal.violet,  fx: 'warp' },
       ],
 
       // ---- Neue Kategorien (Umsetzung: js/cosmetics2.js, Objekt Cos2). Standard ist immer das erste Item. ----
@@ -692,26 +678,30 @@ const CFG = {
     // (Stats kosten ab ca. 25-30 Cores). Danach normal. Tutorial zaehlt nicht als Lauf. Eintraege = Anzahl der Laeufe.
     // Lauf 1 muss zusammen mit dem Tutorial-Bonus (25) fuer die gefuehrten ersten Kaeufe reichen: Beam (1) + Health (50) + Credit Harvester (45) = 96 (siehe guideStep in game.js).
     starter: { mult: [3, 2.5, 2, 1.75, 1.5], min: [75, 50, 40, 35, 30] },
+    // Stats (Upgrades > STATS): 10 Stufen-Stats mit je 15 Stufen, Preis = cost x (Stufe + 1). Mehrere Stats sind Buendel: ein Stat gibt mehrere Boni (siehe `effects`).
+    // desc(v, lv): v = Bonus des Haupt-Teils, lv = Stufe (Buendel rechnen die anderen Teile aus lv). Alte Spielstaende: Save.migrate (d.statsMerged) nimmt die hoechste Stufe der alten Teile.
     upgrades: {
+      // SURVIVAL
       health:   { tab: 'stats', name: 'HEALTH',            max: 15, cost: 50, step: 10,   desc: (v) => '+' + v + ' max health', info: 'More maximum health (base 100), the health bar adapts.' },
-      speed:    { tab: 'stats', name: 'SPEED',        max: 15, cost: 30, step: 0.02, desc: (v) => '+' + Math.round(v * 100) + '% move speed', info: 'You move faster permanently.' },
-      ult:      { tab: 'stats', name: 'ULTIMATE CHARGE',  max: 15, cost: 40, step: 0.05, desc: (v) => '+' + Math.round(v * 100) + '% charge from kills', info: 'Kills charge your ultimate faster.' },
-      cooldown: { tab: 'stats', name: 'COOLDOWNS',    max: 15, cost: 50, step: 0.03, desc: (v) => '-' + Math.round(v * 100) + '% ability cooldown', info: 'Abilities, grenades and more are ready sooner.' },
-      startUlt: { tab: 'stats', name: 'STARTING CHARGE',   max: 15, cost: 25, step: 4,    desc: (v) => '+' + v + ' charge at start', info: 'You begin every run with some ultimate charge.' },
-      resist:   { tab: 'stats', name: 'DAMAGE RESISTANCE',           max: 15, cost: 60, step: 0.05, desc: (v) => '-' + Math.round(v * 100) + '% damage taken', info: 'Every hit you take hurts less.' },
-      regen:    { tab: 'stats', name: 'REGENERATION',     max: 15, cost: 75, step: 0.25, desc: (v) => '+' + v.toFixed(2) + ' health per second', info: 'You slowly heal yourself permanently (even without an implant).' },
-      blood:    { tab: 'stats', name: 'BURST RECHARGE',       max: 15, cost: 90, step: 0.06, desc: (v) => '-' + Math.round(v * 100) + '% emergency burst cooldown', info: 'The emergency burst near death is ready sooner.' },
-      // Weitere Spieler-Werte (jeder Wert, der den Spieler selbst beeinflusst, ist hier kaufbar; Waffen und Ausrüstung haben ihre eigenen Boni)
+      resist:   { tab: 'stats', name: 'ARMOR',             max: 15, cost: 65, step: 0.05, desc: (v, lv) => '-' + Math.round(v * 100) + '% damage taken  +' + (lv * 0.019).toFixed(2) + ' s safe after a hit', info: 'Hits hurt less, and you stay invulnerable a little longer after being hit.' },
+      regen:    { tab: 'stats', name: 'RECOVERY',          max: 15, cost: 100, step: 0.25, desc: (v, lv) => '+' + v.toFixed(2) + ' health per second  +' + Math.round(lv * 10) + '% healing  -' + Math.round(lv * 6) + '% emergency burst cooldown', info: 'You heal over time, every kind of healing restores more, and your emergency burst near death is ready sooner.' },
+      // COMBAT
       power:      { tab: 'stats', name: 'POWER',           max: 15, cost: 80, step: 0.04, desc: (v) => '+' + Math.round(v * 100) + '% double-hit chance and boss damage', info: 'Your attacks sometimes hit twice and bosses take more damage.' },
       attackSpeed: { tab: 'stats', name: 'ATTACK SPEED',  max: 15, cost: 70, step: 0.04, desc: (v) => '+' + Math.round(v * 100) + '% attack speed', info: 'All your weapons fire and swing faster.' },
-      recovery:   { tab: 'stats', name: 'RECOVERY',       max: 15, cost: 70, step: 0.019, desc: (v) => '+' + v.toFixed(2) + ' s safe after a hit', info: 'After a hit you stay invulnerable a little longer.' },
-      heal:       { tab: 'stats', name: 'HEALING',        max: 15, cost: 60, step: 0.1,  desc: (v) => '+' + Math.round(v * 100) + '% healing', info: 'Every kind of healing (kills, pickups, bursts) restores more.' },
-      luck:       { tab: 'stats', name: 'LUCK',           max: 15, cost: 60, step: 0.1,  desc: (v) => '+' + Math.round(v * 100) + '% drop chance', info: 'Enemies drop buffs more often.' },
-      buffTime:   { tab: 'stats', name: 'BUFF DURATION',  max: 15, cost: 50, step: 0.1,  desc: (v) => '+' + Math.round(v * 100) + '% buff duration', info: 'Speed, rapid fire and guard buffs last longer.' },
-      magnet:     { tab: 'stats', name: 'MAGNET',         max: 15, cost: 40, step: 0.15, desc: (v) => '+' + Math.round(v * 100) + '% pickup range', info: 'You collect healing and buff drops from further away.' },
-      coreDrop: { tab: 'stats', name: 'CREDIT EMITTER',      max: 15, cost: 90, step: 3,    desc: (v) => 'a credit drops every ' + (CFG.coreDrop.base - v) + ' s', info: 'Every few seconds you automatically collect a credit during a run.' },
-      bounty:   { tab: 'stats', name: 'KILL BOUNTY',      max: 15, cost: 150, step: 0.02, desc: (v) => Math.round(v * 100) + '% chance of +1 credit per kill', info: 'Every kill has a chance to drop an extra credit (not from minions). Stacks with weapon perks.' },
-      souls:    { tab: 'stats', name: 'CREDIT HARVESTER',    max: 15, cost: 45, step: 0.05, desc: (v) => '+' + Math.round(v * 100) + '% credits from runs', info: 'You get more credits after every run.' },
+      speed:    { tab: 'stats', name: 'SPEED',        max: 15, cost: 30, step: 0.02, desc: (v) => '+' + Math.round(v * 100) + '% move speed', info: 'You move faster permanently.' },
+      cooldown: { tab: 'stats', name: 'COOLDOWNS',    max: 15, cost: 50, step: 0.03, desc: (v) => '-' + Math.round(v * 100) + '% ability cooldown', info: 'Abilities, grenades and more are ready sooner.' },
+      ult:      { tab: 'stats', name: 'ULTIMATE',  max: 15, cost: 35, step: 0.05, desc: (v, lv) => '+' + Math.round(v * 100) + '% charge from kills  +' + (lv * 4) + ' charge at start', info: 'Kills charge your ultimate faster and you begin every run with some charge. Singleplayer only.' },
+      // LOOT
+      luck:       { tab: 'stats', name: 'LUCK',           max: 15, cost: 70, step: 0.1,  desc: (v, lv) => '+' + Math.round(v * 100) + '% drop chance  +' + Math.round(lv * 10) + '% buff duration  +' + Math.round(lv * 15) + '% pickup range', info: 'Enemies drop buffs more often, buffs last longer and you collect drops from further away.' },
+      souls:    { tab: 'stats', name: 'CREDITS',    max: 15, cost: 45, step: 0.05, desc: (v, lv) => '+' + Math.round(v * 100) + '% credits from runs  a credit drops every ' + (CFG.coreDrop.base - lv * 2) + ' s  ' + Math.round(lv * 1) + '% chance of +1 credit per kill', info: 'More credits after every run, a credit drops every few seconds during a run and every kill can give a bonus credit.' },
+    },
+    // Teil-Boni der Buendel: Save.bonus(id) = Stufe des Haupt-Stats (of) x step. Der Haupt-Stat selbst steht oben in upgrades (eigener step).
+    effects: {
+      recovery: { of: 'resist', step: 0.019 },                  // Sekunden Unverwundbarkeit nach einem Treffer
+      heal: { of: 'regen', step: 0.1 }, blood: { of: 'regen', step: 0.06 },
+      startUlt: { of: 'ult', step: 4 },
+      buffTime: { of: 'luck', step: 0.1 }, magnet: { of: 'luck', step: 0.15 },
+      coreDrop: { of: 'souls', step: 2 }, bounty: { of: 'souls', step: 0.01 },
     },
   },
 
@@ -719,7 +709,7 @@ const CFG = {
   coreDrop: { base: 70, value: 2 },
 
   // Meilensteine: Belohnung ist immer ein Core-Betrag { cores: n } oder ein einfaches Cosmetic { cos: 'kategorie:id' } (nur günstige Basis-Cosmetics).
-  // Jede Meilenstein-Kategorie gibt eine Cosmetic-Kategorie (Zeit -> Skins, Bosse -> Boss-Looks, Gegner -> Kill-FX, Tutorial -> Glow) oder Cores (Läufe, Endlos).
+  // Jede Meilenstein-Kategorie gibt eine Cosmetic-Kategorie (Zeit -> Skins, Bosse -> Boss-Looks, Gegner -> Kill-FX, Tutorial -> Glow) oder Cores (Läufe).
   // stat: best = beste Zeit in s, bosses/kills = Summe über alle Läufe. Wird ein Meilenstein erreicht (oder war er in einem alten Spielstand schon erreicht), wird die Belohnung einmalig gutgeschrieben (Save.data.msPaid).
   milestones: [
     { id: 'time180',  name: 'SURVIVE 3 MINUTES',  stat: 'best',   need: 180, reward: { cos: 'skin:crimson' } },
@@ -745,7 +735,10 @@ const CFG = {
     { id: 'hero_archon',  name: 'DEFEAT DEATH 2 TIMES',        cat: 'heroes', stat: 'wins',   need: 2,   reward: { hero: 'archon' } },
     { id: 'hero_alchemist', name: 'DEFEAT 3000 ENEMIES',       cat: 'heroes', stat: 'kills',  need: 3000, reward: { hero: 'alchemist' } },
     { id: 'hero_harbinger', name: 'DEFEAT DEATH 4 TIMES',      cat: 'heroes', stat: 'wins',   need: 4,   reward: { hero: 'harbinger' } },
-    { id: 'hero_voyager',   name: 'SURVIVE 15 MIN IN ENDLESS', cat: 'heroes', stat: 'bestInf', need: 900, reward: { hero: 'voyager' } },
+    { id: 'hero_voyager',   name: 'DEFEAT DEATH 6 TIMES',       cat: 'heroes', stat: 'wins',   need: 6,   reward: { hero: 'voyager' } },
+    { id: 'hero_conjurer',  name: 'DEFEAT 5000 ENEMIES',        cat: 'heroes', stat: 'kills',  need: 5000, reward: { hero: 'conjurer' } },
+    { id: 'hero_reaver',    name: 'DEFEAT 40 BOSSES',           cat: 'heroes', stat: 'bosses', need: 40,  reward: { hero: 'reaver' } },
+    { id: 'hero_tinker',    name: 'SURVIVE 13 MINUTES IN A RUN', cat: 'heroes', stat: 'best',  need: 780, reward: { hero: 'tinker' } },
     // Karte 4 (Cryo Station, cat 'cryo'): mapbest:<id> = beste Zeit auf der Karte, mapbosses:/mapkills:<id> = Summe der Bosse/Gegner in Läufen auf dieser Karte (nur normaler Modus)
     { id: 'cryo180',  name: 'SURVIVE 3 MIN ON CRYO STATION',     cat: 'cryo', stat: 'mapbest:cryo',   need: 180,  reward: { cos: 'skin:iceberg' } },
     { id: 'cryo420',  name: 'SURVIVE 7 MIN ON CRYO STATION',     cat: 'cryo', stat: 'mapbest:cryo',   need: 420,  reward: { cos: 'blade:arctic' } },
@@ -756,15 +749,6 @@ const CFG = {
     { id: 'cryoboss15', name: 'DEFEAT 15 BOSSES ON CRYO STATION', cat: 'cryo', stat: 'mapbosses:cryo', need: 15,  reward: { cos: 'boss:permafrost' } },
     { id: 'cryokill200', name: 'DEFEAT 200 ENEMIES ON CRYO STATION',  cat: 'cryo', stat: 'mapkills:cryo', need: 200,  reward: { cos: 'skin:royal' } },
     { id: 'cryokill1200', name: 'DEFEAT 1200 ENEMIES ON CRYO STATION', cat: 'cryo', stat: 'mapkills:cryo', need: 1200, reward: { cos: 'blade:glacier' } },
-    // Endlos-Modus (cat 'endless' = eigene Kategorie im Meilenstein-Reiter): bestInf = beste Endlos-Zeit, infKills/infBosses = Summe über alle Endlos-Läufe
-    { id: 'inf600',   name: 'SURVIVE 10 MIN IN ENDLESS',  cat: 'endless', stat: 'bestInf',   need: 600,  reward: { cos: 'skin:tangerine' } },
-    { id: 'inf1200',  name: 'SURVIVE 20 MIN IN ENDLESS',  cat: 'endless', stat: 'bestInf',   need: 1200, reward: { cos: 'blade:sunset' } },
-    { id: 'inf1800',  name: 'SURVIVE 30 MIN IN ENDLESS',  cat: 'endless', stat: 'bestInf',   need: 1800, reward: { cos: 'skin:permafrost' } },
-    { id: 'inf3000',  name: 'SURVIVE 50 MIN IN ENDLESS',  cat: 'endless', stat: 'bestInf',   need: 3000, reward: { cos: 'blade:tesla' } },
-    { id: 'infboss5', name: 'DEFEAT 5 BOSSES IN ENDLESS', cat: 'endless', stat: 'infBosses', need: 5,    reward: { cores: 100 } },
-    { id: 'infboss15', name: 'DEFEAT 15 BOSSES IN ENDLESS', cat: 'endless', stat: 'infBosses', need: 15, reward: { cos: 'boss:cryoking' } },
-    { id: 'infkill500', name: 'DEFEAT 500 ENEMIES IN ENDLESS',  cat: 'endless', stat: 'infKills', need: 500,  reward: { cores: 100 } },
-    { id: 'infkill3000', name: 'DEFEAT 3000 ENEMIES IN ENDLESS', cat: 'endless', stat: 'infKills', need: 3000, reward: { cos: 'enemy:hex' } },
   ],
 
 
@@ -1089,7 +1073,7 @@ const CFG = {
   // Schrumpfende Arena (neu): Welt-Event. In jeder Welle gibt es mit Wahrscheinlichkeit `chance` (ab Welle `fromWave`) einen Kollaps.
   // Start zufällig zwischen Wellensekunde `startMin` und `beforeBoss` s vor dem Boss. Erst `warn` s Warnung (roter Rand pulsiert),
   // dann schrumpft die Karte mit `speed` (Faktor pro Sekunde) auf `minScale` und bleibt dort, bis `duration` um ist; danach wächst sie wieder.
-  // Der Spieler, Gegner und Barrikaden werden nach innen geschoben bzw. zerstört. Nicht im Bosskampf (der Arena-Boss hat seine eigene Schrumpfung) und nicht im Endlos-Modus (keine Wände).
+  // Der Spieler, Gegner und Barrikaden werden nach innen geschoben bzw. zerstört. Nicht im Bosskampf (der Arena-Boss hat seine eigene Schrumpfung).
   collapse: {
     chance: 0.3, fromWave: 1, duration: 26, startMin: 8, beforeBoss: 10,
     warn: 3, minScale: 0.55, speed: 0.08,
@@ -1212,7 +1196,7 @@ const CFG = {
               ringFirst: 4, ringEvery: 5.5, ringCount: 12, summonFirst: 6, summonEvery: 11, summonCount: 3, maxMinions: 6, triangleChance: 0.3, rageBelow: 0.4, rageEvery: 8, rageCount: 4,
               shrinkFirst: 20, shrinkEvery: 18, shrinkStep: 0.12, minScale: 0.6, shrinkSpeed: 0.05 },
     // Reihenfolge der Bosskämpfe: jeder Boss kommt pro Lauf genau einmal (Standardmodus), danach erscheint direkt der finale Boss (CFG.finalBoss.at).
-    // Wann ein Kampf startet: alle `steps` Sekunden (120, 240, ..., 720). Nur der Endlos-Modus läuft die Liste immer wieder von vorn durch (order[n % Länge]).
+    // Wann ein Kampf startet: alle `steps` Sekunden (120, 240, ..., 720).
     // Wird die Liste länger oder kürzer, CFG.finalBoss.at auf steps x (Anzahl Bosse + 1) anpassen.
     order: ['octagon', 'kite', 'summoner', 'turret', 'twin', 'arena'],
     // Kartenspezifische Bosse (nur Ember Foundry und Toxic Core, die Liste steht je Karte in CFG.maps als bossOrder). sprite/hue/drawSize = Aussehen (vorhandene Sprites umgefärbt).
@@ -1259,8 +1243,7 @@ const CFG = {
 
   // Karte und Kamera (neu). Die Karte ist größer als der Bildschirm (480 x 360). Die Kamera bleibt stehen, solange der Spieler
   // im kleinen Mittelraum (deadW/deadH = halbe Breite/Höhe) ist, sonst läuft sie ihm nach. follow = wie schnell sie aufholt.
-  // infinite = true: keine Kartenränder (Hintergrund wiederholt sich einfach), vielleicht später als eigener Spielmodus. false: Rand bei halfW/halfH (Mittelpunkt 0,0).
-  map: { infinite: false, halfW: 482, halfH: 361 },     // 964 x 722 (vorher 680 x 510, Faktor 1.42 wie beim ersten Vergroessern gegenueber dem Bild 480 x 360)
+  map: { halfW: 482, halfH: 361 },     // 964 x 722 (vorher 680 x 510, Faktor 1.42 wie beim ersten Vergroessern gegenueber dem Bild 480 x 360)
   camera: { deadW: 70, deadH: 50, follow: 10 },
 
   // Effekte (js/juice.js): dezent halten! maxShake = staerkstes Wackeln, shakeDecay = wie schnell es abklingt, maxFlash = hoechste Deckkraft normaler
@@ -1282,19 +1265,17 @@ const CFG = {
   // Standardmodus: 6 Bosse (alle 120 s: 120 ... 720), der finale Boss folgt direkt danach bei steps x (6 + 1) = 840 s (14:00) Spielzeit. Die Uhr steht in Bosskämpfen,
   // ein Lauf dauert real also etwas länger (Bosskämpfe + Endkampf, ca. 15-16 Minuten auf der Spieluhr inkl. Endboss).
   finalBoss: { at: 840 },
-  // Spielerlevel (Konto-Level, pro Spielstand): jeder Lauf bringt XP, das Level schaltet Menüpunkte frei (Save.plevel, Save.gateOpen).
-  // XP pro Lauf = Zeit x perSecond + Bosse x perBoss + Kills x perKill (+ winBonus beim Sieg), Endlos-Modus x infiniteFactor. Kein XP im Tutorial und bei Cheat-Läufen.
-  // Level n -> n+1 kostet needs[n-1] XP; über die Liste hinaus needs.last + step x (Abstand). gates: Menüpunkt -> nötiges Level (Level 1 = von Anfang an).
+  // Spielerlevel (Konto-Level, pro Spielstand): jeder Lauf bringt XP, jeder Aufstieg gibt Credits (Save.plevel, Save.levelReward).
+  // XP pro Lauf = Zeit x perSecond + Bosse x perBoss + Kills x perKill (+ winBonus beim Sieg). Kein XP im Tutorial und bei Cheat-Läufen.
+  // Level n -> n+1 kostet needs[n-1] XP; über die Liste hinaus needs.last + step x (Abstand). Keine Level-Sperren: jeder Aufstieg gibt stattdessen Credits (reward: base + perLevel x neues Level, Save.levelReward).
   // Ziel (geschätzt: früher Lauf ca. 150 XP, guter Lauf ca. 300 XP): Lv 2 = Tutorial (tutorialXp), Lv 3 nach ca. 1 Lauf, Lv 4 nach dem 2. Lauf wenn er gut war,
-  // Lv 5 (= Infinite Mode) nach ca. 6-7 Läufen (kumuliert 1600 XP).
+  // Lv 5 nach ca. 6-7 Läufen (kumuliert 1600 XP).
   level: {
-    perSecond: 0.5, perBoss: 40, perKill: 0.15, winBonus: 200, infiniteFactor: 1.5,
+    perSecond: 0.5, perBoss: 40, perKill: 0.15, winBonus: 200,
     tutorialXp: 100, needs: [80, 120, 180, 500], step: 200, max: 50,       // schneller als vorher (100/150/250/1100, Schritt 200): Lv 5 ab 880 XP, Lv 7 ab 2180 XP (ca. 10 Laeufe)
-    gates: { cosmetics: 3, infinite: 5 },
-    seedFromOldSave: true,               // bestehende Spielstände bekommen XP aus ihrer bisherigen Statistik, damit sie nicht plötzlich gesperrt sind
+    reward: { base: 25, perLevel: 5 },   // Credits pro Level-up (Level 2 = 35, Level 10 = 75, Level 50 = 275); spaeter vielleicht andere Belohnungen (Gilden, Tagesbelohnung)
+    seedFromOldSave: true,               // bestehende Spielstände bekommen XP aus ihrer bisherigen Statistik, damit das Level zur bisherigen Spielzeit passt
   },
-  // Endlos-Modus (Hauptmenü > INFINITE MODE): unendliche Karte ohne Wände (CFG.map.infinite wird pro Lauf gesetzt), Spawnpunkte und Barrikaden folgen dem Spieler.
-  // Vor dem Start wählbar: wann der finale Boss kommt (finalMinutes, null = nie, endlos). Cores nur zu coreFactor, die Bestzeit wird getrennt geführt (Save.data.bestInf).
   // Karten (Auswahl nach PLAY): Boden (Bild in img_new), Rahmenfarbe, Größe (halbe Breite/Höhe), Schwierigkeit (diff) und Freischaltung.
   // diff: hits = Gegner-Leben mal Faktor, rate = Spawn-Takt der Grundgegner mal (kleiner = mehr), allRate/capMul = Wartezeit/Obergrenze aller übrigen Gegner, boss = Bossstärke (hp/fire/speed/dmg, siehe CFG.boss.power). Karte 1 = alles 1 (Originalwerte, die "Härter-Runde" gilt nur ab Karte 2), speed = Gegnertempo, spawn = Spawn-Abstände (kleiner = mehr Gegner), damage = Schaden am Spieler, bossHp = Boss-Leben, cores = Belohnung.
   // Freischalten: unlockFrac x finaler-Boss-Zeit (CFG.finalBoss.at) auf der VORHERIGEN Karte erreichen (Bestzeit je Karte, nur normaler Modus), also die halbe Strecke.
@@ -1340,25 +1321,8 @@ const CFG = {
       trim: { c: 1.35, t: 1.25, r: 1.4, sniper: 1.4, teleporter: 1.4 },
       fx: { kind: 'cryo' } },
   ],
-  // Endlos-Modus: spawnRate = Faktor auf alle Spawn-Wartezeiten (0.6 = ca. 1.7x so viele Gegner, weil Weglaufen auf der freien Karte sonst zu leicht ist), capMul = Faktor auf die Obergrenzen
-  // der Sondertypen. spawnPoints = Punkte relativ zur Kamera, ALLE ausserhalb des Bildes (Bild = +-240 x +-180, beim Rauszoomen etwas mehr), rundherum ein Rechteckring.
-  infinite: { finalMinutes: [10, 15, 20, 30, 45, 60, null], defaultSel: 3, spawnRate: 0.6, capMul: 1.3,
-    spawnPoints: [[380, 0], [380, 130], [380, 240], [190, 255], [0, 255], [-190, 255], [-380, 240], [-380, 130], [-380, 0], [-380, -130], [-380, -240], [-190, -255], [0, -255], [190, -255], [380, -240], [380, -130]] },
-  // Endlos-Modus: Anreiz (js/endless.js). Credits: Multiplikator auf die Cores der Spielzeit, startet bei creditBase und waechst um creditPerMin pro Minute bis creditMax (Held Voyager: Wachstum und Grenze x1.5).
-  // Mutationen: ab `first` Sekunden Spielzeit laeuft immer wieder eine Mutation (`lasts` Sekunden), dazwischen `gap` Sekunden Pause. Ab den Zeiten in stackAt laufen 2, dann 3 gleichzeitig.
-  // Jede Mutation macht den Lauf haerter (world = Gegnerwelt wie beim Harbinger, mod = Spieler-Faktoren) und erhoeht dafuer den Credit-Multiplikator: bonus 1.4 = +40 % (mehrere addieren sich).
-  endless: {
-    creditBase: 0.5, creditPerMin: 0.15, creditMax: 4,
-    first: 180, lasts: 120, gap: 60, stackAt: [600, 1200],
-    mutations: {
-      horde:  { name: 'HORDE',        desc: 'MORE ENEMIES',                 bonus: 1.4,  world: { rate: 0.7, allRate: 0.75, cap: 1.3 } },
-      iron:   { name: 'IRON SKIN',    desc: 'TOUGHER ENEMIES',              bonus: 1.3,  world: { hits: 1.5 } },
-      swift:  { name: 'SWIFT FOES',   desc: 'FASTER ENEMIES',               bonus: 1.3,  world: { speed: 1.2 } },
-      glass:  { name: 'GLASS CANNON', desc: 'YOU TAKE 50% MORE DAMAGE',     bonus: 1.5,  mod: { dmgTaken: 1.5 } },
-      heavy:  { name: 'HEAVY METAL',  desc: 'MORE SHIELDS AND TANKS',       bonus: 1.35, world: { types: { guard: { wait: 0.5 }, tank: { wait: 0.5, hits: 1.2 } } } },
-      bounty: { name: 'BOUNTY',       desc: 'DOUBLE DROPS, +50% XP',        bonus: 1,    mod: { luck: 2, xp: 1.5 } },
-    },
-  },
+  // Koop: Spawnpunkte relativ zu jedem lebenden Spieler, ALLE ausserhalb des Bildes (Bild = +-240 x +-180, beim Rauszoomen etwas mehr), rundherum ein Rechteckring.
+  coopSpawnOffsets: [[380, 0], [380, 130], [380, 240], [190, 255], [0, 255], [-190, 255], [-380, 240], [-380, 130], [-380, 0], [-380, -130], [-380, -240], [-190, -255], [0, -255], [190, -255], [380, -240], [380, -130]] ,
   ending: { firstWinCores: 500, winCores: 100, victoryDelay: 2.2 },       // Belohnung zusätzlich zu den Cores der Spielzeit: beim ersten Sieg / bei jedem weiteren; victoryDelay = Sekunden Siegphase nach dem finalen Boss
 };
 
@@ -1368,27 +1332,27 @@ const CFG = {
 // artifact = Gegenstand auf eigener Taste (Input 'artifact', Standard F), jedes Artefakt hat Abklingzeit + Zahlen unten (fortress / rift / chrono).
 // Die Helden nutzen die Spielerpalette, deshalb wirken alle Skins bei jedem Helden gleich (nur die Form unterscheidet sich).
 CFG.heroes = {
-  order: ['vanguard', 'bulwark', 'specter', 'archon', 'alchemist', 'harbinger', 'voyager'],
+  order: ['vanguard', 'bulwark', 'specter', 'archon', 'alchemist', 'harbinger', 'voyager', 'conjurer', 'reaver', 'tinker'],
   vanguard: { name: 'VANGUARD', sprite: 'player', cost: 0, modText: 'NO MODIFIER', blurb: 'THE ORIGINAL. NO STRENGTHS, NO WEAKNESSES.', mod: {} },
   bulwark: {
-    name: 'BULWARK', sprite: 'heroBulwark', cost: 350, milestone: 'hero_bulwark', modText: '+60 HP  -12% SPEED', blurb: 'ARMORED RING. SLOW, BUT HARD TO KILL.',
-    mod: { hp: 60, speed: 0.88 },
+    name: 'BULWARK', sprite: 'heroBulwark', cost: 350, milestone: 'hero_bulwark', modText: '+80 HP  -15% DAMAGE TAKEN  +0.5 HP/S  -14% SPEED', blurb: 'ARMORED RING. SLOW, BUT HARD TO KILL.',
+    mod: { hp: 80, speed: 0.86, dmgTaken: 0.85, regen: 0.5 },
     artifact: { id: 'fortress', name: 'FORTRESS SLAM', icon: 'fortressIcon', desc: 'SHOCKWAVE THAT KNOCKS BACK AND STUNS, THEN 60% LESS DAMAGE FOR 3S' },
   },
   specter: {
-    name: 'SPECTER', sprite: 'heroSpecter', cost: 600, milestone: 'hero_specter', modText: '+20% SPEED  +12% ATTACK  -35 HP', blurb: 'COMET FRAME. FAST AND DEADLY, BUT FRAGILE.',
-    mod: { hp: -35, speed: 1.2, atk: 1.12 },
+    name: 'SPECTER', sprite: 'heroSpecter', cost: 600, milestone: 'hero_specter', modText: '+28% SPEED  +20% ATTACK  -40 HP', blurb: 'COMET FRAME. FAST AND DEADLY, BUT FRAGILE.',
+    mod: { hp: -40, speed: 1.28, atk: 1.2 },
     artifact: { id: 'rift', name: 'RIFT STEP', icon: 'riftIcon', desc: 'WARP FORWARD THROUGH ENEMIES AND HIT EVERYTHING ON THE WAY' },
   },
   archon: {
-    name: 'ARCHON', sprite: 'heroArchon', cost: 1000, milestone: 'hero_archon', modText: '+50% ULT CHARGE  +30 START  +15% DMG TAKEN', blurb: 'SUN CROWN. ULTIMATES CONSTANTLY, PAYS FOR IT.',
-    mod: { ult: 1.5, startUlt: 30, dmgTaken: 1.15 },
+    name: 'ARCHON', sprite: 'heroArchon', cost: 1000, milestone: 'hero_archon', modText: '+20% FASTER COOLDOWNS  +100% ULT CHARGE  +50 START  +15% DMG TAKEN', blurb: 'SUN CROWN. ULTIMATES CONSTANTLY, PAYS FOR IT.',
+    mod: { ult: 2, startUlt: 50, dmgTaken: 1.15, cd: 1.2 },
     artifact: { id: 'chrono', name: 'CHRONO LOCK', icon: 'chronoIcon', desc: 'FREEZES EVERY ENEMY ON SCREEN FOR 2.5S (BOSSES IGNORE IT)' },
   },
   // Alchemist: keine Vorgaben bei den Werten, nur kleine Extras; der Kern ist das Artefakt (Heilung + Betaeubung + Buffs auf einen Tastendruck)
   alchemist: {
-    name: 'ALCHEMIST', sprite: 'heroAlchemist', cost: 700, milestone: 'hero_alchemist', modText: '+15 HP  +25% DROP CHANCE', blurb: 'FLASK FRAME. BREWS HIS OWN LUCK AND HIS OWN CURES.',
-    mod: { hp: 15, luck: 1.25 },
+    name: 'ALCHEMIST', sprite: 'heroAlchemist', cost: 700, milestone: 'hero_alchemist', modText: '+25 HP  +50% DROP CHANCE  +0.6 HP/S', blurb: 'FLASK FRAME. BREWS HIS OWN LUCK AND HIS OWN CURES.',
+    mod: { hp: 25, luck: 1.5, regen: 0.6 },
     artifact: { id: 'catalyst', name: 'CATALYST', icon: 'catalystIcon', desc: 'HEALS 20 HP, STUNS NEARBY ENEMIES AND BREWS SPEED, RAPID FIRE AND REPAIR' },
   },
   // Harbinger: Run-Modifier. Die Welt wird haerter (mehr Gegner, zaeher, schneller, einzelne Typen veraendert), dafuer gibt es einen fetten Bonus.
@@ -1413,16 +1377,37 @@ CFG.heroes = {
       },
     },
   },
-  // Voyager: Held fuer den Endlos-Modus (js/endless.js). Nur dort wirken infRamp (Credit-Multiplikator waechst und deckelt x1.5 hoeher) und infMut (Credit-Bonus der Mutationen x1.5); sonst nur leicht schneller.
+  // Voyager: Fernkampf-Held: Schuesse fliegen weiter und schlagen durch.
   voyager: {
-    name: 'VOYAGER', sprite: 'heroVoyager', cost: 800, milestone: 'hero_voyager', modText: '+8% SPEED  ENDLESS: CREDIT GROWTH X1.5', blurb: 'COMPASS FRAME. BUILT FOR THE LONG HAUL.',
-    mod: { speed: 1.08, infRamp: 1.5, infMut: 1.5 },
+    name: 'VOYAGER', sprite: 'heroVoyager', cost: 800, milestone: 'hero_voyager', modText: '+50% SHOT RANGE  +2 PIERCE  +10% SPEED  +10% ATTACK', blurb: 'COMPASS FRAME. EVERY SHOT FLIES FAR AND GOES THROUGH.',
+    mod: { speed: 1.1, atk: 1.1, range: 1.5, pierce: 2 },
+  },
+  // Conjurer: ruft Drohnen. Artefakt Swarm: drei Drohnen kreisen eine Weile um ihn und schiessen auf alles in der Naehe.
+  conjurer: {
+    name: 'CONJURER', sprite: 'heroConjurer', cost: 900, milestone: 'hero_conjurer', modText: '+20 HP  +10% ATTACK  +20% FASTER COOLDOWNS', blurb: 'SATELLITE FRAME. NEVER FIGHTS ALONE.',
+    mod: { hp: 20, atk: 1.1, cd: 1.2 },
+    artifact: { id: 'swarm', name: 'SWARM', icon: 'swarmIcon', desc: 'THREE DRONES CIRCLE YOU FOR 10S AND SHOOT EVERYTHING NEARBY' },
+  },
+  // Reaver: wird staerker, je weniger Leben er hat. Artefakt Blood Rush: kostet etwas Leben, dafuer kurz Raserei und Tempo.
+  reaver: {
+    name: 'REAVER', sprite: 'heroReaver', cost: 1200, milestone: 'hero_reaver', modText: 'UP TO +60% ATTACK SPEED AT LOW HP  +10% SPEED  +10% DMG TAKEN', blurb: 'CLAW FRAME. THE CLOSER TO DEATH, THE FASTER IT KILLS.',
+    mod: { speed: 1.1, dmgTaken: 1.1, rage: 0.6 },
+    artifact: { id: 'rush', name: 'BLOOD RUSH', icon: 'rushIcon', desc: 'PAY 8 HP FOR 6S OF RAPID FIRE AND SPEED' },
+  },
+  // Tinker: Abklingzeiten. Artefakt Rewire: setzt alle Abklingzeiten zurueck.
+  tinker: {
+    name: 'TINKER', sprite: 'heroTinker', cost: 1000, milestone: 'hero_tinker', modText: '+35% FASTER COOLDOWNS  +30 HP', blurb: 'GEAR FRAME. EVERYTHING IS ALWAYS READY.',
+    mod: { hp: 30, cd: 1.35 },
+    artifact: { id: 'rewire', name: 'REWIRE', icon: 'rewireIcon', desc: 'RESETS ALL COOLDOWNS AT ONCE' },
   },
 };
-CFG.catalyst = { cooldown: 30, heal: 20, radius: 130, stun: 1.2, duration: 0.6, buffs: ['haste', 'rapid', 'regen'] };       // Alchemist: Heilung, Betaeubung im Radius, Buffs (CFG.drops.types)
+CFG.catalyst = { cooldown: 26, heal: 20, radius: 130, stun: 1.2, duration: 0.6, buffs: ['haste', 'rapid', 'regen'] };       // Alchemist: Heilung, Betaeubung im Radius, Buffs (CFG.drops.types)
 CFG.fortress = { cooldown: 26, duration: 3, reduce: 0.6 };                                              // Bulwark: Schadensminderung nach dem Schlag (Druckwelle = CFG.pulse)
+CFG.swarm = { cooldown: 24, count: 3, duration: 10 };                                       // Conjurer: Drohnen (Klasse Drone, Schuss wie CFG.drone)
+CFG.rush = { cooldown: 22, duration: 6, cost: 8 };                                          // Reaver: Leben als Preis, Dauer von Rapid Fire und Speed (CFG.drops.types)
+CFG.rewire = { cooldown: 40 };                                                              // Tinker: setzt alle Abklingzeiten zurueck
 CFG.rift = { cooldown: 7, distance: 130, width: 14, hits: 2, bossDmg: 2, protect: 0.4 };                // Specter: Sprungweite, Breite der Schneise, Treffer pro Gegner, Schaden an Bossen, Unverwundbarkeit danach
-CFG.chrono = { cooldown: 42, radius: 900, stun: 2.5, duration: 0.7 };                                   // Archon: Betaeubung aller Gegner (duration = Dauer der Ring-Animation)
+CFG.chrono = { cooldown: 36, radius: 900, stun: 2.5, duration: 0.7 };                                   // Archon: Betaeubung aller Gegner (duration = Dauer der Ring-Animation)
 
 // Death-Screens: [ab Sekunde, Bildname]
 // Die Zeiten sind für einen 2000-s-Lauf geschrieben und werden unten auf CFG.finalBoss.at umgerechnet (der "OK I admit"-Screen death7 kommt so bei der halben Strecke,
@@ -1534,63 +1519,12 @@ for (const id of Object.keys(CFG.items.catalog)) {
   I.desc += P ? ' PERK ' + P.name + ' (while selected): ' + P.text : ' No perk: the simple, reliable choice.';
 }
 
-// ==========================================================================================
-//  [13] SPEEDRUN (Hauptmenue > PLAY > SPEEDRUN, Code: js/speedrun.js)
-//  Drei "Karten" mit eigener Bestzeit: BOSS RUSH, GAUNTLET, SEED RUN. Freigeschaltet ab Spielerlevel gates.speedrun, jede Karte ab ihrem eigenen Level.
-//  Alle Laeufe nutzen ein STANDARD-LOADOUT (keine Meta-Upgrades, keine Stufen, keine Implants, kein Held, alle Abilities frei), nur Nah-/Fernkampf-/starke Waffe sind waehlbar.
-//  Es gibt weder Credits noch XP noch Erfolge; Tod = Abbruch. Die Uhr zaehlt in Echtzeit (auch in Auswahlbildschirmen), steht nur im Pausenmenue.
-// ==========================================================================================
-CFG.level.gates.speedrun = 5;
-CFG.level.gates.pvp = 7;                                    // PvP-Arena erst ab Spielerlevel 7 (Koop von Anfang an)
-CFG.speedrun = {
-  order: ['rush'],                                            // aktive Karten; 'gauntlet' und 'seed' sind abgeschaltet (Code und Zahlen unten bleiben, Wiedereinschalten = hier eintragen + Reiter in leaderboard.js)
-  kinds: {
-    rush:     { name: 'BOSS RUSH', level: 5, color: 'yellow', short: 'ALL SIX BOSSES, THEN DEATH',
-      info: ['Every boss of the regular run, back to back, then Death himself.', 'No waves in between: only a short breather and your ability pick. The clock stops when Death falls.'] },
-    gauntlet: { name: 'GAUNTLET', level: 6, color: 'orange', short: 'RUN THE STRIP, BEAT THE BOSS',
-      info: ['A long corridor full of enemies at fixed spots, a boss waits at the end.', 'Every enemy still alive when you reach the boss gate adds seconds to your time. Kill or run past: your call.'] },
-    seed:     { name: 'SEED RUN', level: 7, color: 'cyan', short: 'FIND KEYS, TRADE, OPEN THE PORTAL',
-      info: ['Endless map built from a seed: collect 3 keys, find the portal, trade for an Ember Core, beat the boss.', 'Same seed = same world and same trade results. Pick RANDOM, DAILY or a fixed number.'] },
-  },
-  loadoutSlots: ['melee', 'ranged', 'heavy'],                 // waehlbar (Reihenfolge im Setup)
-  loadoutStart: { melee: 'sword', ranged: 'shot', heavy: 'beam' },
-  // Boss Rush: start = Sekunden zwischen erster Eingabe und erstem Boss, gap = Pause nach jedem Boss (zaehlt nur im Spiel, nicht in der Auswahl danach).
-  // Technik: nach der Pause springt G.time auf den Zeitpunkt des naechsten Bosses im normalen Lauf (CFG.boss.steps), damit Waffenstufen und Bossstaerke wie im Regular-Modus sind.
-  rush: { start: 2, gap: 5 },
-  // Gauntlet: Streifen half = [halbe Laenge, halbe Hoehe], Start links, Tor bei gateX, dahinter die Boss-Arena bis zum Ende. Gegner stehen fest (schlafen, bis der Spieler auf `wake` herankommt;
-  // eine Gruppe wacht gemeinsam auf). groups: [x, y, Typ, Anzahl, Streuung]. weight = Sekunden Strafe je Gegner, der beim Tor noch lebt. heals: [x, y, Heilung].
-  gauntlet: {
-    half: [1700, 190], startX: -1600, gateX: 1250, wake: 300, boss: 'octagon', bossStage: 4, defaultWeight: 2,
-    weight: { circle: 1, triangle: 1.5, rhombus: 2, square: 2, guard: 3, bomber: 2, splitter: 1.5, tank: 5 },
-    groups: [
-      [-1250, -40, 'circle', 4, 55], [-1060, 50, 'circle', 5, 60], [-880, -50, 'triangle', 3, 50], [-710, 40, 'circle', 4, 55], [-710, 40, 'triangle', 2, 40],
-      [-530, -30, 'splitter', 3, 50], [-350, 30, 'square', 2, 45], [-350, 30, 'circle', 4, 60], [-170, -40, 'bomber', 3, 55], [10, 30, 'guard', 2, 50],
-      [10, 30, 'circle', 3, 55], [190, -30, 'rhombus', 2, 50], [190, -30, 'triangle', 3, 50], [370, 40, 'tank', 1, 0], [370, 40, 'circle', 4, 60],
-      [550, -40, 'square', 2, 50], [550, -40, 'splitter', 2, 45], [730, 30, 'guard', 3, 55], [910, -30, 'triangle', 4, 55], [910, -30, 'bomber', 2, 45],
-      [1090, 20, 'tank', 1, 0], [1090, 20, 'rhombus', 2, 50], [1090, 20, 'circle', 5, 65],
-    ],
-    heals: [[-300, 0, 20], [470, 0, 20], [1000, 0, 20]],
-  },
-  // Seed Run: unendliche Karte aus der Seed-Zahl. Etappen: 0 SALVAGE (keysNeed Schluessel von Traegern), 1 FIND (Portal, Entfernung portalDist), 2 TRADE (am Portal gegen Schrott einen Ember Core handeln),
-  // 3 BOSS (Portal betreten). Traeger: `carriers` Stueck im Ring carrierRing um den Start, genau `keysTotal` davon haben einen Schluessel (aus dem Seed). Schrott: scrap je Kill (Traeger scrapCarrier).
-  // Handeln: Stehen im Ring tradeRadius, kostet tradeCost, Pause tradeCooldown; das Ergebnis der n-ten Runde steht mit dem Seed fest (barter: Gewichte). Druck: Gegner spawnen wie im Regular-Modus (every/cap je Etappe).
-  seed: {
-    carriers: 6, keysTotal: 3, keysNeed: 3, carrierRing: [260, 520], carrierWake: 220, portalDist: [1300, 1800], merchantOffset: 80,
-    scrapKill: 1, scrapCarrier: 3, tradeCost: 5, tradeCooldown: 0.9, tradeRadius: 48, portalRadius: 36,
-    every: [3.4, 2.8, 2.4, 2.4], cap: [9, 12, 13, 13],
-    spawnTypes: [{ circle: 5, triangle: 3 }, { circle: 4, triangle: 3, rhombus: 2, square: 2 }, { circle: 3, triangle: 3, rhombus: 2, square: 2, guard: 2, bomber: 1 }, { circle: 3, triangle: 3, rhombus: 2, square: 2, guard: 2, bomber: 1 }],
-    carrierTypes: ['circle', 'triangle', 'square', 'rhombus'],
-    barter: [{ id: 'core', w: 22 }, { id: 'heal', w: 25 }, { id: 'haste', w: 18 }, { id: 'rapid', w: 15 }, { id: 'scrap', w: 12 }, { id: 'junk', w: 8 }],
-    barterScrap: 3, barterHeal: 25,
-    bosses: ['octagon', 'kite', 'summoner', 'twin', 'turret', 'arena'], bossStage: 3,
-  },
-};
 
 // ---- [14] PvP-Arena (js/pvp.js Lobby, js/pvpmatch.js Kampf, js/net.js Verbindung) ----
 // startTime/weaponUps: Waffenstufe zu Beginn = wie im Kampf gegen Death (finaler Boss: Spielzeit finalBoss.at und alle Bosse davor besiegt, Klingenzahl, Doppelschuss usw. sind am Maximum).
-// radius: die Kampffläche ist ein Kreis (Kolosseum, js/pvparena.js); camHalf: nur fuer die Kamera (Begrenzung ist der Kreis).
+// radius: die Kampffläche ist ein Kreis (Kolosseum, js/pvparena.js; gilt für die gewählte Karte aus CFG.pvp.maps, PvpCover.load setzt ihn); camHalf: nur fuer die Kamera (Begrenzung ist der Kreis).
 // dmgMul: Schaden je Treffer-Einheit am Getroffenen (nach seiner Ruestung); hitGap: Pause zwischen zwei Treffern desselben Angriffs auf den Gegner.
-CFG.pvp = { startTime: CFG.finalBoss.at, weaponUps: CFG.boss.order.length, radius: 300, camHalf: [300, 300], spawnX: 200, countdown: 3, sendHz: 15, sendHzMany: 10, dmgMul: 0.8, hitGap: 0.25, maxUnits: 12, dieUnits: 6, maxGhosts: 16, endDelay: 2.2,
+CFG.pvp = { startTime: CFG.finalBoss.at, weaponUps: CFG.boss.order.length, radius: 440, camHalf: [440, 440], spawnX: 300, countdown: 3, sendHz: 15, sendHzMany: 10, dmgMul: 0.8, hitGap: 0.25, maxUnits: 12, dieUnits: 6, maxGhosts: 16, endDelay: 2.2,
   // Feste Sets fuer die Lobby-Regel SET (Standardwerte: keine Upgrades, Stufe 0, Held Vanguard). Passende Waffe + Ability/Implant ergibt die Evolution.
   sets: [
     { id: 'brawler', name: 'BRAWLER', desc: 'Heavy hits up close. Quake Hammer (hammer + armor).', melee: 'hammer', ranged: 'shotgun', heavy: 'grenade', artifact: 'armor', weak: 'dash', medium: 'shield', strong: 'berserk' },
@@ -1598,7 +1532,16 @@ CFG.pvp = { startTime: CFG.finalBoss.at, weaponUps: CFG.boss.order.length, radiu
     { id: 'gunner', name: 'GUNNER', desc: 'Ranged pressure. Vortex Blades, Seeker Rounds, Storm Chain.', melee: 'sword', ranged: 'shot', heavy: 'chain', artifact: 'damage', weak: 'scanner', medium: 'capacitor', strong: 'overclock' },
     { id: 'trapper', name: 'TRAPPER', desc: 'Area control. Rail Spear, Napalm Rockets, Event Horizon.', melee: 'lance', ranged: 'rocket', heavy: 'blackhole', artifact: 'thorns', weak: 'thrusters', medium: 'overcharge', strong: 'field' },
   ],
-  maxPlayers: 4, maxStun: 1.2, stunImmune: 3, maxPush: 36, fxHz: 8,
+  maxPlayers: 6,
+  // Team-Deathmatch 3v3: erstes Team mit killTarget Kills gewinnt, sonst nach timeLimit Sekunden das mit mehr Kills. Wer faellt, kommt nach respawn Sekunden zurueck (spawnProt Sekunden unverwundbar). Warteschlange: nach queueWait +- queueJitter Sekunden fuellen Bots auf.
+  // Belohnung pro Runde (nur wenn mindestens minSeconds gespielt wurden): Credits = base + Kills x perKill (+ win), XP entsprechend
+  reward: { minSeconds: 20, base: 8, perKill: 4, win: 20, xpBase: 20, xpKill: 5, xpWin: 30 },
+  // PVP-Staerke (Wertung fuer die offene Runde): Start 1000, Elo-artig. Nach jeder offenen Runde steigt sie bei guter Platzierung und sinkt bei schlechter (k = Ausschlag).
+  // Staerke fuer die Gruppenbildung = Wertung + Ausruestungsbonus (je staerker das gekaufte Gear, desto staerker). Warteschlange: der Anfuehrer nimmt Spieler mit aehnlicher Staerke (window + windowPerSec x Wartesekunden); fehlende Plaetze fuellen Bots, deren Stufe von der mittleren Staerke abhaengt (botTiers = Grenzen zu NORMAL/HARD, botRating = Staerke der Bot-Stufen EASY/NORMAL/HARD).
+  rating: { start: 1000, k: 48, min: 100, window: 120, windowPerSec: 30, botTiers: [950, 1150], botRating: [800, 1000, 1250],
+    perUpgrade: 2, perGearLevel: 10, gearCap: 600 },          // Ausruestung: jede Upgrade-Stufe und jede Stufe des ausgeruesteten Gears zaehlt zur Staerke (gearCap = Obergrenze)
+  dm: { killTarget: 15, timeLimit: 240, respawn: 3, spawnProt: 2, queueWait: 20, queueJitter: 2, sync: 0.5, lobbyPick: 0 },
+  maxStun: 1.2, stunImmune: 3, maxPush: 36, fxHz: 8,
   // Bots (nur Dev-Lobby DEV02): speed = Schritte pro Bild, near = Abstand, ab dem sie umkreisen, reach/cooldown/units = Nahkampfschlag, hpPerUnit = Leben (von 100), das eine Treffer-Einheit kostet
   // Staerken (levels): speed/dmg = Faktoren, react = Faktor auf Pausen (kleiner = schneller), aim = Zielfehler in Grad, dodge/shield = Neigung zu Dash bzw. Schildblase
   bot: { speed: 3.6, near: 46, reach: 34, cooldown: 0.9, units: 1.2, hpPerUnit: 8, shootMax: 220, shootCd: 1.4, boltSpeed: 7, boltLife: 40, boltRadius: 12, boltUnits: 0.9,
@@ -1606,10 +1549,32 @@ CFG.pvp = { startTime: CFG.finalBoss.at, weaponUps: CFG.boss.order.length, radiu
     levels: [{ name: 'EASY', speed: 0.8, dmg: 0.7, react: 1.5, aim: 22, dodge: 0.1, shield: 0.1 }, { name: 'NORMAL', speed: 1, dmg: 1, react: 1, aim: 10, dodge: 0.4, shield: 0.5 }, { name: 'HARD', speed: 1.15, dmg: 1.3, react: 0.7, aim: 3, dodge: 0.8, shield: 1 }] } };
 // maxStun/stunImmune: Betaeubung durch Gegner-Abilities (Sekunden) und die Schonfrist danach; maxPush: groesster Rueckstoss pro Nachricht; fxHz: wie oft Rueckstoss/Betaeubung gesendet werden; sendHzMany: Zustandsrate ab 3 Spielern.
 
-// ---------- Koop-Lauf (PLAY > MULTIPLAYER > CO-OP): bis zu 4 Spieler spielen gemeinsam einen Lauf auf einer der vier Standardkarten (js/coop.js) ----------
+// PvP-Karten (Auswahl: Host in der Lobby, mapId = Standard, Code: js/pvpcover.js, Optik: js/pvparena.js). Jede Karte ist eine runde Kampffläche mit `radius`; `cover` = feste, unzerstörbare Deckung
+// ({ t: 'c', x, y, r } Säule | { t: 'r', x, y, hw, hh, a } Mauer, hw = halbe Länge, hh = halbe Breite, a = Drehung in Grad). Die Startplätze liegen bei Radius spawnX im Kreis (Winkel 180° + i x 360°/n),
+// halte sie frei. Keine Zufallswerte in der Deckung: alle Geräte müssen dieselbe Karte rechnen. Neue Karte = neuer Eintrag in maps (das alte Design 'colosseum' bleibt als offene Arena erhalten).
+CFG.pvp.mapId = 'ruins';
+// Namen der Mitspieler, die freie Plaetze fuellen (sie werden im Spiel nie als Bots bezeichnet). Auswahl nach dem Lobby-Code, damit alle Geraete dieselben Namen sehen (Pvp.botName).
+CFG.pvp.botNames = ['NOVA', 'KAI_87', 'RIVEN', 'JUNO', 'ORION', 'VEX', 'LYRA', 'ZED', 'MIRA', 'ROOK', 'ECHO', 'SABLE', 'DRAKE', 'IVY', 'TALON', 'QUILL', 'ASH', 'BLITZ', 'NYX', 'FLINT', 'MAYA_X', 'COBALT', 'REMI', 'SKYE', 'TORO', 'WREN', 'HAZE', 'PIXEL'];
+CFG.pvp.maps = {
+  colosseum: { name: 'COLOSSEUM', desc: 'The open arena: no cover, nowhere to hide.', radius: 440, cover: [] },
+  ruins: { name: 'RUINS', desc: 'The same arena in ruins: pillars and broken walls give cover.', radius: 440,
+    cover: (() => {                                                // 6-fach symmetrisch, damit jede Spielerzahl (2 bis 6) fair startet
+      const out = [{ t: 'c', x: 0, y: 0, r: 26 }], at = (r, deg) => [Math.round(Math.cos(deg * Math.PI / 180) * r), Math.round(Math.sin(deg * Math.PI / 180) * r)];
+      for (let k = 0; k < 6; k++) {
+        const a = k * 60, [ix, iy] = at(115, a), [wx, wy] = at(205, a + 30), [ox, oy] = at(372, a + 30), [sx, sy] = at(235, a);
+        out.push({ t: 'c', x: ix, y: iy, r: 16 });                  // innerer Säulenring auf den Startachsen
+        out.push({ t: 'r', x: wx, y: wy, hw: 58, hh: 10, a: a + 120 });       // Mauer quer zwischen zwei Startachsen (a + 30 + 90 = quer zur Richtung vom Mittelpunkt)
+        out.push({ t: 'c', x: ox, y: oy, r: 22 });                  // Säulen am Rand
+        out.push({ t: 'r', x: sx, y: sy, hw: 28, hh: 9, a: a + 90 });         // kurze Mauer vor jeder Startachse (Deckung gleich nach dem Start)
+      }
+      return out;
+    })() },
+};
+
+// ---------- Koop-Lauf (PLAY > MULTIPLAYER > CO-OP): bis zu 6 Spieler spielen gemeinsam einen Lauf auf einer der vier Standardkarten (js/coop.js) ----------
 // Der Host rechnet die Welt (Gegner, Bosse, Director), die Gaeste sehen sie als Bild und spielen ihren eigenen Spieler. Siehe Organise/CLAUDE.md "Koop".
-// Schwierigkeit: Faktor m(n) = n * (1 + extra * (n - 1)), also 1, 2.7, 5.1, 8.4 (immer deutlich ueber der Spielerzahl). Er wird aufgeteilt: zaehere Gegner (m^hpExp),
+// Schwierigkeit: Faktor m(n) = n * (1 + extra * (n - 1)), also 1, 2.7, 5.1, 8.4, 12.3, 16.5 (immer deutlich ueber der Spielerzahl). Er wird aufgeteilt: zaehere Gegner (m^hpExp),
 // mehr Gegner (m^spawnExp, Raten und Obergrenzen), Boss-Leben (m^bossExp). Credits: x m^coreExp. Karten sind mapScale-mal so gross (gleiche vier Karten).
 CFG.coop = { mapScale: 1.7, extra: 0.35, hpExp: 0.4, spawnExp: 0.7, bossExp: 0.9, coreExp: 0.5, obstacleMul: 1.5, countdown: 3,
-  pickTime: 15, stateHz: 15, worldHz: 10, reviveFrac: 0.5, maxEnemies: 140, maxShots: 90, mateTimeout: 8, maxPlayers: 4 };
+  pickTime: 15, stateHz: 12, worldHz: 10, reviveFrac: 0.5, maxEnemies: 140, maxShots: 90, mateTimeout: 8, maxPlayers: 6 };
 CFG.coop.mult = (n) => n * (1 + CFG.coop.extra * (Math.max(1, n) - 1));
