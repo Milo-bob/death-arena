@@ -288,7 +288,7 @@ const Social = {
     uiPanel(ctx, X - 10, y0 - 6, W + 20, vis * DY + 10, { color: P.greyMid, fill: P.void, alpha: 0.9 });
     if (this.tab === 0 && this.listAt === 0) uiText(ctx, 'LOADING...', cx, y0 + 60, { size: T.h2, color: P.grey, align: 'center' });
     else if (this.tab === 1 && this.guild === undefined) uiText(ctx, 'LOADING...', cx, y0 + 60, { size: T.h2, color: P.grey, align: 'center' });
-    else if (!rows.length) uiText(ctx, this.tab === 0 ? 'NO FRIENDS YET  -  PRESS N AND TYPE THE NAME OF A PLAYER' : this.tab === 1 ? 'NO GUILDS YET  -  CREATE THE FIRST ONE' : 'NO GUILD HAS POINTS THIS WEEK YET', cx, y0 + 60, { size: T.body, color: P.grey, align: 'center' });
+    else if (!rows.length) uiText(ctx, this.tab === 0 ? 'NO FRIENDS YET  -  ADD A PLAYER BY NAME' : this.tab === 1 ? 'NO GUILDS YET  -  CREATE THE FIRST ONE' : 'NO GUILD HAS POINTS THIS WEEK YET', cx, y0 + 60, { size: T.body, color: P.grey, align: 'center' });
     if (this.tab === 1 && this.guild === null && rows.length) uiText(ctx, 'JOIN A GUILD OR CREATE YOUR OWN', X, y0 - 12, { size: T.small, color: P.cyan });
     const S = UIScroll.win('social', this.tab + ':' + (head ? 1 : 0), this.sel, vis, rows.length);
     rows.slice(S.off, S.off + vis).forEach((r, k) => {
@@ -377,7 +377,7 @@ if (typeof I18n !== 'undefined' && I18n.add) I18n.add({
   'OFFLINE': 'OFFLINE', 'ONLINE': 'ONLINE', 'IN A RUN': 'IM LAUF', 'IN A LOBBY': 'IN EINER LOBBY', 'WANTS TO BE YOUR FRIEND': 'MÖCHTE DEIN FREUND SEIN', 'REQUEST SENT': 'ANFRAGE GESENDET',
   'CREATE GUILD': 'GILDE ERSTELLEN', 'SEARCH': 'SUCHEN', 'LEAVE GUILD': 'GILDE VERLASSEN', 'CLAIM': 'ABHOLEN', 'CLAIM REWARD': 'BELOHNUNG ABHOLEN', '(LEADER)': '(ANFÜHRER)',
   'LOADING...': 'LADEN...', 'OPEN ACCOUNT': 'KONTO ÖFFNEN', 'LOG IN TO ADD FRIENDS AND JOIN A GUILD': 'MELDE DICH AN, UM FREUNDE HINZUZUFÜGEN UND EINER GILDE BEIZUTRETEN',
-  'NO FRIENDS YET  -  PRESS N AND TYPE THE NAME OF A PLAYER': 'NOCH KEINE FREUNDE  -  DRÜCKE N UND GIB DEN NAMEN EINES SPIELERS EIN',
+  'NO FRIENDS YET  -  ADD A PLAYER BY NAME': 'NOCH KEINE FREUNDE  -  GIB DEN NAMEN EINES SPIELERS EIN',
   'JOIN A GUILD OR CREATE YOUR OWN': 'TRITT EINER GILDE BEI ODER ERSTELLE EINE EIGENE', 'NO GUILDS YET  -  CREATE THE FIRST ONE': 'NOCH KEINE GILDEN  -  ERSTELLE DIE ERSTE',
   'NO GUILD HAS POINTS THIS WEEK YET': 'DIESE WOCHE HAT NOCH KEINE GILDE PUNKTE', '[J] JOIN': '[J] BEITRETEN', '[K] IGNORE': '[K] IGNORIEREN',
   'POINTS = KILLS + 25 PER BOSS, FROM EVERY RUN. GOALS GROW WITH YOUR MEMBER COUNT. RESET ON MONDAY.': 'PUNKTE = KILLS + 25 PRO BOSS, AUS JEDEM LAUF. DIE ZIELE WACHSEN MIT DER MITGLIEDERZAHL. RESET AM MONTAG.',

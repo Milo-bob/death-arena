@@ -128,6 +128,7 @@ const SETTINGS_COLS = [
   { label: 'CONTROLS', items: ['controls', 'binds', 'attackmode', 'mouseaim', 'touch'] },
   { label: 'SAVE & ACCOUNT', items: ['slot', 'account', 'transfer', 'resetAll'] },
 ];
+if (IS_MOBILE) SETTINGS_COLS[1].items = SETTINGS_COLS[1].items.filter((i) => !['controls', 'binds', 'mouseaim'].includes(i));       // Handy: keine Tastenbelegung, kein Mauszielen
 const settingsList = () => [].concat(...SETTINGS_COLS.map((c) => c.items), ['back']);
 const PAUSE_ITEMS = ['resume', 'abilities', 'music', 'sfx', 'binds', 'quit'];
 // Eingebettet auf Holiday Games im Vollbild: zusaetzlich EXIT FULLSCREEN (die Seite blendet dort ihren eigenen Knopf auf Touch-Geraeten aus)

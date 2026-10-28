@@ -72,9 +72,21 @@ function uiSize(px) {
 }
 function uiFont(px) { return uiSize(px) + 'px ' + STYLE.font; }
 
+// Handy: Tastenhinweise wie [SPACE], [ESC], [A/D] gibt es dort nicht. Ein einzelner Hinweis wird aus dem Text genommen ("[SPACE] BUY" wird "BUY"),
+// eine ganze Hinweiszeile mit mehreren Tasten ("[A/D] SELECT  [SPACE] OPEN  [ESC] BACK") entfaellt.
+const UI_KEY_RE = /\[(?:[A-Z0-9](?:\/[A-Z0-9])*|SPACE|LEERTASTE|ENTER|ESC|TAB|SHIFT|STRG|CTRL|BACKSPACE|RÜCKTASTE|ENTF|DEL|[0-9]-[0-9]|SPACE: [A-Z ]+)\]/g;
+function uiNoKeys(text) {
+  if (typeof IS_MOBILE === 'undefined' || !IS_MOBILE || typeof text !== 'string') return text;
+  text = text.replace(/(press|PRESS|Press) (SPACE|ENTER) to/, (m, p) => p === 'press' ? 'tap to' : p === 'Press' ? 'Tap to' : 'TAP TO');
+  const hits = text.match(UI_KEY_RE);
+  if (!hits) return text;
+  if (hits.length > 1) return '';
+  return text.replace(UI_KEY_RE, '').replace(/\s{2,}/g, ' ').trim();
+}
+
 // Text mit dunklem Rand. opts: size, color, align ('left'|'center'|'right'), glow (Farbe), baseline
 function uiText(ctx, text, x, y, opts = {}) {
-  text = I18n.t(text);
+  text = uiNoKeys(I18n.t(text));
   const size = uiSize(opts.size || STYLE.type.body);
   ctx.save();
   ctx.font = uiFont(size);

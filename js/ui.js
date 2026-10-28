@@ -1068,7 +1068,7 @@ function drawCoreCount(ctx) {
 function uiWrap(ctx, text, x, y, maxW, lineH, opts = {}) {
   ctx.save(); ctx.font = uiFont(opts.size || STYLE.type.body);
   const lines = []; let line = '';
-  for (const w of I18n.t(text).split(" ")) {
+  for (const w of uiNoKeys(I18n.t(text)).split(" ")) {
     const t = line ? line + ' ' + w : w;
     if (ctx.measureText(t).width > maxW && line) { lines.push(line); line = w; } else line = t;
   }
@@ -1731,7 +1731,7 @@ function drawKeysScreen(ctx) {
   uiText(ctx, 'Weapons fire where you face.', C1 + 8, 111, { size: T.small, color: P.grey });
 
   panel(C1, 136, W, 134, 'GOOD TO KNOW', P.yellow);
-  const tips = ['Beat a boss to pick a new ability (1 of 3).', 'Passive abilities need no key.', 'ESC, P or BACKSPACE pauses the game.', 'Rebind keys: Settings > Keybinds.'];
+  const tips = IS_MOBILE ? ['Beat a boss to pick a new ability (1 of 3).', 'Passive abilities work on their own.'] : ['Beat a boss to pick a new ability (1 of 3).', 'Passive abilities need no key.', 'ESC, P or BACKSPACE pauses the game.', 'Rebind keys: Settings > Keybinds.'];
   let ty = 158;
   tips.forEach((t) => { ty += 12 * uiWrap(ctx, t, C1 + 8, ty, W - 16, 12, { size: T.small, color: P.grey }) + 3; });
 

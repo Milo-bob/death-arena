@@ -122,7 +122,7 @@ const Tutorial = {
       uiText(ctx, head, STAGE_W / 2, y + 16, { size: T.small, color: P.yellow, align: 'center' });
       const n = uiWrap(ctx, lines[0], STAGE_W / 2, y + 40, w - 30, 16, { size: T.h2, color: P.white, align: 'center' });
       uiWrap(ctx, lines[1], STAGE_W / 2, y + 40 + n * 16 + 6, w - 40, 13, { size: T.body, color: P.ice, align: 'center' });
-      uiText(ctx, 'Nothing happens until you press SPACE. Read in peace.', STAGE_W / 2, y + h - 36, { size: T.small, color: P.grey, align: 'center' });
+      uiText(ctx, Save.data.touch ? 'Nothing happens until you tap CONTINUE. Read in peace.' : 'Nothing happens until you press SPACE. Read in peace.', STAGE_W / 2, y + h - 36, { size: T.small, color: P.grey, align: 'center' });
       ctx.save(); ctx.globalAlpha = pulse;
       uiPanel(ctx, STAGE_W / 2 - 100, y + h - 28, 200, 20, { color: P.green, fill: P.void, alpha: 1, glow: true });
       uiText(ctx, 'CONTINUE', STAGE_W / 2, y + h - 14, { size: T.h2, color: P.green, align: 'center' });
@@ -143,7 +143,9 @@ const Tutorial = {
 };
 
 // ---------- Hilfen für die Szenarien ----------
-const tkeys = (...ids) => ids.map((i) => Input.fullLabel(i)).join(ids.length > 2 ? ' ' : ' / ');       // ausgeschriebene Tastennamen (SHIFT, SPACE ...)
+const TOUCH_NAMES = { up: 'LEFT STICK', left: 'LEFT STICK', down: 'LEFT STICK', right: 'LEFT STICK', attack: 'ATTACK button', weapon1: 'CHANGE WEAPON button', weapon2: 'CHANGE WEAPON button', swap: 'CHANGE WEAPON button',
+  ability_weak: 'ABILITY 1', ability_medium: 'ABILITY 2', ability_strong: 'ABILITY 3', ultimate: 'ULTIMATE button', beam: 'HEAVY WEAPON button', artifact: 'ARTIFACT button' };
+const tkeys = (...ids) => Save.data.touch ? [...new Set(ids.map((i) => TOUCH_NAMES[i] || i))].join(' / ') : ids.map((i) => Input.fullLabel(i)).join(ids.length > 2 ? ' ' : ' / ');       // Touch: Name des Knopfes statt der Taste       // ausgeschriebene Tastennamen (SHIFT, SPACE ...)
 function tutSpawn(type, angle, dist) {
   const p = G.player, [x, y] = clampToMap(p.x + fwdX(angle) * dist, p.y + fwdY(angle) * dist, 20), e = new Enemy(type, x, y, false);
   G.enemies.push(e);
@@ -170,7 +172,7 @@ const SCENARIOS = [
     name: 'MELEE ATTACK',
     enter: (s) => { G.player.weapon = WEAPON.SWORD; },
     update: () => { G.player.weapon = WEAPON.SWORD; tutKeep('circle', 2, 3 - G.kills, 130); },
-    lines: () => ['ATTACK: ' + tkeys('attack') + '  (hold to keep attacking)', 'Defeat 3 circles with your melee weapon. Good against swarms.'],
+    lines: () => [Save.data.touch ? 'ATTACK: hold the ATTACK button' : 'ATTACK: ' + tkeys('attack') + '  (hold to keep attacking)', 'Defeat 3 circles with your melee weapon. Good against swarms.'],
     progress: () => tutCount(G.kills, 3, 'KILLS'),
     done: () => G.kills >= 3,
   },
@@ -182,7 +184,7 @@ const SCENARIOS = [
       if (s.stage === 0 && G.player.weapon === WEAPON.SHOT) { s.stage = 1; G.kills = 0; }
       if (s.stage === 1) tutKeep('triangle', 2, 2 - G.kills, 150);
     },
-    lines: (s) => s.stage === 0 ? ['SWITCH WEAPON: press ' + tkeys('weapon2') + ' (ranged)', tkeys('weapon1') + ' = melee, ' + tkeys('weapon2') + ' = ranged. Mouse wheel works too.'] : ['SHOOT: ' + tkeys('attack'), 'Defeat 2 triangles from a distance. They shoot back!'],
+    lines: (s) => s.stage === 0 ? (Save.data.touch ? ['SWITCH WEAPON: tap CHANGE WEAPON', 'The button swaps between your melee and ranged weapon.'] : ['SWITCH WEAPON: press ' + tkeys('weapon2') + ' (ranged)', tkeys('weapon1') + ' = melee, ' + tkeys('weapon2') + ' = ranged. Mouse wheel works too.']) : ['SHOOT: ' + tkeys('attack'), 'Defeat 2 triangles from a distance. They shoot back!'],
     progress: (s) => s.stage === 0 ? 'WAITING FOR WEAPON SWITCH' : tutCount(G.kills, 2, 'KILLS'),
     done: (s) => s.stage === 1 && G.kills >= 2,
   },
@@ -275,7 +277,7 @@ const SCENARIOS = [
       if (s.seen && !u) s.used = true;
     },
     lines: () => ['ULTIMATE: ' + tkeys('ultimate'), 'The orb at the bottom is full. Unleash it to wipe out everything on screen. Kills fill it again.'],
-    progress: (s) => s.seen ? 'RELEASED' : 'PRESS ' + tkeys('ultimate'),
+    progress: (s) => s.seen ? 'RELEASED' : (Save.data.touch ? 'TAP ' : 'PRESS ') + tkeys('ultimate'),
     done: (s) => s.used,
   },
   {
@@ -313,3 +315,12 @@ const SCENARIOS = [
     done: () => Tutorial.bossDown,
   },
 ];
+
+// Deutsche Texte fuer die Touch-Fassung (Knopfnamen statt Tasten)
+if (typeof I18n !== 'undefined' && I18n.add) I18n.add({
+  'ATTACK: hold the ATTACK button': 'ANGRIFF: halte den ANGRIFF-Knopf', 'SWITCH WEAPON: tap CHANGE WEAPON': 'WAFFENWECHSEL: tippe auf WAFFE WECHSELN',
+  'The button swaps between your melee and ranged weapon.': 'Der Knopf wechselt zwischen Nah- und Fernkampfwaffe.',
+  'Nothing happens until you tap CONTINUE. Read in peace.': 'Es passiert nichts, bis du auf WEITER tippst. Lies in Ruhe.',
+});
+if (typeof I18n !== 'undefined' && I18n.phrases) I18n.phrases([['LEFT STICK', 'LINKER STICK'], ['ATTACK button', 'ANGRIFF-Knopf'], ['CHANGE WEAPON button', 'WAFFE-WECHSELN-Knopf'], ['HEAVY WEAPON button', 'STARKE-WAFFE-Knopf'],
+  ['ULTIMATE button', 'ULTIMATE-Knopf'], ['ARTIFACT button', 'ARTEFAKT-Knopf'], ['ABILITY 1', 'FÄHIGKEIT 1'], ['ABILITY 2', 'FÄHIGKEIT 2'], ['ABILITY 3', 'FÄHIGKEIT 3'], ['TAP ', 'TIPPE ']]);
