@@ -668,12 +668,14 @@ const PvpMatch = {
     if (played < R.minSeconds) { P.reward = { none: true }; Anticheat.drop('pvp'); return; }
     const win = P.result === 'win', credits = R.base + mine.k * R.perKill + (win ? R.win : 0), xp = R.xpBase + mine.k * R.xpKill + (win ? R.xpWin : 0);
     Save.data.souls += credits;
+    const shards = P.players.filter((p) => !p.bot).length >= 2 ? CFG.shards.pvp.play + (win ? CFG.shards.pvp.win : 0) : 0;          // Shards nur gegen mindestens einen anderen echten Spieler
+    Save.addShards(shards);
     Anticheat.end({ kind: 'pvp', time: played, kills: mine.k, bosses: 0, win });
     const res = Save.addPlayerXp(xp), S = Save.data.pvpStats || (Save.data.pvpStats = { m: 0, w: 0, k: 0, d: 0 });
     S.m++; if (win) S.w++; S.k += mine.k; S.d += mine.d;
     if (P.players.filter((p) => !p.bot).length >= 2) { S.hm = (S.hm || 0) + 1; if (win) S.hw = (S.hw || 0) + 1; }       // Rangliste PVP WINS: nur Runden mit mindestens einem anderen echten Spieler (Siege gegen Bots zaehlen dort nicht)
     Save.write();
-    P.reward = { credits, xp, from: res.from, to: res.to, lvCredits: res.reward };
+    P.reward = { credits, shards, xp, from: res.from, to: res.to, lvCredits: res.reward };
     if (Pvp.pub && P.mode === 'ffa') P.reward.rating = this.rate();
   },
   // PVP-Staerke: Platzierung (1 = Sieger, danach umgekehrt zur Reihenfolge des Ausscheidens) gegen die mittlere Staerke der Gegner, Elo-artig
@@ -770,7 +772,7 @@ const PvpMatch = {
     });
     // Belohnung
     const ry = y0 + 22 + rows.length * RH + 8, rw = P.reward;
-    if (rw && !rw.none) uiText(ctx, 'REWARD  +' + rw.credits + ' CREDITS   +' + rw.xp + ' XP' + (rw.to > rw.from ? '   LEVEL UP! LV ' + rw.to + '  +' + rw.lvCredits + ' CREDITS' : ''), cx, ry + 6, { size: T.h2, color: S.yellow, align: 'center' });
+    if (rw && !rw.none) uiText(ctx, 'REWARD  +' + rw.credits + ' CREDITS   ' + (rw.shards ? '+' + rw.shards + ' SHARDS   ' : '') + '+' + rw.xp + ' XP' + (rw.to > rw.from ? '   LEVEL UP! LV ' + rw.to + '  +' + rw.lvCredits + ' CREDITS' : ''), cx, ry + 6, { size: T.h2, color: S.yellow, align: 'center' });
     else if (rw) uiText(ctx, 'MATCH TOO SHORT - NO REWARD', cx, ry + 6, { size: T.body, color: S.grey, align: 'center' });
     else uiText(ctx, 'COUNTING ...', cx, ry + 6, { size: T.body, color: S.grey, align: 'center' });
     // Knoepfe: NOCHMAL (offene Runde oder Host) und Zurueck

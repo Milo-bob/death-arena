@@ -476,9 +476,9 @@ const G = {
   // Cosmetics: A/D wechselt die Kategorie, W/S waehlt, Leertaste kauft (falls noetig) und ruestet aus, letzte Zeile / ESC zurueck
   // Kaufbestaetigung (Upgrades, Cosmetics): oeffnet ein Fenster "BUY / CANCEL" (im Touch-Modus gibt es kein Hovern, ein Tipp darf nicht gleich kaufen).
   // Nicht bezahlbar oder kostenlos: fn() direkt (Ablehnungs-Ton bzw. Ausruesten), ohne Fenster.
-  openConfirm(name, price, fn) {
-    if (price <= 0 || Save.data.souls < price) { fn(); return; }
-    this.confirm = { name, price, fn, sel: 0 };                                  // sel: 0 = BUY, 1 = CANCEL
+  openConfirm(name, price, fn, shards) {                                          // shards = true: Preis in Shards (Cosmetics), sonst in Credits
+    if (price <= 0 || (shards ? Save.shards() : Save.data.souls) < price) { fn(); return; }
+    this.confirm = { name, price, fn, sel: 0, shards: !!shards };                                  // sel: 0 = BUY, 1 = CANCEL
   },
   updateConfirm() {                                                              // A/D bzw. Pfeile waehlen BUY/CANCEL, Leertaste/Enter bestaetigt, ESC = abbrechen
     const c = this.confirm;
@@ -491,8 +491,19 @@ const G = {
     else if (Input.pressed('Escape')) { this.confirm = null; Sfx.play('select'); }
   },
 
+  // Shard-Umtausch (Overlay im Cosmetics-Menue, Taste G): Pakete aus CFG.shards.packs fuer Credits. A/D waehlt, Leertaste tauscht, ESC schliesst.
+  updateExch() {
+    const x = this.exch, n = CFG.shards.packs.length;
+    if (Input.pressed('KeyA') || Input.pressed('ArrowLeft')) { x.sel = (x.sel + n - 1) % n; Sfx.play('tick'); }
+    if (Input.pressed('KeyD') || Input.pressed('ArrowRight')) { x.sel = (x.sel + 1) % n; Sfx.play('tick'); }
+    if (Input.pressed('Space') || Input.pressed('Enter')) this.exchBuy(x.sel);
+    else if (Input.pressed('Escape') || Input.pressed('KeyG')) { this.exch = null; Sfx.play('select'); }
+  },
+  exchBuy(i) { Sfx.play(Save.buyShardPack(i) ? 'buy' : 'deny'); },
   updateCosmetics() {
+    if (this.exch) { this.updateExch(); return; }
     if (this.confirm) { this.updateConfirm(); return; }
+    if (Input.pressed('KeyG') && !this.colorPick) { this.exch = { sel: 0 }; Sfx.play('select'); return; }
     const cats = CFG.cosmetics.cats, cat = cats[this.cosTab], items = Cos.items(cat.id), n = items.length + 1;
     if (this.colorPick) { this.updateColorPick(cat, items); return; }
     if (Input.pressed('ArrowUp') || Input.pressed('KeyW')) this.cosSel = (this.cosSel + n - 1) % n;
@@ -510,7 +521,7 @@ const G = {
       if (this.cosSel === n - 1) this.mode = 'start';
       else {
         const it = items[this.cosSel], act = () => Sfx.play(Save.cosEquip(cat.id, it.id) ? 'buy' : 'deny');
-        if (!Save.cosOwned(cat.id, it.id)) this.openConfirm(it.name, it.cost, act); else act();
+        if (!Save.cosOwned(cat.id, it.id)) this.openConfirm(it.name, it.price, act, true); else act();
       }
     }
     if (Input.pressed('Escape')) this.mode = 'start';
@@ -853,13 +864,13 @@ const G = {
     else if (nav.some((k) => Input.pressed(k))) Sfx.play('tick');
   },
 
-  // Dev-Modus (Save.data.dev, freigeschaltet mit tools/dev-save.deatharena): F1 alle Karten, F2 unsterblich, F3 +60 s, F4 +500 Cores.
+  // Dev-Modus (Save.data.dev, freigeschaltet mit tools/dev-save.deatharena): F1 ALLES freischalten (Helden, Cosmetics, Items, Abilities, Karten, Level mind. 15), F2 unsterblich, F3 +60 s, F4 +500 Credits und +50 Shards.
   // Laeufe mit F2/F3 gelten als Cheat-Lauf (G.cheated) und werden im Statistik-Protokoll als Dev-Lauf markiert (dv).
   devKeys() {
-    if (Input.pressed('F1')) { Save.data.devUnlockAll = !Save.data.devUnlockAll; Save.write(); Sfx.play('select'); }
+    if (Input.pressed('F1')) { Save.devUnlockEverything(); Sfx.play('buy'); }
     if (Input.pressed('F2')) { this.god = !this.god; if (this.god) this.cheated = true; Sfx.play('select'); }
     if (Input.pressed('F3') && this.mode === 'play' && !this.bossFight && !Tutorial.active) { this.time += 60; this.cheated = true; Sfx.play('select'); }
-    if (Input.pressed('F4')) { Save.data.souls += 500; Save.write(); Sfx.play('select'); }
+    if (Input.pressed('F4')) { Save.data.souls += 500; Save.addShards(50); Save.write(); Sfx.play('select'); }
   },
 
   update(dt) {
@@ -875,7 +886,7 @@ const G = {
     else if (this.mode === 'ending') playMusic(this.endAge < ENDING_SPLIT ? 'dead' : 'menu');
     if (Save.data.dev) this.devKeys();
     Account.menuTick(this.mode);
-    Social.tick(this.mode); Social.keys(); Daily.tick(this.mode);
+    Social.tick(this.mode); Social.keys(); Daily.tick(this.mode); Board.tick();
     PWA.tick(this.mode);
     if (this.mode === 'splash') {
       this.updateSplash(dt);
@@ -1094,6 +1105,7 @@ const G = {
       this.drawPlay(ctx);
     }
     if (this.confirm && ['upgrades', 'cosmetics'].includes(this.mode)) drawConfirm(ctx);
+    if (this.exch && this.mode === 'cosmetics') drawExchange(ctx);
     drawToast(ctx);
     Social.drawInvite(ctx);
     if (['pvp', 'friends', 'guildroom', 'achievements', 'leaderboard', 'modeselect', 'cosmetics', 'mapselect', 'keys', 'binds', 'inventory', 'upgrades', 'settings', 'swap', 'pause'].includes(this.mode)) drawCloseX(ctx);

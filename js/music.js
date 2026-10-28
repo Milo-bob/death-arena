@@ -154,7 +154,7 @@ const Music = {
     if (name) this.start();
   },
   start() {
-    if (!this.name || this.timer || !this.ensure()) return;
+    if (!this.name || this.timer || Save.data.musicVol <= 0 || !this.ensure()) return;
     this.nextT = Sfx.ctx.currentTime + 0.08;
     this.lastTick = performance.now();
     this.timer = setInterval(() => this.tick(), 25);

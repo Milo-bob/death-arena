@@ -1493,6 +1493,23 @@ function cosRewardCredits(key) {
 // Cosmetics gibt es nur noch fuer Credits (keine Sperren, keine Belohnungs-Cosmetics): Meilensteine zahlen stattdessen den Wert des Cosmetics in Credits.
 for (const m of CFG.milestones) if (m.reward && m.reward.cos) m.reward = { cores: cosRewardCredits(m.reward.cos) };
 
+// SHARDS: zweite Waehrung nur fuer Cosmetics. Verdienen: Tagesbelohnung (daily), Achievements (Credit-Belohnung / achDiv), PvP. Oder in Paketen fuer Credits tauschen (creditsPer Credits = 1 Shard).
+// Preis eines Cosmetics in Shards = Credit-Preis x priceMul / creditsPer (Preise sind damit rund 25 % hoeher als beim Umtausch zum alten Credit-Preis), auf 5 gerundet. Bereits gekaufte Cosmetics bleiben unberuehrt.
+// Credit-Einnahmen AUSSERHALB der Laeufe und des PvP (Erfolge, Meilensteine, Level-Belohnung) werden mit diesen Faktoren gesenkt, damit man sich nicht zu schnell alles kaufen kann.
+// Die Tagesbelohnung steht serverseitig (tools/supabase_anticheat.sql, ac_cfg().daily).
+CFG.econ = { achMul: 0.5, msMul: 0.5, levelMul: 0.5 };
+for (const m of CFG.milestones) if (m.reward && m.reward.cores) m.reward = Object.assign({}, m.reward, { cores: Math.max(1, Math.round(m.reward.cores * CFG.econ.msMul)) });
+CFG.shards = {
+  creditsPer: 2.5,                                                           // Umtausch: 2,5 Credits = 1 Shard
+  packs: [{ shards: 10 }, { shards: 40 }, { shards: 100 }],                  // Pakete im Umtausch (Kosten = shards x creditsPer)
+  priceMul: 1.25, round: 5,
+  achDiv: 20,                                                                // Achievement mit n Credits gibt zusaetzlich floor(n / achDiv) Shards
+  pvp: { play: 1, win: 3 },                                                  // (Tagesbelohnung: Shards stehen serverseitig in ac_cfg().daily_shards)                                                  // je gewertete PvP-Runde mit mindestens einem anderen echten Spieler
+};
+function cosPrice(it) { return it.cost <= 0 ? 0 : Math.max(CFG.shards.round, Math.round(it.cost * CFG.shards.priceMul / CFG.shards.creditsPer / CFG.shards.round) * CFG.shards.round); }
+function shardPackCost(p) { return Math.round(p.shards * CFG.shards.creditsPer); }
+for (const cat of Object.keys(CFG.cosmetics.items)) for (const it of CFG.cosmetics.items[cat]) it.price = cosPrice(it);
+
 // Cosmetics sortieren (Menue-Reihenfolge): Standard-Item zuerst, dann einfache Umfaerbungen, unten die speziellen Items (mit Effekt, Form oder Verhalten).
 // Innerhalb der Gruppen nach Preis. Ein Item kann mit special: true von Hand zu den speziellen gezaehlt werden (z. B. Skin OBSIDIAN).
 (function sortCosmetics() {

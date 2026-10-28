@@ -181,6 +181,18 @@ Sfx.wake = function () {
   setTimeout(() => { this.locked = c.state !== 'running'; }, 500);
   try { if (c.state !== 'running') { const p = c.resume(); if (p && p.catch) p.catch(() => {}); } } catch (e) { /* ignorieren */ }
   try { const s = c.createBufferSource(); s.buffer = c.createBuffer(1, 1, 22050); s.connect(c.destination); s.start(0); } catch (e) { /* ignorieren */ }    // stiller Ton = iOS-Freischaltung
+  this.syncSession();
+};
+// Musik an: Sitzung "playback" + stilles <audio>-Element (haelt WebAudio auf iOS wach, uebernimmt aber den Audiofokus, andere Apps wie Spotify pausieren).
+// Musik 0: Sitzung "ambient" und kein <audio>-Element -> Spotify & Co. laufen weiter, die Soundeffekte mischen sich dazu (Stummschalter gilt dann am iPhone).
+Sfx.syncSession = function () {
+  if (!this.ctx) return;
+  const musicOn = (Save.data.musicVol || 0) > 0;
+  try { if (navigator.audioSession) navigator.audioSession.type = musicOn ? 'playback' : 'ambient'; } catch (e) { /* ignorieren */ }
+  if (!musicOn) {
+    if (this.keepAlive) { try { this.keepAlive.pause(); this.keepAlive.removeAttribute('src'); this.keepAlive.load(); } catch (e) { /* ignorieren */ } this.keepAlive = null; }
+    return;
+  }
   if (!this.keepAlive) {
     try {
       const a = document.createElement('audio');

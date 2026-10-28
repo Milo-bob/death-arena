@@ -65,6 +65,8 @@ function loadAssets(onDone) {
 function setMusicVolume(v) {
   Save.data.musicVol = clamp(v, 0, 1);
   Music.setVolume(Save.data.musicVol);
+  if (Save.data.musicVol > 0) Music.start(); else Music.stop();           // bei 0 laeuft kein Sequencer; Sitzung/Audiofokus fuer andere Apps
+  if (typeof Sfx !== 'undefined' && Sfx.syncSession) Sfx.syncSession();
 }
 
 // Zeichnet ein Bild. x,y in Bühnenkoordinaten (Scratch). dir/size wie in Scratch.

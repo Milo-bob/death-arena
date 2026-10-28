@@ -32,15 +32,16 @@ const Daily = {
     try {
       const r = await Account.rest('POST', '/rest/v1/rpc/daily_claim', {});
       if (r.ok && r.json && r.json.ok) {
-        const cr = Number(r.json.credits) || 0;
-        Save.data.souls = (Save.data.souls || 0) + cr; Save.write();
+        const sh = Math.max(0, Math.floor(Number(r.json.shards) || 0)), cr = Number(r.json.credits) || 0;          // Der Server entscheidet: Shard-Tage zahlen Shards statt Credits (tools/supabase_anticheat.sql)
+        Save.data.souls = (Save.data.souls || 0) + cr; Save.addShards(sh); Save.write();
         this.st.claimed = true; this.st.streak = r.json.streak; this.st.next = r.json.streak + 1;
-        this.result = { credits: cr, streak: r.json.streak, index: r.json.index }; this.resultAt = Date.now();
+        this.result = { credits: cr, shards: sh, streak: r.json.streak, index: r.json.index }; this.resultAt = Date.now();
         Sfx.play('levelUp');
       } else if (r.ok && r.json && r.json.ok === false) { this.st.claimed = true; this.close(); }          // heute schon abgeholt (anderes Gerät)
       else { this.error = Account.errText(r); Sfx.play('deny'); }
     } finally { this.busy = false; }
   },
+  show() { this.open = true; this.dismissed = false; this.result = null; this.error = ''; },
   close() { this.open = false; this.dismissed = true; this.error = ''; },
 
   update() {
@@ -73,24 +74,25 @@ const Daily = {
       const bx = bx0 + i * (bw + gap), by = y + 50, isDone = i < done, isToday = !got && i === idx, col = isDone ? P.green : isToday ? P.yellow : P.greyMid;
       uiPanel(ctx, bx, by, bw, 66, { color: col, fill: isToday ? P.voidLight : P.void, alpha: 0.95, glow: isToday });
       uiText(ctx, 'DAY ' + (i + 1), bx + bw / 2, by + 14, { size: T.small, color: col, align: 'center' });
-      uiText(ctx, '+' + (rew[i] || 0), bx + bw / 2, by + 40, { size: T.h2, color: isDone || isToday ? P.ice : P.grey, align: 'center' });
-      uiText(ctx, 'CREDITS', bx + bw / 2, by + 56, { size: T.small, color: P.grey, align: 'center' });
+      const shd = Number((st.shards || [])[i]) || 0;
+      uiText(ctx, '+' + (shd || rew[i] || 0), bx + bw / 2, by + 40, { size: T.h2, color: shd ? P.cyan : isDone || isToday ? P.ice : P.grey, align: 'center' });
+      uiText(ctx, shd ? 'SHARDS' : 'CREDITS', bx + bw / 2, by + 56, { size: T.small, color: shd ? P.cyan : P.grey, align: 'center' });
       if (isDone) { ctx.fillStyle = P.green; [[-6, 0], [-4, 2], [-2, 4], [0, 2], [2, 0], [4, -2], [6, -4]].forEach(([dx, dy]) => ctx.fillRect(bx + bw - 12 + dx, by + 6 + dy, 3, 3)); }
     }
     const streak = got ? got.streak : st.streak;
     uiText(ctx, streak > 0 ? 'STREAK: ' + streak + (streak === 1 ? ' DAY' : ' DAYS') : 'START YOUR STREAK TODAY', cx, y + 136, { size: T.body, color: P.cyan, align: 'center' });
-    if (got) uiText(ctx, '+' + got.credits + ' CREDITS', cx, y + 160, { size: T.h2, color: P.yellow, align: 'center', glow: P.yellow });
+    if (got) uiText(ctx, got.shards ? '+' + got.shards + ' SHARDS' : '+' + got.credits + ' CREDITS', cx, y + 160, { size: T.h2, color: got.shards ? P.cyan : P.yellow, align: 'center', glow: got.shards ? P.cyan : P.yellow });
     else uiText(ctx, 'COME BACK TOMORROW TO KEEP YOUR STREAK  -  MISS A DAY AND IT STARTS OVER', cx, y + 150, { size: T.small, color: P.grey, align: 'center' });
     const bwid = 150, bxx = cx - bwid / 2, byy = y + h - 34;
-    UIHit.add(bxx, byy, bwid, 22, () => {}, { act: () => (got ? this.close() : this.claim()) });
-    uiPanel(ctx, bxx, byy, bwid, 22, { color: got ? P.cyan : P.green, fill: P.void, alpha: 0.95, glow: true });
-    uiText(ctx, got ? 'OK' : this.busy ? '...' : 'CLAIM', cx, byy + 15, { size: T.h2, color: got ? P.cyan : P.green, align: 'center' });
-    if (!got) { UIHit.add(x + w - 62, y + 6, 56, 16, () => {}, { act: () => this.close() }); uiText(ctx, 'LATER [ESC]', x + w - 34, y + 17, { size: T.small, color: P.grey, align: 'center' }); }
+    UIHit.add(bxx, byy, bwid, 22, () => {}, { act: () => (got || st.claimed ? this.close() : this.claim()) });
+    uiPanel(ctx, bxx, byy, bwid, 22, { color: got || st.claimed ? P.cyan : P.green, fill: P.void, alpha: 0.95, glow: true });
+    uiText(ctx, got || st.claimed ? 'OK' : this.busy ? '...' : 'CLAIM', cx, byy + 15, { size: T.h2, color: got || st.claimed ? P.cyan : P.green, align: 'center' });
+    if (!got && !st.claimed) { UIHit.add(x + w - 62, y + 6, 56, 16, () => {}, { act: () => this.close() }); uiText(ctx, 'LATER [ESC]', x + w - 34, y + 17, { size: T.small, color: P.grey, align: 'center' }); }
     if (this.error) uiText(ctx, this.error, cx, y + h + 14, { size: T.body, color: P.red, align: 'center' });
   },
 };
 
 if (typeof I18n !== 'undefined' && I18n.add) I18n.add({
-  'DAILY REWARD': 'TAGESBELOHNUNG', 'CLAIM': 'ABHOLEN', 'DAY': 'TAG', 'LATER [ESC]': 'SPÄTER [ESC]', 'DAY #': 'TAG #', 'STREAK: # DAYS': 'SERIE: # TAGE', 'STREAK: # DAY': 'SERIE: # TAG', 'CREDITS': 'CREDITS', 'START YOUR STREAK TODAY': 'STARTE HEUTE DEINE SERIE',
+  'DAILY REWARD': 'TAGESBELOHNUNG', 'CLAIM': 'ABHOLEN', 'DAY': 'TAG', 'LATER [ESC]': 'SPÄTER [ESC]', 'DAY #': 'TAG #', 'STREAK: # DAYS': 'SERIE: # TAGE', 'STREAK: # DAY': 'SERIE: # TAG', 'CREDITS': 'CREDITS', 'SHARDS': 'SHARDS', 'START YOUR STREAK TODAY': 'STARTE HEUTE DEINE SERIE',
   'COME BACK TOMORROW TO KEEP YOUR STREAK  -  MISS A DAY AND IT STARTS OVER': 'KOMM MORGEN WIEDER, UM DEINE SERIE ZU HALTEN  -  VERPASSE EINEN TAG UND SIE BEGINNT NEU',
 });

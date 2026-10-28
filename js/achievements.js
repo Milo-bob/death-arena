@@ -162,6 +162,10 @@ const ACH_LIST = [
 ];
 // Cosmetics gibt es nur noch fuer Credits: Belohnungen, die frueher ein Cosmetic waren, zahlen dessen Wert in Credits aus (cosRewardCredits in config.js)
 for (const a of ACH_LIST) if (a.reward && a.reward.cos) a.reward = { cores: cosRewardCredits(a.reward.cos) };
+// Zusaetzlich Shards (nur fuer Cosmetics): floor(Credits / CFG.shards.achDiv), kleine Erfolge geben keine
+for (const a of ACH_LIST) if (a.reward && a.reward.cores) a.reward.shards = Math.floor(a.reward.cores / CFG.shards.achDiv);
+// Credit-Belohnung der Erfolge senken (CFG.econ.achMul), die Shards oben wurden noch aus dem vollen Wert berechnet
+for (const a of ACH_LIST) if (a.reward && a.reward.cores) a.reward.cores = Math.max(1, Math.round(a.reward.cores * CFG.econ.achMul));
 
 const ACH_TIME_KEYS = /^(time|tm_.*|attackT)$/;       // Zaehler in Sekunden: als m:ss anzeigen
 
@@ -320,7 +324,7 @@ const Ach = {
   unlock(a) {
     const d = this.data();
     d.done[a.id] = true;
-    if (a.reward.cores) Save.data.souls += a.reward.cores;
+    if (a.reward.cores) { Save.data.souls += a.reward.cores; Save.addShards(a.reward.shards); }
     else if (a.reward.secret) Save.data.cosmetics.owned[a.reward.secret] = true;
     Save.write();
     this.toasts.push({ a, age: 0 });
@@ -328,7 +332,7 @@ const Ach = {
   },
   rewardText(a) {
     if (a.ms) return milestoneRewardText(a.ms) || 'COSMETIC / CREDITS';
-    return a.reward.secret ? 'SECRET: TOTEM OF UNDYING' : '+' + a.reward.cores + ' CREDITS';
+    return a.reward.secret ? 'SECRET: TOTEM OF UNDYING' : '+' + a.reward.cores + ' CREDITS' + (a.reward.shards ? '  +' + a.reward.shards + ' SHARDS' : '');
   },
 
   // Jedes Bild (auch in Menues): Pruefung bei Aenderung bzw. einmal pro Sekunde, Hinweise ablaufen lassen

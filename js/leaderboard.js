@@ -25,7 +25,31 @@ const Board = {
   cur() { return this.tabs()[this.tab]; },
   page() { return this.pages[this.cur().id] || null; },
 
-  open() { this.tab = Math.min(this.tab, this.tabs().length - 1); this.top = 0; this.error = ''; this.banAsk = null; this.loadOptIn(); this.loadAdmin(); this.load(this.cur().id); },
+  // Anzeigeliste: echte Eintraege, dazu der eigene Platz (falls ausserhalb der Top 100 oder ohne Wert) und unten aufgefuellte Bots,
+  // damit die Liste lebendiger wirkt. Bots stehen immer unter allen echten Spielern und sind rein lokal (nichts davon geht an die Datenbank).
+  BOT_NAMES: ['NIGHTFANG', 'xX_REAPER_Xx', 'PixelWitch', 'GrimTom', 'LunaBlade', 'ToxicToast', 'KRAKEN', 'Skelly99', 'VoidWalker', 'DarkMilk', 'FrostByte', 'ZombieZoe', 'ShadowFox', 'Mr_Bones', 'CritQueen', 'DashDemon', 'SoulSucker', 'OmegaNoob', 'BoneAppetit', 'NeonViper', 'Cinder', 'HexHunter', 'GhostPepper', 'RektRex', 'LootGoblin', 'Wraith_7', 'IceCold', 'Sir_Dies_A_Lot', 'MoonMage', 'Tankenstein', 'RedEye', 'Scythe', 'Bubblegum', 'DeathWish', 'Sparky', 'NoScope', 'Valkyra', 'EmberKid', 'Phantom', 'Slayzy'],
+  view(pg, tb) {
+    if (!pg || !pg.rows) return [];
+    const rows = pg.rows.slice();
+    if (tb.id === 'banned') return rows;
+    if (Account.on && this.optIn && pg.me && !rows.some((r) => r.mine)) rows.push({ rank: pg.me.rank, name: (Account.meta && Account.meta.name) || 'YOU', val: pg.me.val, mine: true });    // eigener Platz ausserhalb der Top 100
+    if (pg.rows.length < pg.total || pg.rows.length >= this.LIMIT) return rows;          // Liste nicht komplett: keine Bots
+    // Bots reihen sich nach Wert ein (Werte decken die Spanne der echten Spieler ab), danach werden die Plaetze neu vergeben
+    const vals = pg.rows.map((r) => r.val).sort((x, y) => x - y), med = vals.length ? vals[Math.floor(vals.length / 2)] : 0;
+    const total = tb.id === 'total', hi = Math.max(med * 1.3, total ? 900 : 3), lo = total ? 60 : 1, want = Math.max(0, 30 - rows.length);
+    let seed = 0; for (const ch of tb.id) seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
+    const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+    const pool = this.BOT_NAMES.slice().sort(() => rnd() - 0.5);
+    for (let i = 0; i < want; i++) {
+      const v = Math.max(lo, Math.round(hi * Math.pow(lo / hi, i / Math.max(1, want - 1)) * (0.9 + rnd() * 0.1)));
+      rows.push({ rank: 0, name: pool[i % pool.length], val: v, mine: false, bot: true });
+    }
+    rows.sort((x, y) => y.val - x.val || (x.bot ? 1 : 0) - (y.bot ? 1 : 0));
+    rows.forEach((r) => { r.rank = 1 + rows.filter((o) => o.val > r.val).length; });
+    return rows;
+  },
+
+  open() { this.tab = Math.min(this.tab, this.tabs().length - 1); this.top = 0; this.error = ''; this.banAsk = null; this.loadAdmin(); this.loadOptIn().then(() => this.load(this.cur().id, true)); },
 
   // Eine Liste laden (hoechstens einmal pro Minute, ausser force)
   async load(id, force) {
@@ -69,10 +93,25 @@ const Board = {
     } finally { this.busy = false; }
   },
 
+  // Automatisch mitmachen: wer angemeldet ist, wird beim ersten Mal eingetragen. Nur wer selbst LEAVE LIST gedrueckt hat, bleibt draussen (Merker pro Konto im Browser).
+  leftKey() { return 'da_lb_left_' + (Account.meta ? Account.meta.uid : ''); },
+  hasLeft() { try { return localStorage.getItem(this.leftKey()) === '1'; } catch (e) { return false; } },
+  setLeft(v) { try { if (v) localStorage.setItem(this.leftKey(), '1'); else localStorage.removeItem(this.leftKey()); } catch (e) { /* egal */ } },
+  tick() {                                                                                 // jedes Bild; arbeitet nur einmal pro Konto und Sitzung
+    if (!Account.on || !Account.meta || this.autoUid === Account.meta.uid || this.autoBusy) return;
+    this.autoBusy = true;
+    const uid = Account.meta.uid;
+    this.loadOptIn().then(() => { if (this.optIn !== null) this.autoUid = uid; }).catch(() => {}).then(() => { this.autoBusy = false; });
+  },
   async loadOptIn() {
     if (!Account.on) { this.optIn = null; return; }
     const r = await Account.rest('GET', '/rest/v1/lb_optin?select=user_id');
-    if (r.ok) this.optIn = (r.json || []).length > 0;
+    if (!r.ok) return;
+    this.optIn = (r.json || []).length > 0;
+    if (!this.optIn && !this.hasLeft()) {
+      const j = await Account.rest('POST', '/rest/v1/lb_optin', [{ user_id: Account.meta.uid }], { Prefer: 'resolution=ignore-duplicates,return=minimal' });
+      if (j.ok) { this.optIn = true; this.pages = {}; }
+    }
   },
 
   async toggle() {
@@ -82,7 +121,7 @@ const Board = {
     try {
       const r = this.optIn ? await Account.rest('DELETE', '/rest/v1/lb_optin?user_id=eq.' + Account.meta.uid)
         : await Account.rest('POST', '/rest/v1/lb_optin', [{ user_id: Account.meta.uid }], { Prefer: 'resolution=ignore-duplicates,return=minimal' });
-      if (r.ok) { this.optIn = !this.optIn; this.pages = {}; this.load(this.cur().id, true); }
+      if (r.ok) { this.setLeft(this.optIn); this.optIn = !this.optIn; this.pages = {}; this.load(this.cur().id, true); }
       else this.error = Account.errText(r);
     } finally { this.busy = false; }
   },
@@ -91,7 +130,7 @@ const Board = {
   setTab(i) { this.tab = i; this.top = 0; this.load(this.cur().id); },
 
   update() {
-    const pg = this.page(), n = pg && pg.rows ? pg.rows.length : 0, vis = 9;
+    const pg = this.page(), n = pg && pg.rows ? this.view(pg, this.cur()).length : 0, vis = 9;
     const tb = this.cur();
     if (Input.pressed('Escape')) { G.mode = 'start'; return; }
     if (Input.pressed('ArrowLeft') || Input.pressed('KeyA')) this.step(-1);
@@ -104,7 +143,7 @@ const Board = {
 
   draw(ctx) {
     const P = STYLE.pal, T = STYLE.type, tabs = this.tabs(), tb = this.cur(), pg = this.page(), vis = 9, cx = STAGE_W / 2;
-    const rows = pg && pg.rows ? pg.rows : [], loading = !!this.loading[tb.id];
+    const rows = this.view(pg, tb), loading = !!this.loading[tb.id];
     drawMenuBg(ctx, 'keysettings');
     drawEmbers(ctx);
     uiText(ctx, 'LEADERBOARD', 24, 40, { size: T.h1, color: P.yellow, glow: P.yellow });

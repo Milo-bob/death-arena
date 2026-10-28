@@ -342,7 +342,7 @@ function drawConfirm(ctx) {
   uiPanel(ctx, x, y, w, h, { color: P.yellow, fill: P.void, alpha: 0.98, glow: true });
   uiText(ctx, 'CONFIRM PURCHASE', STAGE_W / 2, y + 20, { size: T.h2, color: P.yellow, align: 'center' });
   uiText(ctx, uiFit(ctx, c.name, w - 24, T.h2), STAGE_W / 2, y + 44, { size: T.h2, color: P.ice, align: 'center' });
-  uiText(ctx, c.price + ' CREDITS', STAGE_W / 2, y + 60, { size: T.body, color: P.yellow, align: 'center' });
+  uiAmount(ctx, c.shards ? 'shards' : 'credits', c.price, STAGE_W / 2, y + 60, { size: T.body, color: c.shards ? P.cyan : P.yellow, align: 'center' });
   const bw = 112, by = y + h - 34, btns = [['BUY', 'Space', P.green], ['CANCEL', 'Escape', P.red]];
   btns.forEach(([label, key, col], i) => {
     const bx = x + 20 + i * (bw + 16), hot = c.sel === i || (m.x >= bx && m.x <= bx + bw && m.y >= by && m.y <= by + 24);
@@ -614,17 +614,20 @@ function drawHomeScreen(ctx) {
   // Profil (nur Anzeige): Level-Plakette links, rechts Name, Credits, Balken und XP
   ctx.save();                                                                                // Profil oben links, die Plakette liegt am oberen Rand
   const pw = 204, ph = 52, bx = 58, bw = pw - 8 - bx + 8 - 8;
+  if (Daily.on && Daily.st) UIHit.add(8, 8, pw, ph, () => {}, { act: () => Daily.show() });                // Klick auf Level/Profil oeffnet die Tagesbelohnung
   uiPanel(ctx, 8, 8, pw, ph, { color: P.cyan, fill: P.void, alpha: 0.9 });
   uiPanel(ctx, 14, 14, 36, 40, { color: P.yellow, fill: P.voidLight, alpha: 0.95 });
   uiText(ctx, 'LV', 32, 26, { size: T.small, color: P.yellow, align: 'center' });
   uiText(ctx, String(I.lv), 32, 47, { size: T.h1, color: P.ice, align: 'center' });
-  if (!IS_MOBILE) uiText(ctx, name, bx, 24, { size: T.small, color: P.cyan, maxW: 70 });                  // Handy: kein Platz neben den Credits
-  uiText(ctx, 'CREDITS ' + Save.data.souls, 8 + pw - 8, 24, { size: T.small, color: P.yellow, align: 'right' });
+  const crW = uiAmount(ctx, 'credits', Save.data.souls, 8 + pw - 8, 24, { size: T.small, color: P.yellow, align: 'right' });          // Credits und Shards nebeneinander, rechts oben im Kasten
+  const shW = uiAmount(ctx, 'shards', Save.shards(), 8 + pw - 8 - crW - 8, 24, { size: T.small, color: P.cyan, align: 'right' });
+  if (!IS_MOBILE) uiText(ctx, name, bx, 24, { size: T.small, color: P.cyan, maxW: Math.max(30, pw - 8 - crW - shW - 16 - bx + 8) });                  // Handy: kein Platz neben den Waehrungen
   const f = I.need ? clamp(I.xp / I.need, 0, 1) : 1;
   ctx.save(); ctx.fillStyle = P.greyDark; ctx.fillRect(bx, 31, bw, 8); ctx.fillStyle = P.yellow; ctx.fillRect(bx, 31, Math.round(bw * f), 8); ctx.restore();
   uiText(ctx, I.need ? I.xp + ' / ' + I.need + ' XP' : 'MAX', bx + bw, 51, { size: T.small, color: P.grey, align: 'right' });
   ctx.restore();
   drawSyncIndicator(ctx);
+  if (Save.data.dev) drawDevBadge(ctx);
   // kleine Symbole unter dem Profil: Konto, Installieren, Statistik (Ton/Effekte stehen in den Einstellungen)
   if (PWA.visible) drawMenuIcons(ctx, ['install'], 8, 68);
   // Knoepfe
@@ -777,7 +780,7 @@ function drawUpgradesScreen(ctx) {
   const P = STYLE.pal, T = STYLE.type;
   drawMenuBg(ctx, 'keysettings');
   uiText(ctx, 'HERO', STAGE_W / 2, 40, { size: T.h1, color: P.yellow, align: 'center' });
-  uiText(ctx, 'CREDITS: ' + Save.data.souls + '   (EARNED IN EVERY RUN)', STAGE_W / 2, 58, { size: T.h2, color: P.yellow, align: 'center' });
+  uiAmount(ctx, 'credits', Save.data.souls, STAGE_W / 2, 58, { size: T.h2, color: P.yellow, align: 'center' });
   const guide = guideStep();
   // Reiter: STATS / ITEMS / ABILITIES / HEROES (gelber Rahmen = darin ist etwas bezahlbar)
   const tw = Math.min(130, (STAGE_W - 40) / UPGRADE_TABS.length);
@@ -817,7 +820,7 @@ function drawUpgradesScreen(ctx) {
       uiText(ctx, lvl ? U.desc(Save.bonus(r.id), lvl) : 'NOT PURCHASED', x + 10, y + 27, { size: T.small, color: P.grey, maxW: w - 110, minK: 0.6 });
       const bw = U.max > 6 ? 8 : 14;                                      // viele Stufen: schmalere Balken
       for (let n = 0; n < U.max; n++) uiBar(ctx, x + w - 10 - (U.max - n) * bw, y + 5, bw - 3, 5, n < lvl ? 1 : 0, P.cyan);
-      uiText(ctx, maxed ? 'MAX' : Save.cost(r.id) + ' CREDITS', x + w - 10, y + 27, { size: T.small, color: maxed ? P.cyan : afford ? P.yellow : P.red, align: 'right' });
+      if (maxed) uiText(ctx, 'MAX', x + w - 10, y + 27, { size: T.small, color: P.cyan, align: 'right' }); else uiAmount(ctx, 'credits', Save.cost(r.id), x + w - 10, y + 27, { size: T.small, color: afford ? P.yellow : P.red, align: 'right' });
     } else if (r.kind === 'ability') {
       const A = CFG.loadout.abilities[r.id], open = Save.isUnlocked(r.id), afford = Save.data.souls >= A.unlock;
       drawIcon(ctx, A.icon, x + 20, y + H / 2, 20, open ? 1 : 0.4);
@@ -1058,10 +1061,77 @@ function drawEvoRecipe(ctx, x, y, w, id) {
 
 // Cores oben rechts: die Beschriftung sitzt links neben der Zahl, egal wie viele Stellen sie hat
 function drawCoreCount(ctx) {
-  const P = STYLE.pal, T = STYLE.type, num = String(Save.data.souls);
-  ctx.save(); ctx.font = uiFont(T.h2); const nw = ctx.measureText(num).width; ctx.restore();
-  uiText(ctx, 'CREDITS', STAGE_W - 56 - nw - 6, 37, { size: T.small, color: P.grey, align: 'right' });
-  uiText(ctx, num, STAGE_W - 56, 38, { size: T.h2, color: P.yellow, align: 'right', glow: P.yellow });
+  uiAmount(ctx, 'credits', Save.data.souls, STAGE_W - 56, 38, { size: STYLE.type.h2, color: STYLE.pal.yellow, align: 'right', glow: STYLE.pal.yellow });
+}
+
+// Waehrungs-Symbole (Pixelbilder, 7x7 Raster auf s Pixel skaliert): Credits = Muenze, Shards = Kristall
+const CURRENCY_ICONS = {
+  credits: { rows: ['..ooo..', '.oyyyo.', 'oyhyyyo', 'oyhyyyo', 'oyyyyyo', '.oyyyo.', '..ooo..'], col: { o: '#a86a00', y: '#ffd23a', h: '#fff3a8' } },
+  shards: { rows: ['...o...', '..oho..', '.ohcco.', 'ohccdco', '.occdo.', '..odo..', '...o...'], col: { o: '#0b6e8a', h: '#e8ffff', c: '#35e0ff', d: '#1aa9c9' } },
+};
+function drawCurrencyIcon(ctx, kind, x, y, s) {
+  const I = CURRENCY_ICONS[kind], c = s / 7;
+  ctx.save();
+  I.rows.forEach((row, j) => { for (let i = 0; i < 7; i++) { const k = row[i]; if (k === '.') continue; ctx.fillStyle = I.col[k]; ctx.fillRect(Math.floor(x + i * c), Math.floor(y + j * c), Math.ceil(c), Math.ceil(c)); } });
+  ctx.restore();
+}
+// Betrag mit Symbol: kind = 'credits' | 'shards', align left/right/center bezieht sich auf Zahl + Symbol zusammen. Gibt die Gesamtbreite zurueck.
+function uiAmount(ctx, kind, n, x, y, o = {}) {
+  const size = o.size || STYLE.type.small, s = size <= 9 ? 8 : size <= 11 ? 10 : size <= 15 ? 12 : 16, txt = String(n), gap = 3;
+  ctx.save(); ctx.font = uiFont(size); const tw = ctx.measureText(txt).width; ctx.restore();
+  const tot = tw + gap + s, x0 = o.align === 'right' ? x - tot : o.align === 'center' ? x - tot / 2 : x;
+  uiText(ctx, txt, x0, y, Object.assign({}, o, { align: 'left' }));
+  drawCurrencyIcon(ctx, kind, x0 + tw + gap, y - s + 1, s);
+  return tot;
+}
+
+// Dev-Slot (Save.data.dev): klares Schild und die Cheat-Tasten auf dem Hauptbildschirm (rechts oben)
+function drawDevBadge(ctx) {
+  const P = STYLE.pal, T = STYLE.type, w = 170, h = 66, x = STAGE_W - w - 62, y = 3, pulse = 0.6 + 0.4 * Math.sin(G.realTime * 3);
+  uiPanel(ctx, x, y, w, h, { color: P.red, fill: P.void, alpha: 0.92, glow: pulse > 0.85 });
+  ctx.save(); ctx.fillStyle = P.red; ctx.fillRect(x + 4, y + 4, w - 8, 13); ctx.restore();
+  uiText(ctx, 'DEV SLOT - NOT RANKED', x + w / 2, y + 14, { size: T.small, color: P.ice, align: 'center' });
+  const keys = [['F1', 'UNLOCK ALL + LV 15'], ['F2', 'GOD MODE ' + (G.god ? 'ON' : 'OFF')], ['F3', '+60 S (IN RUN)'], ['F4', '+500 CREDITS +50 SHARDS']];
+  keys.forEach(([k, t], i) => {
+    uiText(ctx, k, x + 8, y + 28 + i * 9, { size: T.small, color: P.yellow });
+    uiText(ctx, t, x + 28, y + 28 + i * 9, { size: T.small, color: P.grey, maxW: w - 34, minK: 0.6 });
+  });
+}
+
+// Shards-Anzeige im Cosmetics-Menue (ueber den Credits) und Knopf zum Umtausch [G]
+function drawShardCount(ctx) {
+  const P = STYLE.pal, T = STYLE.type, m = Input.mouse;
+  uiAmount(ctx, 'shards', Save.shards(), STAGE_W - 56, 20, { size: T.h2, color: P.cyan, align: 'right', glow: P.cyan });
+  const bw = 120, bx = STAGE_W - 56 - 150 - bw, by = 12, hot = m.x >= bx && m.x <= bx + bw && m.y >= by && m.y <= by + 22;
+  UIHit.add(bx, by, bw, 22, () => {}, { act: () => { G.exch = { sel: 0 }; Sfx.play('select'); }, noConfirm: true });
+  uiPanel(ctx, bx, by, bw, 22, { color: hot ? P.ice : P.cyan, fill: hot ? P.voidLight : P.void, alpha: 0.95, glow: hot });
+  uiText(ctx, 'GET SHARDS [G]', bx + bw / 2, by + 15, { size: T.small, color: hot ? P.ice : P.cyan, align: 'center' });
+}
+
+// Umtausch-Fenster: Credits gegen Shards in Paketen (G.exch, siehe G.updateExch). Liegt oben, darunter ist nichts klickbar.
+function drawExchange(ctx) {
+  const P = STYLE.pal, T = STYLE.type, X = G.exch, packs = CFG.shards.packs, w = 380, h = 170, x = STAGE_W / 2 - w / 2, y = 90, m = Input.mouse;
+  UIHit.list.length = 0;
+  ctx.save(); ctx.globalAlpha = 0.78; ctx.fillStyle = P.ink; ctx.fillRect(0, 0, STAGE_W, STAGE_H); ctx.restore();
+  uiPanel(ctx, x, y, w, h, { color: P.cyan, fill: P.void, alpha: 0.98, glow: true });
+  uiText(ctx, 'GET SHARDS', STAGE_W / 2, y + 26, { size: T.h1, color: P.cyan, align: 'center', glow: P.cyan });
+  uiText(ctx, 'EXCHANGE ' + CFG.shards.creditsPer + ' CREDITS = 1 SHARD  -  SHARDS ARE ONLY FOR COSMETICS', STAGE_W / 2, y + 42, { size: T.small, color: P.grey, align: 'center' });
+  const bw = 110, gap = 12, bx0 = STAGE_W / 2 - (packs.length * bw + (packs.length - 1) * gap) / 2;
+  packs.forEach((p, i) => {
+    const bx = bx0 + i * (bw + gap), by = y + 56, cost = shardPackCost(p), afford = Save.data.souls >= cost, sel = X.sel === i, hot = m.x >= bx && m.x <= bx + bw && m.y >= by && m.y <= by + 70;
+    UIHit.add(bx, by, bw, 70, () => { X.sel = i; }, { act: () => { X.sel = i; G.exchBuy(i); } });
+    uiPanel(ctx, bx, by, bw, 70, { color: sel || hot ? P.ice : afford ? P.cyan : P.greyMid, fill: sel || hot ? P.voidLight : P.void, alpha: 0.95, glow: sel || hot });
+    uiText(ctx, '+' + p.shards, bx + bw / 2, by + 30, { size: T.h1, color: afford ? P.cyan : P.grey, align: 'center' });
+    uiText(ctx, 'SHARDS', bx + bw / 2, by + 44, { size: T.small, color: P.grey, align: 'center' });
+    uiAmount(ctx, 'credits', cost, bx + bw / 2, by + 62, { size: T.body, color: afford ? P.yellow : P.red, align: 'center' });
+  });
+  uiText(ctx, 'YOU HAVE', STAGE_W / 2 - 96, y + 144, { size: T.body, color: P.ice, align: 'right' });
+  uiAmount(ctx, 'credits', Save.data.souls, STAGE_W / 2 - 88, y + 144, { size: T.body, color: P.yellow });
+  uiAmount(ctx, 'shards', Save.shards(), STAGE_W / 2 + 20, y + 144, { size: T.body, color: P.cyan });
+  const cx = x + w - 62, cy = y + 6;
+  UIHit.add(cx, cy, 56, 16, () => {}, { act: () => { G.exch = null; Sfx.play('select'); } });
+  uiText(ctx, 'CLOSE [ESC]', cx + 28, cy + 11, { size: T.small, color: P.grey, align: 'center' });
+  uiText(ctx, '[A/D] CHOOSE   [SPACE] EXCHANGE', STAGE_W / 2, y + h - 8, { size: T.small, color: P.greyMid, align: 'center' });
 }
 
 // Text mit Zeilenumbruch (maxW in Buehneneinheiten), gibt die Zeilenzahl zurueck
@@ -1334,6 +1404,7 @@ function drawCosmeticsScreen(ctx) {
   drawEmbers(ctx);
   uiText(ctx, 'COSMETICS', 24, 40, { size: T.h1, color: P.yellow, glow: P.yellow });
   drawCoreCount(ctx);
+  drawShardCount(ctx);
 
   // Gruppen (oben) und die Kategorien der gewaehlten Gruppe (darunter, mit dem gerade aktiven Item je Slot)
   const groups = C.groups, gi = G.cosGroupOf(G.cosTab), gw = Math.floor((STAGE_W - 48 - (groups.length - 1) * 3) / groups.length);
@@ -1364,7 +1435,7 @@ function drawCosmeticsScreen(ctx) {
   const off = clamp(G.cosListOff, 0, lmax);
   if (!G.colorPick) UIScroll.bar(ctx, 'cosList', 12, Y0, 5, VIS * (H + GAP) - GAP, true, items.length, VIS, off, (v) => { G.cosListOff = v; });
   (G.colorPick ? [] : items.slice(off, off + VIS)).forEach((it, k) => {
-    const i = off + k, sel = G.cosSel === i, y = Y0 + k * (H + GAP), owned = Save.cosOwned(cat.id, it.id), eq = Save.cosEquipped(cat.id) === it.id, afford = Save.data.souls >= it.cost;
+    const i = off + k, sel = G.cosSel === i, y = Y0 + k * (H + GAP), owned = Save.cosOwned(cat.id, it.id), eq = Save.cosEquipped(cat.id) === it.id, afford = Save.shards() >= it.price;
     UIHit.add(lx, y, lw, H, () => { G.cosSel = i; }, { noConfirm: true });          // Klick waehlt nur aus, gekauft wird ueber den Knopf in der Vorschau
     const x = lx + (sel ? 5 : 0), w = lw - (sel ? 5 : 0);
     uiPanel(ctx, x, y, w, H, { color: sel ? it.color : P.greyMid, fill: sel ? P.voidLight : P.void, alpha: 0.92, glow: sel });
@@ -1372,8 +1443,9 @@ function drawCosmeticsScreen(ctx) {
     ctx.fillRect(x + 8, y + 7, 14, 14); ctx.restore();                                           // Farbfeld des Items
     ctx.strokeStyle = P.ink; ctx.strokeRect(x + 8.5, y + 7.5, 13, 13);
     uiText(ctx, it.name, x + 30, y + 18, { size: T.body, color: sel ? P.ice : P.grey, maxW: w - 30 - (IS_MOBILE ? 104 : 90), minK: 0.6 });
-    const st = eq ? 'EQUIPPED' : owned ? 'OWNED' : it.cost + ' CREDITS';
-    uiText(ctx, st, x + w - 8, y + 18, { size: T.small, color: eq ? P.cyan : owned ? P.ice : afford ? P.yellow : P.red, align: 'right', maxW: 96, minK: 0.6 });
+    const st = eq ? 'EQUIPPED' : owned ? 'OWNED' : it.price + ' SHARDS';
+    if (eq || owned) uiText(ctx, st, x + w - 8, y + 18, { size: T.small, color: eq ? P.cyan : P.ice, align: 'right', maxW: 96, minK: 0.6 });
+    else uiAmount(ctx, 'shards', it.price, x + w - 8, y + 18, { size: T.small, color: afford ? P.cyan : P.red, align: 'right' });
   });
   const by = Y0 + VIS * (H + GAP) + 2, backSel = G.cosSel === items.length;
   if (G.colorPick) drawColorPick(ctx, cat, selIt, lx, Y0 - 2, lw, by + 22 - Y0 + 2);
@@ -1393,8 +1465,8 @@ function drawCosmeticsScreen(ctx) {
     drawCosmeticPreview(ctx, cat.id, it, px + 8, py + 8, pw - 16, 118);
     uiText(ctx, it.name, px + pw / 2, py + 146, { size: T.h2, color: P.ice, align: 'center', glow: it.color });
     uiWrap(ctx, cat.desc, px + 12, py + 162, pw - 24, 11, { size: T.small, color: P.grey });
-    const owned = Save.cosOwned(cat.id, it.id), eq = Save.cosEquipped(cat.id) === it.id, afford = Save.data.souls >= it.cost;
-    const msg = eq ? 'EQUIPPED' : owned ? '[SPACE] EQUIP' : '[SPACE] BUY  -  ' + it.cost + ' CREDITS';
+    const owned = Save.cosOwned(cat.id, it.id), eq = Save.cosEquipped(cat.id) === it.id, afford = Save.shards() >= it.price;
+    const msg = eq ? 'EQUIPPED' : owned ? '[SPACE] EQUIP' : '[SPACE] BUY  -  ' + it.price + ' SHARDS';
     if (CFG.cosmetics.colors[cat.id]) {                                                 // Farbwahl: nur bei Items, die Farben vertragen
       const cy = py + ph - 62;
       if (ents) {
@@ -1406,7 +1478,7 @@ function drawCosmeticsScreen(ctx) {
         uiText(ctx, '[C]', bx + bw - 8, cy + 14, { size: T.small, color: P.yellow, align: 'right' });
       } else uiText(ctx, 'THIS ONE KEEPS ITS OWN COLORS', px + pw / 2, cy + 14, { size: T.small, color: P.greyMid, align: 'center' });
     }
-    if (!eq && !G.colorPick) drawActionButton(ctx, px + pw / 2 - 120, py + ph - 34, 240, 24, { label: owned ? 'EQUIP' : 'BUY - ' + it.cost + ' CREDITS', color: owned ? P.cyan : afford ? P.yellow : P.red });
+    if (!eq && !G.colorPick) drawActionButton(ctx, px + pw / 2 - 120, py + ph - 34, 240, 24, { label: owned ? 'EQUIP' : 'BUY - ' + it.price + ' SHARDS', color: owned ? P.cyan : afford ? P.yellow : P.red });
     else uiText(ctx, G.colorPick ? '[SPACE] PICK COLOR   [ESC] CANCEL' : msg, px + pw / 2, py + ph - 14, { size: T.body, color: G.colorPick ? P.yellow : eq || owned ? P.cyan : afford ? P.yellow : P.red, align: 'center' });
   } else uiText(ctx, 'BACK TO MAIN MENU', px + pw / 2, py + ph / 2, { size: T.h2, color: P.greyMid, align: 'center' });
 }
@@ -1575,7 +1647,8 @@ function drawPauseScreen(ctx) {
   uiText(ctx, 'PAUSE', STAGE_W / 2, 80, { size: T.title, color: P.cyan, align: 'center', glow: P.cyan });
   if (!Tutorial.active) {                                              // Komfort: Stand des Laufs
     const so = Math.floor(G.time * CFG.meta.perSecond + G.bosses * CFG.meta.perBoss) + G.lootCores;
-    uiText(ctx, 'TIME ' + formatTime(G.time) + '    LEVEL ' + Xp.level + '    KILLS ' + G.kills + '    BOSSES ' + G.bosses + '    CREDITS +' + so, STAGE_W / 2, 94, { size: T.small, color: P.grey, align: 'center' });
+    uiText(ctx, formatTime(G.time), STAGE_W / 2, 36, { size: T.h1, color: P.yellow, align: 'center', glow: P.yellow });         // grosse Laufzeit
+    uiText(ctx, 'LEVEL ' + Xp.level + '    KILLS ' + G.kills + '    BOSSES ' + G.bosses + '    CREDITS +' + so, STAGE_W / 2, 94, { size: T.small, color: P.grey, align: 'center' });
     Xp.drawPause(ctx);
   }
   const bars = Math.round(Save.data.musicVol * 10);

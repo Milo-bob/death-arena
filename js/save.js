@@ -13,7 +13,7 @@ const IS_MOBILE = (() => {
 
 const Save = {
   KEY: 'deatharena.save.v1',
-  data: { ach: { done: {}, cnt: {}, seen: 0 }, upgradesSeen: false, settingsSeen: false,best: 0, runs: 0, lang: 'de', musicVol: 0.5, sfxVol: 0.6, mouseAim: false, attackMode: IS_MOBILE ? 'toggle' : 'hold', touch: IS_MOBILE, tutorialDone: false, wins: 0, last: null, mapSel: 0, lastMode: 'regular', mapBest: {}, mapWon: {}, seenKeys: false, souls: 0, upgrades: {}, unlocked: {},
+  data: { ach: { done: {}, cnt: {}, seen: 0 }, upgradesSeen: false, settingsSeen: false,best: 0, runs: 0, lang: 'de', musicVol: 0.5, sfxVol: 0.6, mouseAim: false, attackMode: IS_MOBILE ? 'toggle' : 'hold', touch: IS_MOBILE, tutorialDone: false, wins: 0, last: null, mapSel: 0, lastMode: 'regular', mapBest: {}, mapWon: {}, seenKeys: false, souls: 0, shards: 0, upgrades: {}, unlocked: {},
     items: JSON.parse(JSON.stringify(CFG.items.start)),     // Inventar: besessene und ausgeruestete Items
     gear: {},       // Stufe und XP je Item/Ability
     cosmetics: { owned: {}, equipped: {}, color: {} },      // gekaufte Cosmetics ("kategorie:id"), ausgeruestete je Kategorie und gewaehlte Farbe je Kategorie (CFG.cosmetics.colors)
@@ -169,13 +169,26 @@ const Save = {
     this.write();
     return true;
   },
-  // Kaufen (falls noetig, genug Cores) und ausruesten
+  // ---- Shards (zweite Waehrung nur fuer Cosmetics, siehe CFG.shards) ----
+  shards() { const n = Math.floor(Number(this.data.shards)); return Number.isFinite(n) && n > 0 ? n : 0; },
+  addShards(n) { if (n > 0) this.data.shards = this.shards() + Math.floor(n); },
+  // Paket aus CFG.shards.packs gegen Credits tauschen
+  buyShardPack(i) {
+    const p = CFG.shards.packs[i];
+    if (!p) return false;
+    const cost = shardPackCost(p);
+    if (this.data.souls < cost) return false;
+    this.data.souls -= cost; this.addShards(p.shards);
+    this.write();
+    return true;
+  },
+  // Kaufen (falls noetig, genug Shards) und ausruesten
   cosEquip(cat, id) {
     const it = CFG.cosmetics.items[cat].find((i) => i.id === id);
     if (!it) return false;
     if (!this.cosOwned(cat, id)) {
-      if (it.secret || this.data.souls < it.cost) return false;                                                // Cosmetics gibt es nur fuer Credits
-      this.data.souls -= it.cost; this.data.cosmetics.owned[cat + ':' + id] = true;
+      if (it.secret || this.shards() < it.price) return false;                                                // Cosmetics gibt es nur fuer Shards
+      this.data.shards = this.shards() - it.price; this.data.cosmetics.owned[cat + ':' + id] = true;
       if (typeof Ach !== 'undefined') Ach.add('cosBuy', 1, true);
     }
     this.data.cosmetics.equipped[cat] = id;
@@ -217,7 +230,7 @@ const Save = {
     this.write();
   },
   resetPurchases() {
-    this.data.souls = 0; this.data.upgrades = {}; this.data.unlocked = {}; this.data.gear = {}; this.data.cosmetics = { owned: {}, equipped: {}, color: {} }; this.data.heroes = {}; this.data.hero = 'vanguard';
+    this.data.souls = 0; this.data.shards = 0; this.data.upgrades = {}; this.data.unlocked = {}; this.data.gear = {}; this.data.cosmetics = { owned: {}, equipped: {}, color: {} }; this.data.heroes = {}; this.data.hero = 'vanguard';
     this.data.items = JSON.parse(JSON.stringify(CFG.items.start));
     this.write();
   },
@@ -407,7 +420,7 @@ const Save = {
   },
   plevel() { return this.levelInfo().lv; },
   // Credits fuer das Erreichen von Level lv (CFG.level.reward)
-  levelReward(lv) { const R = CFG.level.reward; return R.base + R.perLevel * lv; },
+  levelReward(lv) { const R = CFG.level.reward; return Math.max(1, Math.round((R.base + R.perLevel * lv) * CFG.econ.levelMul)); },
   // XP eines Laufs gutschreiben, gibt { xp, from, to, reward } zurueck (Level vorher/nachher, Credits fuer die erreichten Level; die Credits sind schon im Spielstand)
   addPlayerXp(n) {
     const from = this.plevel(); this.data.pxp = Math.floor((this.data.pxp || 0) + n);
@@ -421,6 +434,18 @@ const Save = {
   // ---- Karten ----
   mapNeed(i) { return CFG.maps[i].unlockFrac ? CFG.maps[i].unlockFrac * CFG.finalBoss.at : 0; },        // Sekunden auf der vorherigen Karte
   mapWon(i) { return !!(this.data.mapWon && this.data.mapWon[CFG.maps[i].id]); },                    // finalen Boss auf dieser Karte besiegt (normaler Modus)
+  // Dev-Taste F1: schaltet ALLES frei (Helden, Cosmetics, Items, Abilities, Karten) und hebt das Spielerlevel auf mindestens 15. Nur im Dev-Slot (Save.data.dev).
+  devUnlockEverything() {
+    const d = this.data;
+    d.devUnlockAll = true;
+    for (const id of Object.keys(CFG.heroes)) (d.heroes || (d.heroes = {}))[id] = true;
+    for (const cat of Object.keys(CFG.cosmetics.items)) for (const it of CFG.cosmetics.items[cat]) d.cosmetics.owned[cat + ':' + it.id] = true;
+    for (const id of Object.keys(CFG.items.catalog)) if (CFG.items.catalog[id].impl) d.items.owned[id] = true;
+    for (const id of Object.keys(CFG.loadout.abilities)) (d.unlocked || (d.unlocked = {}))[id] = true;
+    let need = 0; for (let lv = 1; lv < 15; lv++) need += this.levelNeed(lv);
+    if (this.plevel() < 15) d.pxp = need;
+    this.write();
+  },
   mapUnlocked(i) { return i === 0 || (this.data.dev && this.data.devUnlockAll) || this.mapWon(i - 1); },
   mapBestTime(i) { return this.data.mapBest[CFG.maps[i].id] || 0; },
 
