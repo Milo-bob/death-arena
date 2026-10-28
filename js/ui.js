@@ -1087,7 +1087,7 @@ function uiAmount(ctx, kind, n, x, y, o = {}) {
 
 // Dev-Slot (Save.data.dev): klares Schild und die Cheat-Tasten auf dem Hauptbildschirm (rechts oben)
 function drawDevBadge(ctx) {
-  const P = STYLE.pal, T = STYLE.type, w = 170, h = 66, x = STAGE_W - w - 62, y = 3, pulse = 0.6 + 0.4 * Math.sin(G.realTime * 3);
+  const P = STYLE.pal, T = STYLE.type, w = 170, h = 66, x = STAGE_W - w - 62, y = 8, pulse = 0.6 + 0.4 * Math.sin(G.realTime * 3);
   uiPanel(ctx, x, y, w, h, { color: P.red, fill: P.void, alpha: 0.92, glow: pulse > 0.85 });
   ctx.save(); ctx.fillStyle = P.red; ctx.fillRect(x + 4, y + 4, w - 8, 13); ctx.restore();
   uiText(ctx, 'DEV SLOT - NOT RANKED', x + w / 2, y + 14, { size: T.small, color: P.ice, align: 'center' });
