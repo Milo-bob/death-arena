@@ -41,7 +41,9 @@ const Board = {
     const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
     const pool = this.BOT_NAMES.slice().sort(() => rnd() - 0.5);
     for (let i = 0; i < want; i++) {
-      const v = Math.max(lo, Math.round(hi * Math.pow(lo / hi, i / Math.max(1, want - 1)) * (0.9 + rnd() * 0.1)));
+      let v;
+      if (total) v = i === want - 1 ? 10 + Math.floor(rnd() * 40) : i === want - 2 ? 51 + Math.floor(rnd() * 49) : 100 + Math.floor(rnd() * 900);       // TOTAL: dreistellig (100-999), nur zwei zweistellig: einer ueber 50, einer unter 50
+      else v = Math.max(lo, Math.round(hi * Math.pow(lo / hi, i / Math.max(1, want - 1)) * (0.9 + rnd() * 0.1)));
       rows.push({ rank: 0, name: pool[i % pool.length], val: v, mine: false, bot: true });
     }
     rows.sort((x, y) => y.val - x.val || (x.bot ? 1 : 0) - (y.bot ? 1 : 0));
@@ -185,7 +187,7 @@ const Board = {
     if (!Account.on) line = 'LOG IN (ACCOUNT ICON) TO TAKE PART';
     else if (this.optIn === null) line = '';
     else if (!this.optIn) { line = 'YOU ARE NOT ON THE LEADERBOARD  -  PRESS SPACE TO JOIN'; lc = P.orange; }
-    else if (pg && pg.me) { line = 'YOUR RANK  #' + pg.me.rank + '  /  ' + pg.me.total; lc = P.yellow; }
+    else if (pg && pg.me) { const mr = rows.find((r) => r.mine), withBots = rows.some((r) => r.bot); line = 'YOUR RANK  #' + (mr && withBots ? mr.rank : pg.me.rank) + '  /  ' + (withBots ? rows.length : pg.me.total); lc = P.yellow; }          // Bots zaehlen wie Spieler
     else if (pg) line = 'YOU HAVE NO ENTRY IN THIS LIST YET';
     if (line) uiText(ctx, line, cx, 322, { size: T.body, color: lc, align: 'center' });
     const err = this.error || (pg && pg.rows && pg.error);
