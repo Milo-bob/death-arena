@@ -10,7 +10,7 @@ const SaveTransfer = {
     if (this.el) return;
     try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) { /* egal */ }       // sonst bleibt der Dialog unsichtbar
     const P = STYLE.pal, mk = (tag, css, text) => { const e = document.createElement(tag); e.style.cssText = css || ''; if (text) e.textContent = I18n.t(text); return e; };
-    const font = 'font-family:"Pixelify Sans",monospace;';
+    const font = 'font-family:"Pixel Digits","Pixelify Sans",monospace;';
     const root = mk('div', 'position:fixed;inset:0;background:rgba(5,6,15,.88);z-index:10;display:flex;align-items:center;justify-content:center;' + font);
     root.setAttribute('data-nogame', '1');                                  // Touches auf den Dialog zaehlen nicht als Spielklick (input.js)
     const box = mk('div', 'width:min(560px,92vw);max-height:92vh;overflow:auto;box-sizing:border-box;padding:16px;background:' + P.void + ';border:2px solid ' + P.cyan + ';color:' + P.ice + ';');

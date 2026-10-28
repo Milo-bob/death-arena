@@ -46,7 +46,7 @@ const PWA = {
     if (this.el) return;
     try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) { /* egal */ }
     const P = STYLE.pal, mk = (tag, css, text) => { const e = document.createElement(tag); e.style.cssText = css || ''; if (text) e.textContent = I18n.t(text); return e; };
-    const root = mk('div', 'position:fixed;inset:0;background:rgba(5,6,15,.88);z-index:10;display:flex;align-items:center;justify-content:center;font-family:"Pixelify Sans",monospace;');
+    const root = mk('div', 'position:fixed;inset:0;background:rgba(5,6,15,.88);z-index:10;display:flex;align-items:center;justify-content:center;font-family:"Pixel Digits","Pixelify Sans",monospace;');
     root.setAttribute('data-nogame', '1');
     const box = mk('div', 'width:min(480px,92vw);max-height:92vh;overflow:auto;box-sizing:border-box;padding:16px;background:' + P.void + ';border:2px solid ' + P.green + ';color:' + P.ice + ';');
     // Install-Knopf unter dem Beschreibungskasten: App-Symbol + Text, was er tut (button oder Link, je nach Lage)

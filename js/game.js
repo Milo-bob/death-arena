@@ -49,7 +49,7 @@ function drawGround(ctx) {
 const MENU_ITEMS = ['play', 'inventory', 'upgrades', 'achievements', 'cosmetics', 'settings'];           // (nur noch fuer Tastenkuerzel/Altlasten; der Homescreen nutzt homeButtons() in ui.js)
 const menuItems = () => MENU_ITEMS;
 const MODE_ITEMS = ['regular', 'pvp', 'create', 'join', 'back'];        // Auswahl nach PLAY
-const MENU_MUSIC_MODES = ['splash', 'friends', 'start', 'modeselect', 'mapselect', 'keys', 'binds', 'inventory', 'cosmetics', 'upgrades', 'achievements', 'leaderboard', 'settings'];       // hier läuft die Menümusik (Tasten-Menü aus der Pause heraus nicht)
+const MENU_MUSIC_MODES = ['splash', 'friends', 'guildroom', 'start', 'modeselect', 'mapselect', 'keys', 'binds', 'inventory', 'cosmetics', 'upgrades', 'achievements', 'leaderboard', 'settings'];       // hier läuft die Menümusik (Tasten-Menü aus der Pause heraus nicht)
 // Upgrade-Menü: drei Reiter. Jede Zeile ist { kind: 'up' | 'ability', id }
 const UPGRADE_TABS = [
   { id: 'stats', label: 'STATS' },
@@ -124,7 +124,7 @@ function upgradeRows(tab) {
 }
 // Einstellungen: drei Spalten nebeneinander, kein Scrollen (Ton und Effekte sind jetzt hier). W/S geht die Spalten der Reihe nach durch, unten immer 'back'.
 const SETTINGS_COLS = [
-  { label: 'GENERAL', items: ['language', 'music', 'sfx', 'fx'] },
+  { label: 'GENERAL', items: ['language', 'music', 'sfx', 'fx', 'tutorial'] },
   { label: 'CONTROLS', items: ['controls', 'binds', 'attackmode', 'mouseaim', 'touch'] },
   { label: 'SAVE & ACCOUNT', items: ['slot', 'account', 'transfer', 'resetAll'] },
 ];
@@ -194,7 +194,7 @@ const G = {
   collapseLeft: 0,        // Restzeit des Events in Sekunden (für die Anzeige)
 
   seenKeys: Save.data.seenKeys,   // Tastenübersicht schon gesehen? (gespeichert)
-  cosTab: 0, cosSel: 0,   // Cosmetics-Menue: Kategorie und gewaehltes Item
+  cosTab: 0, cosSel: 0, cosLast: {},   // Cosmetics-Menue: Kategorie und gewaehltes Item
   modeSel: 0,             // gewählter Punkt in der Modus-Auswahl nach PLAY
   menuSel: 0,           // gewählter Menüpunkt im Hauptmenü
   upgradeSel: 0,          // gewählte Zeile im Upgrade-Menü (die letzte Zeile ist Zurück)
@@ -266,6 +266,7 @@ const G = {
   startVictory(text) {
     if (this.victory > 0) return;
     this.victory = CFG.ending.victoryDelay;
+    if (this.map && !Tutorial.active && !this.pvp) { Save.data.mapWon = Save.data.mapWon || {}; if (!Save.data.mapWon[this.map.id]) { Save.data.mapWon[this.map.id] = true; Save.write(); } }       // schaltet die naechste Karte frei, auch im Koop fuer jeden, der den finalen Boss mit besiegt
     this.player.hp = Math.max(this.player.hp, 1);
     for (const list of [this.enemies, this.shots, this.bossShots, this.spawners, this.blasts, this.meteors]) for (const e of list) e.alive = false;
     this.notice(text || 'DEATH IS DEFEATED!', STYLE.pal.yellow, STYLE.type.h1);
@@ -423,6 +424,14 @@ const G = {
     this.mode = 'cosmetics'; this.colorPick = null; this.cosTab = 0; this.cosSel = Math.max(0, Cos.items('skin').findIndex((q) => q.id === Save.cosEquipped('skin')));
     return true;
   },
+  // Shop-Gruppen (CFG.cosmetics.groups): Reihenfolge der Kategorie-Nummern, Gruppe einer Kategorie, Kategorie waehlen (merkt sich die letzte je Gruppe)
+  cosOrder() { const cats = CFG.cosmetics.cats; return [].concat(...CFG.cosmetics.groups.map((g) => g.cats.map((id) => cats.findIndex((c) => c.id === id)))); },
+  cosGroupOf(tab) { const id = CFG.cosmetics.cats[tab].id; return Math.max(0, CFG.cosmetics.groups.findIndex((g) => g.cats.includes(id))); },
+  cosGo(tab) {
+    const id = CFG.cosmetics.cats[tab].id;
+    this.cosTab = tab; this.cosLast[this.cosGroupOf(tab)] = tab; Sfx.play('tick');
+    this.cosSel = Math.max(0, Cos.items(id).findIndex((q) => q.id === Save.cosEquipped(id)));
+  },
   openArmory() { this.mode = 'inventory'; this.invSel = 0; this.invPick = null; },
   openHeroPage() {
     Save.data.upgradesSeen = true; Save.write(); this.mode = 'upgrades'; this.upgradeSel = 0; this.upgradeTab = UPGRADE_TABS.findIndex((t) => t.id === 'heroes');
@@ -488,11 +497,9 @@ const G = {
     if (Input.pressed('ArrowUp') || Input.pressed('KeyW')) this.cosSel = (this.cosSel + n - 1) % n;
     if (Input.pressed('ArrowDown') || Input.pressed('KeyS')) this.cosSel = (this.cosSel + 1) % n;
     const dir = (Input.pressed('ArrowRight') || Input.pressed('KeyD') ? 1 : 0) - (Input.pressed('ArrowLeft') || Input.pressed('KeyA') ? 1 : 0);
-    if (dir) {
-      this.cosTab = (this.cosTab + dir + cats.length) % cats.length;
-      this.cosSel = Math.max(0, Cos.items(cats[this.cosTab].id).findIndex((q) => q.id === Save.cosEquipped(cats[this.cosTab].id)));
-      return;
-    }
+    if (dir) { const ord = this.cosOrder(), i = ord.indexOf(this.cosTab); this.cosGo(ord[(i + dir + ord.length) % ord.length]); return; }      // A/D: naechste Kategorie (ueber Gruppengrenzen hinweg)
+    const gd = (Input.pressed('KeyE') ? 1 : 0) - (Input.pressed('KeyQ') ? 1 : 0);                                                         // Q/E: Gruppe wechseln
+    if (gd) { const gs = CFG.cosmetics.groups, g = (this.cosGroupOf(this.cosTab) + gd + gs.length) % gs.length; this.cosGo(this.cosLast[g] !== undefined ? this.cosLast[g] : cats.findIndex((c) => c.id === gs[g].cats[0])); return; }
     if (Input.pressed('KeyC') && this.cosSel < items.length && Cos.canColor(cat.id, items[this.cosSel])) {      // Farbwahl oeffnen (Overlay mit allen Farben der Kategorie)
       const cur = Save.cosColor(cat.id), idx = Cos.colorEntries(cat.id, items[this.cosSel]).findIndex((q) => q.id === cur);
       this.colorPick = { sel: Math.max(0, idx) }; Sfx.play('select');
@@ -675,6 +682,7 @@ const G = {
     else if ((item === 'music' || item === 'sfx' || item === 'fx') && (dir || ok)) this.settingsStep(item, dir || 1);
     else if (item === 'language' && (dir || ok)) { Save.data.lang = Save.data.lang === 'de' ? 'en' : 'de'; Save.data.langSet = true; I18n.set(Save.data.lang); Save.write(); Sfx.play('select'); }
     else if (item === 'slot' && (dir || ok)) Save.switchSlot((Save.slot + (dir || 1) + Save.SLOTS) % Save.SLOTS);
+    else if (item === 'tutorial' && ok) { Sfx.play('select'); this.begin(true); }                  // Tutorial erneut spielen (ohne Bonus, das gibt es nur beim ersten Mal)
     else if (item === 'controls' && ok) this.mode = 'keys';
     else if (item === 'binds' && ok) { this.mode = 'binds'; this.bindSel = 0; this.bindWait = false; this.bindsBack = 'settings'; }
     else if (item === 'account' && ok) Account.open();
@@ -872,6 +880,8 @@ const G = {
       this.updateSplash(dt);
     } else if (this.mode === 'friends') {
       Social.update();
+    } else if (this.mode === 'guildroom') {
+      GuildRoom.update();
     } else if (this.mode === 'start') {
       if (this.coop) Coop.exit();                                                   // Koop-Lauf vorbei: Verbindung schliessen
       if (Daily.open) Daily.update(); else this.updateMenu();
@@ -1031,6 +1041,8 @@ const G = {
       drawSplashScreen(ctx);
     } else if (this.mode === 'friends') {
       Social.draw(ctx);
+    } else if (this.mode === 'guildroom') {
+      GuildRoom.draw(ctx);
     } else if (this.mode === 'start') {
       drawHomeScreen(ctx);
       Daily.draw(ctx);
@@ -1083,7 +1095,7 @@ const G = {
     if (this.confirm && ['upgrades', 'cosmetics'].includes(this.mode)) drawConfirm(ctx);
     drawToast(ctx);
     Social.drawInvite(ctx);
-    if (['pvp', 'friends', 'achievements', 'leaderboard', 'modeselect', 'cosmetics', 'mapselect', 'keys', 'binds', 'inventory', 'upgrades', 'settings', 'swap', 'pause'].includes(this.mode)) drawCloseX(ctx);
+    if (['pvp', 'friends', 'guildroom', 'achievements', 'leaderboard', 'modeselect', 'cosmetics', 'mapselect', 'keys', 'binds', 'inventory', 'upgrades', 'settings', 'swap', 'pause'].includes(this.mode)) drawCloseX(ctx);
     if (!menuView) ctx.restore();
     Ach.drawToasts(ctx);
   },

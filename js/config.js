@@ -267,6 +267,15 @@ const CFG = {
   //  Neues Item: hier eintragen (id, name, cost, color = Farbe fuer die Anzeige). Standard ist immer das erste Item (cost 0).
   // ==========================================================================================
   cosmetics: {
+    // Gruppen im Shop (nur Anordnung: jede Kategorie behaelt ihren eigenen Slot, alle Slots sind gleichzeitig aktiv). Reihenfolge = Reihenfolge der Kategorien beim Blaettern.
+    groups: [
+      { id: 'ship', label: 'SHIP', cats: ['skin', 'aura', 'gear', 'pet'] },
+      { id: 'weapons', label: 'WEAPONS', cats: ['blade', 'proj', 'trail'] },
+      { id: 'impact', label: 'IMPACT', cats: ['kill', 'hit', 'numbers'] },
+      { id: 'world', label: 'WORLD', cats: ['enemy', 'boss', 'weather'] },
+      { id: 'ui', label: 'INTERFACE', cats: ['hud', 'menubg', 'sound'] },
+      { id: 'moments', label: 'MOMENTS', cats: ['intro', 'victory', 'death'] },
+    ],
     cats: [
       { id: 'skin',  label: 'SKIN',  desc: 'Your ship. Some skins change how it looks and moves. Any color is free: press [C].' },
       { id: 'blade', label: 'GLOW',  desc: 'Look of ALL your weapons: blades, shots, lances, rockets, beams. Some add trails, stars or lightning. Any color is free: press [C].' },

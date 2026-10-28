@@ -467,11 +467,11 @@ function drawTitleBg(ctx, titleY, small, home) {
   }
   // Titel: pulsierendes Glühen, ab und zu ein kurzes cyanes Flackern (Glitch)
   ctx.save();
-  if (Math.sin(t * 2.3) > 0.93) { ctx.globalAlpha = 0.6; uiText(ctx, 'DEATHARENA', STAGE_W / 2 + 2, titleY + 1, { size: home ? 34 : small ? T.h1 : T.title, color: P.cyan, align: 'center' }); }
+  if (Math.sin(t * 2.3) > 0.93) { ctx.globalAlpha = 0.6; uiText(ctx, 'DEATHARENA', STAGE_W / 2 + 2, titleY + 1, { size: home ? 22 : small ? T.h1 : T.title, color: P.cyan, align: 'center' }); }
   ctx.restore();
-  const ts = home ? 34 : small ? T.h1 : T.title, ss = home ? T.h2 : small ? T.small : T.h2;                                   // Homescreen: Titel gross genug fuer Handys
+  const ts = home ? 22 : small ? T.h1 : T.title, ss = home ? T.h2 : small ? T.small : T.h2;                                   // Homescreen: Titel gross genug fuer Handys
   uiText(ctx, 'DEATHARENA', STAGE_W / 2, titleY + Math.sin(t * 1.5) * 1.2, { size: ts, color: P.red, align: 'center', glow: P.red });
-  uiText(ctx, 'ONE WAY TICKET TO HELL', STAGE_W / 2, titleY + (home ? 19 : small ? 16 : 26), { size: ss, color: P.yellow, align: 'center' });
+  uiText(ctx, 'ONE WAY TICKET TO HELL', STAGE_W / 2, titleY + (home ? 15 : small ? 16 : 26), { size: ss, color: P.yellow, align: 'center' });
 }
 
 // Startbildschirm (beim Oeffnen): der alte Hauptmenue-Hintergrund mit Ladebalken; gibt Konto/Update kurz Zeit und geht dann von selbst zum Homescreen (der Ton wird beim ersten Tastendruck/Klick im Menue frei)
@@ -562,11 +562,18 @@ function drawChunkyButton(ctx, b, on, t) {
   const ax = x + (b.big ? (IS_MOBILE ? 12 : 20) : 12), ay = Math.round(y + (h - ah) / 2 - 2), tx0 = ax + aw + 8;
   ctx.fillStyle = ink; art.forEach((row, ry) => { for (let rx = 0; rx < row.length; rx++) if (row[rx] === 'X') ctx.fillRect(ax + rx * sc, ay + ry * sc, sc, sc); });
   ctx.restore();
-  uiText(ctx, b.label, tx0 + (x + w - 8 - tx0) / 2, Math.round(y + h / 2) + (b.big ? 8 : 5), { size: b.big ? (IS_MOBILE ? 18 : T.h1) : T.h2, color: ink, align: 'center', glow: b.big ? acc : undefined, maxW: x + w - 8 - tx0 });
+  let lsize = b.big ? (IS_MOBILE ? 18 : T.h1) : T.h2;
+  if (b.big) {                                // Wort muss ganz draufpassen: Schrift verkleinern statt kuerzen
+    ctx.save();
+    const lw = x + w - 8 - tx0, lt = I18n.t(b.label);
+    while (lsize > 8) { ctx.font = uiFont(uiSize(lsize)); if (ctx.measureText(lt).width <= lw) break; lsize--; }
+    ctx.restore();
+  }
+  uiText(ctx, b.label, tx0 + (x + w - 8 - tx0) / 2, Math.round(y + h / 2) + (b.big ? 8 : 5), { size: lsize, color: ink, align: 'center', glow: b.big ? acc : undefined, maxW: x + w - 8 - tx0 });
 }
 function drawHomeScreen(ctx) {
   const P = STYLE.pal, T = STYLE.type, t = G.realTime, m = Input.mouse, btns = homeButtons(), cx = STAGE_W / 2;
-  drawTitleBg(ctx, 36, true, true);
+  drawTitleBg(ctx, 26, true, true);
   // Buehne: Held (mit den gewaehlten Cosmetics) schwebt ueber einem leuchtenden Ring
   const gy = 232;
   ctx.save();                                                                              // Weicher Verlauf, aber grob gerastert (4-Pixel-Bloecke, aussen gerastert/dithered, innen flaechig): passt zum Pixel-Look
@@ -587,7 +594,17 @@ function drawHomeScreen(ctx) {
   } catch (e) { drawSprite(ctx, Hero.sprite(), 0, STAGE_H / 2 - (gy - 66), 90, 960); }
   const hot = m.x >= cx - 80 && m.x <= cx + 80 && m.y >= 90 && m.y <= 250;                 // Held anklicken = gleiches Menue wie der HERO-Knopf
   UIHit.add(cx - 80, 90, 160, 160, () => {}, { act: () => G.homeGo('armory') });
-  if (hot) { uiPanel(ctx, cx - 70, 96, 140, 144, { color: P.cyan, fill: P.void, alpha: 0.12, glow: true }); uiText(ctx, 'ARMORY', cx, 256 - 14, { size: T.small, color: P.cyan, align: 'center' }); }
+  // Hinweis, dass der Held ein Knopf ist: Eckklammern um den Helden und ein festes Schild "ARMORY" darueber (ohne Animation)
+  {
+    const col = hot ? P.yellow : P.cyan, bx0 = cx - 72, bx1 = cx + 72, by0 = 94, by1 = 244, L = 10 + (hot ? 3 : 0);
+    ctx.save(); ctx.globalAlpha = hot ? 1 : 0.7; ctx.fillStyle = col;
+    for (const [qx, qy, sx, sy] of [[bx0, by0, 1, 1], [bx1, by0, -1, 1], [bx0, by1, 1, -1], [bx1, by1, -1, -1]]) { ctx.fillRect(qx, qy, sx * L, sy * 2); ctx.fillRect(qx, qy, sx * 2, sy * L); }
+    ctx.restore();
+    if (hot) uiPanel(ctx, cx - 70, 96, 140, 144, { color: P.yellow, fill: P.void, alpha: 0.12, glow: true });
+    const lw = 92, lh = 17, ly = 72;
+    uiPanel(ctx, cx - lw / 2, ly, lw, lh, { color: col, fill: P.void, alpha: 0.92, glow: hot });
+    uiText(ctx, 'ARMORY', cx, ly + 12, { size: T.small, color: col, align: 'center' });
+  }
   const H = CFG.heroes[Save.heroSelected()];
   uiText(ctx, H && H.name ? H.name.toUpperCase() : 'HERO', cx, 268, { size: T.h2, color: P.ice, align: 'center', glow: P.cyan });
   const chips = ['BEST ' + (Save.data.best > 0 ? formatTime(Save.data.best) : '-'), 'RUNS ' + Save.data.runs].concat(Save.data.wins ? ['WINS ' + Save.data.wins] : []);
@@ -595,7 +612,7 @@ function drawHomeScreen(ctx) {
   chips.forEach((c, i) => { const x = cx0 + i * (cw + cg); uiPanel(ctx, x, 276, cw, 18, { color: P.greyMid, fill: P.void, alpha: 0.85 }); uiText(ctx, c, x + cw / 2, 289, { size: T.small, color: P.grey, align: 'center' }); });
   const I = Save.levelInfo(), name = Account.on && Account.meta.name ? Account.meta.name.toUpperCase() : 'PLAYER';
   // Profil (nur Anzeige): Level-Plakette links, rechts Name, Credits, Balken und XP
-  ctx.save(); ctx.translate(0, 56);                                                          // Profil unter dem Titel (der Titel braucht die ganze Breite oben)
+  ctx.save();                                                                                // Profil oben links, die Plakette liegt am oberen Rand
   const pw = 204, ph = 52, bx = 58, bw = pw - 8 - bx + 8 - 8;
   uiPanel(ctx, 8, 8, pw, ph, { color: P.cyan, fill: P.void, alpha: 0.9 });
   uiPanel(ctx, 14, 14, 36, 40, { color: P.yellow, fill: P.voidLight, alpha: 0.95 });
@@ -609,7 +626,7 @@ function drawHomeScreen(ctx) {
   ctx.restore();
   drawSyncIndicator(ctx);
   // kleine Symbole unter dem Profil: Konto, Installieren, Statistik (Ton/Effekte stehen in den Einstellungen)
-  if (PWA.visible) drawMenuIcons(ctx, ['install'], 8, 122);
+  if (PWA.visible) drawMenuIcons(ctx, ['install'], 8, 68);
   // Knoepfe
   btns.forEach((b, i) => {
     const hot = m.x >= b.x && m.x <= b.x + b.w && m.y >= b.y && m.y <= b.y + b.h, on = G.homeSel === i || hot;
@@ -1316,27 +1333,28 @@ function drawCosmeticsScreen(ctx) {
   drawMenuBg(ctx, 'keysettings');
   drawEmbers(ctx);
   uiText(ctx, 'COSMETICS', 24, 40, { size: T.h1, color: P.yellow, glow: P.yellow });
-  if (!IS_MOBILE) uiText(ctx, 'CHANGE HOW YOU LOOK. COSMETICS COST CREDITS AND DO NOT AFFECT FIGHTING.', 24, 58, { size: T.small, color: P.greyMid });       // Handy: kein Platz (die Schrift waechst dort)
   drawCoreCount(ctx);
 
-  // Kategorien
-  // (es sind mehr Kategorien als Platz: ein Fenster von VISTAB Reitern folgt der Auswahl, Pfeile zeigen, dass es weitergeht)
-  const VISTAB = 9, tg = 3, tx0 = 24, tw = Math.floor((STAGE_W - 48 - (VISTAB - 1) * tg) / VISTAB), tmax = Math.max(0, C.cats.length - VISTAB);
-  if (G.cosTabSeen !== G.cosTab) { G.cosTabSeen = G.cosTab; G.cosTabOff = clamp(G.cosTabOff === undefined ? G.cosTab - 4 : G.cosTabOff, G.cosTab - VISTAB + 1, G.cosTab); }       // Auswahl bleibt sichtbar, sonst bestimmt die Scrollleiste
-  const toff = clamp(G.cosTabOff, 0, tmax);
-  UIScroll.bar(ctx, 'cosTabs', tx0, 73, STAGE_W - 48, 5, false, C.cats.length, VISTAB, toff, (v) => { G.cosTabOff = v; });
-  C.cats.slice(toff, toff + VISTAB).forEach((c, k) => {
-    const i = toff + k, x = tx0 + k * (tw + tg), sel = G.cosTab === i;
-    UIHit.add(x, 50, tw, 20, () => { G.cosTab = i; G.cosSel = Math.max(0, Cos.items(c.id).findIndex((q) => q.id === Save.cosEquipped(c.id))); }, { noConfirm: true });
-    uiPanel(ctx, x, 50, tw, 20, { color: sel ? P.cyan : P.greyMid, fill: sel ? P.voidLight : P.void, alpha: 0.92, glow: sel });
-    uiText(ctx, c.label, x + tw / 2, 64, { size: T.small, color: sel ? P.ice : P.grey, align: 'center', maxW: tw - 4, minK: 0.6 });
+  // Gruppen (oben) und die Kategorien der gewaehlten Gruppe (darunter, mit dem gerade aktiven Item je Slot)
+  const groups = C.groups, gi = G.cosGroupOf(G.cosTab), gw = Math.floor((STAGE_W - 48 - (groups.length - 1) * 3) / groups.length);
+  groups.forEach((g, i) => {
+    const x = 24 + i * (gw + 3), sel = gi === i;
+    UIHit.add(x, 46, gw, 18, () => {}, { act: () => G.cosGo(G.cosLast[i] !== undefined ? G.cosLast[i] : C.cats.findIndex((c) => c.id === g.cats[0])), noConfirm: true });
+    uiPanel(ctx, x, 46, gw, 18, { color: sel ? P.yellow : P.greyMid, fill: sel ? P.voidLight : P.void, alpha: 0.92, glow: sel });
+    uiText(ctx, g.label, x + gw / 2, 59, { size: T.small, color: sel ? P.yellow : P.grey, align: 'center', maxW: gw - 4, minK: 0.6 });
   });
-  if (toff > 0) uiText(ctx, '<', 14, 64, { size: T.body, color: P.yellow, align: 'center' });
-  if (toff + VISTAB < C.cats.length) uiText(ctx, '>', STAGE_W - 14, 64, { size: T.body, color: P.yellow, align: 'center' });
-  uiText(ctx, (G.cosTab + 1) + '/' + C.cats.length, STAGE_W / 2, 44, { size: T.small, color: P.grey, align: 'center' });
+  const gcats = groups[gi].cats, cwid = Math.floor((STAGE_W - 48 - (gcats.length - 1) * 4) / gcats.length);
+  gcats.forEach((id, k) => {
+    const ci = C.cats.findIndex((c) => c.id === id), c = C.cats[ci], x = 24 + k * (cwid + 4), sel = G.cosTab === ci, cur = Cos.item(id, Save.cosEquipped(id));
+    UIHit.add(x, 68, cwid, 24, () => {}, { act: () => G.cosGo(ci), noConfirm: true });
+    uiPanel(ctx, x, 68, cwid, 24, { color: sel ? P.cyan : P.greyMid, fill: sel ? P.voidLight : P.void, alpha: 0.92, glow: sel });
+    uiText(ctx, c.label, x + 8, 80, { size: T.small, color: sel ? P.ice : P.grey, maxW: cwid - 16, minK: 0.6 });
+    uiText(ctx, cur ? cur.name : '-', x + cwid - 8, 89, { size: T.small, color: cur && cur.cost === 0 ? P.greyMid : P.cyan, align: 'right', maxW: cwid - 16, minK: 0.6 });
+  });
+  uiText(ctx, '[A/D] ' + I18n.t('CATEGORY') + '   [Q/E] ' + I18n.t('GROUP'), STAGE_W / 2, 44, { size: T.small, color: P.greyMid, align: 'center' });
 
   // Liste links
-  const lx = 24, lw = 232, H = 28, GAP = 4, Y0 = 80, VIS = 7;
+  const lx = 24, lw = 232, H = 28, GAP = 4, Y0 = 98, VIS = 7;
   const selIt = items[Math.min(G.cosSel, items.length - 1)];
   if (G.colorPick && (G.cosSel >= items.length || !Cos.canColor(cat.id, selIt))) G.colorPick = null;
   const lmax = Math.max(0, items.length - VIS), lkey = G.cosTab + ':' + G.cosSel;
@@ -1367,7 +1385,7 @@ function drawCosmeticsScreen(ctx) {
   }
 
   // Vorschau rechts (zeigt die gewaehlte Farbe; bei offener Farbwahl die Farbe, auf der der Cursor steht)
-  const px = 268, pw = STAGE_W - 24 - px, py = 80, ph = by + 22 - py;
+  const px = 268, pw = STAGE_W - 24 - px, py = Y0, ph = by + 22 - py;
   const ents = backSel || !Cos.canColor(cat.id, selIt) ? null : Cos.colorEntries(cat.id, selIt);
   const it = backSel ? selIt : Cos.colored(cat.id, selIt, G.colorPick && ents ? ents[Math.min(G.colorPick.sel, ents.length - 1)].id : undefined);
   uiPanel(ctx, px, py, pw, ph, { color: backSel ? P.greyMid : it.color, fill: P.void, alpha: 0.92, glow: !backSel });
@@ -1645,6 +1663,7 @@ function drawSettingsScreen(ctx) {
     language: 'LANGUAGE: ' + (Save.data.lang === 'de' ? 'DEUTSCH' : 'ENGLISH'),
     music: 'MUSIC: ' + Math.round(Save.data.musicVol * 100) + '%',
     sfx: 'SOUND FX: ' + Math.round(Save.data.sfxVol * 100) + '%',
+    tutorial: 'REPLAY TUTORIAL',
     fx: 'EFFECTS: ' + ['OFF', 'REDUCED', 'FULL'][Juice.level],
     slot: 'SLOT  ' + [0, 1, 2].map((i) => i === Save.slot ? '[' + (i + 1) + ']' : ' ' + (i + 1) + ' ').join(' '),
     back: 'BACK',

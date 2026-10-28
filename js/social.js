@@ -8,11 +8,11 @@
 // Bedienung: Q/E, A/D oder Tab = Reiter, W/S = Zeile, Leertaste = Hauptaktion (INVITE, ACCEPT, JOIN), X = Zweitaktion (REMOVE, DECLINE, KICK), ESC = zurück.
 
 const Social = {
-  friends: [], guild: undefined, found: [], top: [], invites: [],             // guild: undefined = noch nicht geladen, null = keine Gilde
+  inviteGame: 'coop', friends: [], guild: undefined, found: [], top: [], invites: [],             // guild: undefined = noch nicht geladen, null = keine Gilde
   tab: 0, sel: 0, back: 'start', msg: '', msgCol: null, msgAt: 0, error: '', ask: null, missing: false,
   pingAt: 0, pollAt: 0, listAt: 0, guildAt: 0, pinged: false, busy: {}, el: null,
   TABS: ['FRIENDS', 'GUILD', 'TOP GUILDS'],
-  MENU_MODES: ['start', 'friends', 'modeselect', 'mapselect', 'pvp', 'cosmetics', 'inventory', 'upgrades', 'achievements', 'leaderboard', 'settings'],
+  MENU_MODES: ['start', 'friends', 'guildroom', 'modeselect', 'mapselect', 'pvp', 'cosmetics', 'inventory', 'upgrades', 'achievements', 'leaderboard', 'settings'],
 
   get on() { return typeof Account !== 'undefined' && Account.configured && Account.on; },
 
@@ -39,16 +39,17 @@ const Social = {
     const now = Date.now();
     if (now - this.pingAt > 40000) { this.pingAt = now; this.rpc('soc_ping', { p_activity: this.activity() }).then((r) => { if (r.ok) this.pinged = true; }); }
     if (!this.MENU_MODES.includes(mode)) return;
-    if (now - this.pollAt > 10000) {
+    if (now - this.pollAt > 4000) {
       this.pollAt = now;
       this.rpc('invite_poll').then((r) => { if (r.ok && Array.isArray(r.json)) r.json.forEach((i) => this.addInvite(i)); });
     }
     if (mode === 'friends') { if (now - this.listAt > 30000) this.loadFriends(); if (this.tab === 1 && now - this.guildAt > 30000) this.loadGuild(); }
+    else if (mode === 'guildroom') { if (now - this.guildAt > 20000) this.loadGuild(); }
     else if (mode === 'start') { if (now - this.listAt > 60000) this.loadFriends(); if (now - this.guildAt > 120000) this.loadGuild(); }
   },
   addInvite(i) {
     if (!i || !i.icode || (typeof Pvp !== 'undefined' && Pvp.code === i.icode) || this.invites.some((x) => x.code === i.icode)) return;
-    this.invites.push({ from: String(i.ifrom || '?').toUpperCase(), code: i.icode, game: i.igame === 'pvp' ? 'pvp' : 'coop', until: Date.now() + 25000 });
+    this.invites.push({ from: String(i.ifrom || '?').toUpperCase(), code: i.icode, game: i.igame === 'pvp' ? 'pvp' : 'coop', at: Date.now(), until: Date.now() + 45000, pingAt: Date.now() });
     this.invites = this.invites.slice(-3); Sfx.play('levelUp');
   },
   acceptInvite() {
@@ -59,20 +60,37 @@ const Social = {
   // Tasten J / K (nicht beim Eintippen eines Lobby-Codes, dort sind es Buchstaben)
   keys() {
     const inv = this.invites[0]; if (!inv || !this.MENU_MODES.includes(G.mode)) return;
-    if (Date.now() > inv.until) { this.invites.shift(); return; }
+    const now = Date.now();
+    if (now > inv.until) { this.invites.shift(); return; }
     if (G.mode === 'pvp' && Pvp.st === 'join') return;
-    if (Input.pressed('KeyJ')) this.acceptInvite(); else if (Input.pressed('KeyK')) this.invites.shift();
+    const grace = now - inv.at > 600;                                         // kurze Schonzeit: wer gerade in einem Menue Enter drueckt, tritt nicht aus Versehen bei
+    const yes = Input.pressed('KeyJ') || (grace && Input.pressed('Enter')), no = Input.pressed('KeyK') || Input.pressed('Escape');
+    if (now - inv.pingAt > 3000) { inv.pingAt = now; Sfx.play('select'); }   // dezentes Signal, solange das Fenster offen ist
+    Input.pressedNow = {}; Input.clicked = false;                              // das Fenster sperrt alles darunter
+    if (yes) this.acceptInvite(); else if (no) this.invites.shift();
   },
+  // Einladung als Fenster mitten auf dem Bildschirm (dunkler Hintergrund, pulsierender Rahmen, Zeitbalken); alles darunter ist gesperrt
   drawInvite(ctx) {
-    const inv = this.invites[0]; if (!inv || !this.MENU_MODES.includes(G.mode)) return;
-    const P = STYLE.pal, T = STYLE.type, up = G.mode === 'friends', w = up ? 196 : 320, h = 34, x = up ? STAGE_W - w - 38 : (STAGE_W - w) / 2, y = up ? 8 : STAGE_H - h - 8, pulse = 0.6 + 0.4 * Math.sin(G.realTime * 5);
-    uiPanel(ctx, x, y, w, h, { color: P.green, fill: P.void, alpha: 0.97, glow: true });
-    uiText(ctx, inv.from + ' INVITES YOU (' + (inv.game === 'pvp' ? 'PVP' : 'CO-OP') + ')', x + 10, y + 14, { size: T.body, color: P.ice, maxW: w - 20 });
-    UIHit.add(x + 8, y + 18, w / 2 - 14, 14, () => {}, { act: () => this.acceptInvite() });
-    UIHit.add(x + w / 2 + 6, y + 18, w / 2 - 14, 14, () => {}, { act: () => this.invites.shift() });
-    uiText(ctx, '[J] JOIN', x + 10, y + 29, { size: T.small, color: P.green });
-    uiText(ctx, '[K] IGNORE', x + w / 2 + 6, y + 29, { size: T.small, color: P.grey });
-    ctx.save(); ctx.globalAlpha = pulse; ctx.fillStyle = P.green; ctx.fillRect(x + w - 14, y + 8, 6, 6); ctx.restore();
+    const inv = this.invites[0]; if (!inv || !this.MENU_MODES.includes(G.mode) || (G.mode === 'pvp' && Pvp.st === 'join')) return;
+    const P = STYLE.pal, T = STYLE.type, t = G.realTime, now = Date.now(), ease = 1 - (1 - Math.min(1, (now - inv.at) / 250)) ** 3;
+    const left = clamp((inv.until - now) / (inv.until - inv.at), 0, 1), pulse = 0.5 + 0.5 * Math.sin(t * 7), coop = inv.game !== 'pvp';
+    const w = 360, h = 132, x = Math.round((STAGE_W - w) / 2), y = Math.round((STAGE_H - h) / 2 - 8 - (1 - ease) * 40), cx = STAGE_W / 2;
+    ctx.save(); ctx.fillStyle = '#000'; ctx.globalAlpha = 0.62 * ease; ctx.fillRect(0, 0, STAGE_W, STAGE_H); ctx.restore();
+    UIHit.list.length = 0; UIHit.add(0, 0, STAGE_W, STAGE_H, () => {}, { noConfirm: true });
+    uiPanel(ctx, x - 4, y - 4, w + 8, h + 8, { color: pulse > 0.5 ? P.green : P.cyan, fill: P.void, alpha: 0.0, glow: true });
+    uiPanel(ctx, x, y, w, h, { color: P.green, fill: P.void, alpha: 0.98, glow: true });
+    uiText(ctx, 'GAME INVITE', cx, y + 24, { size: T.h1, color: P.yellow, align: 'center', glow: P.orange });
+    uiText(ctx, inv.from, cx, y + 50, { size: T.h1, color: P.ice, align: 'center', maxW: w - 30 });
+    uiText(ctx, coop ? 'INVITES YOU TO A CO-OP LOBBY' : 'INVITES YOU TO A PVP LOBBY', cx, y + 66, { size: T.body, color: coop ? P.orange : P.red, align: 'center' });
+    const bw = 150, by = y + 78, gap = 14;
+    const join = { x: cx - bw - gap / 2, w: bw, label: 'JOIN  [J]', col: P.green }, no = { x: cx + gap / 2, w: bw, label: 'IGNORE  [K]', col: P.grey };
+    [[join, () => this.acceptInvite()], [no, () => this.invites.shift()]].forEach(([b, fn], i) => {
+      UIHit.add(b.x, by, b.w, 26, () => {}, { act: fn });
+      const hot = Input.mouse.x >= b.x && Input.mouse.x <= b.x + b.w && Input.mouse.y >= by && Input.mouse.y <= by + 26;
+      uiPanel(ctx, b.x, by, b.w, 26, { color: b.col, fill: i === 0 && (hot || pulse > 0.5) ? P.voidLight : P.void, alpha: 0.95, glow: i === 0 || hot });
+      uiText(ctx, b.label, b.x + b.w / 2, by + 18, { size: T.h2, color: hot || i === 0 ? P.ice : b.col, align: 'center' });
+    });
+    ctx.fillStyle = P.greyDark; ctx.fillRect(x + 14, y + h - 14, w - 28, 5); ctx.fillStyle = left > 0.25 ? P.green : P.orange; ctx.fillRect(x + 14, y + h - 14, Math.round((w - 28) * left), 5);
   },
 
   // ---- Laden ----
@@ -134,13 +152,25 @@ const Social = {
     this.say(r.ok ? (f.state === 'friend' ? 'FRIEND REMOVED' : 'REQUEST REMOVED') : r.err, r.ok ? STYLE.pal.grey : STYLE.pal.red); await this.loadFriends();
   },
   // Einladung senden: gibt es keine offene Lobby, wird eine Koop-Lobby erstellt (du bist Host); der Code geht an den Freund
-  async inviteUid(uid, name) {
+  async inviteUid(uid, name, quiet) {
     if (!Net.available) { this.say('NO CONNECTION POSSIBLE ON THIS DEVICE', STYLE.pal.red); Sfx.play('deny'); return; }
-    if (!(Pvp.ch && Pvp.code && !Pvp.pub)) { Pvp.open('coop'); Pvp.connect(Net.newCode(), true); this.back = 'pvp'; }
+    if (!(Pvp.ch && Pvp.code && !Pvp.pub)) { Pvp.open(this.inviteGame); Pvp.connect(Net.newCode(), true); this.back = 'pvp'; }
     const r = await this.rpc('invite_send', { p_uid: uid, p_code: Pvp.code, p_game: Pvp.gameNow() });
-    if (r.ok && r.json === 'ok') { this.say('INVITE SENT TO ' + name + '  -  LOBBY ' + Pvp.code, STYLE.pal.green); Sfx.play('select'); }
+    if (r.ok && r.json === 'ok') { this.say('INVITE SENT TO ' + name + '  -  LOBBY ' + Pvp.code, STYLE.pal.green); Sfx.play('select'); if (!quiet) this.enterLobby(); }
     else { this.say(r.ok ? 'YOU CAN ONLY INVITE FRIENDS' : r.err, STYLE.pal.red); Sfx.play('deny'); }
   },
+
+  // Nach dem Einladen sofort in die Lobby (du wartest dort auf deine Freunde), statt im Freundesbildschirm zu bleiben
+  enterLobby() { if (Pvp.ch && Pvp.st === 'lobby') { G.mode = 'pvp'; this.back = 'pvp'; Pvp.say(this.msg, STYLE.pal.green); } },
+  // Alle Freunde, die gerade online sind, auf einmal einladen
+  async inviteAll() {
+    const list = this.friends.filter((f) => f.state === 'friend' && f.online);
+    if (!list.length) { this.say('NO FRIEND IS ONLINE RIGHT NOW', STYLE.pal.orange); Sfx.play('deny'); return; }
+    let n = 0;
+    for (const f of list) { await this.inviteUid(f.uid, f.name.toUpperCase(), true); if (Pvp.code) n++; }
+    this.say('INVITED ' + n + ' FRIEND' + (n === 1 ? '' : 'S') + '  -  LOBBY ' + Pvp.code, STYLE.pal.green); this.enterLobby();
+  },
+  toggleInviteGame() { this.inviteGame = this.inviteGame === 'coop' ? 'pvp' : 'coop'; Sfx.play('select'); },
 
   // ---- Gilde ----
   createGuild() {
@@ -197,20 +227,21 @@ const Social = {
       if (g === undefined) return [];
       if (!g) return this.found.map((x) => ({ name: '[' + x.tag + '] ' + x.name.toUpperCase(), right: x.n + '/20   ' + x.pts + ' PTS', pri: { label: 'JOIN', col: P.green, fn: () => this.joinGuild(x) } }));
       const me = this.myUid();
-      return g.members.map((m) => ({ name: m.name.toUpperCase() + (m.leader ? '  (LEADER)' : ''), right: m.points + ' PTS', dot: m.online ? P.green : P.greyMid,
+      const mine = g.myRole || (g.leader ? 'leader' : 'member'), canKick = (m) => m.uid !== me && ((mine === 'leader' && !m.leader) || (mine === 'officer' && (m.role || 'member') === 'member'));
+      return g.members.map((m) => ({ name: m.name.toUpperCase() + (m.leader ? '  (LEADER)' : m.role === 'officer' ? '  (OFFICER)' : ''), right: m.points + ' PTS', dot: m.online ? P.green : P.greyMid,
         pri: m.online && m.uid !== me ? { label: 'INVITE', col: P.cyan, fn: () => this.inviteUid(m.uid, m.name.toUpperCase()) } : null,
-        sec: g.leader && m.uid !== me ? { label: this.ask === 'k' + m.uid ? 'SURE?' : 'KICK', col: P.red, fn: () => this.kick(m) } : null }));
+        sec: canKick(m) ? { label: this.ask === 'k' + m.uid ? 'SURE?' : 'KICK', col: P.red, fn: () => this.kick(m) } : null }));
     }
     return this.top.map((x) => ({ rank: x.rank, name: '[' + x.tag + '] ' + x.name.toUpperCase(), right: x.n + ' MEMBERS   ' + x.pts + ' PTS' }));
   },
   buttons() {
     const P = STYLE.pal, R = { label: 'REFRESH', code: 'KeyR', key: 'R', col: P.cyan, fn: () => this.refresh() };
-    if (this.tab === 0) return [{ label: 'ADD FRIEND', code: 'KeyN', key: 'N', col: P.green, fn: () => this.addFriend() }, R];
+    if (this.tab === 0) return [{ label: 'ADD FRIEND', code: 'KeyN', key: 'N', col: P.green, fn: () => this.addFriend() }, { label: 'INVITE ALL ONLINE', code: 'KeyI', key: 'I', col: P.orange, fn: () => this.inviteAll() }, { label: this.inviteGame === 'coop' ? 'GAME: CO-OP' : 'GAME: PVP', code: 'KeyM', key: 'M', col: this.inviteGame === 'coop' ? P.orange : P.red, fn: () => this.toggleInviteGame() }, R];
     if (this.tab === 2) return [R];
     if (this.guild === undefined) return [R];
     if (!this.guild) return [{ label: 'CREATE GUILD', code: 'KeyC', key: 'C', col: P.green, fn: () => this.createGuild() }, { label: 'SEARCH', code: 'KeyF', key: 'F', col: P.cyan, fn: () => this.searchGuild() }, R];
     const n = this.claimable();
-    return [{ label: n ? 'CLAIM REWARD' : 'CLAIM', code: 'KeyC', key: 'C', col: n ? P.yellow : P.greyMid, fn: () => this.claim() }, { label: this.ask === 'leave' ? 'SURE?' : 'LEAVE GUILD', code: 'KeyL', key: 'L', col: P.red, fn: () => this.leaveGuild() }, R];
+    return [{ label: 'GUILD ROOM', code: 'KeyG', key: 'G', col: P.purple, fn: () => GuildRoom.open() }, { label: n ? 'CLAIM REWARD' : 'CLAIM', code: 'KeyC', key: 'C', col: n ? P.yellow : P.greyMid, fn: () => this.claim() }, { label: this.ask === 'leave' ? 'SURE?' : 'LEAVE GUILD', code: 'KeyL', key: 'L', col: P.red, fn: () => this.leaveGuild() }, R];
   },
 
   update() {
@@ -280,14 +311,14 @@ const Social = {
     UIScroll.bar(ctx, 'social', X + W + 12, y0, 6, vis * DY - 4, true, Math.max(rows.length, vis), vis, S.off, (v) => { S.off = v; });
     // Meldung / Fehler, Knöpfe
     const line = this.msg || this.error; if (line) uiText(ctx, line, cx, 316, { size: T.body, color: this.msg ? this.msgCol || P.cyan : P.red, align: 'center', maxW: STAGE_W - 40 });
-    const bs = this.buttons(), bw = 130, gap = 10, bx0 = cx - (bs.length * bw + (bs.length - 1) * gap) / 2;
+    const bs = this.buttons(), bw = bs.length > 3 ? 144 : 130, gap = bs.length > 3 ? 8 : 10, bx0 = cx - (bs.length * bw + (bs.length - 1) * gap) / 2;
     bs.forEach((b, i) => {
       const x = bx0 + i * (bw + gap);
       UIHit.add(x, 324, bw, 22, () => {}, { act: () => b.fn() });
       uiPanel(ctx, x, 324, bw, 22, { color: b.col, fill: P.void, alpha: 0.9 });
       uiText(ctx, I18n.t(b.label) + '  [' + b.key + ']', x + bw / 2, 339, { size: T.body, color: b.col, align: 'center' });
     });
-    const hint = this.tab === 0 ? '[SPACE] INVITE / ACCEPT      [X] REMOVE / DECLINE      INVITES ARRIVE IN YOUR MENU WITHIN SECONDS' : this.tab === 1 && g ? 'POINTS = KILLS + 25 PER BOSS FROM EVERY RUN      [SPACE] INVITE      [X] KICK (LEADER)' : '';
+    const hint = this.tab === 0 ? '[SPACE] INVITE (OPENS THE LOBBY)      [X] REMOVE / DECLINE      [I] INVITE ALL ONLINE      [M] CO-OP / PVP' : this.tab === 1 && g ? 'POINTS = KILLS + 25 PER BOSS FROM EVERY RUN      [SPACE] INVITE      [X] KICK (LEADER)' : '';
     if (hint) uiText(ctx, hint, cx, 355, { size: T.small, color: P.greyMid, align: 'center' });
   },
 
@@ -315,7 +346,7 @@ const Social = {
     if (this.el) return;
     try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) { /* egal */ }
     const P = STYLE.pal, mk = (tag, css, text) => { const e = document.createElement(tag); e.style.cssText = css || ''; if (text) e.textContent = I18n.t(text); return e; };
-    const root = mk('div', 'position:fixed;inset:0;background:rgba(5,6,15,.88);z-index:10;display:flex;align-items:center;justify-content:center;font-family:"Pixelify Sans",monospace;');
+    const root = mk('div', 'position:fixed;inset:0;background:rgba(5,6,15,.88);z-index:10;display:flex;align-items:center;justify-content:center;font-family:"Pixel Digits","Pixelify Sans",monospace;');
     root.setAttribute('data-nogame', '1');
     const box = mk('div', 'width:min(420px,92vw);box-sizing:border-box;padding:16px;background:' + P.void + ';border:2px solid ' + P.cyan + ';color:' + P.ice + ';');
     box.appendChild(mk('div', 'color:' + P.yellow + ';font-size:20px;margin-bottom:8px;', title));
@@ -338,6 +369,9 @@ const Social = {
 };
 
 if (typeof I18n !== 'undefined' && I18n.add) I18n.add({
+  'GAME INVITE': 'SPIELEINLADUNG', 'JOIN  [J]': 'BEITRETEN  [J]', 'IGNORE  [K]': 'IGNORIEREN  [K]', 'INVITES YOU TO A CO-OP LOBBY': 'LÄDT DICH IN EINE KOOP-LOBBY EIN', 'INVITES YOU TO A PVP LOBBY': 'LÄDT DICH IN EINE PVP-LOBBY EIN',
+  'INVITE ALL ONLINE': 'ALLE ONLINE EINLADEN', 'GAME: CO-OP': 'SPIEL: KOOP', 'GAME: PVP': 'SPIEL: PVP', 'NO FRIEND IS ONLINE RIGHT NOW': 'GERADE IST KEIN FREUND ONLINE',
+  '[SPACE] INVITE (OPENS THE LOBBY)      [X] REMOVE / DECLINE      [I] INVITE ALL ONLINE      [M] CO-OP / PVP': '[LEERTASTE] EINLADEN (ÖFFNET DIE LOBBY)      [X] ENTFERNEN / ABLEHNEN      [I] ALLE ONLINE EINLADEN      [M] KOOP / PVP',
   'FRIENDS & GUILD': 'FREUNDE & GILDE', 'FRIENDS': 'FREUNDE', 'GUILD': 'GILDE', 'TOP GUILDS': 'BESTE GILDEN', 'ADD FRIEND': 'FREUND HINZUFÜGEN', 'REFRESH': 'AKTUALISIEREN',
   'INVITE': 'EINLADEN', 'ACCEPT': 'ANNEHMEN', 'DECLINE': 'ABLEHNEN', 'REMOVE': 'ENTFERNEN', 'CANCEL': 'ABBRECHEN', 'SURE?': 'SICHER?', 'JOIN': 'BEITRETEN', 'KICK': 'RAUSWERFEN',
   'OFFLINE': 'OFFLINE', 'ONLINE': 'ONLINE', 'IN A RUN': 'IM LAUF', 'IN A LOBBY': 'IN EINER LOBBY', 'WANTS TO BE YOUR FRIEND': 'MÖCHTE DEIN FREUND SEIN', 'REQUEST SENT': 'ANFRAGE GESENDET',

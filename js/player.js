@@ -861,6 +861,7 @@ class Player {
   }
 
   updateBloodburst() {
+    if (G.pvp) return;                                                // PvP: kein Bloodburst
     const active = (this.blood && this.blood.alive) || this.bloodCd > 0;
     if (this.bloodArmed && this.hp < CFG.bloodburst.triggerHp && !active) {
       this.bloodArmed = false;

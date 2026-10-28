@@ -256,14 +256,14 @@ const Cos = {
       }
     } else if (it.fx === 'horns' && layer === 'front') {
       for (const s of [-1, 1]) {
-        ctx.fillStyle = P.ink; pxPolyFill(ctx, poly([[5, s * 10], [24, s * 22], [16, s * 5]]));
-        ctx.fillStyle = P.red; pxPolyFill(ctx, poly([[7, s * 10], [21, s * 19], [15, s * 7]]));
+        ctx.fillStyle = P.ink; pxPolyFill(ctx, poly([[5, s * 9], [17, s * 16], [12, s * 5]]));
+        ctx.fillStyle = P.red; pxPolyFill(ctx, poly([[7, s * 9], [15, s * 14], [11, s * 6.5]]));
       }
     } else if (it.fx === 'antenna' && layer === 'back') {
-      ctx.fillStyle = P.grey; pxPoly(ctx, poly([[-8, 0], [-19, -10], [-30, -14]]), false, 1);
-      const tip = T(-31, -15), ba = ctx.globalAlpha;
+      ctx.fillStyle = P.grey; pxPoly(ctx, poly([[-8, 0], [-14, -6], [-20, -9]]), false, 1);
+      const tip = T(-21, -10), ba = ctx.globalAlpha;
       ctx.fillStyle = Math.floor(t * 3) % 2 ? P.red : P.green; pxFill(ctx, tip[0] - 2, tip[1] - 2, 3);
-      ctx.globalAlpha = ba * 0.25; pxGlow(ctx, tip[0], tip[1], 8);
+      ctx.globalAlpha = ba * 0.25; pxGlow(ctx, tip[0], tip[1], 6);
     } else if (it.fx === 'jetpack' && layer === 'back') {
       // Tanks hinten am Schiff (Schiff ca. 40 Einheiten gross, Heck bei ca. -16); die Flamme ragt nach hinten heraus
       for (const s of [-1, 1]) {

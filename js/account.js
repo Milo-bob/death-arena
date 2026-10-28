@@ -225,7 +225,7 @@ const Account = {
     if (this.el) return;
     try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) { /* egal */ }
     const P = STYLE.pal, mk = (tag, css, text) => { const e = document.createElement(tag); e.style.cssText = css || ''; if (text) e.textContent = I18n.t(text); return e; };
-    const root = mk('div', 'position:fixed;inset:0;background:rgba(5,6,15,.88);z-index:10;display:flex;align-items:center;justify-content:center;font-family:"Pixelify Sans",monospace;');
+    const root = mk('div', 'position:fixed;inset:0;background:rgba(5,6,15,.88);z-index:10;display:flex;align-items:center;justify-content:center;font-family:"Pixel Digits","Pixelify Sans",monospace;');
     root.setAttribute('data-nogame', '1');
     const box = mk('div', 'width:min(520px,92vw);max-height:92vh;overflow:auto;box-sizing:border-box;padding:16px;background:' + P.void + ';border:2px solid ' + P.cyan + ';color:' + P.ice + ';');
     const btn = (label, color, fn) => { const b = mk('button', 'flex:1 1 130px;padding:10px 8px;margin:3px;cursor:pointer;background:' + P.voidLight + ';color:' + color + ';border:2px solid ' + color + ';font:inherit;font-size:15px;', label); b.onclick = fn; return b; };
