@@ -60,8 +60,79 @@ function hurtPlayersAt(x, y, r, kind, mul, src, chill) {
 // wer zählt beim Besiegen doppelt für das Ultimate (HEAVY), von wem bleibt eine Leiche für den Nekromanten (CORPSE_TYPES).
 const CHASERS = ['circle', 'bomber', 'splitter', 'leech', 'teleporter', 'tank'];
 const TOUCHERS = ['circle', 'splitter', 'teleporter', 'tank'];
+
+// Koordinierte Gegner (CFG.flank): jeder Verfolger bekommt beim ersten Mal eine Rolle (Flankierer von links/rechts oder Abschneider) und laeuft nicht mehr strikt geradeaus auf das Ziel zu.
+const Flank = {
+  n: 0, fT: null, fronts: [],
+  role(e) {
+    const F = CFG.flank;
+    if (Math.random() >= F.share) return { role: 'direct', ang: 0 };
+    this.n++;
+    if (Math.random() < F.cutters) return { role: 'cut', ang: 0 };
+    return { role: 'flank', ang: (this.n % 2 ? 1 : -1) * rand(F.minAngle, F.maxAngle) };       // abwechselnd links/rechts, damit sie sich verteilen
+  },
+  // Laufgeschwindigkeit des Ziels (px/s), geglaettet; pro Ziel einmal je Bild fortgeschrieben
+  vel(tg) {
+    const now = G.time;
+    if (tg._fT === undefined || now < tg._fT || now - tg._fT > 0.5) { tg._fT = now; tg._fx = tg.x; tg._fy = tg.y; tg._fvx = 0; tg._fvy = 0; }
+    else if (now - tg._fT > 0.0001) {
+      const d = now - tg._fT, k = Math.min(1, d * 6);
+      tg._fvx += ((tg.x - tg._fx) / d - tg._fvx) * k; tg._fvy += ((tg.y - tg._fy) / d - tg._fvy) * k;
+      tg._fT = now; tg._fx = tg.x; tg._fy = tg.y;
+    }
+    return [tg._fvx, tg._fvy];
+  },
+  // Randdruck: 0 = Ziel weit vom Rand, bis edge nahe am Rand (nicht auf unendlichen Karten und nicht im PvP)
+  edgeW(tg) {
+    const F = CFG.flank;
+    if (!F.edge || CFG.map.infinite || G.pvp) return 0;
+    const hw = CFG.map.halfW * G.arenaScale, hh = CFG.map.halfH * G.arenaScale, k = Math.max(Math.abs(tg.x) / hw, Math.abs(tg.y) / hh);
+    return clamp((k - F.edgeFrom) / (0.95 - F.edgeFrom), 0, 1) * F.edge;
+  },
+  // Blickrichtung/Laufrichtung (Grad) des Gegners e zum Ziel tg
+  steer(e, tg) {
+    const F = CFG.flank, base = dirTo(e.x, e.y, tg.x, tg.y);
+    if (!F || !F.on || !F.strength || Tutorial.active || e.minion || e.mini) return base;
+    if (!e.flank) e.flank = this.role(e);
+    if (e.flank.role === 'direct') return base;
+    const dist = Math.hypot(tg.x - e.x, tg.y - e.y), ramp = clamp(F.rampStart + (1 - F.rampStart) * (G.time / F.rampTime), 0, 1);
+    const k = clamp((dist - F.close) / (F.far - F.close), 0, 1) * ramp * F.strength;
+    if (k <= 0) return base;
+    const w = this.edgeW(tg), dc = Math.hypot(tg.x, tg.y) || 1, inx = -tg.x / dc, iny = -tg.y / dc;        // Richtung vom Ziel zur Arena-Mitte
+    if (e.flank.role === 'cut') {
+      const [vx, vy] = this.vel(tg), sp = Math.hypot(vx, vy), moving = sp >= 20;
+      let ax = tg.x, ay = tg.y;
+      if (moving) { const lead = Math.min(F.leadMax, sp * F.lead); ax += vx / sp * lead * k; ay += vy / sp * lead * k; }       // Punkt vor dem Spieler
+      if (w > 0) { const push = 40 * w * k; ax += inx * push; ay += iny * push; }                                          // Richtung Mitte: der Spieler wird nach aussen gedraengt
+      if (!moving && w <= 0) return base;
+      return dirTo(e.x, e.y, ax, ay);
+    }
+    let ang = e.flank.ang;
+    if (w > 0) { const s = angleDiff(dirTo(tg.x, tg.y, 0, 0), base) >= 0 ? 1 : -1; ang += (s * Math.abs(ang) * 1.15 - ang) * w; }   // Seite zur Mitte hin
+    return base + ang * k;
+  },
+  // Frontkraefte (Tank, Waechter, Bastion) einmal je Bild einsammeln
+  frontList() {
+    if (this.fT !== G.time) { this.fT = G.time; this.fronts = G.enemies.filter((q) => q.alive && !q.minion && (q.type === 'tank' || q.type === 'guard' || q.type === 'bastion')); }
+    return this.fronts;
+  },
+  // Deckung: Faktor fuer das Tempo von Schuetzen/Unterstuetzern (0 = bleibt stehen, weil er sonst vor der Frontlinie stuende, sonst 1)
+  hold(e, tg) {
+    const F = CFG.flank, C = F && F.cover;
+    if (!C || !C.on || !F.on || Tutorial.active || e.minion || e.mini) return 1;
+    const gap = BACKLINE[e.type];
+    if (gap === undefined) return 1;
+    const list = this.frontList();
+    if (!list.length) return 1;
+    let front = Infinity;
+    for (const q of list) { const d = Math.hypot(q.x - tg.x, q.y - tg.y); if (d < front) front = d; }
+    if (front > C.range) return 1;
+    return Math.hypot(e.x - tg.x, e.y - tg.y) <= front + (gap === 1 ? C.gap : C.gapBack) ? 0 : 1;
+  },
+};
+const BACKLINE = { triangle: 1, square: 1, rhombus: 1, sniper: 1, support: 2, necro: 2 };       // 1 = Schuetze (gap), 2 = Unterstuetzer (gapBack)
 const SHOOTERS = ['triangle', 'square', 'rhombus'];
-const HEAVY = ['square', 'rhombus', 'guard', 'support', 'sniper', 'miner', 'necro', 'tank', 'teleporter', 'phantom', 'bastion', 'magnetar'];
+const HEAVY = ['square', 'rhombus', 'guard', 'support', 'sniper', 'miner', 'necro', 'tank', 'teleporter', 'phantom', 'bastion', 'magnetar', 'lancer'];
 const CORPSE_TYPES = ['circle', 'triangle', 'square', 'rhombus', 'guard', 'bomber', 'teleporter'];
 class Enemy {
   // type: 'circle' | 'triangle' | 'square' | 'rhombus'; mini = Miniboss (größer, mehr Leben)
@@ -174,6 +245,7 @@ class Enemy {
     }
     const pat = Patterns.steer(this, dt);
     f *= pat.mul === undefined ? 1 : pat.mul;
+    if (!lost) f *= Flank.hold(this, tg);                          // Schuetzen und Unterstuetzer bleiben hinter der Frontlinie (CFG.flank.cover)
 
     if (pat.step !== undefined) {                                  // eigene Bewegung (Event oder Muster)
       let step = this.stun <= 0 ? pat.step : 0;
@@ -183,6 +255,7 @@ class Enemy {
       if (pat.touch) hurtPlayersAt(this.x, this.y, r, 'touch', this.dmgMul, Stats.enemyName(this));
     } else if (CHASERS.includes(this.type)) {
       const C = e[this.type];
+      if (!lost) this.dir = Flank.steer(this, tg);                       // Flankierer/Abschneider statt strikt geradeaus (CFG.flank)
       let step = this.stun <= 0 || this.type === 'tank' ? C.speed : 0;       // der Tank wird nie betäubt
       if (this.mini && this.type === 'circle' && !onShield) step += C.miniExtraSpeed;
       if (onShield) step -= C.push;
@@ -196,6 +269,7 @@ class Enemy {
         moveForward(this, e.triangle.miniSpeed * f);
       }
     } else if (this.type === 'guard') {
+      if (!lost) this.dir = Flank.steer(this, tg);
       let step = this.stun <= 0 ? e.guard.speed : 0;
       if (onShield) step -= e.guard.push;
       moveForward(this, step * f);

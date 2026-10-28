@@ -172,6 +172,7 @@ const Patterns = {
     phantom(e, dt, tg) { return Elite.phantomSteer(e, dt, tg); },
     bastion(e, dt, tg) { return Elite.bastionSteer(e, dt, tg); },
     magnetar(e, dt, tg) { return Elite.magnetarSteer(e, dt, tg); },
+    lancer(e, dt, tg) { return Elite.lancerSteer(e, dt, tg); },
     circle(e) {
       const C = CFG.patterns.circle;
       e.dir += C.amp * Math.sin(G.realTime * C.freq + e.phase);

@@ -806,7 +806,8 @@ const CFG = {
     // Elite-Gegner (neu, siehe CFG.elite und js/elites.js): auf allen Karten gleich, sehr stark. sprite = Grafik eines vorhandenen Typs (umgefaerbt).
     phantom: { speed: 3.6, push: 0.5, radius: 10, size: 300, hits: 10, sprite: 'teleporter' },    // weicht Nahkampf aus, haelt Abstand, schiesst Salven
     bastion: { speed: 1.5, push: 0.3, radius: 10, size: 420, hits: 16, sprite: 'tank' },          // Schildfront haelt Schuesse ab, Rammstoss
-    magnetar: { speed: 1.8, push: 0.3, radius: 10, size: 400, hits: 14, sprite: 'support' },       // zieht den Spieler heran, Erschuetterung mit Vorwarnung (gegen Kiten)
+    magnetar: { speed: 1.8, push: 0.3, radius: 10, size: 380, hits: 14, sprite: 'support' },
+    lancer: { speed: 0, push: 0.3, radius: 10, size: 340, hits: 9, sprite: 'triangle' },           // Lanzenreiter: fast so schnell wie der Spieler (Tempo = Anteil des Spielertempos, CFG.elite.lancer), haelt Abstand und sticht mit Vorwarnung       // zieht den Spieler heran, Erschuetterung mit Vorwarnung (gegen Kiten)
     // Geschosse der Gegner
     bolt: { speed: 7, frames: 30, radius: 5 },
     missile: { speed: 4, frames: 60, turn: 5, radius: 5 },
@@ -851,6 +852,7 @@ const CFG = {
     phantom:    { from: 300, min: 40, max: 55, maxAlive: 1, fixedCap: true, up: { min: 30, max: 42, maxAlive: 2 } },
     bastion:    { from: 360, min: 46, max: 62, maxAlive: 1, fixedCap: true, up: { min: 34, max: 46, maxAlive: 2 } },
     magnetar:   { from: 420, min: 52, max: 68, maxAlive: 1, fixedCap: true, up: { min: 38, max: 50, maxAlive: 2 } },
+    lancer:     { from: 380, min: 48, max: 64, maxAlive: 1, fixedCap: true, up: { min: 36, max: 48, maxAlive: 2 } },
   },
 
   // Elite-Gegner (js/elites.js): zwei Gegner, die die schnellen Endgame-Waffen umgehen (Plasma Blade mit 4 Klingen, Dreifach-Blaster). Nicht kartenspezifisch.
@@ -876,6 +878,14 @@ const CFG = {
     },
     // Magnetar: gegen Kiten und Abstandhalten. Zieht den Spieler im Umkreis `range` heran (staerker je naeher, Dash ist immun, im Safe Spot aus) und loest alle `every` s eine
     // Erschuetterung aus: `tele` s Vorwarnring, dann Schaden im Radius `radius`; danach `rest` s ohne Sog (Zeit zum Zuschlagen). Mk II: staerkerer Sog, groesserer Ring, zwei Schlaege.
+    // Lanzenreiter (Lancer): holt den Spieler IMMER ein (Tempo = speed x Spielertempo, ab boostDist px Abstand x boost zum Aufholen), haelt keepDist Abstand und sticht, sobald er naeher als range ist:
+    // tele s Vorwarnlinie in Zielrichtung (ausweichbar), dann thrust s Stoss mit Reichweite reach (lunge = Vorstoss). Danach recover s Pause, every s bis zum naechsten Stich.
+    // Weg vom Spieler kann er schlecht: Rueckzug nur mit retreat x Tempo. Mk II: etwas schneller, kuerzere Pausen und Vorwarnung.
+    lancer: {
+      dmg: 1.4, gate: 0.5, gate2: 0.65, hue: 175,
+      speed: 0.93, mk2Speed: 1.05, boost: 1.4, boostDist: 140, keepDist: 62, band: 14, retreat: 0.4,
+      range: 82, reach: 76, width: 6, first: 1.4, every: 1.7, every2: 1.25, tele: 0.45, tele2: 0.32, thrust: 0.14, recover: 0.4, lunge: 9,
+    },
     magnetar: {
       dmg: 1.6, gate: 0.6, gate2: 0.85, hue: 130,
       range: 190, minPull: 0.9, maxPull: 2.6, chargePull: 1.5, mk2Pull: 1.35,
@@ -1499,6 +1509,17 @@ for (const m of CFG.milestones) if (m.reward && m.reward.cos) m.reward = { cores
 // Die Tagesbelohnung steht serverseitig (tools/supabase_anticheat.sql, ac_cfg().daily).
 CFG.econ = { achMul: 0.5, msMul: 0.5, levelMul: 0.5 };
 for (const m of CFG.milestones) if (m.reward && m.reward.cores) m.reward = Object.assign({}, m.reward, { cores: Math.max(1, Math.round(m.reward.cores * CFG.econ.msMul)) });
+// Koordinierte Gegner (Flank in js/enemies.js): Verfolger laufen nicht mehr alle geradeaus auf den Spieler zu. Jeder bekommt beim Erscheinen eine Rolle:
+//  - Flankierer: laufen in einem Bogen von der Seite heran (die Seite wechselt reihum, damit sie sich links und rechts verteilen) und schwenken erst nah am Spieler auf ihn ein.
+//  - Abschneider (cutters = Anteil): zielen auf den Punkt VOR dem Spieler (Laufrichtung x lead Sekunden, hoechstens leadMax), also auf den Fluchtweg.
+// Je weiter weg, desto staerker (far = volle Wirkung, close = geradeaus). Die Wirkung steigt ueber rampTime Sekunden des Laufs von rampStart auf 1. strength skaliert alles (0 = aus).
+// Frontlinie und Deckung (cover): Schuetzen (Dreieck, Quadrat, Raute, Sniper) und Unterstuetzer (Support, Nekromant) bleiben HINTER Tanks, Waechtern und Bastionen: sie rueckten nur so weit vor, dass sie
+// `gap` (Schuetzen) bzw. `gapBack` px weiter vom Spieler weg sind als die naechste Frontkraft (die hoechstens `range` px vom Spieler entfernt sein darf, sonst gilt nichts). Ohne Frontkraft wie bisher.
+// Randdruck (edge): steht der Spieler nahe am Rand (ab edgeFrom = Anteil der Halbbreite/-hoehe), nehmen Flankierer die Seite zur Arena-Mitte hin und Abschneider zielen etwas Richtung Mitte,
+// damit der Spieler zum Rand gedraengt wird. edge = Staerke (0 = aus).
+CFG.flank = { on: true, share: 0.5, cutters: 0.4, minAngle: 30, maxAngle: 70, close: 60, far: 240, lead: 0.9, leadMax: 90, rampStart: 0.35, rampTime: 240, strength: 1,
+  cover: { on: true, range: 330, gap: 60, gapBack: 95 }, edge: 1, edgeFrom: 0.5 };
+
 CFG.shards = {
   creditsPer: 2.5,                                                           // Umtausch: 2,5 Credits = 1 Shard
   packs: [{ shards: 10 }, { shards: 40 }, { shards: 100 }],                  // Pakete im Umtausch (Kosten = shards x creditsPer)
