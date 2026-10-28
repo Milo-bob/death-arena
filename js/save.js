@@ -401,6 +401,7 @@ const Save = {
       for (const k of this.KEEP) if (this.data[k] !== undefined && (this.LOG_KEYS.includes(k) || src[k] === undefined || typeof src[k] !== typeof this.data[k])) next[k] = this.data[k];       // Protokolle bleiben lokal, Einstellungen kommen aus dem Code (fehlen sie dort, bleiben die lokalen)
       next.devKey = (typeof src.devKey === 'string' && src.devKey) || (typeof this.data.devKey === 'string' && this.data.devKey) || '';
       next.dev = src.dev === true || this.data.dev === true;           // die Dev-Save-Datei schaltet den Dev-Modus fuer diesen Slot frei (bleibt dort auch nach einem normalen Import)
+      next.resyncAt = Date.now();                                      // Anticheat: ein Import (auch Cloud-Download auf einem anderen Geraet) ist ein neuer Ausgangsstand und wird nicht als Zuwachs gewertet
       this.data = next;
       this.migrate();
       this.applySettings();

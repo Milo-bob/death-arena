@@ -1119,7 +1119,7 @@ function drawExchange(ctx) {
   const bw = 110, gap = 12, bx0 = STAGE_W / 2 - (packs.length * bw + (packs.length - 1) * gap) / 2;
   packs.forEach((p, i) => {
     const bx = bx0 + i * (bw + gap), by = y + 56, cost = shardPackCost(p), afford = Save.data.souls >= cost, sel = X.sel === i, hot = m.x >= bx && m.x <= bx + bw && m.y >= by && m.y <= by + 70;
-    UIHit.add(bx, by, bw, 70, () => { X.sel = i; }, { act: () => { X.sel = i; G.exchBuy(i); } });
+    if (X.ask === undefined) UIHit.add(bx, by, bw, 70, () => { X.sel = i; }, { act: () => { X.sel = i; G.exchBuy(i); } });
     uiPanel(ctx, bx, by, bw, 70, { color: sel || hot ? P.ice : afford ? P.cyan : P.greyMid, fill: sel || hot ? P.voidLight : P.void, alpha: 0.95, glow: sel || hot });
     uiText(ctx, '+' + p.shards, bx + bw / 2, by + 30, { size: T.h1, color: afford ? P.cyan : P.grey, align: 'center' });
     uiText(ctx, 'SHARDS', bx + bw / 2, by + 44, { size: T.small, color: P.grey, align: 'center' });
@@ -1128,10 +1128,28 @@ function drawExchange(ctx) {
   uiText(ctx, 'YOU HAVE', STAGE_W / 2 - 96, y + 144, { size: T.body, color: P.ice, align: 'right' });
   uiAmount(ctx, 'credits', Save.data.souls, STAGE_W / 2 - 88, y + 144, { size: T.body, color: P.yellow });
   uiAmount(ctx, 'shards', Save.shards(), STAGE_W / 2 + 20, y + 144, { size: T.body, color: P.cyan });
+  if (X.flash && G.realTime - X.flash.at < 3) uiText(ctx, X.flash.text, STAGE_W / 2, y + 128, { size: T.h2, color: P.green, align: 'center', glow: P.green });
   const cx = x + w - 62, cy = y + 6;
-  UIHit.add(cx, cy, 56, 16, () => {}, { act: () => { G.exch = null; Sfx.play('select'); } });
+  if (X.ask === undefined) UIHit.add(cx, cy, 56, 16, () => {}, { act: () => { G.exch = null; Sfx.play('select'); } });
   uiText(ctx, 'CLOSE [ESC]', cx + 28, cy + 11, { size: T.small, color: P.grey, align: 'center' });
   uiText(ctx, '[A/D] CHOOSE   [SPACE] EXCHANGE', STAGE_W / 2, y + h - 8, { size: T.small, color: P.greyMid, align: 'center' });
+  if (X.ask !== undefined) {                                                                          // Rueckfrage vor dem Tausch
+    const ask = X.ask, p = packs[ask], qw = 300, qh = 104, qx = STAGE_W / 2 - qw / 2, qy = y + 30;
+    ctx.save(); ctx.globalAlpha = 0.7; ctx.fillStyle = P.ink; ctx.fillRect(x, y, w, h); ctx.restore();
+    UIHit.list.length = 0;
+    uiPanel(ctx, qx, qy, qw, qh, { color: P.yellow, fill: P.void, alpha: 0.99, glow: true });
+    uiText(ctx, 'CONFIRM EXCHANGE', STAGE_W / 2, qy + 20, { size: T.h2, color: P.yellow, align: 'center' });
+    uiAmount(ctx, 'credits', shardPackCost(p), STAGE_W / 2 - 24, qy + 42, { size: T.h2, color: P.yellow, align: 'right' });
+    uiText(ctx, '->', STAGE_W / 2, qy + 42, { size: T.h2, color: P.grey, align: 'center' });
+    uiAmount(ctx, 'shards', p.shards, STAGE_W / 2 + 24, qy + 42, { size: T.h2, color: P.cyan });
+    const bw2 = 100, by2 = qy + qh - 34;
+    [['BUY', P.green], ['CANCEL', P.red]].forEach(([label, col], i) => {
+      const bx2 = qx + 30 + i * (bw2 + 40), hot = X.ans === i || (m.x >= bx2 && m.x <= bx2 + bw2 && m.y >= by2 && m.y <= by2 + 24);
+      UIHit.add(bx2, by2, bw2, 24, () => { X.ans = i; }, { act: () => { X.ask = undefined; if (i === 0) G.exchDo(ask); else Sfx.play('select'); } });
+      uiPanel(ctx, bx2, by2, bw2, 24, { color: hot ? P.ice : col, fill: hot ? P.greyMid : P.void, glow: hot });
+      uiText(ctx, label, bx2 + bw2 / 2, by2 + 17, { size: T.h2, color: hot ? P.ice : col, align: 'center' });
+    });
+  }
 }
 
 // Text mit Zeilenumbruch (maxW in Buehneneinheiten), gibt die Zeilenzahl zurueck

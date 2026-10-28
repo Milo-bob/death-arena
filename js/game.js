@@ -494,12 +494,28 @@ const G = {
   // Shard-Umtausch (Overlay im Cosmetics-Menue, Taste G): Pakete aus CFG.shards.packs fuer Credits. A/D waehlt, Leertaste tauscht, ESC schliesst.
   updateExch() {
     const x = this.exch, n = CFG.shards.packs.length;
+    if (x.ask !== undefined) {                                                                        // Rueckfrage: BUY / CANCEL
+      if (Input.pressed('KeyA') || Input.pressed('ArrowLeft')) { x.ans = 0; Sfx.play('tick'); }
+      if (Input.pressed('KeyD') || Input.pressed('ArrowRight')) { x.ans = 1; Sfx.play('tick'); }
+      if (Input.pressed('Space') || Input.pressed('Enter')) { const i = x.ask, yes = x.ans === 0; x.ask = undefined; if (yes) this.exchDo(i); else Sfx.play('select'); }
+      else if (Input.pressed('Escape')) { x.ask = undefined; Sfx.play('select'); }
+      return;
+    }
     if (Input.pressed('KeyA') || Input.pressed('ArrowLeft')) { x.sel = (x.sel + n - 1) % n; Sfx.play('tick'); }
     if (Input.pressed('KeyD') || Input.pressed('ArrowRight')) { x.sel = (x.sel + 1) % n; Sfx.play('tick'); }
     if (Input.pressed('Space') || Input.pressed('Enter')) this.exchBuy(x.sel);
     else if (Input.pressed('Escape') || Input.pressed('KeyG')) { this.exch = null; Sfx.play('select'); }
   },
-  exchBuy(i) { Sfx.play(Save.buyShardPack(i) ? 'buy' : 'deny'); },
+  exchBuy(i) {                                                                                         // erst fragen, dann tauschen
+    const p = CFG.shards.packs[i];
+    if (!p || Save.data.souls < shardPackCost(p)) { Sfx.play('deny'); return; }
+    this.exch.ask = i; this.exch.ans = 0; Sfx.play('select');
+  },
+  exchDo(i) {
+    const p = CFG.shards.packs[i], ok = Save.buyShardPack(i);
+    Sfx.play(ok ? 'buy' : 'deny');
+    if (ok) this.exch.flash = { text: 'EXCHANGED!  +' + p.shards + ' SHARDS', at: this.realTime };
+  },
   updateCosmetics() {
     if (this.exch) { this.updateExch(); return; }
     if (this.confirm) { this.updateConfirm(); return; }
