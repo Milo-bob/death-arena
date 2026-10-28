@@ -383,7 +383,7 @@ const Pvp = {
   // Hintergrund: in Lobby und Suche (dort wartet man laenger) ein ruhiges, statisches Bild: Arena-Siegel (Pixelringe) hinter den Karten und ein Boden mit Warnstreifen,
   // in der Farbe der Spielart (PvP rot, Koop orange). Sonst die schlichte Gitterwand mit Funken.
   drawBg(ctx) {
-    drawMenuBg(ctx, 'keysettings');
+    drawMenuBg(ctx, 'keysettings', false, 'pvp');
     if (this.st !== 'lobby' && this.st !== 'queue') { drawEmbers(ctx); return; }
     const P = STYLE.pal, W = STAGE_W, H = STAGE_H, accent = this.gameNow() === 'coop' ? P.orange : P.red, PX = PIXEL;
     ctx.save();

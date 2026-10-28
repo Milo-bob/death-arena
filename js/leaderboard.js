@@ -144,7 +144,7 @@ const Board = {
   draw(ctx) {
     const P = STYLE.pal, T = STYLE.type, tabs = this.tabs(), tb = this.cur(), pg = this.page(), vis = 9, cx = STAGE_W / 2;
     const rows = this.view(pg, tb), loading = !!this.loading[tb.id];
-    drawMenuBg(ctx, 'keysettings');
+    drawMenuBg(ctx, 'keysettings', false, 'ranks');
     drawEmbers(ctx);
     uiText(ctx, 'LEADERBOARD', 24, 40, { size: T.h1, color: P.yellow, glow: P.yellow });
     // Listenauswahl: < NAME >

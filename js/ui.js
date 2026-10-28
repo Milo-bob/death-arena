@@ -353,10 +353,117 @@ function drawConfirm(ctx) {
 }
 
 // Hintergrundbild eines Menüs über die ganze (16:9-)Breite. Das Standard-Menübild 'keysettings' (Homescreen und alle Menues) ersetzt das ausgeruestete Menue-Cosmetic (MENU), abgedunkelt, damit die Bedienung lesbar bleibt.
-function drawMenuBg(ctx, name, keepRatio) {
-  if (name === 'keysettings') {
-    const it = Cos.cur('menubg');
-    if (it && it.bg && Cos2.drawMenuBg(ctx, it, G.realTime, 0, 0, STAGE_W, STAGE_H)) { ctx.fillStyle = 'rgba(2,3,10,0.5)'; ctx.fillRect(0, 0, STAGE_W, STAGE_H); return; }
+// Menue-Hintergrund: das Thema kommt vom ausgeruesteten MENU-Cosmetic (oder dem Standardbild), Ausschnitt, Stimmung und Dekor je nach Bildschirm (scene).
+// Szenen: home (unveraendert), hero, armory, maps, modes, cosmetics, settings, awards, ranks, pvp, friends. z/dx/dy = Zoom und Verschiebung des Themas (so sieht jeder Bildschirm anders aus),
+// tint = Stimmungsfarbe, dark = zusaetzliche Abdunklung.
+const MENU_SCENES = {
+  home:      { z: 1,    dx: 0,   dy: 0,   tint: null,      dark: 0,    word: '' },
+  hero:      { z: 1.3,  dx: 50,  dy: -25, tint: '#ff3d5a', dark: 0.05, word: 'HERO' },
+  armory:    { z: 1.5,  dx: -90, dy: 30,  tint: '#3ab0ff', dark: 0.1,  word: 'ARMORY' },
+  maps:      { z: 1.4,  dx: -70, dy: 20,  tint: '#2de0c0', dark: 0,    word: 'MAPS' },
+  modes:     { z: 1.3,  dx: 45,  dy: 10,  tint: '#ffb02d', dark: 0,    word: 'PLAY' },
+  cosmetics: { z: 1.25, dx: 0,   dy: -30, tint: '#d84dff', dark: 0.05, word: 'STYLE' },
+  settings:  { z: 1.5,  dx: 40,  dy: 40,  tint: '#8899aa', dark: 0.25, word: 'SETUP' },
+  awards:    { z: 1.2,  dx: -20, dy: 14,  tint: '#ffe04a', dark: 0,    word: 'AWARDS' },
+  ranks:     { z: 1.4,  dx: 60,  dy: -20, tint: '#ff8a2d', dark: 0.05, word: 'RANKS' },
+  pvp:       { z: 1.35, dx: -30, dy: 0,   tint: '#ff2d3d', dark: 0.1,  word: 'PVP' },
+  friends:   { z: 1.3,  dx: -50, dy: -20, tint: '#4aff8a', dark: 0,    word: 'FRIENDS' },
+};
+function menuThemeAccent(it) {
+  const P = STYLE.pal;
+  return !it || !it.bg ? P.cyan : it.bg === 'stars' ? P.ice : it.bg === 'city' ? P.purple : P.orange;
+}
+// Dekor je Bildschirm in der Farbe des Themas (leise, damit die Bedienung lesbar bleibt)
+function drawMenuMotif(ctx, scene, col, t) {
+  const W = STAGE_W, H = STAGE_H;
+  ctx.save(); ctx.fillStyle = col; ctx.strokeStyle = col; ctx.globalAlpha = 0.42;
+  if (scene === 'maps' || scene === 'friends') {                                    // Sternkarte bzw. Netzwerk: Knoten mit Verbindungen
+    const pts = scene === 'maps'
+      ? [[0.1, 0.72], [0.26, 0.45], [0.42, 0.64], [0.58, 0.3], [0.74, 0.56], [0.9, 0.26]].map((p) => [p[0] * W, p[1] * H])
+      : [0, 1, 2, 3, 4, 5, 6].map((i) => [W / 2 + Math.cos(i * 0.9 + t * 0.12) * (W * 0.34), H / 2 + Math.sin(i * 0.9 + t * 0.12) * (H * 0.36)]);
+    for (let i = 1; i < pts.length; i++) pxLine(ctx, pts[i - 1][0], pts[i - 1][1], pts[i][0], pts[i][1], 1);
+    if (scene === 'friends') for (const p of pts) pxLine(ctx, W / 2, H / 2, p[0], p[1], 1);
+    pts.forEach((p, i) => { pxDisc(ctx, p[0], p[1], 3); ctx.globalAlpha = 0.18 + 0.12 * Math.sin(t * 2 + i); pxRing(ctx, p[0], p[1], 9 + (scene === 'maps' ? 2 : 0), 1); ctx.globalAlpha = 0.3; });
+  } else if (scene === 'hero') {                                                    // Heldenzeichen: drehende Ringe mit Strichen
+    const cx = W / 2, cy = H * 0.52;
+    [64, 92, 120].forEach((r, i) => pxRing(ctx, cx, cy, r, 1, 14 + i * 6, t * (i % 2 ? -0.35 : 0.35)));
+    for (let i = 0; i < 12; i++) { const a = i * Math.PI / 6 + t * 0.1; pxLine(ctx, cx + Math.cos(a) * 124, cy + Math.sin(a) * 124, cx + Math.cos(a) * 136, cy + Math.sin(a) * 136, 1); }
+  } else if (scene === 'armory') {                                                  // Regalfaecher
+    const cols = 8, cw = (W * 0.84) / cols;
+    ctx.lineWidth = 1;
+    for (let r = 0; r < 3; r++) for (let c = 0; c < cols; c++) ctx.strokeRect(Math.round(W * 0.08 + c * cw) + 0.5, Math.round(H * 0.62 + r * 30) + 0.5, Math.round(cw - 6), 24);
+    ctx.globalAlpha = 0.1; ctx.fillRect(Math.round(W * 0.08), Math.round(H * 0.62), Math.round(W * 0.84), 90);
+  } else if (scene === 'cosmetics') {                                               // Scheinwerfer und aufsteigende Funken
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, 'rgba(255,255,255,0.22)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.globalAlpha = 0.5; ctx.fillStyle = g;
+    ctx.beginPath(); ctx.moveTo(W * 0.46, 0); ctx.lineTo(W * 0.54, 0); ctx.lineTo(W * 0.8, H); ctx.lineTo(W * 0.2, H); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = col; ctx.globalAlpha = 0.45;
+    for (let i = 0; i < 22; i++) { const x = W / 2 + Math.sin(i * 12.9) * W * 0.3, y = H - ((t * (14 + (i % 5) * 4) + i * 37) % H); ctx.fillRect(Math.round(x), Math.round(y), 2, 2); }
+  } else if (scene === 'modes') {                                                   // Diagonale Streifen
+    for (let i = -2; i < 12; i++) { const x = ((i * 70 + t * 14) % (W + 140)) - 70; pxLine(ctx, x, 0, x - H * 0.6, H, 1); }
+  } else if (scene === 'settings') {                                                // Zahnraeder und Leiterbahnen
+    [[W * 0.1, H * 0.82, 30, 1], [W * 0.92, H * 0.18, 24, -1]].forEach(([x, y, r, d]) => { pxRing(ctx, x, y, r, 2, 12, t * 0.4 * d); pxRing(ctx, x, y, r * 0.55, 1); });
+    for (let i = 0; i < 4; i++) { const y = H * (0.2 + i * 0.2); pxLine(ctx, 0, y, W * 0.14, y, 1); pxLine(ctx, W * 0.86, y + 20, W, y + 20, 1); ctx.fillRect(Math.round(W * 0.14), Math.round(y) - 1, 3, 3); }
+  } else if (scene === 'awards') {                                                  // Strahlenkranz
+    for (let i = 0; i < 16; i++) { const a = i * Math.PI / 8 + t * 0.05; pxLine(ctx, W / 2 + Math.cos(a) * 60, H * 0.4 + Math.sin(a) * 60, W / 2 + Math.cos(a) * 420, H * 0.4 + Math.sin(a) * 420, 1); }
+    pxRing(ctx, W / 2, H * 0.4, 50, 1, 20, t * 0.3);
+  } else if (scene === 'ranks') {                                                   // Siegerpodest
+    ctx.globalAlpha = 0.16;
+    [[-1, 70], [0, 100], [1, 52]].forEach(([i, hh]) => { const x = W * 0.5 + i * 70 - 32, y = H - hh; ctx.fillRect(Math.round(x), Math.round(y), 64, hh); });
+    ctx.globalAlpha = 0.35; [[-1, 70], [0, 100], [1, 52]].forEach(([i, hh]) => ctx.fillRect(Math.round(W * 0.5 + i * 70 - 32), Math.round(H - hh), 64, 2));
+    for (let i = 0; i < 16; i++) { const x = W * 0.5 + Math.sin(i * 7.3) * 120, y = H - ((t * 18 + i * 41) % H); ctx.fillRect(Math.round(x), Math.round(y), 2, 2); }
+  } else if (scene === 'pvp') {                                                     // Zwei Strahlen kreuzen sich
+    pxLine(ctx, 0, H * 0.15, W, H * 0.85, 2); pxLine(ctx, 0, H * 0.85, W, H * 0.15, 2);
+    ctx.globalAlpha = 0.2 + 0.15 * Math.sin(t * 4); pxRing(ctx, W / 2, H / 2, 18 + 6 * Math.sin(t * 3), 2);
+  }
+  ctx.restore();
+}
+
+// Dekor, das zum Thema des Cosmetics passt und je Bildschirm anders ausfaellt (Farbe/Wort/Position aus der Szene)
+function drawMenuThemeProp(ctx, theme, S, scene, t) {
+  const W = STAGE_W, H = STAGE_H, P = STYLE.pal, tint = S.tint || '#ffffff', idx = Object.keys(MENU_SCENES).indexOf(scene), ph = idx * 1.7;
+  ctx.save();
+  if (theme === 'stars') {                                                         // Nebel in der Farbe des Bildschirms, an anderer Stelle
+    const nx = W * (0.25 + 0.5 * ((idx * 0.37) % 1)), ny = H * (0.25 + 0.4 * ((idx * 0.61) % 1)), r = 150 + 30 * Math.sin(t * 0.4 + ph);
+    const g = ctx.createRadialGradient(nx, ny, 4, nx, ny, r);
+    g.addColorStop(0, tint); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.globalAlpha = 0.3; ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = 0.5; ctx.fillStyle = P.white;                                // Sternbild als Wort-Punkte: ein paar helle Sterne mit Strahlen
+    for (let i = 0; i < 6; i++) { const x = Math.round(nx + Math.cos(i * 1.3 + ph) * 90), y = Math.round(ny + Math.sin(i * 1.3 + ph) * 60); ctx.fillRect(x - 2, y, 5, 1); ctx.fillRect(x, y - 2, 1, 5); }
+  } else if (theme === 'city') {                                                   // Neonreklame mit dem Namen des Bildschirms
+    const sx = W * (0.62 - ((idx * 0.23) % 0.5)), sy = H * (0.14 + 0.1 * ((idx * 0.41) % 1)), w = 150, h = 30, flick = 0.65 + 0.35 * (Math.sin(t * 9 + ph) > -0.8 ? 1 : 0.2);
+    ctx.globalAlpha = 0.55 * flick; ctx.strokeStyle = tint; ctx.lineWidth = 2; ctx.strokeRect(Math.round(sx), Math.round(sy), w, h);
+    ctx.globalAlpha = 0.18 * flick; ctx.fillStyle = tint; ctx.fillRect(Math.round(sx), Math.round(sy), w, h);
+    ctx.globalAlpha = 0.9 * flick; uiText(ctx, S.word, sx + w / 2, sy + 21, { size: STYLE.type.h1, color: tint, align: 'center', glow: tint });
+    ctx.globalAlpha = 0.5; ctx.fillStyle = tint; ctx.fillRect(Math.round(sx + 20), Math.round(sy + h), 2, 60); ctx.fillRect(Math.round(sx + w - 22), Math.round(sy + h), 2, 60);   // Halterungen
+  } else if (theme === 'arena') {                                                  // Banner in der Farbe des Bildschirms und Fackeln
+    const n = 3 + (idx % 3);
+    for (let i = 0; i < n; i++) {
+      const bx = Math.round(W * (0.12 + (i + 0.5) * (0.76 / n))), sway = Math.round(Math.sin(t * 1.3 + i + ph) * 2);
+      ctx.globalAlpha = 0.45; ctx.fillStyle = tint; ctx.fillRect(bx - 9, 0, 18, 46 + (i % 2) * 14); ctx.fillStyle = P.ink;
+      ctx.beginPath(); ctx.moveTo(bx - 9, 46 + (i % 2) * 14); ctx.lineTo(bx + sway, 58 + (i % 2) * 14); ctx.lineTo(bx + 9, 46 + (i % 2) * 14); ctx.closePath(); ctx.fill();
+      ctx.globalAlpha = 0.6; ctx.fillStyle = tint; ctx.fillRect(bx - 2 + sway, 14, 4, 14);
+    }
+    for (const fx of [W * 0.04, W * 0.96]) { ctx.globalAlpha = 0.55; for (let k = 0; k < 3; k++) { ctx.fillStyle = [P.red, P.orange, P.yellow][k]; const fh = 14 - k * 4 + 3 * Math.sin(t * 8 + k + fx); ctx.fillRect(Math.round(fx) - 4 + k, Math.round(H * 0.5 - fh), 8 - k * 2, Math.round(fh)); } }
+  }
+  ctx.restore();
+}
+
+function drawMenuBg(ctx, name, keepRatio, scene) {
+  const itm = name === 'keysettings' ? Cos.cur('menubg') : null;
+  if (itm && itm.bg) {                                                          // Ohne Cosmetic (Standard) bleibt das Bild auf allen Bildschirmen wie vorher
+    const it = itm, S = MENU_SCENES[scene] || MENU_SCENES.home, themed = true;
+    ctx.save();
+    ctx.translate(STAGE_W / 2 + S.dx, STAGE_H / 2 + S.dy); ctx.scale(S.z, S.z); ctx.translate(-STAGE_W / 2, -STAGE_H / 2);          // Ausschnitt dieses Bildschirms
+    let drawn = themed && Cos2.drawMenuBg(ctx, it, G.realTime, 0, 0, STAGE_W, STAGE_H);
+    if (!drawn) { const im0 = IMG.keysettings; if (im0 && im0.ok) ctx.drawImage(im0.img, 0, 0, STAGE_W, STAGE_H); }
+    ctx.restore();
+    if (S.tint) { ctx.save(); ctx.globalAlpha = 0.24; ctx.fillStyle = S.tint; ctx.fillRect(0, 0, STAGE_W, STAGE_H); ctx.restore(); }          // Stimmung des Bildschirms
+    if (themed) { ctx.fillStyle = 'rgba(2,3,10,0.5)'; ctx.fillRect(0, 0, STAGE_W, STAGE_H); }
+    if (S.dark) { ctx.fillStyle = 'rgba(2,3,10,' + S.dark + ')'; ctx.fillRect(0, 0, STAGE_W, STAGE_H); }
+    if (scene && scene !== 'home') { drawMenuThemeProp(ctx, it.bg, S, scene, G.realTime); drawMenuMotif(ctx, scene, menuThemeAccent(it), G.realTime); }
+    return;
   }
   const im = IMG[name];
   if (!im || !im.ok) return;
@@ -460,7 +567,7 @@ function gearReady() {
 // Hintergrund + Titel (Startbildschirm und Homescreen)
 function drawTitleBg(ctx, titleY, small, home) {
   const P = STYLE.pal, T = STYLE.type, t = G.realTime;
-  if (home) { drawMenuBg(ctx, 'keysettings'); drawEmbers(ctx); }                                                       // Homescreen: flache Gitterwand wie die anderen Menues (die Menue-Hintergruende/Cosmetics gehoeren zum Startbildschirm)
+  if (home) { drawMenuBg(ctx, 'keysettings', false, 'home'); drawEmbers(ctx); }                                                       // Homescreen: flache Gitterwand wie die anderen Menues (die Menue-Hintergruende/Cosmetics gehoeren zum Startbildschirm)
   else {
     if (!Cos2.drawMenuBg(ctx, Cos.cur('menubg'), t, 0, 0, STAGE_W, STAGE_H)) drawMenuBg(ctx, 'startscreen');       // Cosmetic: animierter Hintergrund
     drawEmbers(ctx);
@@ -724,7 +831,7 @@ function drawModeSelectScreen(ctx) {
     create: ['Open a private lobby for you and your friends and share the code. The host chooses what to play there.', 'PVP: fight each other, alone or in teams. CO-OP: play a run together with up to 5 friends on the standard maps.'],
     join: ['Enter the code of a friend\'s lobby to join it.', 'You need an internet connection.'],
   };
-  drawMenuBg(ctx, 'keysettings');
+  drawMenuBg(ctx, 'keysettings', false, 'modes');
   drawEmbers(ctx);
   uiText(ctx, 'CHOOSE A MODE', STAGE_W / 2, 56, { size: T.h1, color: P.yellow, align: 'center', glow: P.yellow });
   if (Pvp.msg && Date.now() - Pvp.msgAt < 4000) uiText(ctx, Pvp.msg, STAGE_W / 2, 76, { size: T.body, color: Pvp.msgCol || P.red, align: 'center' });          // Meldung vom Multiplayer (z. B. Verbindung fehlgeschlagen)
@@ -744,7 +851,7 @@ function drawModeSelectScreen(ctx) {
 // Kartenauswahl nach PLAY: drei Karten nebeneinander, gesperrte zeigen, was zum Freischalten fehlt
 function drawMapSelectScreen(ctx) {
   const P = STYLE.pal, T = STYLE.type, n = CFG.maps.length, gap = n > 3 ? 6 : 12, w = Math.min(140, Math.floor((STAGE_W - 20 - (n - 1) * gap) / n)), x0 = STAGE_W / 2 - (n * w + (n - 1) * gap) / 2, y = 62, h = 212, small = w < 130;
-  drawMenuBg(ctx, 'keysettings');
+  drawMenuBg(ctx, 'keysettings', false, 'maps');
   uiText(ctx, 'SINGLEPLAYER', STAGE_W / 2, 36, { size: T.h1, color: P.yellow, align: 'center' });
   CFG.maps.forEach((M, i) => {
     const x = x0 + i * (w + gap), sel = Save.data.mapSel === i, open = Save.mapUnlocked(i), yy = sel ? y - 6 : y, col = open ? M.frame : P.greyMid;
@@ -778,7 +885,7 @@ const TAB_INFO = {
 };
 function drawUpgradesScreen(ctx) {
   const P = STYLE.pal, T = STYLE.type;
-  drawMenuBg(ctx, 'keysettings');
+  drawMenuBg(ctx, 'keysettings', false, 'hero');
   uiText(ctx, 'HERO', STAGE_W / 2, 40, { size: T.h1, color: P.yellow, align: 'center' });
   uiAmount(ctx, 'credits', Save.data.souls, STAGE_W / 2, 58, { size: T.h2, color: P.yellow, align: 'center' });
   const guide = guideStep();
@@ -1220,7 +1327,7 @@ function drawHeroLook(ctx, spriteId, x, y, size, t, flip) {
 
 function drawInventoryScreen(ctx) {
   const P = STYLE.pal, T = STYLE.type, t = G.realTime, A = ARMORY, nodes = armoryNodes(), N = nodes.length, heroIdx = N, backIdx = N + 1;
-  drawMenuBg(ctx, 'keysettings');
+  drawMenuBg(ctx, 'keysettings', false, 'armory');
   drawEmbers(ctx);
   uiText(ctx, 'ARMORY', 24, 40, { size: T.h1, color: P.yellow, glow: P.yellow });
   drawCoreCount(ctx);
@@ -1418,7 +1525,7 @@ function drawInvPick(ctx) {
 // ---------- Cosmetics-Menue: oben die Kategorien, links die Items, rechts eine Live-Vorschau ----------
 function drawCosmeticsScreen(ctx) {
   const P = STYLE.pal, T = STYLE.type, t = G.realTime, C = CFG.cosmetics, cat = C.cats[G.cosTab], items = Cos.items(cat.id);
-  drawMenuBg(ctx, 'keysettings');
+  drawMenuBg(ctx, 'keysettings', false, 'cosmetics');
   drawEmbers(ctx);
   uiText(ctx, 'COSMETICS', 24, 40, { size: T.h1, color: P.yellow, glow: P.yellow });
   drawCoreCount(ctx);
@@ -1639,7 +1746,7 @@ function drawCosmeticPreviewInner(ctx, cat, it, x, y, w, h) {
 
 function drawBindsScreen(ctx) {
   const P = STYLE.pal, T = STYLE.type, A = Input.actions;
-  drawMenuBg(ctx, 'keysettings');
+  drawMenuBg(ctx, 'keysettings', false, 'settings');
   uiText(ctx, 'KEYBINDS', STAGE_W / 2, 44, { size: T.h1, color: P.yellow, align: 'center' });
   const rows = A.concat([{ id: '_reset' }, { id: '_back' }]);
   const w = 340, x = STAGE_W / 2 - w / 2, H = 24, GAP = 27, Y0 = 56, VIS = 9;
@@ -1745,7 +1852,7 @@ function drawSwapScreen(ctx) {
 
 function drawSettingsScreen(ctx) {
   const P = STYLE.pal, T = STYLE.type;
-  drawMenuBg(ctx, 'keysettings');
+  drawMenuBg(ctx, 'keysettings', false, 'settings');
   uiText(ctx, 'SETTINGS', STAGE_W / 2, 40, { size: T.h1, color: P.yellow, align: 'center' });
   const rows = {
     attackmode: 'ATTACK: ' + (Save.data.attackMode === 'toggle' ? 'TOGGLE' : 'HOLD'),
@@ -1791,7 +1898,7 @@ function drawSettingsScreen(ctx) {
 // Controls panel: explains every action in general terms and always shows the CURRENT keys (they can be rebound in Settings > Keybinds)
 function drawKeysScreen(ctx) {
   const P = STYLE.pal, T = STYLE.type;
-  drawMenuBg(ctx, 'keysettings');
+  drawMenuBg(ctx, 'keysettings', false, 'settings');
   uiText(ctx, 'CONTROLS', STAGE_W / 2, 40, { size: T.h1, color: P.yellow, align: 'center' });
 
   // chips: one key chip per action id, returns the x position after the last chip

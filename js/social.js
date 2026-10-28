@@ -264,7 +264,7 @@ const Social = {
 
   draw(ctx) {
     const P = STYLE.pal, T = STYLE.type, cx = STAGE_W / 2, X = 60, W = STAGE_W - 120;
-    drawMenuBg(ctx, 'keysettings'); drawEmbers(ctx);
+    drawMenuBg(ctx, 'keysettings', false, 'friends'); drawEmbers(ctx);
     uiText(ctx, 'FRIENDS & GUILD', 24, 40, { size: T.h1, color: P.yellow, glow: P.yellow });
     this.TABS.forEach((t, i) => {
       const w = 120, x = 24 + i * (w + 6), y = 50, on = i === this.tab;

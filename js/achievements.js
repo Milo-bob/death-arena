@@ -385,7 +385,7 @@ const Ach = {
 
   drawScreen(ctx) {
     const P = STYLE.pal, T = STYLE.type, rows = this.rows(), s = this.sel;
-    drawMenuBg(ctx, 'keysettings');
+    drawMenuBg(ctx, 'keysettings', false, 'awards');
     drawEmbers(ctx);
     uiText(ctx, 'ACHIEVEMENTS', 24, 40, { size: T.h1, color: P.yellow, glow: P.yellow });
     uiText(ctx, this.doneCount() + ' / ' + this.total() + '    MILESTONES ' + this.msDone() + ' / ' + this.msList().length, STAGE_W - 56, 38, { size: T.h2, color: P.yellow, align: 'right', glow: P.yellow });
