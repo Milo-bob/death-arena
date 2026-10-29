@@ -3,6 +3,7 @@
 // Die Tasten setzen einfach die Tastatur-Codes in Input.keys / Input.pressedNow, der Rest des Spiels merkt keinen Unterschied.
 // Gezeichnet werden die Tasten auf einer eigenen Leinwand ueber dem ganzen Fenster, mit denselben Zeichenfunktionen wie die Hotbar (drawSlot, drawUltOrb,
 // hudSlots in ui.js): gleiche Symbole, Rahmen, Abklingzeiten und Cosmetic-HUD-Themes. Die unsichtbaren DOM-Flaechen darueber fangen nur die Beruehrung ab.
+// MOUSE AIMING + TOUCH: der Angriff-Knopf wird zu Knopf + Ziel-Stick (attachAim): Antippen = Angriff wie bisher, den Finger vom Knopf wegziehen = in diese Richtung zielen, unabhaengig von der Laufrichtung (Input.touch.aim).
 // Joystick-Werte stehen in Input.touch: mv = { on, dir } (Laufrichtung), aim bleibt immer aus (Rest des Spiels fragt es noch ab), dir im Spielwinkel (0 = oben, 90 = rechts).
 
 const Touch = {
@@ -48,6 +49,25 @@ const Touch = {
     el.addEventListener('touchstart', press, { passive: false });
     el.addEventListener('touchend', release, { passive: false });
     el.addEventListener('touchcancel', release, { passive: false });
+    if (b.id === 'atk') this.attachAim(el, b);
+  },
+
+  // Angriff-Knopf als Ziel-Stick (nur bei eingeschaltetem MOUSE AIMING): Der Finger bleibt auf dem Knopf (Angriff), bewegt er sich weg vom Mittelpunkt, zielt der Spieler dorthin.
+  // Die Berührung bleibt am Knopf, auch wenn der Finger ihn verlaesst. Unter aimDead (Anteil des Knopfradius) gilt es noch nicht als Zielen, dann dreht der Spieler wie bisher mit der Laufrichtung.
+  aimDead: 0.4,
+  attachAim(el, b) {
+    const upd = (t) => {
+      const r = el.getBoundingClientRect(), dx = t.clientX - (r.left + r.width / 2), dy = t.clientY - (r.top + r.height / 2), d = Math.hypot(dx, dy);
+      b.drag = { dx, dy, d, R: r.width / 2 };
+      const on = !!Save.data.mouseAim && d >= r.width / 2 * this.aimDead;
+      Input.touch.aim.on = on;
+      if (on) Input.touch.aim.dir = Math.atan2(dx, -dy) / DEG;                    // Spielwinkel: 0 = oben, 90 = rechts
+    };
+    const stop = () => { b.tid = null; b.drag = null; Input.touch.aim.on = false; };
+    el.addEventListener('touchstart', (e) => { const t = e.changedTouches[0]; b.tid = t.identifier; upd(t); }, { passive: false });
+    el.addEventListener('touchmove', (e) => { e.preventDefault(); for (const t of e.changedTouches) if (t.identifier === b.tid) upd(t); }, { passive: false });
+    el.addEventListener('touchend', (e) => { for (const t of e.changedTouches) if (t.identifier === b.tid) stop(); }, { passive: false });
+    el.addEventListener('touchcancel', stop, { passive: false });
   },
 
   // Anordnung (Pixel im Fenster). Alle Tasten sollen im Streifen rechts neben dem 4:3-Spielfeld liegen (hoechstens ganz wenig darueber);
@@ -123,7 +143,23 @@ const Touch = {
         const k = b.r.w / u / SLOT;
         ctx.scale(k, k);
         const base = (o, extra) => Object.assign({}, o, { key: '', count: '', selected: false }, extra);
-        if (b.id === 'atk') drawSlot(ctx, 0, 0, base(p.weapon === WEAPON.SWORD ? D.melee : D.ranged, { active: atkOn }));
+        if (b.id === 'atk') {
+          let ox = 0, oy = 0;
+          if (Save.data.mouseAim) {                                                    // Ziel-Stick: Ring um den Knopf, der Knopf folgt dem Finger, Pfeil zeigt die Zielrichtung
+            const ring = SLOT * 0.74, lim = SLOT * 0.26, pu = b.r.w / SLOT;               // pu = Pixel je Slot-Einheit
+            ctx.save(); ctx.translate(SLOT / 2, SLOT / 2);
+            ctx.fillStyle = P.cyan; ctx.globalAlpha = Input.touch.aim.on ? 0.75 : 0.4; pxRing(ctx, 0, 0, ring, 1, 28, 0);
+            ctx.globalAlpha = 0.25; for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2; pxFill(ctx, Math.sin(a) * (ring + 3), -Math.cos(a) * (ring + 3)); }
+            if (b.drag) { const m = Math.hypot(b.drag.dx, b.drag.dy) / pu || 1, kk = Math.min(1, lim / m); ox = b.drag.dx / pu * kk; oy = b.drag.dy / pu * kk; }
+            if (Input.touch.aim.on) {
+              const a = Input.touch.aim.dir * DEG, fx = Math.sin(a), fy = -Math.cos(a), gx = -fy, gy = fx, rr = ring + 2;
+              ctx.globalAlpha = 0.95; ctx.fillStyle = P.yellow;
+              pxPolyFill(ctx, [[fx * (rr + 8), fy * (rr + 8)], [fx * rr + gx * 5, fy * rr + gy * 5], [fx * (rr + 3), fy * (rr + 3)], [fx * rr - gx * 5, fy * rr - gy * 5]]);
+            }
+            ctx.restore();
+          }
+          drawSlot(ctx, ox, oy, base(p.weapon === WEAPON.SWORD ? D.melee : D.ranged, { active: atkOn }));
+        }
         else if (b.id === 'swap') drawSlot(ctx, 0, 0, base({ icon: 'swapIcon', iconW: 18, color: P.cyan, ready: 1 }, { active: !!b.down }));
         else if (b.id === 'ult') drawSlot(ctx, 0, 0, base({ icon: 'ultIcon', iconW: 18, color: P.teal, ready: ultReady ? 1 : clamp(G.ultCharge / (CFG.ult.readyAt + 1), 0, 1) }, { active: !!b.down || (ultReady && Math.floor(G.realTime * 4) % 2 === 0) }));
         else if (b.id === 'hvy') drawSlot(ctx, 0, 0, base(D.heavy.icon ? D.heavy : { icon: 'slotEmptyIcon', iconW: 18, color: P.greyMid, ready: 1 }, { active: D.heavy.active || !!b.down }));
@@ -189,6 +225,7 @@ const Touch = {
         if (reading) Input.touch.mv.on = false;
       }
       this.hint.style.display = want && !this.touched && !reading ? 'block' : 'none';
+      if (this.buttons[0].tid == null || !Save.data.mouseAim) Input.touch.aim.on = false;                     // kein haengender Ziel-Stick (Knopf verschwindet, Einstellung aus)
       if (want) this.render();
     }
     if (this.built && want !== this.shown) {
