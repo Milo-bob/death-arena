@@ -128,7 +128,7 @@ const SETTINGS_COLS = [
   { label: 'CONTROLS', items: ['controls', 'binds', 'attackmode', 'mouseaim', 'touch'] },
   { label: 'SAVE & ACCOUNT', items: ['slot', 'account', 'transfer', 'resetAll'] },
 ];
-if (IS_MOBILE) SETTINGS_COLS[1].items = SETTINGS_COLS[1].items.filter((i) => !['controls', 'binds', 'mouseaim'].includes(i));       // Handy: keine Tastenbelegung, kein Mauszielen
+if (IS_MOBILE) SETTINGS_COLS[1].items = SETTINGS_COLS[1].items.filter((i) => !['controls', 'binds'].includes(i));       // Handy: keine Tastenbelegung (Mauszielen = Ziel-Stick)
 const settingsList = () => [].concat(...SETTINGS_COLS.map((c) => c.items), ['back']);
 const PAUSE_ITEMS = ['resume', 'abilities', 'music', 'sfx', 'binds', 'quit'];
 // Eingebettet auf Holiday Games im Vollbild: zusaetzlich EXIT FULLSCREEN (die Seite blendet dort ihren eigenen Knopf auf Touch-Geraeten aus)
@@ -704,8 +704,8 @@ const G = {
     const item = settingsList()[this.settingsSel];
     const dir = (Input.pressed('ArrowRight') || Input.pressed('KeyD') ? 1 : 0) - (Input.pressed('ArrowLeft') || Input.pressed('KeyA') ? 1 : 0);
     const ok = Input.pressed('Space') || Input.pressed('Enter');
-    if (item === 'mouseaim' && (dir || ok)) { Save.data.mouseAim = !Save.data.mouseAim; Save.write(); Sfx.play('select'); }
-    else if (item === 'attackmode' && (dir || ok)) { Save.data.attackMode = Save.data.attackMode === 'toggle' ? 'hold' : 'toggle'; Save.write(); Sfx.play('select'); }
+    if (item === 'mouseaim' && (dir || ok)) { Save.data.mouseAim = !Save.data.mouseAim; if (Save.data.mouseAim) Save.data.attackMode = 'hold'; Save.write(); Sfx.play('select'); }       // Mauszielen an -> Angriff halten (Toggle aus)
+    else if (item === 'attackmode' && (dir || ok)) { Save.data.attackMode = Save.data.attackMode === 'toggle' ? 'hold' : 'toggle'; if (Save.data.attackMode === 'toggle') Save.data.mouseAim = false; Save.write(); Sfx.play('select'); }       // Toggle an -> Mauszielen aus
     else if (item === 'touch' && (dir || ok)) { Save.data.touch = !Save.data.touch; Save.write(); Sfx.play('select'); }
     else if ((item === 'music' || item === 'sfx' || item === 'fx') && (dir || ok)) this.settingsStep(item, dir || 1);
     else if (item === 'language' && (dir || ok)) { Save.data.lang = Save.data.lang === 'de' ? 'en' : 'de'; Save.data.langSet = true; I18n.set(Save.data.lang); Save.write(); Sfx.play('select'); }
@@ -1190,7 +1190,7 @@ const G = {
     if (Cos2.intro) Cos2.introDraw(ctx, Cos2.intro, STAGE_W / 2, 96, 1);           // Cosmetic INTRO: Boss-Titelkarte
     if (Cos2.rev) Cos2.reviveDraw(ctx, Cos2.rev, STAGE_W / 2, STAGE_H / 2 - 10, 1);       // Cosmetic REVIVE: Totem of Undying
     if (Save.data.dev) uiText(ctx, 'DEV' + (this.god ? '  GOD' : '') + (this.cheated ? '  (DEV RUN)' : ''), 6, 10, { size: STYLE.type.small, color: STYLE.pal.yellow });
-    if (Save.data.mouseAim && this.mode === 'play' && !(Tutorial.active && Tutorial.phase === 'brief') && Input.mouse.x > -900) {      // Fadenkreuz statt Mauszeiger
+    if (Save.data.mouseAim && !Save.data.touch && this.mode === 'play' && !(Tutorial.active && Tutorial.phase === 'brief') && Input.mouse.x > -900) {      // Fadenkreuz statt Mauszeiger
       const mx = Input.mouse.x, my = Input.mouse.y, P = STYLE.pal;
       ctx.save(); ctx.fillStyle = P.ink; pxFill(ctx, mx - 7, my - 1, 2); pxFill(ctx, mx + 5, my - 1, 2); pxFill(ctx, mx - 1, my - 7, 2); pxFill(ctx, mx - 1, my + 5, 2);
       ctx.fillStyle = P.cyan; pxFill(ctx, mx - 6, my, 1); pxFill(ctx, mx + 5, my, 1); pxFill(ctx, mx, my - 6, 1); pxFill(ctx, mx, my + 5, 1); pxFill(ctx, mx - 3, my, 1); pxFill(ctx, mx + 2, my, 1); pxFill(ctx, mx, my - 3, 1); pxFill(ctx, mx, my + 2, 1);
