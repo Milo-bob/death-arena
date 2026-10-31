@@ -79,7 +79,7 @@ const Touch = {
     const cv = document.getElementById('gameCanvas'), cr = cv.getBoundingClientRect(), u = cr.height / STAGE_H;
     this.u = u;
     const fieldRight = cr.left + cr.width * (PAD + 480) / CANVAS_W, strip = W - fieldRight;      // Streifen rechts vom Spielfeld
-    const g = Math.max(10, Math.round(0.045 * H)), bot = Math.max(8, Math.round(0.04 * H)), gap = Math.max(5, Math.round(0.015 * H)), top = Math.max(8, Math.round(0.03 * H));
+    const g = Math.max(10, Math.round(0.045 * H)), bot = Math.max(28, Math.round(0.1 * H)), gap = Math.max(5, Math.round(0.015 * H)), top = Math.max(8, Math.round(0.03 * H));
     const m = Math.max(40, Math.round(Math.min(0.15 * H, (strip * 1.04 - g) / 2.775)));            // mittlere Taste; Angriff 1.35x, Abilities/Pause 0.8x
     const SZ = { m, a: Math.round(m * 1.35), s: Math.max(34, Math.round(m * 0.8)) };
     const A = SZ.a, S = SZ.s;
@@ -181,9 +181,9 @@ const Touch = {
     css.textContent = `
       #touchUI { position: fixed; inset: 0; z-index: 20; display: none; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; pointer-events: none; }
       #touchUI canvas { position: absolute; inset: 0; width: 100%; height: 100%; background: transparent; pointer-events: none; image-rendering: pixelated; }
-      #touchUI .tzone { position: absolute; bottom: 0; left: 0; width: 46%; height: 54%; pointer-events: auto; touch-action: none; }
+      #touchUI .tzone { position: absolute; bottom: max(28px, 10%); left: 0; width: 46%; height: 50%; pointer-events: auto; touch-action: none; }
       #touchUI .tbtn { position: absolute; pointer-events: auto; touch-action: none; border-radius: 50%; }
-      #touchUI .thint { position: absolute; left: 14%; bottom: 14%; width: 120px; height: 120px; margin: 0 0 -60px -60px; border: 2px solid rgba(0,229,255,0.55); border-radius: 50%; pointer-events: none; display: none; animation: thint 1.6s ease-in-out infinite; }
+      #touchUI .thint { position: absolute; left: 14%; bottom: max(90px, 26%); width: 120px; height: 120px; margin: 0 0 -60px -60px; border: 2px solid rgba(0,229,255,0.55); border-radius: 50%; pointer-events: none; display: none; animation: thint 1.6s ease-in-out infinite; }
       #touchUI .thint::after { content: ''; position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px 0 0 -26px; border-radius: 50%; background: rgba(0,229,255,0.4); }
       @keyframes thint { 0%, 100% { opacity: 0.45; transform: scale(1); } 50% { opacity: 0.9; transform: scale(1.08); } }
     `;
