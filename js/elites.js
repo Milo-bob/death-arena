@@ -137,12 +137,15 @@ const Elite = {
       for (const [x, y] of [[26, 11], [27, 13]]) px(x, y, '#c8ff5a');
       px(20, 12, '#7a3fb0'); px(23, 9, '#7a3fb0');
     }));
-    if (type === 'glacier') return body('eliteGlacier2', ({ px, poly, g }) => half(g, 28, 28, () => {          // Eisdorn: Kristallbuendel, ein grosser Speer nach vorn, zwei Seitenzacken, gezackter Fuss
-      poly([[27.8, 14], [14, 10.8], [3, 12], [2, 14]], '#1d5f82'); poly([[27, 14], [14, 11.8], [4, 12.8], [4, 14]], '#6fc8ee'); poly([[27, 14], [14, 11.8], [16, 14]], '#d8f4ff');
-      poly([[19, 11.6], [22, 2.6], [14.5, 10.8]], '#1d5f82'); poly([[18.4, 11.3], [21.2, 4.2], [15.8, 10.8]], '#bfefff');
-      poly([[12, 11.4], [10, 1], [6.6, 11]], '#1d5f82'); poly([[11.2, 11], [10, 3.2], [8, 10.8]], '#8fd8f8');
-      poly([[5, 12.4], [1, 5.6], [2.6, 12.8]], '#2a7fa8');
-      px(22, 13, '#ffffff'); px(23, 13, '#ffffff'); px(24, 13, '#bfefff');
+    if (type === 'glacier') return body('eliteGlacier3', ({ px, poly, g }) => half(g, 28, 28, () => {          // Eisdorn: massiver Haupt-Kristall mit hellem Kern, zwei nach hinten gepfeilte Seitenkristalle, Splitter vorn und hinten
+      poly([[19.5, 9.4], [24, 1.8], [11.5, 7.4]], '#0f3f5a'); poly([[18.6, 9.2], [22.6, 3.6], [13, 7.8]], '#8fd8f8'); poly([[18.6, 9.2], [22.6, 3.6], [19, 8]], '#e8f8ff');       // Seitenkristall vorn
+      poly([[10.5, 8.8], [7.5, 0.6], [4.4, 8.2]], '#0f3f5a'); poly([[9.8, 8.6], [7.6, 2.4], [5.6, 8.2]], '#6fc8ee'); poly([[9.8, 8.6], [7.6, 2.4], [8.4, 8.6]], '#d8f4ff');     // Seitenkristall hinten
+      poly([[27.9, 14], [22, 8.2], [11, 7.6], [4.5, 10.4], [1.2, 14]], '#0f3f5a');                                                                                         // Hauptkristall
+      poly([[27, 14], [21.6, 9.2], [11.4, 8.8], [5.4, 11.2], [3, 14]], '#4fb4e0');
+      poly([[27, 14], [21.6, 9.2], [15, 9.4], [20, 14]], '#d8f4ff'); poly([[11.4, 8.8], [5.4, 11.2], [9, 14], [13, 11]], '#7acaf0');                                       // Facetten
+      poly([[16.5, 14], [13.2, 10.6], [10, 14]], '#ffffff'); poly([[15.4, 14], [13.2, 11.8], [11, 14]], '#bfefff');                                                         // Kern
+      px(24, 7, '#ffffff'); px(25, 6, '#bfefff'); px(1, 8, '#8fd8f8'); px(2, 7, '#bfefff');
+      for (const x of [20, 22, 24]) px(x, 13, '#12486a');                                                                                                                  // Kerben im Speer
     }));
     if (type === 'phantom') return body('elitePhantom3', ({ px, poly, g }) => half(g, 28, 28, () => {      // Geisternadel: schlanker Speer mit zwei duennen, scharf nach hinten gepfeilten Klingen
       poly([[17, 11.2], [4, 1], [1, 2.4], [9, 10.8], [14, 11.8]], '#1b0a40');                                // hintere Klinge
