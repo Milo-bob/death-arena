@@ -21,6 +21,7 @@ class ScrapMagnet {
     this.t -= dt; this.age += dt;
     if (this.state === 'idle' && this.t <= 0) {
       this.state = 'warn'; this.t = M.warn; this.age = 0; this.pol = -this.pol;
+      if (dist2(this.x, this.y, G.player.x, G.player.y) < 440 * 440) G.notice(this.pol > 0 ? 'MAGNET: PULLING!' : 'MAGNET: PUSHING!', this.pol > 0 ? '#3a8bff' : '#ff3d5a');
       if (dist2(this.x, this.y, G.player.x, G.player.y) < 320 * 320) Sfx.play('ventWarn');
     } else if (this.state === 'warn' && this.t <= 0) {
       this.state = 'on'; this.t = M.on; this.age = 0;
@@ -43,24 +44,34 @@ class ScrapMagnet {
   }
   draw(ctx, dim) {
     const P = STYLE.pal, t = G.realTime, cx = STAGE_W / 2 + this.x, cy = STAGE_H / 2 - this.y, M = G.map.env.magnets, R = this.R;
-    const pull = this.pol > 0, col = pull ? '#3a8bff' : '#ff3d5a', warn = this.state === 'warn' ? 1 - this.t / M.warn : 0, on = this.state === 'on';
+    const pull = this.pol > 0, col = pull ? '#3a8bff' : '#ff3d5a', colLight = pull ? '#a8d0ff' : '#ffb0b8', warn = this.state === 'warn' ? 1 - this.t / M.warn : 0, on = this.state === 'on';
+    const fade = on ? clamp(Math.min(this.age / 0.5, (M.on - this.age) / 0.6), 0, 1) : 0, active = on || warn > 0;
     ctx.save();
-    ctx.globalAlpha = 0.6 * dim; ctx.fillStyle = P.greyDark; pxDisc(ctx, cx, cy, 16);                       // Fundament
-    ctx.globalAlpha = dim; ctx.fillStyle = P.greyMid; pxDisc(ctx, cx, cy, 11);
-    ctx.fillStyle = on || warn > 0 ? col : P.grey; pxDisc(ctx, cx, cy, 6);
-    ctx.fillStyle = P.white; ctx.globalAlpha = 0.8 * dim; pxFill(ctx, cx - 1, cy - 1, 2);
-    if (this.state === 'warn') {                                                    // Vorwarnung: Feldrand blinkt in der Farbe der Polung
-      const blink = warn > 0.6 && Math.floor(t * 12) % 2 === 0;
-      ctx.globalAlpha = (0.2 + 0.5 * warn) * dim; ctx.fillStyle = blink ? P.white : col; pxRing(ctx, cx, cy, R, 1, 26, t * 0.2);
-    } else if (on) {                                                                // Feld: Ringe laufen nach innen (zieht) oder nach aussen (stoesst)
-      const fade = clamp(Math.min(this.age / 0.5, (M.on - this.age) / 0.6), 0, 1);
-      for (let k = 0; k < 3; k++) {
-        const ph = (t * 0.9 + k / 3) % 1, rr = R * (pull ? 1 - ph : ph);
-        ctx.globalAlpha = 0.55 * fade * (1 - Math.abs(ph - 0.5)) * dim; ctx.fillStyle = col; pxRing(ctx, cx, cy, rr, 1, 26, 0);
-      }
-      ctx.globalAlpha = 0.12 * fade * dim; ctx.fillStyle = col; pxDisc(ctx, cx, cy, R);
-      ctx.globalAlpha = 0.9 * fade * dim; ctx.fillStyle = col; pxRing(ctx, cx, cy, R, 1, 20, t * 0.4);
+    // Reichweite: immer als dezenter Ring sichtbar, damit man sie lernt
+    ctx.globalAlpha = (active ? 0.35 : 0.22) * dim; ctx.fillStyle = active ? col : P.greyMid; pxRing(ctx, cx, cy, R, 1, 36, t * 0.05);
+    if (this.state === 'warn') {                                                    // Vorwarnung: Rand und Flaeche pulsieren in der Farbe der Polung
+      const blink = Math.floor(t * 10) % 2 === 0;
+      ctx.globalAlpha = (0.08 + 0.12 * warn) * dim; ctx.fillStyle = col; pxDisc(ctx, cx, cy, R);
+      ctx.globalAlpha = (0.5 + 0.5 * warn) * dim; ctx.fillStyle = blink ? P.white : col; pxRing(ctx, cx, cy, R, 2, 26, t * 0.2);
     }
+    if (on) {                                                                       // Feld: Flaeche, nach innen (zieht) oder aussen (stoesst) laufende Ringe und Pfeile
+      ctx.globalAlpha = 0.16 * fade * dim; ctx.fillStyle = col; pxDisc(ctx, cx, cy, R);
+      for (let k = 0; k < 3; k++) { const ph = (t * 0.9 + k / 3) % 1, rr = R * (pull ? 1 - ph : ph); ctx.globalAlpha = 0.7 * fade * (1 - Math.abs(ph - 0.5)) * dim; ctx.fillStyle = colLight; pxRing(ctx, cx, cy, rr, 2, 26, 0); }
+      for (let i = 0; i < 12; i++) {                                                // grosse Pfeile
+        const a = i * 0.5236 + 0.26, ph = (t * 0.9 + (i % 3) / 3) % 1, rr = R * (pull ? 1 - ph : ph), ax = cx + Math.cos(a) * rr, ay = cy + Math.sin(a) * rr, d = pull ? -1 : 1, ux = Math.cos(a) * d, uy = Math.sin(a) * d;
+        ctx.globalAlpha = 0.9 * fade * dim; ctx.fillStyle = '#ffffff'; pxLine(ctx, ax - uy * 4 - ux * 5, ay + ux * 4 - uy * 5, ax + ux * 3, ay + uy * 3, 1); pxLine(ctx, ax + uy * 4 - ux * 5, ay - ux * 4 - uy * 5, ax + ux * 3, ay + uy * 3, 1);
+      }
+      const p = G.player, dp = Math.hypot(p.x - this.x, p.y - this.y);
+      if (dp < R) { ctx.globalAlpha = 0.85 * fade * dim; ctx.fillStyle = colLight; pxDashLine(ctx, cx, cy, STAGE_W / 2 + p.x, STAGE_H / 2 - p.y, 1, 4); }       // Strahl zum Spieler: er wird gezogen / gestossen
+    }
+    // Kran: Warnring am Boden, schwerer Fuss, Hufeisen mit rotem und blauem Pol
+    const q = (v) => Math.round(v / PIXEL) * PIXEL;
+    ctx.globalAlpha = 0.9 * dim; ctx.fillStyle = '#15110d'; pxDisc(ctx, cx, cy, 22); ctx.fillStyle = P.yellow; pxRing(ctx, cx, cy, 22, 2, 18, t * 0.15);
+    ctx.fillStyle = P.greyDark; pxDisc(ctx, cx, cy, 19); ctx.fillStyle = P.greyMid; pxDisc(ctx, cx, cy, 15);
+    ctx.fillStyle = '#3a3f4a'; ctx.fillRect(q(cx - 13), q(cy - 4), 6, 8);
+    for (const [dy, c2] of [[-9, '#ff3d5a'], [9, '#3a8bff']]) { ctx.fillStyle = '#15110d'; ctx.fillRect(q(cx - 2), q(cy + dy - 4), 16, 8); ctx.fillStyle = c2; ctx.fillRect(q(cx), q(cy + dy - 3), 14, 6); ctx.fillStyle = '#ffffff'; ctx.fillRect(q(cx + 10), q(cy + dy - 3), 2, 6); }
+    ctx.globalAlpha = dim; ctx.fillStyle = active ? col : P.grey; pxDisc(ctx, cx - 4, cy, 5); ctx.fillStyle = active ? colLight : P.greyMid; pxDisc(ctx, cx - 5, cy - 1, 2);
+    if (active && Math.sin(t * 40) > 0) { ctx.globalAlpha = 0.9 * dim; ctx.fillStyle = P.white; pxLine(ctx, cx + 12, cy - 9, cx + 12 + rand(-3, 3), cy, 1); pxLine(ctx, cx + 12, cy, cx + 12 + rand(-3, 3), cy + 9, 1); }      // Blitzbogen zwischen den Polen
     ctx.restore();
   }
 }
@@ -152,9 +163,12 @@ MapEnv.rimPush = function (x, y) {
 };
 MapEnv.updateRim = function (dt) {
   const E = G.map && G.map.env, R = E && E.rim, p = G.player;
-  if (!R || !this.on || !p || G.god || p.invincible || p.shield) return;
+  this.rimWarnT = Math.max(0, (this.rimWarnT || 0) - dt);
+  if (!R || !this.on || !p) return;
   const [dx, dy] = this.rimDepth(p.x, p.y);
   if (Math.max(dx, dy) < 1 - R.hot) return;
+  if (this.rimWarnT <= 0) { this.rimWarnT = 2.5; G.notice('GRINDER RIM - GET BACK!', STYLE.pal.red); Sfx.play('warn'); }
+  if (G.god || p.invincible || p.shield) return;
   p.hp -= R.dps * dt; Stats.dealt('SCRAP GRINDER', R.dps * dt, false);
   if (Math.random() < 0.3) Juice.sparks(p.x, p.y, STYLE.pal.yellow, 1, 2);
 };
@@ -163,30 +177,32 @@ MapEnv.drawRim = function (ctx) {
   if (!R || G.pvp) return;
   const P = STYLE.pal, hw = CFG.map.halfW * G.arenaScale, hh = CFG.map.halfH * G.arenaScale, W = R.width, hot = W * R.hot, t = G.realTime, dim = this.on ? 1 : 0.4, g = PIXEL;
   const X0 = STAGE_W / 2 - hw, X1 = STAGE_W / 2 + hw, Y0 = STAGE_H / 2 - hh, Y1 = STAGE_H / 2 + hh;
-  const vx0 = STAGE_W / 2 + G.cam.x - STAGE_W / 2 - 20, vx1 = STAGE_W / 2 + G.cam.x + STAGE_W / 2 + 20, vy0 = STAGE_H / 2 - G.cam.y - STAGE_H / 2 - 20, vy1 = STAGE_H / 2 - G.cam.y + STAGE_H / 2 + 20;
+  const vx0 = G.cam.x - 20, vx1 = G.cam.x + STAGE_W + 20, vy0 = -G.cam.y - 20, vy1 = -G.cam.y + STAGE_H + 20;
   const rect = (x, y, w, h, col, a) => { const ax = Math.max(x, vx0), ay = Math.max(y, vy0), bx = Math.min(x + w, vx1), by = Math.min(y + h, vy1); if (bx <= ax || by <= ay) return; ctx.globalAlpha = a * dim; ctx.fillStyle = col; ctx.fillRect(Math.round(ax / g) * g, Math.round(ay / g) * g, Math.max(g, Math.round((bx - ax) / g) * g), Math.max(g, Math.round((by - ay) / g) * g)); };
+  const pulse = 0.5 + 0.5 * Math.sin(t * 5);
   ctx.save();
-  // Streifen: Grundflaeche, Warnstreifen im heissen Aussenteil, nach innen laufende Pfeile
+  // Ein Streifen: dunkle Foerderbandflaeche mit nach innen laufenden Rippen, heisse Aussenzone mit vollen Warnstreifen und rotem Pulsieren, helle Innenkante, grosse Pfeile
   const strip = (horiz, near, sign) => {                                       // horiz = oberer/unterer Rand, near = Koordinate der Arenakante, sign = Richtung nach innen
     const len = horiz ? 2 * hw : 2 * hh, a0 = horiz ? X0 : Y0;
     const band = (o, w, col, al) => horiz ? rect(a0, sign > 0 ? near + o : near - o - w, len, w, col, al) : rect(sign > 0 ? near + o : near - o - w, a0, w, len, col, al);
-    band(0, W, P.greyDark, 0.55); band(0, hot, '#3a2a08', 0.7);
-    for (let u = 0; u < len; u += 16) { const on = Math.floor(u / 16) % 2 === 0; const st = on ? P.yellow : '#15110d'; if (horiz) rect(a0 + u, sign > 0 ? near : near - hot, 16, hot, st, 0.55); else rect(sign > 0 ? near : near - hot, a0 + u, hot, 16, st, 0.55); }
-    const sp = 30, off = (t * 40) % sp;                                          // Pfeile laufen zur Mitte
-    for (let u = sp / 2; u < len; u += sp) {
-      const d = (off + 0) % sp, depth = W - d - 6;                               // Abstand zur Kante, waechst bis zur Mitte hin
-      const e = near + sign * (W - d), px = a0 + u;
-      ctx.globalAlpha = 0.8 * dim * (1 - d / sp * 0.4); ctx.fillStyle = P.orange;
-      if (horiz) { pxLine(ctx, px - 5, e - sign * 4, px, e, 1); pxLine(ctx, px + 5, e - sign * 4, px, e, 1); }
-      else { pxLine(ctx, e - sign * 4, px - 5, e, px, 1); pxLine(ctx, e - sign * 4, px + 5, e, px, 1); }
+    band(0, W, '#161a22', 0.92);
+    const off = (t * 36) % 12;                                                  // Rippen wandern nach innen (Bandgeschwindigkeit)
+    for (let o = hot + off; o < W - 1; o += 12) band(o, 2, '#3a4152', 1);
+    for (let u = 0; u < len; u += 14) { const y = Math.floor(u / 14) % 2 === 0; if (horiz) rect(a0 + u, sign > 0 ? near : near - hot, 14, hot, y ? P.yellow : '#15110d', 1); else rect(sign > 0 ? near : near - hot, a0 + u, hot, 14, y ? P.yellow : '#15110d', 1); }
+    band(0, hot, P.red, 0.12 + 0.2 * pulse);                                    // heisse Zone pulsiert rot
+    band(W - 3, 3, P.orange, 1);                                                // helle Innenkante
+    const sp = 40;
+    for (let u = sp / 2; u < len; u += sp) {                                     // grosse Pfeile zur Mitte
+      const d = (t * 36) % sp, e = near + sign * (hot + 4 + d * ((W - hot - 8) / sp)), px = a0 + u;
+      ctx.globalAlpha = 0.95 * dim; ctx.fillStyle = P.yellow;
+      if (horiz) { pxLine(ctx, px - 7, e - sign * 6, px, e, 2); pxLine(ctx, px + 7, e - sign * 6, px, e, 2); }
+      else { pxLine(ctx, e - sign * 6, px - 7, e, px, 2); pxLine(ctx, e - sign * 6, px + 7, e, px, 2); }
     }
   };
   strip(true, Y0, 1); strip(true, Y1, -1); strip(false, X0, 1); strip(false, X1, -1);
-  ctx.globalAlpha = dim; ctx.fillStyle = P.yellow;
-  if (this.on) for (let i = 0; i < 6; i++) {                                    // Funken am Rand
-    const a = (t * 0.9 + i * 0.37) % 1, side = i % 4;
-    const fx = side < 2 ? STAGE_W / 2 + G.cam.x + (i * 53 % 380) - 190 : (side === 2 ? X0 + 4 : X1 - 4), fy = side < 2 ? (side === 0 ? Y0 + 3 : Y1 - 3) : STAGE_H / 2 - G.cam.y + (i * 41 % 240) - 120;
-    ctx.globalAlpha = 0.8 * (1 - a); pxFill(ctx, fx + Math.sin(t * 9 + i) * 4, fy + (side === 0 ? a * 6 : side === 1 ? -a * 6 : 0), 1);
+  if (this.on) for (let i = 0; i < 10; i++) {                                    // Funken am Rand
+    const a = (t * 1.1 + i * 0.31) % 1, side = i % 4, fx = side < 2 ? G.cam.x + STAGE_W / 2 + ((i * 97) % 520) - 260 : (side === 2 ? X0 + 5 : X1 - 5), fy = side < 2 ? (side === 0 ? Y0 + 4 : Y1 - 4) : -G.cam.y + STAGE_H / 2 + ((i * 61) % 300) - 150;
+    ctx.globalAlpha = 0.9 * (1 - a); ctx.fillStyle = i % 2 ? P.yellow : P.white; pxFill(ctx, fx + Math.sin(t * 9 + i) * 5, fy + (side === 0 ? a * 8 : side === 1 ? -a * 8 : 0), 1);
   }
   ctx.restore();
 };

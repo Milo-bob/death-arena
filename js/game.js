@@ -255,6 +255,10 @@ const G = {
     MsFx.reset();
     Loadout.reset();
     this.player = new Player();
+    if (!withTutorial && kind !== 'pvp') {                                                                    // Armory: die dort gewaehlten Abilities sind die Startabilities jedes Laufs (Einzelspieler und Koop)
+      const L = Save.abilityLoadout();
+      for (const t of CFG.loadout.tiers) if (L[t.id]) { this.player.slots[t.id] = L[t.id]; if (!this.player.owned.includes(L[t.id])) this.player.owned.push(L[t.id]); }
+    }
     Juice.reset();
     this.director = new Director();
     MapEnv.init(); MapFx.reset(); SafeSpot.reset();                                         // Gefahren der gewählten Karte aufstellen (Karte 2 und 3)
@@ -353,7 +357,7 @@ const G = {
   },
 
   // Nach einem Boss: 3 Abilities zur Wahl (Spiel pausiert). Solange ein Slot leer ist, kommen sie aus dessen Gruppe und werden eingesetzt.
-  // Sind alle Slots voll, kommen sie aus allen Gruppen (ohne schon gesammelte), die Wahl wird gesammelt und im Pausenmenue getauscht.
+  // Sind alle Slots voll, kommen sie aus allen Gruppen (ohne schon gesammelte), die Wahl ersetzt dann die Ability ihrer Gruppe (die alte bleibt gesammelt, Tausch im Pausenmenue).
   offerAbility() {
     if (this.mode !== 'play') return;
     const tier = CFG.loadout.tiers.find((t) => !this.player.slots[t.id]) || null;
@@ -763,10 +767,10 @@ const G = {
     if (k.age > 0.6 && confirm) {
       const id = k.ids[k.sel], A = CFG.loadout.abilities[id], p = this.player;
       p.owned.push(id);
-      if (!p.slots[A.tier]) {                                         // freier Slot: gleich einsetzen
-        p.slots[A.tier] = id;
-        this.notice(A.name + (A.passive ? '' : ' [' + Input.label('ability_' + A.tier) + ']'), STYLE.pal.cyan);
-      } else this.notice('COLLECTED: ' + A.name + ' (SWAP IN PAUSE MENU)', STYLE.pal.yellow);
+      const prev = p.slots[A.tier];                                    // die neue Ability wird immer gleich eingesetzt; eine verdraengte bleibt gesammelt (Tausch im Pausenmenue)
+      p.slots[A.tier] = id;
+      this.swapFlash = 0.4;
+      this.notice((prev ? 'EQUIPPED: ' : '') + A.name + (A.passive ? '' : ' [' + Input.label('ability_' + A.tier) + ']') + (prev ? ' (REPLACES ' + CFG.loadout.abilities[prev].name + ')' : ''), STYLE.pal.cyan);
       this.pick = null;
       this.mode = 'play';
     }

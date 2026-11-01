@@ -727,11 +727,25 @@ class Boss {
     ctx.restore();
   }
 
+  // Lebensbalken ueber dem Boss: stufenlos, solange er lebt ist immer mindestens ein Stueck zu sehen. Gelber Strich = Phase 2, weisses Aufblitzen beim Treffer.
+  drawHpBar(ctx, lift) {
+    const P = STYLE.pal, g = PIXEL, W = 64, H = 8, frac = clamp(this.hp / this.maxHp, 0, 1), cx = STAGE_W / 2 + this.x, cy = STAGE_H / 2 - this.y - lift;
+    const x = Math.round((cx - W / 2) / g) * g, y = Math.round(cy / g) * g, fill = this.hp > 0 ? Math.max(g, Math.round(W * frac / g) * g) : 0;
+    const col = frac > 0.5 ? P.green : frac > 0.25 ? P.yellow : P.red, flash = this.bar < 0.12;
+    ctx.save();
+    ctx.fillStyle = '#0a0710'; ctx.fillRect(x - g, y - g, W + 2 * g, H + 2 * g);
+    ctx.fillStyle = '#2a1018'; ctx.fillRect(x, y, W, H);
+    ctx.fillStyle = flash ? P.white : col; ctx.fillRect(x, y, fill, H);
+    ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(x, y, fill, g);                                                       // Lichtkante
+    const p2 = Math.round(W * CFG.boss.counter.phase2At / g) * g; ctx.fillStyle = P.yellow; ctx.fillRect(x + p2, y - g, g, H + 2 * g);       // Phase 2
+    ctx.restore();
+  }
+
   drawBar(ctx) {
     if (this.age < 0.5) return;
     const t = this.bar;
     const lift = t < 0.1 ? 5 + 45 * (t / 0.1) : t < 0.2 ? 50 - 15 * ((t - 0.1) / 0.1) : t < 0.25 ? 35 + 5 * ((t - 0.2) / 0.05) : 40;
-    drawSprite(ctx, 'bosshp' + this.barFrame, this.x, this.y + lift, 90, 350);
+    this.drawHpBar(ctx, lift);
     if (this.twin && G.boss === this && this.twin.alive) this.twin.drawBar(ctx);
   }
 }

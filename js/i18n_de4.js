@@ -1,6 +1,7 @@
 // Deutsche Texte: Ascension, Challenge, erste Laeufe (retention.js), Koop-Wiederbeleben/Verbindung (coop.js), Einladungslink (pvp.js). Siehe i18n.js.
 if (typeof I18n !== 'undefined' && I18n.add) {
   I18n.add({
+    'This ability is yours from the start of every run and every PvP match. Abilities you pick after bosses replace it for that run. More abilities unlock under HERO > ABILITIES.': 'Diese Ability hast du ab dem Start jedes Laufs und jedes PvP-Kampfs. Abilities, die du nach Bossen wählst, ersetzen sie für diesen Lauf. Weitere Abilities schaltest du unter HELD > ABILITIES frei.', 'EQUIPPED: ': 'EINGESETZT: ', ' (REPLACES ': ' (ERSETZT ',
     'WHO LET THE DOGS OUT': 'WER HAT DIE HUNDE RAUSGELASSEN', 'Defeat the Chainhound.': 'Besiege den Chainhound.',
     'Your attacks sometimes hit twice and bosses take more damage.': 'Deine Angriffe sind nicht mehr nur gegen Bosse stärker.', 'All your attacks deal more damage to enemies and bosses.': 'Alle deine Angriffe richten mehr Schaden an Gegnern und Bossen an.',
     'BREACH LIGHTS': 'SPAWNER-LICHT',

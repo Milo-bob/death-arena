@@ -1345,7 +1345,7 @@ function drawGearMeter(ctx, id, x, y, w, col) {
 
 // ---------- Armory: der Held in der Mitte, rundherum die vier Waffen-/Implant-Slots und die drei Ability-Slots; rechts die grosse Info-Box des gewaehlten Slots ----------
 // Auswahl G.invSel: 0-3 = Item-Slots (CFG.items.slots), danach eine Ability je Gruppe (CFG.loadout.tiers), dann der Held (Mitte), zuletzt BACK.
-// Klick/Leertaste auf einen Slot oeffnet das Auswahlfenster (G.invPick). Die Abilities sind die fuer die Kaempfe (PvP) gewaehlten (Save.abilityLoadout), im normalen Lauf waehlt man sie nach den Bossen.
+// Klick/Leertaste auf einen Slot oeffnet das Auswahlfenster (G.invPick). Die Abilities sind die Startabilities jedes Laufs und des PvP (Save.abilityLoadout), nach Bossen gewaehlte ersetzen sie fuer den Lauf.
 const ARMORY = { cx: 147, cy: 168, rx: 92, ry: 80, ts: 46, tierCol: { weak: 'cyan', medium: 'yellow', strong: 'orange' } };
 function armoryNodes() {
   const P = STYLE.pal;
@@ -1426,7 +1426,7 @@ function drawArmoryAbilityInfo(ctx, px, py, pw, ph, nd) {
   if (Ab) ty += 11 * uiWrap(ctx, Ab.desc, tx, ty, tw, 11, { size: T.body, color: P.grey }); else uiText(ctx, 'Nothing chosen. Press SPACE to choose an ability.', tx, ty, { size: T.body, color: P.grey });
   const tr = CFG.loadout.tiers.find((q) => q.id === nd.id);
   uiText(ctx, 'KEY: ' + Input.label('ability_' + nd.id), tx, ty + 14, { size: T.small, color: P.cyan });
-  if (!IS_MOBILE) uiWrap(ctx, 'This is the ability you take into PvP matches. In a normal run you choose abilities after each boss. More abilities unlock under HERO > ABILITIES.', tx, py + ph - 52, tw, 11, { size: T.small, color: P.greyMid });
+  if (!IS_MOBILE) uiWrap(ctx, 'This ability is yours from the start of every run and every PvP match. Abilities you pick after bosses replace it for that run. More abilities unlock under HERO > ABILITIES.', tx, py + ph - 52, tw, 11, { size: T.small, color: P.greyMid });
   uiText(ctx, '[SPACE] CHANGE', px + pw - 14, py + ph - 12, { size: T.small, color: P.cyan, align: 'right' });
 }
 

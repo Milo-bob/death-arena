@@ -823,7 +823,7 @@ const CFG = {
       },
     },
     // Elite-Gegner (neu, siehe CFG.elite und js/elites.js): auf allen Karten gleich, sehr stark. sprite = Grafik eines vorhandenen Typs (umgefaerbt).
-    phantom: { speed: 3.6, push: 0.5, radius: 10, size: 300, hits: 10, sprite: 'teleporter' },    // weicht Nahkampf aus, haelt Abstand, schiesst Salven
+    phantom: { speed: 3.6, push: 0.5, radius: 10, size: 340, hits: 10, sprite: 'teleporter' },    // weicht Nahkampf aus, haelt Abstand, schiesst Salven
     bastion: { speed: 1.5, push: 0.3, radius: 10, size: 420, hits: 16, sprite: 'tank' },          // Schildfront haelt Schuesse ab, Rammstoss
     magnetar: { speed: 1.8, push: 0.3, radius: 10, size: 380, hits: 14, sprite: 'support' },
     lancer: { speed: 0, push: 0.3, radius: 10, size: 340, hits: 9, sprite: 'triangle' },           // Lanzenreiter: fast so schnell wie der Spieler (Tempo = Anteil des Spielertempos, CFG.elite.lancer), haelt Abstand und sticht mit Vorwarnung       // zieht den Spieler heran, Erschuetterung mit Vorwarnung (gegen Kiten)
@@ -1438,7 +1438,7 @@ const CFG = {
         rim: { width: 80, push: 3.4, hot: 0.4, dps: 6 },
         magnets: { count: 3, radius: 135, idle: [5, 9], warn: 1.4, on: 4.5, pull: 1.5, bend: 3.2, minGap: 150 },
       },
-      obstacles: { style: 'scrap', radius: 15, hpMin: 5, hpMax: 8, start: 22, perWave: 3, max: 34, respawn: 7, minOther: 30, minPlayer: 70, cluster: 0.88 },
+      obstacles: { style: 'scrap', radius: 15, hpMin: 5, hpMax: 8, start: 44, perWave: 6, max: 68, respawn: 4, minOther: 30, minPlayer: 70, cluster: 0.88 },
       bossOrder: ['octagon', 'magnetron', 'chomp', 'juggernaut', 'twin', 'arena'],          // Magnetron ersetzt den Kite, Chainhound den Beschwoerer, Juggernaut den Laser-Turm
       foes: [{ v: 'rivet', from: 60, min: 11, max: 15, maxAlive: 8 }, { v: 'saw', from: 150, min: 20, max: 28, maxAlive: 3 }, { v: 'crusher', from: 240, min: 30, max: 40, maxAlive: 2 }],
       trim: { c: 1.35, t: 1.25, s: 1.3, tank: 1.5 },

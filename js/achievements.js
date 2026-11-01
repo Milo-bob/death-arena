@@ -23,6 +23,8 @@ const ACH_BRANCHES = [
   { id: 'hero',  label: 'HEROES' },
   { id: 'gear',  label: 'LOADOUT' },
   { id: 'grind', label: 'GRIND' },
+  { id: 'dark',  label: 'BLACKOUT' },
+  { id: 'scrap', label: 'SCRAPYARD' },
 ];
 const ACH_VISIBLE = 6;          // Zweige gleichzeitig auf dem Bildschirm
 const ACH_FAST_BOSS = 25;       // Sekunden fuer "Speedrun Strats"
@@ -127,16 +129,16 @@ const ACH_LIST = [
   { id: 'sauna',     br: 'maps', name: 'SAUNA',                 desc: 'Get hit by lava vents 10 times in total.',       icon: 'fireIcon',     key: 'lavaHits',  need: 10,   reward: { cores: 25 } },
   { id: 'acidbath',  br: 'maps', name: 'ACID BATH',             desc: 'Get hit by acid pools 20 times in total.',       icon: 'buffRegen',    key: 'acidHits',  need: 20,   reward: { cores: 25 } },
   { id: 'coldwar',   br: 'maps', name: 'THE COLD WAR',          desc: 'Defeat the Frost Sentinel.',                     icon: 'octagon',      key: 'bk_frost',  need: 1,    reward: { cores: 60 } },
-  { id: 'blackout',  br: 'maps', name: 'LIGHTS OUT',            desc: 'Survive 5 minutes on Blackout.',                 icon: 'blinkIcon',    key: 'tm_dark',   need: 300,  reward: { cores: 70 } },
-  { id: 'nightowl',  br: 'maps', name: 'NIGHT OWL',             desc: 'Survive 10 minutes on Blackout.',                icon: 'ult3',         key: 'tm_dark',   need: 600,  reward: { cores: 90 } },
-  { id: 'scrapmetal', br: 'maps', name: 'SCRAP METAL',          desc: 'Survive 5 minutes on Scrapyard.',                icon: 'armorIcon',    key: 'tm_scrap',  need: 300,  reward: { cores: 80 } },
-  { id: 'junkdealer', br: 'maps', name: 'JUNK DEALER',          desc: 'Survive 10 minutes on Scrapyard.',               icon: 'ult3',         key: 'tm_scrap',  need: 600,  reward: { cores: 100 } },
-  { id: 'mapelites', br: 'maps', name: 'MAP ELITE HUNTER',      desc: 'Defeat each elite that belongs to a map.',       icon: 'tank',         key: 'mapElites', need: 6,    reward: { cores: 200 } },
-  { id: 'eclipsek',  br: 'maps', name: 'TOTAL ECLIPSE',         desc: 'Defeat the Eclipse.',                            icon: 'octagon',      key: 'bk_eclipse', need: 1,   reward: { cores: 80 } },
-  { id: 'nightmk',   br: 'maps', name: 'WAKE UP',               desc: 'Defeat the Nightmare.',                          icon: 'kite',         key: 'bk_nightmare', need: 1, reward: { cores: 80 } },
-  { id: 'magnetk',   br: 'maps', name: 'OPPOSITES ATTRACT',     desc: 'Defeat the Magnetron.',                          icon: 'octagon',      key: 'bk_magnetron', need: 1, reward: { cores: 90 } },
-  { id: 'chompk',    br: 'maps', name: 'WHO LET THE DOGS OUT',  desc: 'Defeat the Chainhound.',                         icon: 'octagon',      key: 'bk_chomp',  need: 1,    reward: { cores: 90 } },
-  { id: 'juggk',     br: 'maps', name: 'IMMOVABLE OBJECT',      desc: 'Defeat the Juggernaut.',                         icon: 'octagon',      key: 'bk_juggernaut', need: 1, reward: { cores: 90 } },
+  { id: 'blackout',  br: 'dark', name: 'LIGHTS OUT',            desc: 'Survive 5 minutes on Blackout.',                 icon: 'blinkIcon',    key: 'tm_dark',   need: 300,  reward: { cores: 70 } },
+  { id: 'nightowl',  br: 'dark', name: 'NIGHT OWL',             desc: 'Survive 10 minutes on Blackout.',                icon: 'ult3',         key: 'tm_dark',   need: 600,  reward: { cores: 90 } },
+  { id: 'scrapmetal', br: 'scrap', name: 'SCRAP METAL',          desc: 'Survive 5 minutes on Scrapyard.',                icon: 'armorIcon',    key: 'tm_scrap',  need: 300,  reward: { cores: 80 } },
+  { id: 'junkdealer', br: 'scrap', name: 'JUNK DEALER',          desc: 'Survive 10 minutes on Scrapyard.',               icon: 'ult3',         key: 'tm_scrap',  need: 600,  reward: { cores: 100 } },
+  { id: 'mapelites', br: 'scrap', name: 'MAP ELITE HUNTER',      desc: 'Defeat each elite that belongs to a map.',       icon: 'tank',         key: 'mapElites', need: 6,    reward: { cores: 200 } },
+  { id: 'eclipsek',  br: 'dark', name: 'TOTAL ECLIPSE',         desc: 'Defeat the Eclipse.',                            icon: 'octagon',      key: 'bk_eclipse', need: 1,   reward: { cores: 80 } },
+  { id: 'nightmk',   br: 'dark', name: 'WAKE UP',               desc: 'Defeat the Nightmare.',                          icon: 'kite',         key: 'bk_nightmare', need: 1, reward: { cores: 80 } },
+  { id: 'magnetk',   br: 'scrap', name: 'OPPOSITES ATTRACT',     desc: 'Defeat the Magnetron.',                          icon: 'octagon',      key: 'bk_magnetron', need: 1, reward: { cores: 90 } },
+  { id: 'chompk',    br: 'scrap', name: 'WHO LET THE DOGS OUT',  desc: 'Defeat the Chainhound.',                         icon: 'octagon',      key: 'bk_chomp',  need: 1,    reward: { cores: 90 } },
+  { id: 'juggk',     br: 'scrap', name: 'IMMOVABLE OBJECT',      desc: 'Defeat the Juggernaut.',                         icon: 'octagon',      key: 'bk_juggernaut', need: 1, reward: { cores: 90 } },
   { id: 'lookback',  br: 'maps', name: "DON'T LOOK BACK",       desc: 'Defeat the Frost Wraith.',                       icon: 'kite',         key: 'bk_wraith', need: 1,    reward: { cores: 60 } },
 
   // ---- HEROES ----

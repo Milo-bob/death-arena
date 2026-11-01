@@ -135,6 +135,28 @@ const Elite = {
       circ(px, 14, 14, 2.5, '#ffffff');
       for (const [x, y] of [[5, 9], [22, 20], [9, 21]]) { px(x, y, '#ffffff'); px(x + 1, y, '#bfefff'); px(x, y + 1, '#bfefff'); }
     });
+    // Phantom und Bastion: gemalt wie die Karten-Elite, aber achsensymmetrisch (nur die obere Haelfte wird gemalt und nach unten gespiegelt)
+    const half = (g, w, h, paint) => {
+      g.save(); g.beginPath(); g.rect(0, 0, w, h / 2); g.clip(); paint(); g.restore();
+      g.save(); g.translate(0, h); g.scale(1, -1); g.drawImage(g.canvas, 0, 0, w, h / 2, 0, 0, w, h / 2); g.restore();
+    };
+    if (type === 'phantom') return body('elitePhantom2', ({ px, poly, g }) => half(g, 28, 28, () => {      // Geisterklinge: Umhang-Fluegel, Kapuze, zwei Augen
+      poly([[27.5, 14], [19, 5.5], [8, 1.5], [0.5, 5], [5.5, 8.5], [1, 11.5], [8, 13.6], [13, 14]], '#1b0a40');
+      poly([[26.5, 14], [19, 6.8], [9, 3.2], [3, 5.6], [7, 9], [3.5, 11.2], [10, 13], [14, 14]], '#4a22b8');
+      poly([[26.5, 14], [19, 6.8], [14, 8.6], [20, 14]], '#a98aff');
+      poly([[25, 14], [20, 9.5], [13, 11], [11, 14]], '#12062e');
+      poly([[22, 14], [19, 10.8], [15, 11.6], [14, 14]], '#2a1470');
+      for (const [x, y, c] of [[20, 11, '#ffffff'], [21, 11, '#ffffff'], [20, 12, '#ffffff'], [21, 12, '#ffffff'], [21, 11, '#6ff0ff']]) px(x, y, c);
+      for (const [x, y] of [[2, 6], [4, 8], [6, 10], [9, 12]]) px(x, y, '#a98aff');
+    }));
+    if (type === 'bastion') return body('eliteBastion2', ({ px, poly, g }) => half(g, 28, 28, () => {       // Panzerblock mit grossem Schildbogen vorn
+      poly([[2, 3], [19, 2], [19, 14], [2, 14]], '#2c1a06'); poly([[3, 4], [18, 3], [18, 14], [3, 14]], '#8a5a1a'); poly([[3, 4], [18, 3], [18, 6], [3, 7]], '#d89a4a');
+      for (const y of [9, 12]) poly([[5, y], [16, y], [16, y + 1], [5, y + 1]], '#4a2c0a');
+      for (const [x, y] of [[4, 5], [16, 4]]) px(x, y, '#fff0c0');
+      for (let y = 0; y < 14; y++) for (let x = 0; x < 28; x++) { const d = Math.hypot(x + 0.5 - 14, y + 0.5 - 14), a = Math.atan2(y + 0.5 - 14, x + 0.5 - 14); if (d <= 14 && d > 10.2 && Math.abs(a) < 1.2) px(x, y, d > 13 ? '#e6eef8' : d > 11.8 ? '#9aa8bc' : '#566478'); }
+      for (let y = 0; y < 14; y++) for (let x = 0; x < 28; x++) { const d = Math.hypot(x + 0.5 - 11, y + 0.5 - 14); if (d <= 4) px(x, y, d <= 2.4 ? '#ffe27a' : '#6a4410'); }
+      px(24, 12, '#ffffff'); px(25, 13, '#ffffff'); px(26, 13, '#ffffff');
+    }));
     return null;
   },
   // Umgefaerbtes Sprite des Typs (Cos.tinted merkt es sich, ein Farbfilter pro Bild waere in Edge sehr langsam); Lanzenreiter und Magnetar haben eigene Koerper
