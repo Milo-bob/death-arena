@@ -134,7 +134,12 @@ const Save = {
   },
   gearLv(id) { const k = this.pvpKind(); if (k) return k === 'all' ? this.gearMax() : k === 'set' ? 0 : this.pvpOwnGear(id); return (id && this.data.gear[id] && this.data.gear[id].lv) || 0; },
   gearMax() { return CFG.gear.need.length; },
-  gearMul(id) { return !id || !this.gearLv(id) ? 1 : 1 + this.gearLv(id) * CFG.gear.step[this.gearKind(id)]; },                // Faktor auf Staerke/Tempo
+  gearMul(id) { return (!id || !this.gearLv(id) ? 1 : 1 + this.gearLv(id) * CFG.gear.step[this.gearKind(id)]) * this.rampMul(id); },                // Faktor auf Staerke/Tempo (inkl. Anlauf der Armory-Abilities)
+  // Anlauf (CFG.ramp): Armory-Abilities sind anfangs schwaecher. G.ramp[id] = besiegte Bosse bis zur vollen Staerke (leer ausserhalb von Einzel-/Koop-Laeufen)
+  rampMul(id) {
+    const R = typeof G !== 'undefined' && G.ramp;
+    return R && R[id] ? CFG.ramp.start + (1 - CFG.ramp.start) * Math.min(1, (G.bosses | 0) / R[id]) : 1;
+  },
   gearFrac(id) { const lv = this.gearLv(id); return lv >= this.gearMax() ? 1 : Math.min(1, ((this.data.gear[id] && this.data.gear[id].xp) || 0) / CFG.gear.need[lv]); },
   // XP im Hintergrund sammeln (wird beim Laufende mit gespeichert); im Tutorial nichts
   gearXp(id, n) {
@@ -236,6 +241,28 @@ const Save = {
     this.data.souls = 0; this.data.shards = 0; this.data.upgrades = {}; this.data.unlocked = {}; this.data.gear = {}; this.data.cosmetics = { owned: {}, equipped: {}, color: {} }; this.data.heroes = {}; this.data.hero = 'vanguard';
     this.data.items = JSON.parse(JSON.stringify(CFG.items.start));
     this.write();
+  },
+  // Loadout-Presets (Armory): 3 Speicherplaetze mit Held, Ausruestung und Abilities. Beim Laden zaehlt nur, was noch gekauft ist; Fehlendes bleibt wie es ist.
+  presetGet(n) { return (this.data.presets && this.data.presets[n]) || null; },
+  presetSave(n) {
+    const P = this.data.presets || (this.data.presets = [null, null, null]);
+    P[n] = { hero: this.ownHero(), items: Object.assign({}, this.data.items.equipped), abilities: this.abilityLoadout() };
+    this.write();
+  },
+  presetLoad(n) {
+    const p = this.presetGet(n);
+    if (!p) return false;
+    if (p.hero && this.heroOwned(p.hero)) { this.data.hero = p.hero; this.data.pvpHeroSel = p.hero; }
+    for (const S of CFG.items.slots) {
+      const id = p.items ? p.items[S.id] : null, I = id && CFG.items.catalog[id];
+      if (I && I.slot === S.id && this.owns(id)) this.data.items.equipped[S.id] = id;
+      else if (id === null && S.id !== 'melee' && S.id !== 'ranged') this.data.items.equipped[S.id] = null;
+    }
+    const ab = Object.assign({}, this.abilityLoadout());
+    for (const t of CFG.loadout.tiers) { const id = p.abilities ? p.abilities[t.id] : null; if (this.abilityChoices(t.id).includes(id)) ab[t.id] = id; }
+    this.data.pvpLoadout = ab;
+    this.write();
+    return true;
   },
   // Slot leeren (nur starke Waffe und Artefakt)
   unequip(slot) {

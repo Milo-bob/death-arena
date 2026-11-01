@@ -30,6 +30,33 @@ const PWA = {
     } catch (e) { /* ohne App-Funktionen weiterspielen */ }
   },
 
+  // ---- Erinnerung an die Tagesbelohnung (Settings > REMINDERS) ----
+  // Geht nur in der installierten App (Chrome/Edge, Android/Desktop) mit Periodic Background Sync und Benachrichtigungen. Im Browser-Tab/iframe: Hinweis zum Installieren.
+  get remindSupported() { try { return this.secure && 'Notification' in window && 'serviceWorker' in navigator && 'periodicSync' in ServiceWorkerRegistration.prototype; } catch (e) { return false; } },
+  get remindOn() { return !!Save.data.remind && this.remindSupported && Notification.permission === 'granted'; },
+  async setRemind(on) {
+    if (!on) {
+      Save.data.remind = false; Save.write();
+      try { const reg = await navigator.serviceWorker.ready; await reg.periodicSync.unregister('da-daily'); } catch (e) { /* egal */ }
+      return true;
+    }
+    try {
+      if (Notification.permission !== 'granted' && await Notification.requestPermission() !== 'granted') return false;
+      const reg = await navigator.serviceWorker.ready;
+      await reg.periodicSync.register('da-daily', { minInterval: 12 * 3600 * 1000 });
+      Save.data.remind = true; Save.write(); this.meta();
+      return true;
+    } catch (e) { return false; }
+  },
+  // Dem Worker den Stand der Tagesbelohnung melden (nach dem Laden des Status und nach dem Abholen)
+  meta() {
+    try {
+      if (!this.remindSupported || !navigator.serviceWorker.controller) return;
+      const D = typeof Daily !== 'undefined' ? Daily : null;
+      navigator.serviceWorker.controller.postMessage({ type: 'meta', account: !!(D && D.on), claimedDay: D && D.st && D.st.claimed ? D.day || D.today() : '' });
+    } catch (e) { /* egal */ }
+  },
+
   // Jedes Bild aus G.update: Update einspielen (im Hauptmenue) und Bildschirm im Lauf wach halten
   tick(mode) {
     if (this.updating && mode === 'start' && !this.updateAt) { try { Save.write(); } catch (e) { /* egal */ } this.updateAt = Date.now() + 1000; }

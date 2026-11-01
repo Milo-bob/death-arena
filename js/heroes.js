@@ -14,7 +14,12 @@ const Hero = {
   // Sprite eines Helden (Standard: der ausgewaehlte). Mit Skin: Cos.sprite(Hero.sprite(), 'skin')
   sprite(id) { return CFG.heroes[id || this.id()].sprite; },
   live() { return !(typeof Tutorial !== 'undefined' && Tutorial.active) && Save.pvpKind() !== 'set'; },       // im Tutorial gelten keine Held-Modifier
-  mods() { return this.live() ? Object.assign({}, HERO_NEUTRAL, this.cfg().mod) : HERO_NEUTRAL; },
+  mods() {
+    if (!this.live()) return HERO_NEUTRAL;
+    const m = Object.assign({}, HERO_NEUTRAL, this.cfg().mod);
+    if (!(typeof G !== 'undefined' && G.pvp)) m.hp += Mastery.hp(this.id());                // Meisterschaft: mehr Leben (nicht im PvP)
+    return m;
+  },
   world() { return this.live() && this.cfg().mod.world ? Object.assign({}, HERO_WORLD_NEUTRAL, this.cfg().mod.world) : HERO_WORLD_NEUTRAL; },
   type(t) { const W = this.world(); return W.types[t] ? Object.assign({}, HERO_TYPE_NEUTRAL, W.types[t]) : HERO_TYPE_NEUTRAL; },
   artifact() { return this.live() ? this.cfg().artifact || null : null; },

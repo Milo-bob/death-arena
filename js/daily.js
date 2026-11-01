@@ -21,6 +21,7 @@ const Daily = {
       if (r.ok && r.json && typeof r.json === 'object') {
         this.st = r.json; this.loadedAt = Date.now(); if (day !== this.day) this.dismissed = false; this.day = day;
         if (!this.st.claimed && !this.dismissed) { this.open = true; this.result = null; }
+        PWA.meta();
       } else this.loadedAt = Date.now() - 540000;                      // Fehler/offline: in einer Minute nochmal
     }).catch(() => {}).then(() => { this.busy = false; });
   },
@@ -34,7 +35,7 @@ const Daily = {
       if (r.ok && r.json && r.json.ok) {
         const sh = Math.max(0, Math.floor(Number(r.json.shards) || 0)), cr = Number(r.json.credits) || 0;          // Der Server entscheidet: Shard-Tage zahlen Shards statt Credits (tools/supabase_anticheat.sql)
         Save.data.souls = (Save.data.souls || 0) + cr; Save.addShards(sh); Save.write();
-        this.st.claimed = true; this.st.streak = r.json.streak; this.st.next = r.json.streak + 1;
+        this.st.claimed = true; this.st.streak = r.json.streak; this.st.next = r.json.streak + 1; PWA.meta();
         this.result = { credits: cr, shards: sh, streak: r.json.streak, index: r.json.index }; this.resultAt = Date.now();
         Sfx.play('levelUp');
       } else if (r.ok && r.json && r.json.ok === false) { this.st.claimed = true; this.close(); }          // heute schon abgeholt (anderes Gerät)

@@ -91,9 +91,21 @@ const Onb = {
   hint(id, text, color) { const s = this.seen(); if (s[id]) return; s[id] = true; Save.write(); G.notice(text, color || STYLE.pal.cyan, STYLE.type.body); },
 };
 
+// Comeback-Bonus: nach längerer Pause (CFG.comeback.days) bekommen die nächsten Läufe Hilfe. Zeitpunkt des letzten Laufbeginns steht im Spielstand (lastRun).
+const Comeback = {
+  arm() {
+    const D = Save.data, now = Date.now(), last = Number(D.lastRun) || 0, C = CFG.comeback;
+    if (last && D.tutorialDone && now - last >= C.days * 86400000) D.cbRuns = C.runs;
+    D.lastRun = now; Save.write();
+  },
+  active() { return (Save.data.cbRuns | 0) > 0; },
+  take() { Save.data.cbRuns = Math.max(0, (Save.data.cbRuns | 0) - 1); Save.write(); },
+};
+
 const Ret = {
   setup(withTutorial, kind) {
-    G.asc = 0; G.chal = null; G.healMul = 1; G.rookie = 0; G.ascResult = null; G.chalResult = null; G.goalResult = null; G.goal = null; G.hintT = 0;
+    Ghost.start(false); G.eventReward = null;
+    G.asc = 0; G.chal = null; G.healMul = 1; G.rookie = 0; G.comeback = false; G.ascResult = null; G.chalResult = null; G.goalResult = null; G.goal = null; G.hintT = 0;
     if (withTutorial || kind !== null) return;
     let m = null;
     if (Onb.active()) { G.rookie = Onb.n() + 1; m = Onb.assist(Onb.n()); G.goal = Object.assign({ run: Onb.n() }, Onb.goal(Onb.n()), { done: false }); }
@@ -101,13 +113,18 @@ const Ret = {
       m = Asc.mods(Asc.sel()); G.asc = Asc.sel();
       const s = Chal.unlocked() ? Chal.sel() : 'off';
       if (s !== 'off') { const def = Chal.def(s); G.chal = Object.assign({}, def, { reached: false }); const cm = Chal.mods(def); m = retMerge(m, cm); m.credits += cm.credits; }
+      Comeback.arm();
+      if (Comeback.active() && G.asc === 0 && !G.chal) { m = retMerge(m, CFG.comeback.mods); G.comeback = true; Comeback.take(); }
     }
+    this.cbShown = false;
+    Ghost.start(true);                                                     // normaler Einzellauf: Geist des besten Laufs auf dieser Karte (ghost.js)
     G.diff = retApply(G.map.diff, m); G.healMul = m.heal;
   },
 
   // pro Bild im Lauf
   tick(dt) {
     if (G.mode !== 'play' || Tutorial.active || G.coop || G.pvp) return;
+    Ghost.tick(dt);
     const c = G.chal;
     if (c && !c.reached && Chal.reached(c, G.time, G.bosses)) { c.reached = true; G.notice(c.label + ' CHALLENGE COMPLETE!', STYLE.pal.green, STYLE.type.h1); Sfx.play('levelUp'); }
     const g = G.goal;
@@ -115,6 +132,7 @@ const Ret = {
       const v = g.type === 'time' ? G.time : G.bosses;
       if (v >= g.v) { g.done = true; G.notice('GOAL REACHED! +' + g.credits + ' CREDITS WHEN THE RUN ENDS', STYLE.pal.green, STYLE.type.h2); Sfx.play('levelUp'); }
     }
+    if (G.comeback && G.time > 1.5 && !this.cbShown) { this.cbShown = true; G.notice('WELCOME BACK! LESS DAMAGE, MORE HEALING THIS RUN', STYLE.pal.green, STYLE.type.h2); }
     if (!G.rookie) return;
     const p = G.player, key = (a) => tkeys(a);
     if (G.time > 25) Onb.hint('xp', 'DEFEAT ENEMIES FOR XP - EACH LEVEL UP LETS YOU PICK A PERK', STYLE.pal.cyan);
@@ -174,6 +192,7 @@ const Ret = {
   // kleine Anzeige oben Mitte: Ziel der ersten Laeufe bzw. Challenge-Fortschritt
   drawHud(ctx) {
     if (G.mode !== 'play' || Tutorial.active || G.coop || G.pvp) return;
+    Ghost.hud(ctx);
     const P = STYLE.pal, T = STYLE.type;
     let text = null, col = P.yellow;
     if (G.rookie && G.goal) { text = G.goal.done ? 'GOAL REACHED!' : 'GOAL: ' + G.goal.text + '  ' + (G.goal.type === 'time' ? formatTime(Math.min(G.time, G.goal.v)) + ' / ' + formatTime(G.goal.v) : Math.min(G.bosses, G.goal.v) + ' / ' + G.goal.v); if (G.goal.done) col = P.green; }

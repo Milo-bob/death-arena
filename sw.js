@@ -6,7 +6,7 @@
 //   - Neue Version: jede Aenderung an einer Datei aendert VERSION, damit auch sw.js selbst -> der Browser installiert den neuen Worker,
 //     der uebernimmt sofort (skipWaiting + claim); die Seite (js/pwa.js) laedt dann im Hauptmenue neu.
 // Nur gleiche Herkunft: Anfragen an Supabase (Konto) und andere Server laufen unveraendert am Worker vorbei.
-const VERSION = 'a064b829f5';
+const VERSION = '010b18e751';
 const FILES = [
   "./",
   "CLAUDE.md",
@@ -306,7 +306,10 @@ const FILES = [
   "js/director.js",
   "js/elites.js",
   "js/enemies.js",
+  "js/events.js",
   "js/game.js",
+  "js/gamepad.js",
+  "js/ghost.js",
   "js/guildroom.js",
   "js/heroes.js",
   "js/i18n.js",
@@ -314,6 +317,7 @@ const FILES = [
   "js/i18n_de2.js",
   "js/i18n_de3.js",
   "js/i18n_de4.js",
+  "js/i18n_de5.js",
   "js/input.js",
   "js/juice.js",
   "js/leaderboard.js",
@@ -321,6 +325,7 @@ const FILES = [
   "js/mapfx.js",
   "js/mapnew.js",
   "js/mapspecial.js",
+  "js/mastery.js",
   "js/mesh.js",
   "js/meteors.js",
   "js/milestonefx.js",
@@ -340,6 +345,7 @@ const FILES = [
   "js/safespot.js",
   "js/save.js",
   "js/sfx.js",
+  "js/share.js",
   "js/social.js",
   "js/style.js",
   "js/touch.js",
@@ -359,7 +365,7 @@ self.addEventListener('install', (e) => {
 });
 
 self.addEventListener('activate', (e) => {
-  e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k.startsWith('deatharena-') && k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k.startsWith('deatharena-') && k !== CACHE && k !== 'deatharena-meta').map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });
 
 async function networkFirst(req) {
@@ -376,6 +382,30 @@ async function networkFirst(req) {
     throw err;
   }
 }
+
+// Erinnerung an die Tagesbelohnung (nur installierte App, Chrome/Edge/Android: Periodic Background Sync). Das Spiel meldet dem Worker per Nachricht den Tag der letzten
+// Abholung ({ type: 'meta', account, claimedDay }); beim periodischen Aufwachen zeigt der Worker eine Benachrichtigung, wenn heute (deutscher Kalendertag) noch nichts abgeholt wurde.
+const META_URL = new URL('__meta.json', self.registration.scope).href;
+const berlinDay = () => { try { return new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' }); } catch (e) { return new Date().toISOString().slice(0, 10); } };
+self.addEventListener('message', (e) => {
+  const d = e.data;
+  if (!d || d.type !== 'meta') return;
+  e.waitUntil(caches.open('deatharena-meta').then((c) => c.put(META_URL, new Response(JSON.stringify({ account: !!d.account, claimedDay: String(d.claimedDay || '') })))));
+});
+self.addEventListener('periodicsync', (e) => {
+  if (e.tag !== 'da-daily') return;
+  e.waitUntil((async () => {
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+    const hit = await (await caches.open('deatharena-meta')).match(META_URL);
+    const meta = hit ? await hit.json() : null;
+    if (!meta || !meta.account || meta.claimedDay === berlinDay()) return;
+    await self.registration.showNotification('DeathArena', { body: 'Your daily reward is waiting! Keep your streak alive.', icon: 'icons/icon-192.png', badge: 'icons/icon-192.png', tag: 'da-daily', renotify: false });
+  })());
+});
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((cs) => (cs.length ? cs[0].focus() : self.clients.openWindow(self.registration.scope))));
+});
 
 self.addEventListener('fetch', (e) => {
   const req = e.request;

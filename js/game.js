@@ -124,9 +124,9 @@ function upgradeRows(tab) {
 }
 // Einstellungen: drei Spalten nebeneinander, kein Scrollen (Ton und Effekte sind jetzt hier). W/S geht die Spalten der Reihe nach durch, unten immer 'back'.
 const SETTINGS_COLS = [
-  { label: 'GENERAL', items: ['language', 'music', 'sfx', 'fx', 'tutorial'] },
+  { label: 'GENERAL', items: ['language', 'music', 'sfx', 'fx', 'ghost', 'tutorial'] },
   { label: 'CONTROLS', items: ['controls', 'binds', 'attackmode', 'mouseaim', 'touch'] },
-  { label: 'SAVE & ACCOUNT', items: ['slot', 'account', 'transfer', 'resetAll'] },
+  { label: 'SAVE & ACCOUNT', items: ['slot', 'account', 'remind', 'transfer', 'resetAll'] },
 ];
 if (IS_MOBILE) SETTINGS_COLS[1].items = SETTINGS_COLS[1].items.filter((i) => !['controls', 'binds'].includes(i));       // Handy: keine Tastenbelegung (Mauszielen = Ziel-Stick)
 const settingsList = () => [].concat(...SETTINGS_COLS.map((c) => c.items), ['back']);
@@ -255,9 +255,10 @@ const G = {
     MsFx.reset();
     Loadout.reset();
     this.player = new Player();
+    this.ramp = {}; this.rampSeen = 0;
     if (!withTutorial && kind !== 'pvp') {                                                                    // Armory: die dort gewaehlten Abilities sind die Startabilities jedes Laufs (Einzelspieler und Koop)
       const L = Save.abilityLoadout();
-      for (const t of CFG.loadout.tiers) if (L[t.id]) { this.player.slots[t.id] = L[t.id]; if (!this.player.owned.includes(L[t.id])) this.player.owned.push(L[t.id]); }
+      CFG.loadout.tiers.forEach((t, i) => { if (L[t.id]) { this.player.slots[t.id] = L[t.id]; if (!this.player.owned.includes(L[t.id])) this.player.owned.push(L[t.id]); this.ramp[L[t.id]] = i + 1; } });       // Anlauf: schwaecher bis nach Boss i + 1 (CFG.ramp)
     }
     Juice.reset();
     this.director = new Director();
@@ -304,6 +305,7 @@ const G = {
     this.newBest = res.isBest; this.newMilestones = res.got;
     if (!Tutorial.active && !this.cheated) Anticheat.end({ kind: 'run', time: this.time, kills: this.kills, bosses: this.bosses, win: this.mode === 'ending' });       // Server prueft den Lauf und fuehrt Buch (auch Gilden-Punkte)
     else Anticheat.drop('run');
+    Ghost.finish();                                                                           // Geist speichern/hochladen (nach Anticheat.end: das Ledger muss den Lauf kennen)
     const base = this.time * CFG.meta.perSecond + this.bosses * CFG.meta.perBoss;
     let run = Math.floor(base * (1 + Save.bonus('souls') + Save.bonus('soulgain')) * this.diff.cores * Hero.mods().cores);
     const S = CFG.meta.starter, n = Save.data.runs - 1;                      // Save.finishRun hat den Lauf schon mitgezaehlt: n = 0 fuer den ersten Lauf
@@ -321,7 +323,9 @@ const G = {
     if (!Tutorial.active && !this.cheated) {
       const xp = (this.time * L.perSecond + this.bosses * L.perBoss + this.kills * L.perKill + (this.victory > 0 || this.mode === 'ending' ? L.winBonus : 0));
       this.levelRes = Save.addPlayerXp(Math.floor(xp));
-    }
+      this.masteryRes = Mastery.add(Save.heroSelected(), this.time, this.bosses, this.kills, this.victory > 0 || this.mode === 'ending');
+    } else this.masteryRes = null;
+    if (!Tutorial.active && !this.cheated && !this.pvp) Events.runDone(this.time);
     Save.write();
   },
 
@@ -338,6 +342,16 @@ const G = {
     Stats.finish(this.time, this.bosses, this.map.id, true);       // Sieg ins Protokoll
     Ach.runEnd(true);
     Save.write();
+  },
+
+  // Armory-Abilities werden mit jedem besiegten Boss stärker (CFG.ramp): kurze Meldung bei jeder Stufe, solange noch eine Ability nicht auf voller Stärke ist
+  rampTick() {
+    if (!this.ramp || this.bosses === this.rampSeen) return;
+    this.rampSeen = this.bosses;
+    const open = Object.keys(this.ramp).filter((id) => this.player.has(id) && this.ramp[id] >= this.bosses && this.ramp[id] > 0);
+    if (!open.length) return;
+    const full = open.every((id) => this.bosses >= this.ramp[id]);
+    this.notice(full ? 'ABILITY POWER: FULL' : 'ABILITY POWER: ' + Math.round(100 * Math.min(...open.map((id) => Save.rampMul(id)))) + '%', STYLE.pal.cyan, STYLE.type.h2);
   },
 
   // Nach einem Boss: passt ein Evolutions-Rezept (CFG.evolutions), wird es zur Wahl angeboten (ESC = ueberspringen, kommt beim naechsten Boss wieder).
@@ -374,7 +388,7 @@ const G = {
     const STEPS = [0, 0.3, 0.6, 1], next = (v) => { const q = STEPS.find((x) => x > v + 0.01); return q === undefined ? 0 : q; };
     if (id === 'music') { setMusicVolume(next(Save.data.musicVol)); Save.write(); }
     else if (id === 'sfx') { Sfx.setVolume(next(Save.data.sfxVol)); Save.write(); Sfx.play('select'); }
-    else if (id === 'fx') { Save.data.fx = (Juice.level + 1) % 3; Save.write(); }
+    else if (id === 'fx') { Save.data.fx = (Juice.level + 1) % 3; Save.data.fxPicked = true; Save.write(); }
     else if (id === 'fullscreen') { try { if (document.fullscreenElement) document.exitFullscreen(); else (Save.data.touch ? document.documentElement : canvas).requestFullscreen(); } catch (err) { /* Browser verbietet Vollbild */ } }
     else if (id === 'account') Account.open();
     else if (id === 'install') PWA.open();
@@ -610,6 +624,7 @@ const G = {
     if (Input.pressed('ArrowUp') || Input.pressed('KeyW') || Input.pressed('ArrowLeft') || Input.pressed('KeyA')) this.invSel = (this.invSel + n - 1) % n;
     if (Input.pressed('ArrowDown') || Input.pressed('KeyS') || Input.pressed('ArrowRight') || Input.pressed('KeyD')) this.invSel = (this.invSel + 1) % n;
     const ok = Input.pressed('Space') || Input.pressed('Enter');
+    for (let k = 0; k < 3; k++) if (Input.pressed('Digit' + (k + 1))) this.presetPress(k, !!(Input.down('ShiftLeft') || Input.down('ShiftRight')));
     if (Input.pressed('KeyU') && this.invSel < nItems) {                       // U = Stufe der ausgeruesteten Waffe kaufen
       const id = Save.equipped(CFG.items.slots[this.invSel].id);
       if (id) { const ok = Save.gearUp(id); Sfx.play(ok ? 'buy' : 'deny'); if (ok) this.invFlashAt = this.realTime; }
@@ -630,6 +645,13 @@ const G = {
       this.invPick = { kind: 'item', slot, list, sel: Math.max(0, cur) };
     }
     if (Input.pressed('Escape')) this.mode = 'start';
+  },
+
+  // Loadout-Preset n: leerer Platz = aktuelle Ausruestung speichern, belegter = laden (overwrite = ueberschreiben)
+  presetPress(n, overwrite) {
+    if (overwrite || !Save.presetGet(n)) { Save.presetSave(n); this.toastText = 'LOADOUT ' + (n + 1) + ' SAVED'; }
+    else { Save.presetLoad(n); this.toastText = 'LOADOUT ' + (n + 1) + ' LOADED'; }
+    this.toastAt = this.realTime; Sfx.play('select');
   },
 
   // Slot-Auswahl im Inventar: W/S waehlt, Leertaste ruestet aus und schliesst, ESC schliesst
@@ -705,7 +727,7 @@ const G = {
   // Einstellungen: Lautstärken (A/D), Effekte, Vollbild, Steuerung, Zurücksetzen, Zurück
   // Ton und Effekte in den Einstellungen: links/rechts (oder Klick) schaltet die Stufen durch
   settingsStep(id, dir) {
-    if (id === 'fx') { Save.data.fx = (Juice.level + dir + 3) % 3; Save.write(); Sfx.play('select'); return; }
+    if (id === 'fx') { Save.data.fx = (Juice.level + dir + 3) % 3; Save.data.fxPicked = true; Save.write(); Sfx.play('select'); return; }
     const STEPS = [0, 0.3, 0.6, 1], cur = id === 'music' ? Save.data.musicVol : Save.data.sfxVol, i = STEPS.findIndex((v) => Math.abs(v - cur) < 0.05), n = (Math.max(0, i) + dir + STEPS.length) % STEPS.length;
     if (id === 'music') setMusicVolume(STEPS[n]); else Sfx.setVolume(STEPS[n]);
     Save.write(); Sfx.play('select');
@@ -721,12 +743,19 @@ const G = {
     else if (item === 'attackmode' && (dir || ok)) { Save.data.attackMode = Save.data.attackMode === 'toggle' ? 'hold' : 'toggle'; if (Save.data.attackMode === 'toggle') Save.data.mouseAim = false; Save.write(); Sfx.play('select'); }       // Toggle an -> Mauszielen aus
     else if (item === 'touch' && (dir || ok)) { Save.data.touch = !Save.data.touch; Save.write(); Sfx.play('select'); }
     else if ((item === 'music' || item === 'sfx' || item === 'fx') && (dir || ok)) this.settingsStep(item, dir || 1);
+    else if (item === 'ghost' && (dir || ok)) { Ghost.cycle(); Sfx.play('select'); }       // Geist des besten Laufs: AUS / EIGENER / FREUNDE (ghost.js), standardmäßig aus
     else if (item === 'language' && (dir || ok)) { Save.data.lang = Save.data.lang === 'de' ? 'en' : 'de'; Save.data.langSet = true; I18n.set(Save.data.lang); Save.write(); Sfx.play('select'); }
     else if (item === 'slot' && (dir || ok)) Save.switchSlot((Save.slot + (dir || 1) + Save.SLOTS) % Save.SLOTS);
     else if (item === 'tutorial' && ok) { Sfx.play('select'); this.begin(true); }                  // Tutorial erneut spielen (ohne Bonus, das gibt es nur beim ersten Mal)
     else if (item === 'controls' && ok) this.mode = 'keys';
     else if (item === 'binds' && ok) { this.mode = 'binds'; this.bindSel = 0; this.bindWait = false; this.bindsBack = 'settings'; }
     else if (item === 'account' && ok) Account.open();
+    else if (item === 'remind' && (dir || ok)) {
+      if (PWA.remindSupported && !PWA.embedded) PWA.setRemind(!PWA.remindOn).then((okk) => { if (!okk) { this.toastText = 'NOTIFICATIONS WERE NOT ALLOWED'; this.toastAt = this.realTime; } });
+      else if (PWA.visible) PWA.open();                                    // nicht möglich im Tab/iframe: Installationsdialog öffnen
+      else { this.toastText = 'REMINDERS NEED THE INSTALLED APP (CHROME / EDGE)'; this.toastAt = this.realTime; }
+      Sfx.play('select');
+    }
     else if (item === 'transfer' && ok) SaveTransfer.open();
     else if (item === 'resetAll' && ok) {
       if (!this.resetConfirm) this.resetConfirm = true;           // erst nochmal bestaetigen
@@ -907,6 +936,7 @@ const G = {
     setView(this.isMenuView());
     if (canvas.style) canvas.style.cursor = this.mode === 'play' ? 'none' : '';       // Komfort: im Spiel kein Mauszeiger
     if (this.mode !== 'play' && this.mode !== 'loading') UIHit.update();      // Maus in den Menues
+    Pad.poll(dt);
     Input.tickAttack();
     this.menuSounds();
     Ach.tick(dt);
@@ -953,6 +983,7 @@ const G = {
     } else if (this.mode === 'ending') {
       this.endAge += dt;
       if (this.endAge > ENDING_MENU_AT && Input.pressed('Tab')) { this.deathDetails = !this.deathDetails; Sfx.play('select'); }
+      if (this.endAge > ENDING_MENU_AT && Input.pressed('KeyH')) { Sfx.play('select'); Share.send(); }
       if (Input.pressed('Space') || Input.pressed('Enter')) {
         if (this.endAge > ENDING_MENU_AT) { this.deathDetails = false; if (this.coop) Coop.toLobby(); else this.mode = 'start'; }
         else if (this.endAge > 3 && this.endAge < ENDING_SPLIT && Save.data.wins > 1) this.endAge = ENDING_SPLIT;       // ab dem zweiten Sieg darf man die Szene überspringen
@@ -962,6 +993,7 @@ const G = {
       if (Cos2.dfx) Cos2.deathStep(Cos2.dfx, dt);
       if (Cos2.pet) Cos2.pet.hide = Math.min(1, Cos2.pet.hide + dt * 3);          // Begleiter versteckt sich
       if (this.deadAge > 0.6 && Input.pressed('Tab')) { this.deathDetails = !this.deathDetails; Sfx.play('select'); }
+      if (this.deadAge > 1 && Cos2.deathFadeIn() >= 1 && Input.pressed('KeyH')) { Sfx.play('select'); Share.send(); }
       const ready = this.deadAge > 1 && Cos2.deathFadeIn() >= 1;                // erst wenn die Todes-Animation vorbei und der Deathscreen eingeblendet ist
       if (ready && Input.pressed('Space')) { if (this.coop) Coop.toLobby(); else this.mode = 'start'; }      // nach dem Tod zurück ins Menü (hier wird später Build/Leveln ausgebaut)
       else if (ready && !this.coop && Input.pressed('KeyR')) { Sfx.play('select'); this.begin(false); }      // Komfort: sofort noch ein Lauf, gleiche Karte
@@ -1007,6 +1039,7 @@ const G = {
     this.clearing = this.attacks.some((a) => a.clearing);
 
     if (this.coop) Coop.update(dt);                                                      // Koop: Mitspieler, Netz, Bild der Welt
+    this.rampTick();
     Ret.tick(dt);                                                                        // erste Laeufe: Hinweise und Ziel, Challenge-Ziel
     if (this.victory > 0) { this.victory -= dt; if (this.victory <= 0) { this.win(); return; } }     // Siegphase: kein Director, keine neuen Gegner
     if (!this.bossFight && !Tutorial.active && !this.pvp) this.time += dt;
@@ -1188,7 +1221,7 @@ const G = {
     Cos2.petDraw(ctx, Cos2.pet, Cos.cur('pet'), this.realTime);                    // Cosmetic PET
     Cos2.victoryDraw(ctx, Cos2.vic);                                               // Cosmetic WIN (Fanfare, Flagge)
     if (this.mode === 'dead' && Cos2.dfx) Cos2.deathDraw(ctx, Cos2.dfx);           // Cosmetic DEATH: statt des Spielers
-    else if (!(this.pvp && this.pvp.out) && !(this.coop && this.coop.out)) this.player.draw(ctx);
+    else if (!(this.pvp && this.pvp.out) && !(this.coop && this.coop.out)) { Ghost.draw(ctx); this.player.draw(ctx); }
     for (const a of this.attacks) if (overlay(a)) a.draw(ctx);
     MapFx.drawAbove(ctx);
     for (const e of this.meteors) e.drawSky(ctx);
@@ -1225,9 +1258,29 @@ window.addEventListener('blur', () => G.pauseGame());
 window.addEventListener('beforeunload', () => Save.write());      // Fenster zu: Hintergrund-XP nicht verlieren
 document.addEventListener('visibilitychange', () => { if (document.hidden) G.pauseGame(); });
 
+// Automatische Leistungsanpassung: läuft ein Lauf spürbar langsam (schwaches Handy) und der Spieler hat die Effekte nie selbst gewählt,
+// schaltet das Spiel einmal auf REDUCED und, wenn es weiter ruckelt, auf OFF. Wird im Menü Settings > Effects zurückgestellt (CFG.perf).
+const Perf = {
+  t: 0, n: 0,
+  sample(rawMs) {
+    if (G.mode !== 'play' || document.hidden || rawMs > 250 || Save.data.fxPicked || Save.data.fxAuto === 'done') return;
+    this.t += rawMs; this.n++;
+    if (this.t < CFG.perf.windowMs) return;
+    const avg = this.t / this.n; this.t = 0; this.n = 0;
+    const stage = Save.data.fxAuto | 0;
+    if (stage === 0 && avg > CFG.perf.slowMs) this.step(1, 'PERFORMANCE MODE: EFFECTS REDUCED (SETTINGS > EFFECTS)');
+    else if (stage === 1 && avg > CFG.perf.verySlowMs) this.step(0, 'PERFORMANCE MODE: EFFECTS OFF (SETTINGS > EFFECTS)');
+  },
+  step(level, msg) {
+    Save.data.fx = level; Save.data.fxAuto = level === 1 ? 1 : 'done'; Save.write();
+    G.toastText = msg; G.toastAt = G.realTime;
+  },
+};
+
 let lastTime = performance.now();
 function loop(now) {
   const dt = Math.min((now - lastTime) / 1000, 0.1);   // Deckel, damit nach einem Tab-Wechsel nichts springt
+  Perf.sample(now - lastTime);
   lastTime = now;
   // Ein Fehler darf das Spiel nicht einfrieren (sonst bleibt der Bildschirm schwarz): melden und weiterlaufen
   try {

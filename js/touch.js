@@ -237,6 +237,6 @@ const Touch = {
   },
 };
 Input.touch = { mv: { on: false, dir: 0 }, aim: { on: false, dir: 0 } };
-Input.touchMoving = () => !!Save.data.touch && Input.touch.mv.on;
-Input.touchAiming = () => !!Save.data.touch && Input.touch.aim.on;
+Input.touchMoving = () => (!!Save.data.touch || Pad.on()) && Input.touch.mv.on;
+Input.touchAiming = () => (!!Save.data.touch || Pad.on()) && Input.touch.aim.on;
 requestAnimationFrame(() => Touch.tick());

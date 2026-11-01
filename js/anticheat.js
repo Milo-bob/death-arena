@@ -60,7 +60,8 @@ const Anticheat = {
           if (!r.ok) {
             if (r.offline || r.status === 0 || r.status >= 500 || r.status === 401) return;         // kein Netz / Serverproblem: bleibt liegen, naechstes Mal
             this.lastError = String((r.json && (r.json.message || r.json.msg)) || r.status);        // Server hat abgelehnt: nicht wiederholen
-          } else if (r.json && r.json.ok === false) this.lastError = String(r.json.reason || '');
+          } else if (r.json && r.json.ok === false && r.json.reason === 'unknown_ticket' && !e.retried) { e.retried = true; e.id = null; continue; }       // Schein dem Server unbekannt (z. B. anderes Konto): einmal ohne Ticket melden, damit das Ledger stimmt
+          else if (r.json && r.json.ok === false) this.lastError = String(r.json.reason || '');
           else if (r.json && r.json.verified && e.kind === 'run' && typeof Social !== 'undefined' && Social.guild) Social.loadGuild();       // Gilden-Punkte kommen vom Server
           this.pending.shift(); this.persist();
         }

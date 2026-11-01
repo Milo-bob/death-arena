@@ -375,6 +375,7 @@ const CFG = {
       trail: [
         { id: 'none',    name: 'NO TRAIL',    cost: 0,   color: STYLE.pal.greyMid, colors: null },
         { id: 'sparks',  name: 'SPARKS',      cost: 120, color: STYLE.pal.orange, colors: [STYLE.pal.yellow, STYLE.pal.orange, STYLE.pal.red], style: 'pick', base: true },       // base = bleibt ein eigenes Item (Grundform der Funken-Spur), die Farben EMBERS/FROST/TOXIC sind Farbwahl
+        { id: 'festive', name: 'FESTIVE SPARKLES', cost: 0, secret: true, event: 'winter', color: STYLE.pal.red, colors: [STYLE.pal.red, STYLE.pal.white, STYLE.pal.green], style: 'pick', shape: 'plus' },       // Event-Belohnung WINTER FEST (events.js), nicht kaufbar
         { id: 'ember',  name: 'EMBERS',      cost: 120, color: STYLE.pal.orange, colors: [STYLE.pal.yellow, STYLE.pal.orange, STYLE.pal.red], style: 'pick' },
         { id: 'frost',   name: 'FROST DUST',  cost: 120, color: STYLE.pal.ice,    colors: [STYLE.pal.ice, STYLE.pal.cyan, STYLE.pal.cyanMid], style: 'pick' },
         { id: 'toxic',   name: 'TOXIC SPORES', cost: 150, color: STYLE.pal.green, colors: [STYLE.pal.green, STYLE.pal.teal, STYLE.pal.greenMid], style: 'pick' },
@@ -1749,6 +1750,20 @@ CFG.asc = { max: 10, credits: 0.25, firstClear: 100, levels: [null,
   { name: "DEATH'S GAZE", desc: 'Enemies and bosses 8% faster, you take 10% more damage.', speed: 1.08, bossSpeed: 1.08, damage: 1.1 },
 ] };
 // Challenge: dieselben Modifier fuer alle am selben Tag (taeglich 2, woechentlich 3). Ziel taeglich: Zeit, woechentlich: Bosse. Belohnung beim ersten Schaffen.
+// Automatische Leistungsanpassung (game.js Perf): im Lauf wird alle windowMs der Mittelwert der Bildzeit geprüft; über slowMs (unter ~35 Bilder/s) -> REDUCED, danach über verySlowMs (unter ~22/s) -> OFF
+CFG.perf = { windowMs: 8000, slowMs: 29, verySlowMs: 45 };
+// Comeback-Bonus (retention.js Comeback): wer mindestens `days` Tage nicht gespielt hat, bekommt für die nächsten `runs` normalen Einzelläufe (ohne Ascension/Challenge) etwas Hilfe.
+// Bewusst keine Credits (der Anticheat zählt Zuwächse ohne Lauf als Verstoß): weniger Schaden, mehr Heilung, etwas weniger Gegner.
+CFG.comeback = { days: 5, runs: 2, mods: { damage: 0.8, heal: 1.3, spawn: 0.92 } };
+// Zeitevents (events.js, CFG.seasonEvents): Zeitraum [Monat, Tag], Ziel = `runs` Läufe von mindestens `minTime` Sekunden, Belohnung = Cosmetic "kategorie:id" (Item mit event-Marke)
+CFG.seasonEvents = [
+  { id: 'winter', name: 'WINTER FEST', from: [12, 1], to: [1, 6], snow: true, runs: 5, minTime: 60, reward: 'trail:festive' },
+];
+// Ability-Anlauf: Armory-Abilities sind von Anfang an da, starten aber schwächer (Faktor `start` auf Stärke und Abklingtempo über Save.gearMul) und erreichen volle Stärke nach so vielen
+// besiegten Bossen, wie ihre Gruppe im normalen Lauf bis zur ersten Wahl braucht (WEAK 1, MEDIUM 2, STRONG 3). Dazwischen steigt sie in gleichen Stufen. Nur Einzelspieler/Koop, nicht PvP/Tutorial.
+CFG.ramp = { start: 0.6 };
+// Heldenmeisterschaft (mastery.js): Punkte pro Lauf mit dem Helden, Stufenschwellen, Belohnung = Leben pro Stufe
+CFG.mastery = { perSecond: 0.5, perBoss: 15, perKill: 0.2, winBonus: 250, levels: [100, 300, 650, 1100, 1700, 2500, 3600, 5000, 7000, 10000], hpPerLevel: 4 };
 CFG.chal = { dailyTime: 300, weeklyBosses: 3, dailyBase: 150, dailyStreak: 25, streakMax: 6, weeklyBase: 600, weeklyShards: 20, mods: [
   { id: 'swarm', name: 'SWARM', desc: '50% more enemies.', spawn: 1.5, credits: 0.3 },
   { id: 'tough', name: 'IRON SKIN', desc: 'Enemies have 60% more health.', hits: 1.6, credits: 0.25 },

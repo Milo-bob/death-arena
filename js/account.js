@@ -105,6 +105,8 @@ const Account = {
   // Antwort: 'ok' | 'flagged' (gespeichert, aber auffaellig) | 'rejected:<Grund>' (nicht gespeichert). Gibt es die Funktion noch nicht, gilt der alte direkte Weg.
   async upload(i, code) {
     try { if (typeof Anticheat !== 'undefined') await Anticheat.flush(); } catch (e) { /* ein Fehler beim Melden darf das Speichern nie verhindern */ }
+    // Ist ein Lauf-Bericht noch offen (Netz/Server), wuerde der Stand Credits enthalten, die das Ledger noch nicht kennt (falscher Verstoss). Dann spaeter hochladen, hoechstens 15 Minuten lang.
+    if (typeof Anticheat !== 'undefined' && Anticheat.on && Anticheat.pending.length && Date.now() - (Anticheat.pending[0].at || 0) < 15 * 60000) return { ok: false, status: 0, offline: true, json: null };
     let r = this.noSavePut ? null : await this.rest('POST', '/rest/v1/rpc/save_put', { p_slot: i, p_code: code });
     if (r && !r.ok && (r.status === 404 || /could not find the function|schema cache/i.test(String((r.json && (r.json.message || r.json.msg)) || '')))) { this.noSavePut = true; r = null; }
     if (!r) r = await this.rest('POST', '/rest/v1/saves?on_conflict=user_id,slot', [{ user_id: this.meta.uid, slot: i, code }], { Prefer: 'resolution=merge-duplicates,return=minimal' });

@@ -260,7 +260,7 @@ class Player {
   }
 
   // Blickrichtung unabhaengig von der Laufrichtung (Maus-Zielen oder Touch-Sticks)
-  freeAim() { return !!(Save.data.mouseAim || Save.data.touch); }
+  freeAim() { return !!(Save.data.mouseAim || Save.data.touch || Pad.on()); }
 
   move(f) {
     const px0 = this.x, py0 = this.y;
@@ -288,7 +288,7 @@ class Player {
     const can = this.canMove, P = CFG.player, anyKey = this.anyMoveKey();
     if (this.freeAim()) {                                                      // Maus-Zielen: Blickrichtung = zur Maus, Laufen unabhaengig davon in die Tastenrichtung (Tippen-zum-Drehen entfaellt)
       this.moveGraceT = 0; this.keyHeldT = anyKey ? 1 : 0; this.moveArmed = anyKey; this.moveGo = anyKey;
-      if (Save.data.touch) {                                                   // Touch: linker Stick = Laufrichtung (stufenlos), rechter Stick = Blickrichtung, sonst in Laufrichtung schauen
+      if (Save.data.touch || Pad.on()) {                                       // Touch/Controller: linker Stick = Laufrichtung (stufenlos), rechter Stick = Blickrichtung, sonst in Laufrichtung schauen
         if (Input.touchMoving()) this.moveDir = Input.touch.mv.dir;
         if (can > 0) { if (Input.touchAiming()) this.dir = Input.touch.aim.dir; else if (Input.touchMoving()) this.dir = this.moveDir; }
       } else if (can > 0 && Input.mouse.x > -900) {
