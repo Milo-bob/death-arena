@@ -66,7 +66,8 @@ const Tutorial = {
     const s = SCENARIOS[this.idx];
     if (this.phase === 'brief') {                                          // Textbox: nichts passiert, bis der Spieler SPACE drueckt
       this.t += dt;
-      if (this.t > 0.35 && (Input.pressed('Space') || Input.pressed('Enter') || Input.clicked)) {
+      const keyOk = !Save.data.touch && (Input.pressed('Space') || Input.pressed('Enter'));       // Touch: nur Tipp aufs Feld, sonst bestaetigt der ATTACK-Knopf (setzt Space) den Text und sein erster Druck geht fuer den Angriff verloren
+      if (this.t > 0.35 && (keyOk || Input.clicked)) {
         this.phase = 'task'; this.t = 0;
         Sfx.play('select');
         if (!this.begun) { this.begun = true; s.begin && s.begin(this.s); }
@@ -172,7 +173,7 @@ const SCENARIOS = [
     name: 'MELEE ATTACK',
     enter: (s) => { G.player.weapon = WEAPON.SWORD; },
     update: () => { G.player.weapon = WEAPON.SWORD; tutKeep('circle', 2, 3 - G.kills, 130); },
-    lines: () => [Save.data.touch ? 'ATTACK: hold the ATTACK button' : 'ATTACK: ' + tkeys('attack') + '  (hold to keep attacking)', 'Defeat 3 circles with your melee weapon. Good against swarms.'],
+    lines: () => [Save.data.touch ? (Input.attackToggleMode() ? 'ATTACK: tap the ATTACK button (tap again to stop)' : 'ATTACK: hold the ATTACK button') : 'ATTACK: ' + tkeys('attack') + '  (hold to keep attacking)', 'Defeat 3 circles with your melee weapon. Good against swarms.'],
     progress: () => tutCount(G.kills, 3, 'KILLS'),
     done: () => G.kills >= 3,
   },
@@ -318,7 +319,7 @@ const SCENARIOS = [
 
 // Deutsche Texte fuer die Touch-Fassung (Knopfnamen statt Tasten)
 if (typeof I18n !== 'undefined' && I18n.add) I18n.add({
-  'ATTACK: hold the ATTACK button': 'ANGRIFF: halte den ANGRIFF-Knopf', 'SWITCH WEAPON: tap CHANGE WEAPON': 'WAFFENWECHSEL: tippe auf WAFFE WECHSELN',
+  'ATTACK: hold the ATTACK button': 'ANGRIFF: halte den ANGRIFF-Knopf', 'ATTACK: tap the ATTACK button (tap again to stop)': 'ANGRIFF: tippe den ANGRIFF-Knopf (nochmal tippen zum Stoppen)', 'SWITCH WEAPON: tap CHANGE WEAPON': 'WAFFENWECHSEL: tippe auf WAFFE WECHSELN',
   'The button swaps between your melee and ranged weapon.': 'Der Knopf wechselt zwischen Nah- und Fernkampfwaffe.',
   'Nothing happens until you tap CONTINUE. Read in peace.': 'Es passiert nichts, bis du auf WEITER tippst. Lies in Ruhe.',
 });
