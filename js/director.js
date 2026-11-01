@@ -205,7 +205,7 @@ class Director {
     if (this.obstT > 0 && !this.obstFill) return;
     for (let n = have; n < target; n++) {
       const pos = this.freeObstaclePos();
-      if (pos) G.obstacles.push(new Obstacle(pos[0], pos[1]));
+      if (pos) { const ob = new Obstacle(pos[0], pos[1]); if (this.wallDir !== undefined) { ob.wall = this.wallDir; this.wallDir = undefined; } G.obstacles.push(ob); }
       if (!this.obstFill) break;
     }
     this.obstFill = false;
@@ -215,19 +215,23 @@ class Director {
   // Zufällige freie Stelle auf der Karte (Abstand zu Spieler, anderen Barrikaden und Spawnpunkten), null wenn nichts gefunden
   freeObstaclePos() {
     const C = Object.assign({}, CFG.obstacles, G.map.obstacles || {}), p = G.player;
-    if (C.cluster && Math.random() < C.cluster) {                                   // Scrapyard: neben einem vorhandenen Haufen aufstellen, damit Mauern entstehen
-      const alive = G.obstacles.filter((o) => o.alive);
-      for (let t = 0; t < 12 && alive.length; t++) {
-        const b = alive[randInt(0, alive.length - 1)], a = rand(0, 360), [x, y] = clampToMap(b.x + fwdX(a) * C.radius * 1.8, b.y + fwdY(a) * C.radius * 1.8, C.margin);
+    if (C.cluster && Math.random() < C.cluster) {                                   // Scrapyard: Mauern bauen. Ein Haufen kommt an das Ende einer Kette und setzt deren Richtung fort (leicht gebogen)
+      const alive = G.obstacles.filter((o) => o.alive), reach2 = (C.radius * 2.3) ** 2, edge = (G.map.env && G.map.env.rim ? G.map.env.rim.width : 0) + C.radius + 6;      // nie im Schredderrand
+      const ends = alive.filter((o) => alive.filter((q) => q !== o && dist2(o.x, o.y, q.x, q.y) < reach2).length <= 1);
+      for (let t = 0; t < 14 && alive.length; t++) {
+        const pool = ends.length && Math.random() < 0.85 ? ends : alive, b = pool[randInt(0, pool.length - 1)];
+        const a = b.wall !== undefined ? b.wall + rand(-28, 28) : rand(0, 360), x = b.x + fwdX(a) * C.radius * 1.55, y = b.y + fwdY(a) * C.radius * 1.55;
+        if (Math.abs(x) > CFG.map.halfW * G.arenaScale - edge || Math.abs(y) > CFG.map.halfH * G.arenaScale - edge) { b.wall = dirTo(b.x, b.y, 0, 0) + rand(-50, 50); continue; }       // Kette stoesst an den Rand: dreht zur Mitte ab
         if (dist2(x, y, p.x, p.y) < C.minPlayer * C.minPlayer) continue;
-        if (G.obstacles.some((o) => o.alive && dist2(x, y, o.x, o.y) < (C.radius * 1.6) ** 2)) continue;
+        if (G.obstacles.some((o) => o.alive && dist2(x, y, o.x, o.y) < (C.radius * 1.4) ** 2)) continue;
         if (G.spawnPointList().some(([sx, sy]) => dist2(x, y, sx, sy) < C.minSpawn * C.minSpawn)) continue;
+        this.wallDir = a;                                                              // updateObstacles gibt die Richtung an den neuen Haufen weiter
         return [x, y];
       }
     }
     for (let t = 0; t < 30; t++) {
       let x, y;
-      [x, y] = clampToMap(rand(-CFG.map.halfW, CFG.map.halfW), rand(-CFG.map.halfH, CFG.map.halfH), C.margin);
+      [x, y] = clampToMap(rand(-CFG.map.halfW, CFG.map.halfW), rand(-CFG.map.halfH, CFG.map.halfH), C.margin + (G.map.env && G.map.env.rim ? G.map.env.rim.width : 0));
       if (dist2(x, y, p.x, p.y) < C.minPlayer * C.minPlayer) continue;
       if (G.obstacles.some((o) => o.alive && dist2(x, y, o.x, o.y) < C.minOther * C.minOther)) continue;
       if (G.spawnPointList().some(([sx, sy]) => dist2(x, y, sx, sy) < C.minSpawn * C.minSpawn)) continue;
