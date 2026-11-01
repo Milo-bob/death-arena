@@ -149,13 +149,15 @@ const Elite = {
       for (const [x, y, c] of [[20, 11, '#ffffff'], [21, 11, '#ffffff'], [20, 12, '#ffffff'], [21, 12, '#ffffff'], [21, 11, '#6ff0ff']]) px(x, y, c);
       for (const [x, y] of [[2, 6], [4, 8], [6, 10], [9, 12]]) px(x, y, '#a98aff');
     }));
-    if (type === 'bastion') return body('eliteBastion2', ({ px, poly, g }) => half(g, 28, 28, () => {       // Panzerblock mit grossem Schildbogen vorn
-      poly([[2, 3], [19, 2], [19, 14], [2, 14]], '#2c1a06'); poly([[3, 4], [18, 3], [18, 14], [3, 14]], '#8a5a1a'); poly([[3, 4], [18, 3], [18, 6], [3, 7]], '#d89a4a');
-      for (const y of [9, 12]) poly([[5, y], [16, y], [16, y + 1], [5, y + 1]], '#4a2c0a');
-      for (const [x, y] of [[4, 5], [16, 4]]) px(x, y, '#fff0c0');
-      for (let y = 0; y < 14; y++) for (let x = 0; x < 28; x++) { const d = Math.hypot(x + 0.5 - 14, y + 0.5 - 14), a = Math.atan2(y + 0.5 - 14, x + 0.5 - 14); if (d <= 14 && d > 10.2 && Math.abs(a) < 1.2) px(x, y, d > 13 ? '#e6eef8' : d > 11.8 ? '#9aa8bc' : '#566478'); }
-      for (let y = 0; y < 14; y++) for (let x = 0; x < 28; x++) { const d = Math.hypot(x + 0.5 - 11, y + 0.5 - 14); if (d <= 4) px(x, y, d <= 2.4 ? '#ffe27a' : '#6a4410'); }
-      px(24, 12, '#ffffff'); px(25, 13, '#ffffff'); px(26, 13, '#ffffff');
+    if (type === 'bastion') return body('eliteBastion3', ({ px, poly, g }) => half(g, 28, 28, () => {       // Festung: Stahlachteck mit gluehendem Kern und dreifach geplattetem Schildbogen vorn
+      const oct = (r, col) => poly(Array.from({ length: 8 }, (_, k) => [12 + Math.cos(k * 0.7854 + 0.3927) * r, 14 + Math.sin(k * 0.7854 + 0.3927) * r]), col);
+      oct(11, '#141a26'); oct(9.8, '#3a4660'); oct(7.6, '#5d6b88'); oct(5.6, '#8696b4');
+      for (let k = 0; k < 8; k++) { const a = k * 0.7854; for (let r = 4; r < 10; r += 1) px(12 + Math.cos(a) * r, 14 + Math.sin(a) * r, '#2a3448'); }               // Plattenfugen
+      for (let y = 0; y < 14; y++) for (let x = 0; x < 28; x++) { const d = Math.hypot(x + 0.5 - 12, y + 0.5 - 14), a = Math.atan2(y + 0.5 - 14, x + 0.5 - 12); if (d <= 14 && d > 11.2 && Math.abs(a) < 1.05) px(x, y, d > 13.1 ? '#eef4fc' : d > 12.2 ? '#9aaac4' : '#46546e'); }
+      for (const a of [0, 0.42, 0.84]) px(12 + Math.cos(a) * 12.7, 14 + Math.sin(a) * 12.7, '#fff0c0');                                                                       // Nieten im Schild
+      for (let y = 0; y < 14; y++) for (let x = 0; x < 28; x++) { const d = Math.hypot(x + 0.5 - 12, y + 0.5 - 14); if (d <= 4) px(x, y, d <= 2 ? '#ffe9b0' : d <= 3 ? '#ff9a2d' : '#141a26'); }
+      for (let x = 17; x < 21; x++) px(x, 13, '#ff3d3d');                                                                                                                      // Sehschlitz
+      for (const x of [1, 3]) px(x, 11, '#2a3448');                                                                                                                            // Lueftung hinten
     }));
     return null;
   },

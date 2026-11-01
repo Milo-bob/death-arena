@@ -64,14 +64,11 @@ class ScrapMagnet {
       const p = G.player, dp = Math.hypot(p.x - this.x, p.y - this.y);
       if (dp < R) { ctx.globalAlpha = 0.85 * fade * dim; ctx.fillStyle = colLight; pxDashLine(ctx, cx, cy, STAGE_W / 2 + p.x, STAGE_H / 2 - p.y, 1, 4); }       // Strahl zum Spieler: er wird gezogen / gestossen
     }
-    // Kran: Warnring am Boden, schwerer Fuss, Hufeisen mit rotem und blauem Pol
+    // Kran: kleiner, schlichter Fuss mit zwei Polen (rot / blau), der Kern leuchtet in der Farbe der Polung
     const q = (v) => Math.round(v / PIXEL) * PIXEL;
-    ctx.globalAlpha = 0.9 * dim; ctx.fillStyle = '#15110d'; pxDisc(ctx, cx, cy, 22); ctx.fillStyle = P.yellow; pxRing(ctx, cx, cy, 22, 2, 18, t * 0.15);
-    ctx.fillStyle = P.greyDark; pxDisc(ctx, cx, cy, 19); ctx.fillStyle = P.greyMid; pxDisc(ctx, cx, cy, 15);
-    ctx.fillStyle = '#3a3f4a'; ctx.fillRect(q(cx - 13), q(cy - 4), 6, 8);
-    for (const [dy, c2] of [[-9, '#ff3d5a'], [9, '#3a8bff']]) { ctx.fillStyle = '#15110d'; ctx.fillRect(q(cx - 2), q(cy + dy - 4), 16, 8); ctx.fillStyle = c2; ctx.fillRect(q(cx), q(cy + dy - 3), 14, 6); ctx.fillStyle = '#ffffff'; ctx.fillRect(q(cx + 10), q(cy + dy - 3), 2, 6); }
-    ctx.globalAlpha = dim; ctx.fillStyle = active ? col : P.grey; pxDisc(ctx, cx - 4, cy, 5); ctx.fillStyle = active ? colLight : P.greyMid; pxDisc(ctx, cx - 5, cy - 1, 2);
-    if (active && Math.sin(t * 40) > 0) { ctx.globalAlpha = 0.9 * dim; ctx.fillStyle = P.white; pxLine(ctx, cx + 12, cy - 9, cx + 12 + rand(-3, 3), cy, 1); pxLine(ctx, cx + 12, cy, cx + 12 + rand(-3, 3), cy + 9, 1); }      // Blitzbogen zwischen den Polen
+    ctx.globalAlpha = 0.85 * dim; ctx.fillStyle = '#15110d'; pxDisc(ctx, cx, cy, 8); ctx.fillStyle = P.greyMid; pxDisc(ctx, cx, cy, 6.5);
+    ctx.fillStyle = '#ff3d5a'; ctx.fillRect(q(cx - 2), q(cy - 6), 6, 2); ctx.fillStyle = '#3a8bff'; ctx.fillRect(q(cx - 2), q(cy + 4), 6, 2);
+    ctx.globalAlpha = dim; ctx.fillStyle = active ? col : P.grey; pxDisc(ctx, cx - 1, cy, 2.5);
     ctx.restore();
   }
 }
@@ -159,7 +156,8 @@ MapEnv.rimDepth = function (x, y) {                                             
 MapEnv.rimPush = function (x, y) {
   if (!this.on) return [0, 0];
   const R = G.map.env.rim, [dx, dy] = this.rimDepth(x, y);
-  return [-Math.sign(x) * R.push * dx * dx, -Math.sign(y) * R.push * dy * dy];
+  const p = R.power || 2;
+  return [-Math.sign(x) * R.push * Math.pow(dx, p), -Math.sign(y) * R.push * Math.pow(dy, p)];
 };
 MapEnv.updateRim = function (dt) {
   const E = G.map && G.map.env, R = E && E.rim, p = G.player;

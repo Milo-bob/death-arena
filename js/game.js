@@ -357,7 +357,7 @@ const G = {
   },
 
   // Nach einem Boss: 3 Abilities zur Wahl (Spiel pausiert). Solange ein Slot leer ist, kommen sie aus dessen Gruppe und werden eingesetzt.
-  // Sind alle Slots voll, kommen sie aus allen Gruppen (ohne schon gesammelte), die Wahl ersetzt dann die Ability ihrer Gruppe (die alte bleibt gesammelt, Tausch im Pausenmenue).
+  // Sind alle Slots voll, kommen sie aus allen Gruppen (ohne schon gesammelte), die Wahl wird gesammelt und im Pausenmenue getauscht (sie ersetzt nichts von selbst).
   offerAbility() {
     if (this.mode !== 'play') return;
     const tier = CFG.loadout.tiers.find((t) => !this.player.slots[t.id]) || null;
@@ -767,10 +767,10 @@ const G = {
     if (k.age > 0.6 && confirm) {
       const id = k.ids[k.sel], A = CFG.loadout.abilities[id], p = this.player;
       p.owned.push(id);
-      const prev = p.slots[A.tier];                                    // die neue Ability wird immer gleich eingesetzt; eine verdraengte bleibt gesammelt (Tausch im Pausenmenue)
-      p.slots[A.tier] = id;
-      this.swapFlash = 0.4;
-      this.notice((prev ? 'EQUIPPED: ' : '') + A.name + (A.passive ? '' : ' [' + Input.label('ability_' + A.tier) + ']') + (prev ? ' (REPLACES ' + CFG.loadout.abilities[prev].name + ')' : ''), STYLE.pal.cyan);
+      if (!p.slots[A.tier]) {                                         // freier Slot: gleich einsetzen
+        p.slots[A.tier] = id;
+        this.notice(A.name + (A.passive ? '' : ' [' + Input.label('ability_' + A.tier) + ']'), STYLE.pal.cyan);
+      } else this.notice('COLLECTED: ' + A.name + ' (SWAP IN PAUSE MENU)', STYLE.pal.yellow);       // belegter Slot: die aktuelle Ability bleibt, die neue ist im Pausenmenue tauschbar
       this.pick = null;
       this.mode = 'play';
     }

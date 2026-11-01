@@ -1435,8 +1435,8 @@ const CFG = {
     { id: 'scrap', name: 'SCRAPYARD', desc: 'Junk, cranes, magnets.', ground: 'ground6', frame: STYLE.pal.yellow, half: [480, 360], diff: { speed: 1.3, spawn: 0.62, damage: 3.5, bossHp: 1.7, cores: 3, hits: 3.5, rate: 0.52, allRate: 0.42, capMul: 2.6, boss: { hp: 3.2, fire: 0.52, speed: 1.3, dmg: 2.0 } }, level: 6, unlockFrac: 0.5,
       hazards: ['MAGNET CRANES', 'SCRAP WALLS', 'GRINDER RIM'],
       env: {
-        rim: { width: 80, push: 3.4, hot: 0.4, dps: 6 },
-        magnets: { count: 3, radius: 135, idle: [5, 9], warn: 1.4, on: 4.5, pull: 1.5, bend: 3.2, minGap: 150 },
+        rim: { width: 80, push: 5.2, hot: 0.5, dps: 14, power: 1.4 },
+        magnets: { count: 3, radius: 135, idle: [5, 9], warn: 1.4, on: 5, pull: 2.8, bend: 6.5, minGap: 150 },
       },
       obstacles: { style: 'scrap', radius: 15, hpMin: 5, hpMax: 8, start: 44, perWave: 6, max: 68, respawn: 4, minOther: 30, minPlayer: 70, cluster: 0.88 },
       bossOrder: ['octagon', 'magnetron', 'chomp', 'juggernaut', 'twin', 'arena'],          // Magnetron ersetzt den Kite, Chainhound den Beschwoerer, Juggernaut den Laser-Turm
