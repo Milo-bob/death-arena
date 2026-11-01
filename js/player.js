@@ -55,7 +55,7 @@ class Player {
   // Abklingzeiten laufen schneller ab: Meta-Upgrade und Coolant-Buff
   get cdRate() { return (1 + Save.bonus('cooldown') + Xp.val('cooldown')) * (this.buffs.coolant > 0 ? CFG.drops.types.coolant.rate : 1) * Hero.mods().cd; }
   // Angriffstempo durch den Raserei-Drop: Schwert dreht schneller (siehe SwordSwing), Schuss feuert schneller
-  get hasteFactor() { return (this.buffs.rapid > 0 ? 1 / CFG.drops.types.rapid.mult : 1) * (this.has('overclock') ? 1 + (CFG.passives.overclock.rate - 1) * Save.gearMul('overclock') : 1) * (1 + Save.bonus('attackSpeed') + Xp.val('rapid')) * Hero.mods().atk * (1 + Hero.mods().rage * (1 - clamp(this.hpPct / 100, 0, 1))); }
+  get hasteFactor() { return (this.buffs.rapid > 0 ? 1 / CFG.drops.types.rapid.mult : 1) * (this.has('overclock') ? 1 + (CFG.passives.overclock.rate - 1) * Save.gearMul('overclock') : 1) * (1 + Save.bonus('attackSpeed') + Xp.val('rapid')) * Hero.mods().atk * Coop.haste() * (1 + Hero.mods().rage * (1 - clamp(this.hpPct / 100, 0, 1))); }
   // Angriffstempo je Waffe: alle Tempo-Boni (Rapid-Buff, Overclock, Attack Speed, Quick Hands, Helden) wirken auf die Plasma Blade staerker als auf den Blaster (CFG.hasteScale)
   hasteFor(kind) { const h = this.hasteFactor, k = CFG.hasteScale[kind]; return k === undefined ? h : 1 + (h - 1) * k; }
   evo(id) { return this.evolved[CFG.evolutions.list[id].slot] === id; }       // Evolution dieses Laufs aktiv?
@@ -104,7 +104,7 @@ class Player {
   }
 
   heal(amount) {
-    amount *= 1 + Save.bonus('heal');                         // Meta-Upgrade Healing
+    amount *= (1 + Save.bonus('heal')) * (G.healMul || 1);   // Meta-Upgrade Healing, Ascension/Challenge
     this.hp = Math.min(this.maxHp, this.hp + amount);
     if (amount >= 10) G.addText('dmgHeal', this.x, this.y);
   }
@@ -154,7 +154,7 @@ class Player {
       amount = base * this.damageFactor * (G.bloodMoon ? CFG.bloodMoon.damageFactor : 1);
       if (Save.equipped('artifact') === 'armor') amount *= 1 - CFG.items.armor.reduce * Save.gearMul('armor');
     }
-    amount *= (G.diff.damage + this.dmgRamp()) * mul * Hero.mods().dmgTaken * Perk.mul('dmgTaken') * (this.fortressT > 0 ? 1 - CFG.fortress.reduce : 1);                          // Karten-Schwierigkeit, Boss-Stärke
+    amount *= (G.diff.damage + this.dmgRamp()) * mul * Hero.mods().dmgTaken * Coop.guard() * Perk.mul('dmgTaken') * (this.fortressT > 0 ? 1 - CFG.fortress.reduce : 1);                          // Karten-Schwierigkeit, Boss-Stärke
     amount *= Math.max(0.2, 1 - Save.bonus('resist') - Save.bonus('tough') - Xp.val('armor') - (this.has('barrier') ? CFG.passives.barrier.reduce * Save.gearMul('barrier') : 0));     // Meta-Upgrade Abwehr + Meilenstein Schadensabwehr
     G.addDamageText(amount, this.x, this.y);                      // die Zahl zeigt den echten Schaden (nach Karte, Zeit, Boss, Ruestung ...)
     if (Save.equipped('artifact') === 'thorns') this.thornBurst();
@@ -854,6 +854,7 @@ class Player {
         G.ultNext = 0;
       }
       this.ult = new Ultimate(this);
+      Coop.ultCast();
       Ach.add('ult');
       Sfx.play('ultimate');
       G.attacks.push(this.ult);

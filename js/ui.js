@@ -874,6 +874,40 @@ function drawMapSelectScreen(ctx) {
       uiText(ctx, 'ON ' + CFG.maps[i - 1].name, x + w / 2, yy + 200, { size: T.small, color: P.grey, align: 'center' });
     }
   });
+  drawRunOptions(ctx, 284);
+}
+
+// Unter den Karten: Ascension (W/S) und Challenge (C) fuer den naechsten Lauf
+function drawRunOptions(ctx, y) {
+  const P = STYLE.pal, T = STYLE.type, x = 24, w = STAGE_W - 48;
+  const rookie = Onb.active(), asc = Asc.sel(), max = Asc.max();
+  UIHit.add(x, y, w, 30, () => {}, { act: () => { if (rookie) return; if (max > 0) Asc.set((asc + 1) % (max + 1)); else G.toast('WIN ONCE TO UNLOCK ASCENSION'); } });
+  uiPanel(ctx, x, y, w, 30, { color: rookie || !max ? P.greyMid : asc ? P.orange : P.yellow, fill: P.void, alpha: 0.92, glow: false });
+  if (rookie) uiText(ctx, 'ROOKIE ASSIST: THE FIRST ' + CFG.onb.runs + ' RUNS ARE EASIER AND HAVE A GOAL EACH', STAGE_W / 2, y + 19, { size: T.small, color: P.green, align: 'center' });
+  else if (!max) uiText(ctx, 'ASCENSION: WIN ONCE TO UNLOCK HARDER RUNS WITH MORE CREDITS', STAGE_W / 2, y + 19, { size: T.small, color: P.grey, align: 'center' });
+  else {
+    const L = asc ? CFG.asc.levels[asc] : null;
+    uiText(ctx, 'ASCENSION ' + asc + (L ? ': ' + L.name : ': NORMAL'), x + 10, y + 12, { size: T.body, color: asc ? P.orange : P.yellow });
+    uiText(ctx, asc ? L.desc : 'No extra rules.', x + 10, y + 24, { size: T.small, color: P.grey, maxW: w - 150 });
+    uiText(ctx, asc ? 'CREDITS +' + Math.round(asc * CFG.asc.credits * 100) + '%' : 'CREDITS x1', x + w - 10, y + 12, { size: T.small, color: P.yellow, align: 'right' });
+    uiText(ctx, '[W/S] LEVEL ' + max + ' MAX', x + w - 10, y + 24, { size: T.small, color: P.greyMid, align: 'right' });
+  }
+  const y2 = y + 34, unl = Chal.unlocked(), s = Chal.sel(), def = unl && s !== 'off' ? Chal.def(s) : null;
+  UIHit.add(x, y2, w, 30, () => {}, { act: () => { if (unl) Chal.cycle(1); else G.toast('FINISH 3 RUNS TO UNLOCK THE CHALLENGES'); } });
+  uiPanel(ctx, x, y2, w, 30, { color: def ? P.cyan : P.greyMid, fill: P.void, alpha: 0.92, glow: false });
+  if (!unl) uiText(ctx, 'CHALLENGES: FINISH 3 RUNS TO UNLOCK DAILY AND WEEKLY CHALLENGES', STAGE_W / 2, y2 + 19, { size: T.small, color: P.grey, align: 'center' });
+  else if (!def) {
+    const dd = Chal.def('daily'), done = Chal.doneNow(dd);
+    uiText(ctx, 'CHALLENGE: OFF', x + 10, y2 + 12, { size: T.body, color: P.grey });
+    uiText(ctx, 'Daily: ' + dd.mods.map((m) => m.name).join(' + ') + (done ? '  (DONE)' : ''), x + 10, y2 + 24, { size: T.small, color: P.grey, maxW: w - 120 });
+    uiText(ctx, '[C] CHANGE', x + w - 10, y2 + 24, { size: T.small, color: P.greyMid, align: 'right' });
+  } else {
+    const done = Chal.doneNow(def), cm = Chal.mods(def);
+    uiText(ctx, def.label + ' CHALLENGE: ' + def.mods.map((m) => m.name).join(' + '), x + 10, y2 + 12, { size: T.body, color: P.cyan, maxW: w - 150 });
+    uiText(ctx, def.goal.text + (done ? '  (ALREADY DONE - NO REWARD)' : '  =  ' + (def.kind === 'weekly' ? CFG.chal.weeklyBase + ' CREDITS +' + CFG.chal.weeklyShards + ' SHARDS' : CFG.chal.dailyBase + ' CREDITS +STREAK')), x + 10, y2 + 24, { size: T.small, color: done ? P.grey : P.yellow, maxW: w - 150 });
+    uiText(ctx, 'CREDITS +' + Math.round(cm.credits * 100) + '%', x + w - 10, y2 + 12, { size: T.small, color: P.yellow, align: 'right' });
+    uiText(ctx, '[C] CHANGE', x + w - 10, y2 + 24, { size: T.small, color: P.greyMid, align: 'right' });
+  }
 }
 
 // Eine Zeile Erklaerung je Reiter der HERO-Seite (neue Spieler wissen sonst nicht, was Credits, Items und Abilities sind)
@@ -2041,6 +2075,7 @@ function drawEndingScreen(ctx) {
   });
   if (G.levelRes) uiText(ctx, '+' + G.levelRes.xp + ' XP   -   LV ' + G.levelRes.to + (G.levelRes.to > G.levelRes.from ? '   LEVEL UP!  +' + G.levelRes.reward + ' CREDITS' : ''), STAGE_W / 2, 264, { size: T.small, color: P.yellow, align: 'center' });
   milestoneLines().forEach((l, i) => uiText(ctx, l, STAGE_W / 2, 275 + i * 11, { size: T.small, color: P.cyan, align: 'center' }));
+  Ret.lines().forEach((l, i) => uiText(ctx, l.text, STAGE_W / 2, 275 + (milestoneLines().length + i) * 11, { size: T.small, color: l.color, align: 'center' }));
   ctx.restore();
   if (t > ENDING_MENU_AT && !G.deathDetails) drawKeyButtons(ctx, [[G.coop ? 'LOBBY [SPACE]' : 'MENU [SPACE]', 'Space'], ['DETAILS [TAB]', 'Tab']], 322);
   if (G.deathDetails && Stats.summary) drawRunDetails(ctx, Stats.summary);
@@ -2059,12 +2094,7 @@ function drawLevelResult(ctx, R, ry) {
 }
 
 // Was der Spieler nach dem Tod als Naechstes tun kann: gefuehrter Kauf, sonst bezahlbare Upgrades, sonst weiterspielen
-function deathTip() {
-  const gs = guideStep();
-  if (gs) return 'TIP: BUY ' + (gs.kind === 'item' ? CFG.items.catalog[gs.id].name : CFG.meta.upgrades[gs.id].name) + ' UNDER HERO';
-  if (UPGRADE_TABS.some((t) => upgradeRows(t.id).some(shopAffordable))) return 'TIP: SPEND YOUR CREDITS UNDER HERO TO GET STRONGER';
-  return 'EVERY RUN EARNS CREDITS AND XP. KEEP GOING!';
-}
+function deathTip() { return Goal.line(); }
 // Meldung in Menues (G.toast): kurz oben in der Mitte
 function drawToast(ctx) {
   if (!G.toastText || G.realTime - G.toastAt > 3.5) return;
@@ -2079,12 +2109,13 @@ function drawDeathScreen(ctx) {
   drawMenuBg(ctx, name, true);
   drawDeathTexts(ctx, name);
   const tint = STYLE.deathTints[name] || STYLE.pal.red;
-  if (!G.deathDetails && G.deadAge > 1) drawKeyButtons(ctx, G.coop ? [['LOBBY [SPACE]', 'Space'], ['DETAILS [TAB]', 'Tab']] : [['MENU [SPACE]', 'Space'], ['RETRY [R]', 'KeyR'], ['DETAILS [TAB]', 'Tab']], 338, tint);
+  if (!G.deathDetails && G.deadAge > 1) drawKeyButtons(ctx, G.coop ? [['LOBBY [SPACE]', 'Space']].concat(Pvp.isHost ? [['REMATCH [R]', 'KeyR']] : [], [['DETAILS [TAB]', 'Tab']]) : [['MENU [SPACE]', 'Space'], ['RETRY [R]', 'KeyR'], ['DETAILS [TAB]', 'Tab']], 338, tint);
   const sm = Stats.summary, R = STAGE_W - 12;                                  // Layout: Belohnungen oben rechts, Zeit und Killer unten, damit nichts mit dem Spruch überlappt
   uiText(ctx, '+' + G.earned + ' CREDITS', R, 24, { size: STYLE.type.h2, color: STYLE.pal.yellow, align: 'right' });
   let ry = 36;
   ry = drawLevelResult(ctx, R, ry);
   if (G.starterBonus && G.starterBonus.extra > 0) { uiText(ctx, 'STARTER BONUS +' + G.starterBonus.extra + '  (RUN ' + G.starterBonus.run + '/' + G.starterBonus.of + ')', R, ry, { size: STYLE.type.small, color: STYLE.pal.green, align: 'right' }); ry += 11; }
+  for (const l of Ret.lines()) { uiText(ctx, l.text, R, ry, { size: STYLE.type.small, color: l.color, align: 'right' }); ry += 11; }
   milestoneLines().forEach((l, i) => uiText(ctx, l, R, ry + i * 11, { size: STYLE.type.small, color: STYLE.pal.cyan, align: 'right' }));
   if (G.newBest) uiText(ctx, 'NEW BEST TIME!', STAGE_W / 2, 24, { size: STYLE.type.h2, color: STYLE.pal.yellow, align: 'center', glow: STYLE.pal.yellow });
   outlinedText(ctx, 'Time: ' + formatTime(G.time) + '  (' + G.time.toFixed(1) + ' s)', STAGE_W / 2, 292, 22, STYLE.pal.ice);

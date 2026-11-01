@@ -26,9 +26,30 @@ const Net = {
     const setStatus = (s) => { if (ch.status !== s) { ch.status = s; emit('onStatus', s); } };
     const send = (event, payload, t) => { if (ch.ws && ch.ws.readyState === 1) ch.ws.send(JSON.stringify({ topic: t || topic, event, payload, ref: String(++ch.ref) })); };
     const state = {};                                               // presence-Schluessel -> meta
+    // Stau im Sendepuffer (langsame Leitung): Zustandspakete verwerfen statt anzuhaeufen, sonst waechst die Verzoegerung immer weiter
+    const LIVE = { world: 1, cstate: 1, state: 1, bots: 1, dm: 1, cping: 1, cpong: 1 };
+    // Eingehende Nachricht (Relay oder direkter Kanal): Doppelte entfernen (dieselbe Nachricht kann auf beiden Wegen kommen), veraltete Zustandspakete verwerfen
+    const seen = {};
+    const accept = (event, payload) => {
+      const f = payload && payload.from, n = payload && payload._n;
+      if (f && n) {
+        const d = seen[f] || (seen[f] = { s: new Set(), q: [], live: {} });
+        if (d.s.has(n)) return;
+        d.s.add(n); d.q.push(n); if (d.q.length > 400) d.s.delete(d.q.shift());
+        if (LIVE[event]) { if (n < (d.live[event] || 0)) return; d.live[event] = n; }
+      }
+      emit('onMessage', event, payload, f);
+    };
+    if (cb && cb.p2p && typeof Net.Mesh === 'function' && Net.Mesh.supported && Net.p2p !== false) {
+      try {
+        ch.mesh = new Net.Mesh({ id, signal: (to, msg) => send('broadcast', { type: 'broadcast', event: 'rtc', payload: Object.assign({ from: id, to }, msg) }),
+          deliver: (str) => { let m; try { m = JSON.parse(str); } catch (e) { return; } if (m && m.event) accept(m.event, m.payload); } });
+      } catch (e) { ch.mesh = null; }
+    }
     const publish = () => {
       const list = Object.values(state).sort((a, b) => (b.host ? 1 : 0) - (a.host ? 1 : 0) || (a.at || 0) - (b.at || 0));
       ch.players = list; emit('onPlayers', list);
+      if (ch.mesh) ch.mesh.setPeers(list.map((q) => q.id).filter((q) => q !== id));
     };
     const track = () => send('presence', { type: 'presence', event: 'track', payload: ch.meta });
     // Verbindungsabbrueche (Netz, Server, Ruhezustand) werden still durch erneutes Verbinden behoben: gleiche Kennung, Anwesenheit wird neu gemeldet.
@@ -68,15 +89,22 @@ const Net = {
           }
           for (const [k, v] of Object.entries(p.joins || {})) if (v.metas && v.metas.length) state[k] = v.metas[v.metas.length - 1];
           publish();
-        } else if (m.event === 'broadcast' && p.event) emit('onMessage', p.event, p.payload, p.payload && p.payload.from);
+        } else if (m.event === 'broadcast' && p.event) { if (p.event === 'rtc') { if (ch.mesh) ch.mesh.signalIn(p.payload); } else accept(p.event, p.payload); }
       };
       ws.onerror = () => { /* onclose folgt, dort wird neu verbunden */ };
       ws.onclose = () => { if (ch.ws === ws) lost(); };
     };
     connect();
-    // Stau im Sendepuffer (langsame Leitung): Zustandspakete verwerfen statt anzuhaeufen, sonst waechst die Verzoegerung immer weiter
-    const LIVE = { world: 1, cstate: 1, state: 1, bots: 1, dm: 1 };
-    ch.send = (event, payload) => LIVE[event] && ch.ws && ch.ws.bufferedAmount > 48000 ? undefined : send('broadcast', { type: 'broadcast', event, payload: Object.assign({ from: id }, payload || {}) });
+    // Senden: direkt an alle, mit denen ein Kanal offen ist; erreicht das nicht alle, zusaetzlich ueber den Relay (Rueckfall)
+    ch.seq = 0;
+    ch.send = (event, payload) => {
+      const body = Object.assign({ from: id, _n: ++ch.seq }, payload || {});
+      if (ch.mesh && ch.mesh.send(LIVE[event] ? 'live' : 'rel', JSON.stringify({ event, payload: body }))) return;
+      if (LIVE[event] && ch.ws && ch.ws.bufferedAmount > 48000) return;
+      send('broadcast', { type: 'broadcast', event, payload: body });
+    };
+    // Verbindungsart fuer die Anzeige: 'P2P' (alle direkt), 'MIX' (teils direkt), 'RELAY' (alles ueber den Server)
+    ch.link = () => { if (!ch.mesh) return 'RELAY'; const st = ch.mesh.stats(); return !st.peers ? 'RELAY' : st.open === st.peers ? 'P2P' : st.open ? 'MIX' : 'RELAY'; };
     // Anwesenheit aktualisieren: schnelle Folgen (z. B. beim Durchblaettern der Sets) werden zu einer Nachricht zusammengefasst, sonst drosselt/beendet der Server die Verbindung
     ch.update = (meta) => {
       Object.assign(ch.meta, meta);
@@ -85,7 +113,7 @@ const Net = {
       ch.updT = setTimeout(() => { ch.updT = null; if (!ch.closed) track(); }, 350);
     };
     ch.close = () => {
-      ch.closed = true; clearInterval(ch.hb); if (ch.rt && typeof clearTimeout === 'function') clearTimeout(ch.rt); if (ch.updT && typeof clearTimeout === 'function') clearTimeout(ch.updT);
+      ch.closed = true; clearInterval(ch.hb); if (ch.mesh) ch.mesh.close(); if (ch.rt && typeof clearTimeout === 'function') clearTimeout(ch.rt); if (ch.updT && typeof clearTimeout === 'function') clearTimeout(ch.updT);
       try { send('phx_leave', {}); ch.ws.close(); } catch (e) { /* schon zu */ }
       setStatus('closed');
     };

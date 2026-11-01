@@ -241,6 +241,7 @@ const G = {
     this.mapIdx = mi; this.map = CFG.maps[mi]; this.diff = this.map.diff;
     CFG.map.halfW = this.map.half[0]; CFG.map.halfH = this.map.half[1];
     this.finalAt = CFG.finalBoss.at; this.finalStarted = false; this.victory = 0;
+    Ret.setup(withTutorial, kind);                                                         // Schwierigkeit des Laufs: Anfaenger-Hilfe, Ascension, Challenge (G.diff als Kopie)
     this.bossFight = false; this.bossTimer = 0;
     this.cam = { x: 0, y: 0 };
     this.bossStageOctagon = 1; this.bossStageKite = 3;
@@ -310,6 +311,7 @@ const G = {
     }
     this.earned = run + bonus + this.lootCores;
     Save.data.souls += this.earned;
+    this.earned += Ret.settle(this);                                         // Challenge, Anfaenger-Ziel, Ascension-Freischaltung (schreibt die Credits selbst gut)
     const L = CFG.level;                                                     // Spielerlevel: XP aus Zeit, Bossen, Kills (+ Sieg), nicht im Tutorial und bei Cheat-Laeufen
     this.levelRes = null;
     if (!Tutorial.active && !this.cheated) {
@@ -387,6 +389,10 @@ const G = {
   },
   // Homescreen: Pfeile/WASD springen zum naechsten Knopf in der Richtung, Leertaste/Enter oeffnet, Tastenkuerzel wie bisher
   updateMenu() {
+    if (Pvp.urlCode && Net.available && !this.newSlot()) {                                   // Einladungslink (?join=CODE): direkt in die Lobby
+      const c = Net.cleanCode(Pvp.urlCode); Pvp.urlCode = null;
+      if (c.length === Net.CODE_LEN) { this.mode = 'pvp'; Pvp.open('coop'); Pvp.connect(c, false); return; }
+    }
     for (const [key, id] of [['KeyL', 'account'], ['KeyB', 'board'], ['KeyI', 'install']]) if (Input.pressed(key) && (id !== 'install' || PWA.visible)) this.menuQuick(id);
     const btns = homeButtons();
     if (this.homeSel >= btns.length || this.homeSel < 0) this.homeSel = 0;
@@ -465,6 +471,9 @@ const G = {
     const n = CFG.maps.length;
     const dir = (Input.pressed('ArrowRight') || Input.pressed('KeyD') ? 1 : 0) - (Input.pressed('ArrowLeft') || Input.pressed('KeyA') ? 1 : 0);
     if (dir) Save.data.mapSel = (Save.data.mapSel + dir + n) % n;
+    const vd = (Input.pressed('ArrowUp') || Input.pressed('KeyW') ? 1 : 0) - (Input.pressed('ArrowDown') || Input.pressed('KeyS') ? 1 : 0);
+    if (vd && !Onb.active()) { if (Asc.max() > 0) { const s = Asc.sel() + vd; Asc.set(clamp(s, 0, Asc.max())); Sfx.play('tick'); } else this.toast('WIN ONCE TO UNLOCK ASCENSION'); }
+    if (Input.pressed('KeyC')) { if (Chal.unlocked()) { Chal.cycle(1); Sfx.play('tick'); } else this.toast('FINISH 3 RUNS TO UNLOCK THE CHALLENGES'); }
     if (Input.pressed('Space') || Input.pressed('Enter')) this.startFromMapSelect();
     else if (Input.pressed('Escape')) { Save.write(); this.mode = 'modeselect'; }
   },
@@ -952,6 +961,7 @@ const G = {
       const ready = this.deadAge > 1 && Cos2.deathFadeIn() >= 1;                // erst wenn die Todes-Animation vorbei und der Deathscreen eingeblendet ist
       if (ready && Input.pressed('Space')) { if (this.coop) Coop.toLobby(); else this.mode = 'start'; }      // nach dem Tod zurück ins Menü (hier wird später Build/Leveln ausgebaut)
       else if (ready && !this.coop && Input.pressed('KeyR')) { Sfx.play('select'); this.begin(false); }      // Komfort: sofort noch ein Lauf, gleiche Karte
+      else if (ready && this.coop && Pvp.isHost && Pvp.ch && Input.pressed('KeyR')) { Sfx.play('select'); Coop.toLobby(); Pvp.startRound(); }      // Koop-Revanche: der Host startet sofort noch einen Lauf, die Gaeste steigen von selbst ein
     } else if (this.mode === 'pick') {
       this.updatePick(dt);
       if (this.coop && this.mode === 'pick') this.updatePlay(dt);                  // Koop: die Welt laeuft waehrend der Wahl weiter (der Spieler ist solange unverwundbar)
@@ -993,6 +1003,7 @@ const G = {
     this.clearing = this.attacks.some((a) => a.clearing);
 
     if (this.coop) Coop.update(dt);                                                      // Koop: Mitspieler, Netz, Bild der Welt
+    Ret.tick(dt);                                                                        // erste Laeufe: Hinweise und Ziel, Challenge-Ziel
     if (this.victory > 0) { this.victory -= dt; if (this.victory <= 0) { this.win(); return; } }     // Siegphase: kein Director, keine neuen Gegner
     if (!this.bossFight && !Tutorial.active && !this.pvp) this.time += dt;
     Loadout.updateByTime(this.time);
@@ -1187,6 +1198,7 @@ const G = {
     if (this.mode !== 'dead') { Cos2.hudBegin(); try { drawHud(ctx); } finally { Cos2.hudEnd(); } }              // Cosmetic HUD-Theme
     if (this.pvp) PvpMatch.drawOverlay(ctx);                                       // PvP: Punktestand, Zaehler, Ergebnis
     if (this.coop) Coop.drawOverlay(ctx);                                          // Koop: Mitspieler-Leiste, Zaehler
+    Ret.drawHud(ctx);                                                              // Ziel der ersten Laeufe / Challenge
     if (Cos2.intro) Cos2.introDraw(ctx, Cos2.intro, STAGE_W / 2, 96, 1);           // Cosmetic INTRO: Boss-Titelkarte
     if (Cos2.rev) Cos2.reviveDraw(ctx, Cos2.rev, STAGE_W / 2, STAGE_H / 2 - 10, 1);       // Cosmetic REVIVE: Totem of Undying
     if (Save.data.dev) uiText(ctx, 'DEV' + (this.god ? '  GOD' : '') + (this.cheated ? '  (DEV RUN)' : ''), 6, 10, { size: STYLE.type.small, color: STYLE.pal.yellow });

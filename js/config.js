@@ -1623,5 +1623,38 @@ CFG.pvp.maps = {
 // Schwierigkeit: Faktor m(n) = n * (1 + extra * (n - 1)), also 1, 2.7, 5.1, 8.4, 12.3, 16.5 (immer deutlich ueber der Spielerzahl). Er wird aufgeteilt: zaehere Gegner (m^hpExp),
 // mehr Gegner (m^spawnExp, Raten und Obergrenzen), Boss-Leben (m^bossExp). Credits: x m^coreExp. Karten sind mapScale-mal so gross (gleiche vier Karten).
 CFG.coop = { mapScale: 1.7, extra: 0.35, hpExp: 0.4, spawnExp: 0.7, bossExp: 0.9, coreExp: 0.5, obstacleMul: 1.5, countdown: 3,
-  pickTime: 15, stateHz: 12, worldHz: 10, reviveFrac: 0.5, maxEnemies: 140, maxShots: 90, mateTimeout: 8, maxPlayers: 6 };
+  pickTime: 15, stateHz: 12, worldHz: 12, stateHzP2P: 20, worldHzP2P: 20, reviveFrac: 0.5,
+  reviveRadius: 34, reviveTime: 3, reviveMax: 2, linkRange: 120, linkMax: 3, linkHaste: 0.06, linkGuard: 0.06, ultShare: 20, maxEnemies: 140, maxShots: 90, mateTimeout: 8, maxPlayers: 6 };
 CFG.coop.mult = (n) => n * (1 + CFG.coop.extra * (Math.max(1, n) - 1));
+
+// ---------------------------------------------------------------------------------------------------------------------------
+// [14] Bindung: Ascension, Challenge, erste Laeufe (js/retention.js)
+// Ascension: nach einem Sieg wird die naechste Stufe frei (0 = normal). Die Stufen gelten kumulativ; jede Stufe bringt +credits Credits-Faktor.
+//   hits = Gegner-Leben, spawn = Gegneranzahl, heal = Heilung, bossHp, damage = erlittener Schaden, bossFire = Boss-Angriffe pro Zeit, speed/bossSpeed = Tempo
+CFG.asc = { max: 10, credits: 0.25, firstClear: 100, levels: [null,
+  { name: 'TOUGH SKIN', desc: 'Enemies have 15% more health.', hits: 1.15 },
+  { name: 'SWARM', desc: '12% more enemies.', spawn: 1.12 },
+  { name: 'THIN BANDAGES', desc: 'Healing is 25% weaker.', heal: 0.75 },
+  { name: 'IRON BOSSES', desc: 'Bosses have 20% more health.', bossHp: 1.2 },
+  { name: 'SHARP CLAWS', desc: 'You take 20% more damage.', damage: 1.2 },
+  { name: 'RAPID FIRE', desc: 'Bosses attack 15% more often.', bossFire: 1.15 },
+  { name: 'NO MERCY', desc: 'Healing is another third weaker.', heal: 0.667 },
+  { name: 'HORDE', desc: '15% more enemies.', spawn: 1.15 },
+  { name: 'STONE HIDE', desc: 'Enemies have another 20% more health.', hits: 1.2 },
+  { name: "DEATH'S GAZE", desc: 'Enemies and bosses 8% faster, you take 10% more damage.', speed: 1.08, bossSpeed: 1.08, damage: 1.1 },
+] };
+// Challenge: dieselben Modifier fuer alle am selben Tag (taeglich 2, woechentlich 3). Ziel taeglich: Zeit, woechentlich: Bosse. Belohnung beim ersten Schaffen.
+CFG.chal = { dailyTime: 300, weeklyBosses: 3, dailyBase: 150, dailyStreak: 25, streakMax: 6, weeklyBase: 600, weeklyShards: 20, mods: [
+  { id: 'swarm', name: 'SWARM', desc: '50% more enemies.', spawn: 1.5, credits: 0.3 },
+  { id: 'tough', name: 'IRON SKIN', desc: 'Enemies have 60% more health.', hits: 1.6, credits: 0.25 },
+  { id: 'glass', name: 'GLASS CANNON', desc: 'You take double damage.', damage: 2, credits: 0.4 },
+  { id: 'rage', name: 'BOSS RAGE', desc: 'Bosses: 50% more health, 25% more attacks.', bossHp: 1.5, bossFire: 1.25, credits: 0.25 },
+  { id: 'famine', name: 'FAMINE', desc: 'Healing is 60% weaker.', heal: 0.4, credits: 0.2 },
+  { id: 'rush', name: 'ADRENALINE', desc: 'Enemies are 25% faster.', speed: 1.25, credits: 0.25 },
+] };
+// Erste Laeufe (ohne Sieg): Anfaenger-Hilfe (Schaden/Gegner-Leben/Gegneranzahl) und je Lauf ein Ziel mit Belohnung
+CFG.onb = { runs: 3, damage: [0.6, 0.8, 0.9], hits: [0.8, 0.9, 1], spawn: [0.85, 0.92, 1], goals: [
+  { text: 'REACH THE FIRST BOSS', type: 'time', v: 120, credits: 40 },
+  { text: 'DEFEAT THE FIRST BOSS', type: 'bosses', v: 1, credits: 60 },
+  { text: 'SURVIVE 5 MINUTES', type: 'time', v: 300, credits: 100 },
+] };

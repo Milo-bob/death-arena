@@ -97,6 +97,9 @@ const Stats = {
     if (this.logging()) {
       const e = { i: this.newId(), t: Math.round(time), b: bosses, by: killer, map: mapId, k: G.kills, dm: Math.round(this.taken), h: this.hitCount, lv: Xp.level, win: !!win, sl: Save.slot };
       if (fy) e.fy = fy;
+      if (G.asc) e.asc = G.asc;
+      if (G.rookie) e.rk = G.rookie;
+      if (G.chal) e.ch = G.chal.kind;
       if (this.devRun()) e.dv = true;
       this.push(Save.data.deathLog, Object.assign(e, this.loadout()), this.CAP.deaths);
     }
@@ -189,7 +192,7 @@ const Stats = {
       for (const e of Array.isArray(src.deaths) ? src.deaths : []) {
         if (!e || !str(e.i) || seen.has(e.i) || !num(e.t) || !str(e.by) || !str(e.map)) continue;
         seen.add(e.i); nd++;
-        this.push(imp.deaths, { i: e.i, t: e.t, b: num(e.b) ? e.b : 0, by: e.by, map: e.map, inf: !!e.inf, fy: str(e.fy) ? e.fy : undefined, k: num(e.k) ? e.k : 0, dm: num(e.dm) ? e.dm : 0, h: num(e.h) ? e.h : 0, lv: num(e.lv) ? e.lv : undefined, win: !!e.win, dv: e.dv ? true : undefined, w: ids(e.w, 4) ? e.w : undefined, ab: ids(e.ab, 3) ? e.ab : undefined }, this.CAP.impDeaths);
+        this.push(imp.deaths, { i: e.i, t: e.t, b: num(e.b) ? e.b : 0, by: e.by, map: e.map, inf: !!e.inf, fy: str(e.fy) ? e.fy : undefined, k: num(e.k) ? e.k : 0, dm: num(e.dm) ? e.dm : 0, h: num(e.h) ? e.h : 0, lv: num(e.lv) ? e.lv : undefined, asc: num(e.asc) ? e.asc : undefined, rk: num(e.rk) ? e.rk : undefined, win: !!e.win, dv: e.dv ? true : undefined, w: ids(e.w, 4) ? e.w : undefined, ab: ids(e.ab, 3) ? e.ab : undefined }, this.CAP.impDeaths);
       }
       for (const e of Array.isArray(src.bosses) ? src.bosses : []) {
         if (!e || !str(e.i) || seen.has(e.i) || !str(e.ty) || !num(e.d) || !num(e.at) || !['win', 'died', 'timeout'].includes(e.r)) continue;

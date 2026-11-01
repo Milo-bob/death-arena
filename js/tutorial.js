@@ -9,9 +9,10 @@
 const TUT_HP_FLOOR = 25;
 const COVER_SPOTS = [[-24, 48], [28, 52]];                           // Barrikaden im Deckungs-Szenario (werden neu aufgestellt, wenn beide zerstoert sind)
 const TUT_BONUS_CORES = 25;
+const TUT_CORE = 5;                                                  // die ersten Lektionen (Bewegen, Nahkampf, Fernkampf, Ability waehlen und benutzen) reichen fuer den ersten Lauf; danach darf man abkuerzen
 
 const Tutorial = {
-  active: false, idx: 0, phase: 'brief', t: 0, s: {}, bossDown: false, firstTime: false, newMs: [],
+  active: false, idx: 0, phase: 'brief', t: 0, s: {}, bossDown: false, firstTime: false, newMs: [], sel: 0,
 
   start() {
     this.active = true; this.bossDown = false; this.firstTime = false; this.newMs = [];
@@ -58,9 +59,14 @@ const Tutorial = {
     p.afk = 0;
     if (p.hp < TUT_HP_FLOOR) p.hp = TUT_HP_FLOOR;              // Sicherheitsnetz: im Tutorial stirbt man nicht
     if (this.phase === 'end') { if (Input.pressed('Space') || Input.pressed('Enter') || Input.clicked) this.finish(); return; }
+    if (this.phase === 'offer') { this.updateOffer(dt); return; }
     if (this.phase === 'cleared') {
       this.t += dt;
-      if (this.t > 1.5) { if (this.idx + 1 >= SCENARIOS.length) { this.phase = 'end'; this.clearField(); this.complete(); } else this.enterScenario(this.idx + 1); }
+      if (this.t > 1.5) {
+        if (this.idx + 1 >= SCENARIOS.length) { this.phase = 'end'; this.clearField(); this.complete(); }
+        else if (this.idx + 1 === TUT_CORE && !Save.data.tutorialDone) { this.phase = 'offer'; this.t = 0; this.sel = 0; this.clearField(); }       // beim ersten Mal: Abkuerzung anbieten
+        else this.enterScenario(this.idx + 1);
+      }
       return;
     }
     const s = SCENARIOS[this.idx];
@@ -86,6 +92,23 @@ const Tutorial = {
     if (s.rebrief && l0 !== this.l0) { this.l0 = l0; this.phase = 'brief'; this.t = 0; Sfx.play('levelUp'); }       // neue Teilaufgabe: Textbox erneut
   },
 
+  // Nach den Grundlagen: direkt in den ersten Lauf (die uebrigen Lektionen erklaert das Spiel dort mit Hinweisen, das ganze Tutorial bleibt im Menue) oder weiter lernen
+  updateOffer(dt) {
+    this.t += dt;
+    if (Input.pressed('ArrowLeft') || Input.pressed('KeyA')) this.sel = 0;
+    if (Input.pressed('ArrowRight') || Input.pressed('KeyD')) this.sel = 1;
+    let go = this.t > 0.35 && !Save.data.touch && (Input.pressed('Space') || Input.pressed('Enter'));        // Touch: nur Tippen auf einen Knopf (der ATTACK-Knopf setzt sonst Space)
+    if (this.t > 0.35 && Input.clicked && Input.mouse.x > -500) { this.sel = Input.mouse.x < STAGE_W / 2 ? 0 : 1; go = true; }
+    if (!go) return;
+    Sfx.play('select');
+    if (this.sel === 1) { this.enterScenario(TUT_CORE); return; }
+    this.complete();                                                      // zaehlt als geschafft (Bonus-Credits, Meilenstein)
+    this.exit();
+    Save.data.mapSel = 0; Save.write();
+    G.begin(false);
+    G.notice(this.firstTime ? 'TUTORIAL DONE! +' + TUT_BONUS_CORES + ' CREDITS - GOOD LUCK!' : 'GOOD LUCK!', STYLE.pal.green, STYLE.type.h2);
+  },
+
   // Markierungen in der Spielwelt (Pixel-Ringe)
   drawWorld(ctx) {
     if (!this.active || (this.phase !== 'task' && this.phase !== 'brief')) return;
@@ -103,6 +126,23 @@ const Tutorial = {
   draw(ctx) {
     if (!this.active) return;
     const P = STYLE.pal, T = STYLE.type;
+    if (this.phase === 'offer') {
+      ctx.fillStyle = 'rgba(5,6,15,0.7)'; ctx.fillRect(0, 0, STAGE_W, STAGE_H);
+      const w = 400, h = 160, x = STAGE_W / 2 - w / 2, y = 90;
+      uiPanel(ctx, x, y, w, h, { color: P.green, fill: P.void, alpha: 0.97, glow: true });
+      uiText(ctx, 'BASICS DONE!', STAGE_W / 2, y + 26, { size: T.h1, color: P.green, align: 'center', glow: P.green });
+      uiWrap(ctx, 'You can move, fight and use abilities. That is enough for your first run - the game explains the rest on the way.', STAGE_W / 2, y + 46, w - 40, 13, { size: T.body, color: P.ice, align: 'center' });
+      [['START FIRST RUN', 'Recommended'], ['KEEP LEARNING', '7 more lessons']].forEach(([a, b], i) => {
+        const bx = x + 16 + i * (w / 2 - 8), bw = w / 2 - 24, by = y + 92, sel = this.sel === i, pulse = 0.6 + 0.4 * Math.sin(G.realTime * 5);
+        uiPanel(ctx, bx, by, bw, 44, { color: sel ? (i === 0 ? P.green : P.cyan) : P.greyMid, fill: P.void, alpha: 1, glow: sel });
+        ctx.save(); if (sel) ctx.globalAlpha = pulse;
+        uiText(ctx, a, bx + bw / 2, by + 20, { size: T.h2, color: sel ? P.white : P.grey, align: 'center' });
+        ctx.restore();
+        uiText(ctx, b, bx + bw / 2, by + 35, { size: T.small, color: P.grey, align: 'center' });
+      });
+      uiText(ctx, Save.data.touch ? 'TAP A BUTTON' : '[A / D] CHOOSE    [SPACE] CONFIRM', STAGE_W / 2, y + h - 8, { size: T.small, color: P.grey, align: 'center' });
+      return;
+    }
     if (this.phase === 'end') {
       ctx.fillStyle = 'rgba(5,6,15,0.7)'; ctx.fillRect(0, 0, STAGE_W, STAGE_H);
       uiPanel(ctx, STAGE_W / 2 - 170, 100, 340, 140, { color: P.green, fill: P.void, alpha: 0.96, glow: true });
@@ -319,7 +359,8 @@ const SCENARIOS = [
 
 // Deutsche Texte fuer die Touch-Fassung (Knopfnamen statt Tasten)
 if (typeof I18n !== 'undefined' && I18n.add) I18n.add({
-  'ATTACK: hold the ATTACK button': 'ANGRIFF: halte den ANGRIFF-Knopf', 'ATTACK: tap the ATTACK button (tap again to stop)': 'ANGRIFF: tippe den ANGRIFF-Knopf (nochmal tippen zum Stoppen)', 'SWITCH WEAPON: tap CHANGE WEAPON': 'WAFFENWECHSEL: tippe auf WAFFE WECHSELN',
+  'ATTACK: hold the ATTACK button': 'ANGRIFF: halte den ANGRIFF-Knopf', 'BASICS DONE!': 'GRUNDLAGEN GESCHAFFT!', 'You can move, fight and use abilities. That is enough for your first run - the game explains the rest on the way.': 'Du kannst dich bewegen, kämpfen und Abilities nutzen. Das reicht für deinen ersten Lauf - den Rest erklärt dir das Spiel unterwegs.', 'START FIRST RUN': 'ERSTEN LAUF STARTEN', 'KEEP LEARNING': 'WEITER LERNEN', 'Recommended': 'Empfohlen', '7 more lessons': '7 weitere Lektionen', 'TAP A BUTTON': 'TIPPE AUF EINEN KNOPF', '[A / D] CHOOSE    [SPACE] CONFIRM': '[A / D] WÄHLEN    [LEERTASTE] BESTÄTIGEN',
+    'TUTORIAL DONE! +25 CREDITS - GOOD LUCK!': 'TUTORIAL GESCHAFFT! +25 CREDITS - VIEL GLÜCK!', 'GOOD LUCK!': 'VIEL GLÜCK!', 'ATTACK: tap the ATTACK button (tap again to stop)': 'ANGRIFF: tippe den ANGRIFF-Knopf (nochmal tippen zum Stoppen)', 'SWITCH WEAPON: tap CHANGE WEAPON': 'WAFFENWECHSEL: tippe auf WAFFE WECHSELN',
   'The button swaps between your melee and ranged weapon.': 'Der Knopf wechselt zwischen Nah- und Fernkampfwaffe.',
   'Nothing happens until you tap CONTINUE. Read in peace.': 'Es passiert nichts, bis du auf WEITER tippst. Lies in Ruhe.',
 });

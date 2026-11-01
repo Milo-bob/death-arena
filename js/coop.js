@@ -10,12 +10,58 @@
 //   Lauf   endet, wenn alle ausgeschieden sind ('over') oder der Endboss faellt ('be' mit fin). Nach jedem besiegten Boss kommen ausgeschiedene Spieler zurueck.
 // Nachrichten: cstate | world | cdmg | edie | chit | cchill | ev (k: n Meldung, bs Bosskampf Start, be Bosskampf Ende, over, cdead).
 
+// ---- Weiche Bewegung der Geisterbilder (Snapshot-Interpolation) ----
+// Jedes Paket traegt die Zeit des Senders. Der Empfaenger merkt sich die letzten Positionen mit diesen Zeiten und zeichnet alles ein kurzes Stueck in der Vergangenheit
+// (Puffer = 1.25 Paketabstaende + Schwankung), dazwischen wird gleichmaessig verschoben. Das ist unabhaengig davon, wann die Pakete wirklich ankommen: ein spaetes Paket
+// ruckelt nicht mehr, solange es noch in den Puffer passt. Fruehere Fassung: exponentielles Nachziehen auf das neueste Ziel, das bei 10 Paketen/s sichtbar pulsierte.
+class NetClock {
+  constructor() { this.n = 0; this.off = 0; this.jit = 0.02; this.iv = 0.1; this.last = 0; }
+  // ts = Zeit des Senders, now = eigene Zeit beim Eintreffen. off = beste (kleinste) Differenz = Uhrenunterschied + kuerzeste Laufzeit
+  note(ts, now) {
+    const off = now - ts;
+    if (!this.n) { this.off = off; this.last = ts; } else {
+      if (off < this.off) this.off = off; else this.off += (off - this.off) * 0.02;                   // langsam nachziehen (Uhren laufen leicht auseinander)
+      this.jit += (Math.abs(off - this.off) - this.jit) * 0.08;
+      const iv = ts - this.last; if (iv > 0.005 && iv < 1) this.iv += (iv - this.iv) * 0.1;
+      this.last = ts;
+    }
+    this.n++;
+  }
+  delay() { return clamp(this.iv * 1.25 + 2.5 * this.jit, 0.05, 0.4); }
+  // Die Zeichenzeit laeuft mit der eigenen Uhr und wird nur sanft zum Ziel (now - off - Puffer) nachgefuehrt: sonst springt sie, sobald sich die Schaetzung aendert, und die Bewegung zuckt
+  renderTime(now) {
+    const target = now - this.off - this.delay();
+    if (this.rt === undefined || Math.abs(target - this.rt) > 0.5) this.rt = target;
+    else if (now !== this.rnow) { const d = Math.max(0, Math.min(0.2, now - this.rnow)); this.rt += d + (target - this.rt - d) * Math.min(1, d * 1.5); }
+    this.rnow = now;
+    return this.rt;
+  }
+}
+function snapPush(o, t, x, y) {
+  if (typeof x !== 'number' || typeof y !== 'number') return;
+  const b = o.sb || (o.sb = []), l = b[b.length - 1];
+  if (l && t <= l.t) return;
+  if (l && Math.abs(x - l.x) + Math.abs(y - l.y) > 160) b.length = 0;                          // Sprung (Teleport, Neuaufbau): nicht quer durch die Karte gleiten
+  b.push({ t, x, y }); if (b.length > 4) b.shift();
+}
+// Position zur Zeit rt aus den gemerkten Bildern: dazwischen gleiten, davor beim aeltesten bleiben, danach hoechstens 0.2 s weiter in der letzten Richtung
+function snapAt(o, rt) {
+  const b = o.sb;
+  if (!b || !b.length) return null;
+  const L = b[b.length - 1];
+  if (b.length === 1 || rt <= b[0].t) return [b[0].x, b[0].y];
+  if (rt >= L.t) { const P = b[b.length - 2], d = L.t - P.t; if (d <= 0) return [L.x, L.y]; const k = Math.min(rt - L.t, 0.2) / d; return [L.x + (L.x - P.x) * k, L.y + (L.y - P.y) * k]; }
+  for (let i = b.length - 1; i > 0; i--) if (b[i - 1].t <= rt) { const A = b[i - 1], B = b[i], k = (rt - A.t) / (B.t - A.t); return [A.x + (B.x - A.x) * k, A.y + (B.y - A.y) * k]; }
+  return [b[0].x, b[0].y];
+}
+
 class CoopMate {
   constructor(info) {
     this.id = info.id; this.name = info.name;
     this.x = 0; this.y = 0; this.dir = 0; this.nx = 0; this.ny = 0; this.nd = 0; this.vx = 0; this.vy = 0; this.at = G.realTime;
     this.hp = 100; this.mhp = 100; this.spr = 'player'; this.blink = false; this.shield = false; this.dead = false; this.seen = 0; this.first = true;
     this.ghosts = []; this.ghostAt = G.realTime;
+    this.clk = new NetClock(); this.sb = []; this.deathPos = null; this.revLeft = 0; this.revT = 0; this.rtt = 0;
   }
   get radius() { return CFG.player.hitRadius; }
   hasteFor() { return 1; }
@@ -25,13 +71,23 @@ class CoopMate {
   hit(kind, mul, src) { Coop.send('chit', { to: this.id, k: kind, m: Math.round(mul * 100) / 100, s: src || '' }); return true; }
   chill(dur) { Coop.send('cchill', { to: this.id, d: dur }); }
   update(dt) {
-    const age = Math.min(0.3, G.realTime - this.at), f = framesOf(age);
-    const tx = this.nx + this.vx * f, ty = this.ny + this.vy * f, k = Math.min(1, dt * 14);
-    if (this.first) { this.x = tx; this.y = ty; this.dir = this.nd; this.first = false; } else { this.x += (tx - this.x) * k; this.y += (ty - this.y) * k; }
+    const a = snapAt(this, this.clk.renderTime(G.realTime));
+    if (a) { this.x = a[0]; this.y = a[1]; if (this.first) { this.dir = this.nd; this.first = false; } }
     const dd = ((this.nd - this.dir + 540) % 360) - 180; this.dir += dd * Math.min(1, dt * 14);
   }
+  // Grabmarke eines ausgeschiedenen Mitspielers: wer sich daneben stellt, belebt ihn wieder (CFG.coop.reviveTime)
+  drawGrave(ctx) {
+    if (!this.deathPos || this.revLeft <= 0) return;
+    const P = STYLE.pal, K = CFG.coop, cx = STAGE_W / 2 + this.deathPos[0], cy = STAGE_H / 2 - this.deathPos[1], pulse = 0.5 + 0.5 * Math.sin(G.realTime * 4), f = clamp(this.revT / K.reviveTime, 0, 1);
+    ctx.save();
+    ctx.fillStyle = P.orange; ctx.globalAlpha = 0.25 + 0.2 * pulse; pxDisc(ctx, cx, cy, K.reviveRadius * 0.55);
+    ctx.globalAlpha = 0.9; pxRing(ctx, cx, cy, K.reviveRadius, 1, 16, G.realTime * 0.2);
+    if (f > 0) { ctx.fillStyle = P.green; ctx.globalAlpha = 0.6; pxDisc(ctx, cx, cy, K.reviveRadius * 0.55 * f); ctx.globalAlpha = 1; pxRing(ctx, cx, cy, K.reviveRadius * 0.55 * f + 1, 1, 0, 0); }
+    ctx.restore();
+    uiText(ctx, f > 0 ? 'REVIVING ' + Math.round(f * 100) + '%' : this.name + ' - STAND HERE TO REVIVE', cx, cy - K.reviveRadius - 6, { size: STYLE.type.small, color: f > 0 ? P.green : P.orange, align: 'center' });
+  }
   draw(ctx) {
-    if (this.dead) return;
+    if (this.dead) { this.drawGrave(ctx); return; }
     const cx = STAGE_W / 2 + this.x, cy = STAGE_H / 2 - this.y, P = STYLE.pal, age = Math.min(0.3, G.realTime - this.ghostAt), fr = framesOf(age);
     for (const g of this.ghosts) PvpMatch.drawGhost(ctx, g, fr);
     this.drawLook(ctx, cx, cy);
@@ -80,14 +136,12 @@ class CoopEnemy extends Enemy {
     super(it.t, it.x, it.y, !!(it.f & 1), it.v || null);
     this.gh = true; this.cid = it.i;
     this.nx = it.x; this.ny = it.y; this.lx = this.x; this.ly = this.y; this.nd = it.d || 0; this.dir = this.nd;
-    this.kx = 0; this.ky = 0; this.stq = 0; this.dying = false; this.dyingT = 0; this.reported = false;
+    this.kx = 0; this.ky = 0; this.ox = 0; this.oy = 0; this.stq = 0; this.dying = false; this.dyingT = 0; this.reported = false;
     this.apply(it);
     this.hl0 = this.hitsLeft;
   }
   apply(it) {
-    const now = G.realTime, dtS = now - (this.snapAt || 0);
-    if (this.snapAt && dtS > 0.03 && dtS < 0.5) { this.svx = clamp((it.x - this.snapX) / dtS, -500, 500); this.svy = clamp((it.y - this.snapY) / dtS, -500, 500); } else { this.svx = 0; this.svy = 0; }       // Geschwindigkeit zwischen zwei Bildern: damit laeuft er bis zum naechsten Bild weiter
-    this.snapAt = now; this.snapX = it.x; this.snapY = it.y; this.extra = 0;
+    snapPush(this, Coop.wts, it.x, it.y);
     this.nx = it.x; this.ny = it.y; this.nd = it.d || 0;
     this.hitsLeft = it.h; this.hl0 = it.h; this.maxHits = it.m;
     const f = it.f | 0;
@@ -107,12 +161,12 @@ class CoopEnemy extends Enemy {
     this.hitCd = Math.max(0, this.hitCd - dt); this.stun = Math.max(0, this.stun - dt);
     // was andere Waffen seit dem letzten Bild verschoben haben (Druckwelle, Sog, Rueckstoss): an den Host melden
     const dx = this.x - this.lx, dy = this.y - this.ly;
-    if (Math.abs(dx) + Math.abs(dy) > 0.01) { this.kx += dx; this.ky += dy; }
+    if (Math.abs(dx) + Math.abs(dy) > 0.01) { this.kx += dx; this.ky += dy; this.ox += dx; this.oy += dy; }       // von eigenen Waffen verschoben: sofort sichtbar, verblasst, sobald der Host es uebernommen hat
     this.hsRem = Math.max(0, (this.hsRem || 0) - dt);
     if (this.stun > this.hsRem + 0.02) this.stq = Math.max(this.stq, this.stun);        // nur was ueber die Host-Betaeubung hinausgeht kommt von den eigenen Waffen
-    if (this.extra < 0.25) { this.extra += dt; this.nx += (this.svx || 0) * dt; this.ny += (this.svy || 0) * dt; }
-    const k = Math.min(1, dt * 12);
-    this.x += (this.nx - this.x) * k; this.y += (this.ny - this.y) * k;
+    const a = snapAt(this, Coop.renderTime()), dec = Math.exp(-dt * 5);
+    this.ox *= dec; this.oy *= dec;
+    if (a) { this.x = a[0] + this.ox; this.y = a[1] + this.oy; }
     const dd = ((this.nd - this.dir + 540) % 360) - 180; this.dir += dd * Math.min(1, dt * 14);
     this.lx = this.x; this.ly = this.y;
     if (this.dying) { this.dyingT -= dt; if (this.dyingT <= 0) { this.dying = false; this.reported = false; } return; }
@@ -165,16 +219,15 @@ function coopFields(o, skip) {
 
 function coopGhostUpdate(dt) {
   if (typeof this.age === 'number') this.age += dt;
-  this.nx += this.vx * dt; this.ny += this.vy * dt;                           // zwischen zwei Bildern entlang der letzten Bewegung weiterlaufen
-  const k = Math.min(1, dt * 14);
-  this.x += (this.nx - this.x) * k; this.y += (this.ny - this.y) * k;
+  const a = snapAt(this, Coop.renderTime());
+  if (a) { this.x = a[0]; this.y = a[1]; }
   if (this.contact) this.contact(dt);
 }
 function coopBossUpdate(dt) {
   this.age += dt; this.bar += dt;
   this.stun = Math.max(0, this.stun - dt); this.hitCd = Math.max(0, (this.hitCd || 0) - dt); this.stunImmune = Math.max(0, (this.stunImmune || 0) - dt);
-  const k = Math.min(1, dt * 12);
-  this.x += (this.nx - this.x) * k; this.y += (this.ny - this.y) * k;
+  const a = snapAt(this, Coop.renderTime());
+  if (a) { this.x = a[0]; this.y = a[1]; }
   if (this.twin && G.boss === this) this.twin.update(dt);
   if (this.hitCd <= 0) this.takeDamage();                                      // eigene Waffen treffen den Geist, der Host bekommt den Schaden ueber den Lebensverlust
 }
@@ -190,7 +243,9 @@ function coopObstacleContact(dt) {
 function coopSpawnerContact(dt) { this.age += dt; this.hitCd = Math.max(0, this.hitCd - dt); if (!this.arriving) this.weaponContact(dt); }
 
 const Coop = {
-  focus: null, _classes: null, errs: [],
+  focus: null, _classes: null, errs: [], wts: 0,
+  // Zeit, zu der die Geisterbilder gerade gezeichnet werden (Zeit des Hosts abzueglich Puffer)
+  renderTime() { const C = G.coop; return C && C.clk ? C.clk.renderTime(G.realTime) : 0; },
   fail(what, e) { if (this.errs.length < 30) this.errs.push(what + ': ' + String((e && e.message) || e)); },
 
   get on() { return !!G.coop; },
@@ -225,7 +280,8 @@ const Coop = {
     CFG.map.halfW = G.map.half[0]; CFG.map.halfH = G.map.half[1];
     G.diff = this.scaleDiff(base.diff, mult);
     G.coop = { role, n, mult, order, me: ch.id, t: 0, cd: C.countdown, stateT: 0, worldT: 0, dmgT: 0, seq: 0, out: false, over: false, dead: {}, gone: new Map(), fwdNotice: false,
-      pend: {}, pendFx: {}, startShown: undefined, hostGone: 0, spec: 0, defeat: null, pre: 0 };
+      pend: {}, pendFx: {}, startShown: undefined, hostGone: 0, spec: 0, defeat: null, pre: 0,
+      clk: new NetClock(), rtt: 0, pingT: 0, packMs: 0, rev: 0, linkN: 0, p2p: false, deathPos: null };
     G.mates = order.filter((id) => id !== ch.id).map((id) => new CoopMate({ id, name: byId[id].name }));
     const me = order.indexOf(ch.id), a = me * 2 * Math.PI / Math.max(2, n);
     G.player.x = Math.cos(a) * 36; G.player.y = Math.sin(a) * 36;
@@ -296,22 +352,58 @@ const Coop = {
     }
     if (G.mates.some((m) => m.left)) { G.mates = G.mates.filter((m) => !m.left); this.check(); }
     if (!G.mates.length && C.role === 'guest') { this.abort('THE HOST LEFT'); return; }
+    // Verbindungsart: direkt (P2P) erlaubt mehr Pakete pro Sekunde, ueber den Server bleibt es bei den niedrigen Raten (Nachrichtengrenze, Laufzeit)
+    C.p2p = !!(Pvp.ch && Pvp.ch.link && Pvp.ch.link() === 'P2P');
+    if (C.role === 'guest') { C.pingT -= dt; if (C.pingT <= 0) { C.pingT = 1.5; this.send('cping', { t: G.realTime }); } }
+    this.reviveTick(dt);
+    C.linkN = this.linkCount();
     // eigener Zustand
     C.stateT -= dt;
     if (C.stateT <= 0) {
-      C.stateT = 1 / K.stateHz;
+      C.stateT = 1 / (C.p2p ? K.stateHzP2P : K.stateHz);
       const pl = G.player, r1 = (v) => Math.round(v * 10) / 10;
       this.send('cstate', { x: r1(pl.x), y: r1(pl.y), d: r1(pl.dir), vx: r1(pl.velX || 0), vy: r1(pl.velY || 0), hp: Math.round(pl.hp), mh: Math.round(pl.maxHp),
-        spr: Hero.sprite(), bl: pl.blinkT > 0 ? 1 : 0, sh: pl.shield ? 1 : 0, dd: C.out ? 1 : 0, a: C.out ? [] : PvpMatch.snapshot(),
+        ts: Math.round(G.realTime * 1000) / 1000, rt: Math.round(C.rtt || 0), spr: Hero.sprite(), bl: pl.blinkT > 0 ? 1 : 0, sh: pl.shield ? 1 : 0, dd: C.out ? 1 : 0, a: C.out ? [] : PvpMatch.snapshot(),
         ul: Math.round(clamp(G.ultCharge / (CFG.ult.readyAt + 1), 0, 1) * 100) / 100, ur: G.ultCharge > CFG.ult.readyAt ? 1 : 0, un: 1 + (G.ultStock || 0),
         cs: (C.csN = (C.csN || 0) + 1) % 20 === 1 ? this.lookPack() : undefined, sp: SafeSpot.inside && SafeSpot.spot ? [Math.round(SafeSpot.spot.x), Math.round(SafeSpot.spot.y)] : 0 });
     }
     if (C.role === 'host') {
       C.worldT -= dt;
-      if (C.worldT <= 0) { C.worldT = 1 / K.worldHz; this.send('world', this.packWorld()); }
+      if (C.worldT <= 0) {
+        C.worldT = 1 / ((C.p2p ? K.worldHzP2P : K.worldHz) * clamp(6 / Math.max(6, C.packMs), 0.5, 1));       // braucht das Packen lange (schwaches Geraet), weniger Bilder pro Sekunde statt Ruckeln beim Host
+        const t0 = performance.now(), w = this.packWorld();
+        C.packMs += (performance.now() - t0 - C.packMs) * 0.1;
+        this.send('world', w);
+      }
     }
     if (C.out) this.spectate();
   },
+  // Wiederbeleben: wer lange genug neben der Grabmarke eines ausgeschiedenen Mitspielers steht, holt ihn zurueck (hoechstens CFG.coop.reviveMax mal pro Spieler und Lauf)
+  reviveTick(dt) {
+    const C = G.coop, K = CFG.coop;
+    if (C.out || G.mode !== 'play') return;
+    for (const m of G.mates) {
+      if (!m.dead || !m.deathPos || m.revLeft <= 0) { m.revT = 0; continue; }
+      const d = Math.hypot(G.player.x - m.deathPos[0], G.player.y - m.deathPos[1]);
+      if (d <= K.reviveRadius) m.revT += dt; else m.revT = Math.max(0, m.revT - dt * 2);
+      if (m.revT >= K.reviveTime) {
+        this.send('ev', { k: 'rev', to: m.id, x: m.deathPos[0], y: m.deathPos[1] });
+        m.revT = 0; m.revLeft--; m.deathPos = null; Sfx.play('levelUp'); G.notice('REVIVED ' + m.name + '!', STYLE.pal.green);
+      }
+    }
+  },
+  // Verbunden: Mitspieler in Reichweite geben Angriffstempo und Schutz (mehr Zusammenspiel statt Verstreuen)
+  linkCount() {
+    const C = G.coop;
+    if (!C || C.out) return 0;
+    let n = 0;
+    for (const m of G.mates) if (!m.dead && Math.hypot(m.x - G.player.x, m.y - G.player.y) <= CFG.coop.linkRange) n++;
+    return Math.min(CFG.coop.linkMax, n);
+  },
+  haste() { const C = G.coop; return C && C.linkN ? 1 + C.linkN * CFG.coop.linkHaste : 1; },
+  guard() { const C = G.coop; return C && C.linkN ? 1 - C.linkN * CFG.coop.linkGuard : 1; },
+  // eigenes Ultimate ausgeloest: die anderen laden ein Stueck auf
+  ultCast() { if (G.coop && G.mates.length) this.send('ev', { k: 'ult' }); },
   // eigene Cosmetics fuer die Mitspieler: je Kategorie [Item-ID, Farb-ID]
   lookPack() {
     const o = {};
@@ -406,7 +498,7 @@ const Coop = {
     }
     const bosses = G.bossList().map((b, i) => ({ i: id(b), ty: b.type, f: coopFields(b, COOP_BOSS_SKIP), main: b === G.boss ? 1 : 0, tw: b.twin ? 1 : 0 }));
     const w = {
-      t: Math.round(G.time * 100) / 100, q: C.seq, e: enemies, b: bosses,
+      t: Math.round(G.time * 100) / 100, ts: Math.round(now * 1000) / 1000, q: C.seq, e: enemies, b: bosses,
       sh: gen(G.shots, K.maxShots), bs: gen(G.bossShots, K.maxShots), bl: gen(G.blasts, K.maxShots), me: gen(G.meteors, 24), pu: gen(G.powerups, 8, COOP_SKIP, false),
       // langsame Listen (Spawner, Hindernisse, Gefahren) nur jedes n-te Bild: der Gast behaelt bis dahin den letzten Stand (spart den Grossteil der Daten)
       sp: slow(4) ? gen(G.spawners, 8, new Set([...COOP_SKIP, 'warn']), false) : undefined,
@@ -422,6 +514,8 @@ const Coop = {
   applyWorld(w) {
     const C = G.coop;
     if (!C || C.role !== 'guest' || C.over || !w) return;
+    this.wts = typeof w.ts === 'number' ? w.ts : G.realTime;                      // Zeit des Hosts (aeltere Hosts schicken keine: dann zaehlt die Ankunft)
+    C.clk.note(this.wts, G.realTime);
     G.time = w.t;
     const f = w.fl || {};
     if (!!f.fl !== G.flood) { G.flood = !!f.fl; G.notice(G.flood ? 'SWARM SURGE!' : 'SURGE SURVIVED', G.flood ? STYLE.pal.red : STYLE.pal.green, G.flood ? STYLE.type.h1 : undefined); }
@@ -462,6 +556,7 @@ const Coop = {
     const g = Object.create(Cl.prototype);
     Object.assign(g, it.f);
     g.cid = it.i; g.gh = true; g.alive = true; g.nx = g.x; g.ny = g.y; g.vx = it.vx || 0; g.vy = it.vy || 0;
+    snapPush(g, this.wts, g.x, g.y);
     g.update = coopGhostUpdate;
     const draw = Cl.prototype.draw;
     const nm = it.c;
@@ -483,6 +578,7 @@ const Coop = {
         const x = g.x, y = g.y, age = g.age;
         Object.assign(g, it.f);
         g.nx = it.f.x; g.ny = it.f.y; g.vx = it.vx || 0; g.vy = it.vy || 0; g.x = x; g.y = y;
+        snapPush(g, this.wts, it.f.x, it.f.y);
         if (typeof age === 'number' && typeof it.f.age === 'number' && Math.abs(age - it.f.age) < 0.25) g.age = age;
         if (g.hp0 !== undefined) g.hp0 = g.hp;
       }
@@ -517,6 +613,7 @@ const Coop = {
         Object.assign(g, it.f);
         g.cfg = CFG.boss[it.ty]; g.type = it.ty; g.isBoss = true; g.gh = true; g.cid = it.i; g.alive = true; g.twin = null;
         g.nx = g.x; g.ny = g.y; g.bar = 1; g.hitCd = 0; g.stunImmune = 0; g.summonFlash = 0;
+        snapPush(g, this.wts, g.x, g.y);
         g.update = coopBossUpdate;
         const draw = Cl.prototype.draw;
         g.draw = function (ctx) { try { draw.call(this, ctx); } catch (e) { Coop.fail('draw boss ' + this.type, e); drawSprite(ctx, this.sprite || 'octagon', this.x, this.y, this.dir, 300); } };
@@ -524,6 +621,7 @@ const Coop = {
         const x = g.x, y = g.y, hc = g.hitCd, st = g.stun, bar = g.bar;
         Object.assign(g, it.f);
         g.nx = it.f.x; g.ny = it.f.y; g.x = x; g.y = y; g.hitCd = hc; g.bar = bar;
+        snapPush(g, this.wts, it.f.x, it.f.y);
         if (st > g.stun) g.stun = st;
       }
       g.hp0 = g.hp; g.alive = true;
@@ -542,6 +640,8 @@ const Coop = {
     if (ev === 'cstate') {
       const m = G.mates.find((q) => q.id === p.from);
       if (!m) return;
+      const ts = typeof p.ts === 'number' ? p.ts : G.realTime;
+      m.clk.note(ts, G.realTime); snapPush(m, ts, p.x, p.y); m.rtt = p.rt | 0;
       m.nx = p.x; m.ny = p.y; m.nd = p.d; m.vx = p.vx; m.vy = p.vy; m.at = G.realTime; m.hp = p.hp; m.mhp = p.mh; m.spr = p.spr || 'player'; m.blink = !!p.bl; m.shield = !!p.sh; m.dead = !!p.dd;
       m.ult = p.ul || 0; m.ultReady = !!p.ur; m.ultN = p.un || 1; if (p.cs) m.cs = p.cs; m.sp = p.sp || null;
       m.seen = G.realTime;
@@ -550,6 +650,8 @@ const Coop = {
     } else if (ev === 'world') this.applyWorld(p);
     else if (ev === 'cdmg') { if (C.role === 'host') this.applyDamage(p); }
     else if (ev === 'edie') this.onEnemyDied(p);
+    else if (ev === 'cping') { if (C.role === 'host') this.send('cpong', { to: p.from, t: p.t }); }
+    else if (ev === 'cpong') { if (p.to === C.me) { const r = (G.realTime - p.t) * 1000; C.rtt = C.rtt ? C.rtt + (r - C.rtt) * 0.3 : r; } }
     else if (ev === 'chit') { if (p.to === C.me && !C.over) G.player.hit(p.k, p.m, p.s); }
     else if (ev === 'cchill') { if (p.to === C.me && !C.over) G.player.chill(p.d || CFG.chill.dur); }
     else if (ev === 'ev') this.onEvent(p);
@@ -604,7 +706,9 @@ const Coop = {
     if (p.k === 'n') G.notice(p.t, p.c || undefined, p.s || undefined);
     else if (p.k === 'bs' && C.role === 'guest') { if (!G.bossFight) G.startBossFight(p.ty); }
     else if (p.k === 'be' && C.role === 'guest') this.onBossEnd(p);
-    else if (p.k === 'cdead') { const m = G.mates.find((q) => q.id === p.from); if (m) { m.dead = true; m.ghosts = []; } this.check(); }
+    else if (p.k === 'cdead') { const m = G.mates.find((q) => q.id === p.from); if (m) { m.dead = true; m.ghosts = []; m.deathPos = typeof p.x === 'number' ? [p.x, p.y] : null; m.revLeft = p.rv | 0; m.revT = 0; } this.check(); }
+    else if (p.k === 'rev') { if (p.to === C.me && C.out && !C.over) { C.rev++; this.reviveSelf(p.x, p.y); } }
+    else if (p.k === 'ult') { if (!C.out && !C.over) { G.addUlt(CFG.coop.ultShare); } }
     else if (p.k === 'over') this.runOver(p.why);
     else if (p.k === 'fin' && C.role === 'guest') { /* Siegphase beginnt beim Boss-Ende */ }
   },
@@ -629,11 +733,12 @@ const Coop = {
     if (G.bossFight) G.endBossFight(p.r);
     if (p.r === 'win' && !p.fin) this.reviveSelf();
   },
-  reviveSelf() {
+  reviveSelf(x, y) {
     const C = G.coop;
     if (!C || !C.out) return;
     C.out = false; C.dead[C.me] = false;
     const p = G.player;
+    if (typeof x === 'number') { p.x = x; p.y = y; G.cam.x = x; G.cam.y = y; }
     p.hp = Math.max(1, Math.round(p.maxHp * CFG.coop.reviveFrac)); p.invincibleT = Math.max(p.invincibleT || 0, 2);
     G.notice('REVIVED!', STYLE.pal.green);
     Sfx.play('levelUp');
@@ -644,11 +749,12 @@ const Coop = {
     const C = G.coop;
     if (!C || C.over || C.out) return;
     C.out = true; C.dead[C.me] = true; G.attacks = [];
+    C.deathPos = [G.player.x, G.player.y];
     G.player.hp = 0;
     Sfx.play('death'); Juice.shake(3);
-    this.send('ev', { k: 'cdead' });
+    this.send('ev', { k: 'cdead', x: Math.round(C.deathPos[0]), y: Math.round(C.deathPos[1]), rv: Math.max(0, CFG.coop.reviveMax - C.rev) });
     this.check();
-    if (!C.over) G.notice('YOU ARE OUT - WATCH, YOU RETURN AFTER THE NEXT BOSS', STYLE.pal.orange);
+    if (!C.over) G.notice(CFG.coop.reviveMax - C.rev > 0 ? 'YOU ARE OUT - A TEAMMATE CAN REVIVE YOU, OR YOU RETURN AFTER THE NEXT BOSS' : 'YOU ARE OUT - WATCH, YOU RETURN AFTER THE NEXT BOSS', STYLE.pal.orange);
   },
   // Host: sind alle ausgeschieden, endet der Lauf fuer alle
   check() {
@@ -690,7 +796,16 @@ const Coop = {
   exit() { if (G.coop) { G.coop = null; G.mates = []; } this.focus = null; try { Pvp.leave(true); } catch (e) { /* egal */ } },
 
   // ---------------------------------------------------------------- Anzeige
-  drawMates(ctx) { for (const m of G.mates || []) m.draw(ctx); },
+  drawMates(ctx) {
+    const C = G.coop;
+    if (C && C.linkN && !C.out) {                                              // Verbindungslinien zu den Mitspielern in Reichweite
+      const P = STYLE.pal, px = STAGE_W / 2 + G.player.x, py = STAGE_H / 2 - G.player.y;
+      ctx.save(); ctx.fillStyle = P.cyan; ctx.globalAlpha = 0.35 + 0.15 * Math.sin(G.realTime * 5);
+      for (const m of G.mates) if (!m.dead && Math.hypot(m.x - G.player.x, m.y - G.player.y) <= CFG.coop.linkRange) pxLine(ctx, px, py, STAGE_W / 2 + m.x, STAGE_H / 2 - m.y);
+      ctx.restore();
+    }
+    for (const m of G.mates || []) m.draw(ctx);
+  },
   drawOverlay(ctx) {
     const C = G.coop, T = STYLE.type, S = STYLE.pal;
     if (!C) return;
@@ -703,6 +818,10 @@ const Coop = {
       ctx.fillStyle = S.greyDark; ctx.fillRect(STAGE_W - 8 - 60, y + 3, 60, 4);
       if (!p.dead) { ctx.fillStyle = f > 0.35 ? col : S.orange; ctx.fillRect(STAGE_W - 8 - 60, y + 3, Math.round(60 * f), 4); }
     });
+    // Verbindung: Art (P2P = direkt, RELAY = ueber den Server) und Laufzeit; bei hoher Laufzeit rot
+    const rtt = C.role === 'guest' ? C.rtt : Math.max(0, ...G.mates.map((m) => m.rtt || 0));
+    uiText(ctx, 'NET ' + (C.p2p ? 'P2P' : Pvp.ch && Pvp.ch.link ? Pvp.ch.link() : 'RELAY') + (rtt ? ' ' + Math.round(rtt) + 'MS' : ''), STAGE_W - 8, 58 + all.length * 17 + 4, { size: T.small, color: !rtt || rtt < 80 ? S.green : rtt < 160 ? S.yellow : S.red, align: 'right' });
+    if (C.linkN) uiText(ctx, 'LINKED +' + Math.round(C.linkN * CFG.coop.linkHaste * 100) + '% SPEED  -' + Math.round(C.linkN * CFG.coop.linkGuard * 100) + '% DAMAGE', STAGE_W - 8, 58 + all.length * 17 + 15, { size: T.small, color: S.cyan, align: 'right' });
     if (C.cd > 0) uiText(ctx, String(Math.ceil(C.cd)), STAGE_W / 2, STAGE_H / 2 - 20, { size: T.title, color: S.yellow, align: 'center', glow: S.yellow });
     else if (C.startShown !== undefined && G.realTime - C.startShown < 0.8) uiText(ctx, 'GO!', STAGE_W / 2, STAGE_H / 2 - 20, { size: T.h1, color: S.green, align: 'center' });
     if (C.out && !C.over) uiText(ctx, 'WATCHING ' + (C.watching || '') + '  [SPACE: NEXT]', STAGE_W / 2, STAGE_H - 24, { size: T.body, color: S.orange, align: 'center' });

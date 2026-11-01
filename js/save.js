@@ -23,6 +23,9 @@ const Save = {
     pvpName: '', pvpLoadout: {}, pvpEquip: {}, pvpHeroSel: null, pvpSet: 'brawler',                 // PvP: Anzeigename des Gasts, gewaehlte Abilities je Gruppe { weak, medium, strong }
     devKey: '',                                  // geheimer Schluessel aus der Dev-Save-Datei: erlaubt Spieler in den Ranglisten zu sperren (Server prueft den Hash)
     dev: false,                                  // Dev-Modus (Cheat-Tasten + Statistik-Bildschirm), wird mit der Dev-Save-Datei freigeschaltet (tools/dev-save.deatharena)
+    asc: { max: 0, sel: 0, cleared: {} },        // Ascension (js/retention.js): hoechste freie Stufe, gewaehlte Stufe, gemeisterte Stufen
+    chal: { sel: 'off', done: {}, streak: 0, streakDay: '' },     // Challenge: Auswahl, erledigte Tage/Wochen, Serie
+    onb: { seen: {} },                           // gezeigte Hinweise der ersten Laeufe
     deathLog: [], bossLog: [],                   // Protokoll fuer das Balancing (siehe runstats.js), gilt fuer alle Slots
     imported: { deaths: [], bosses: [] },        // importierte Spieldaten anderer Spieler
     binds: {} },     // eigene Tastenbelegung (siehe Input.actions)

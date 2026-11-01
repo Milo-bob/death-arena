@@ -41,6 +41,7 @@ const Pvp = {
     this.scores = {}; this.mode = 'ffa'; this.rule = 'own'; this.bots = 0;
     this.code = code; this.isHost = host; this.joinAt = Date.now(); this.hadHost = host; this.st = 'lobby'; this.sel = 0; this.say(host ? '' : 'JOINING...', STYLE.pal.grey);
     this.ch = Net.open(this.game === 'coop' && Net.isDevCode(code) ? code + 'C' : code, { /* Dev-Lobbys: PvP und Koop haben je einen eigenen Kanal */ name: this.name(), host, mode: 'ffa', rule: 'own', set: Save.data.pvpSet, game: this.game, map: this.coopMap, pmap: this.pmapSel(), spr: this.lookSprite(), cs: this.lookCs(), rating: Save.pvpStrength() }, {
+      p2p: true,
       onPlayers: (list) => this.onPlayers(list),
       onMessage: (ev, p) => { if (ev === 'start' && !this.isHost) this.roundStart(p); else { PvpMatch.onMessage(ev, p); Coop.onMessage(ev, p); } },
       onStatus: (s) => { if (s === 'error' && this.ch) this.failBack('CONNECTION FAILED'); else if (s === 'reconnecting') this.say('RECONNECTING...', STYLE.pal.orange); else if (s === 'joined' && this.msg === 'RECONNECTING...') this.say(''); },
@@ -286,6 +287,7 @@ const Pvp = {
       if (lr[this.sel] === 'botlevel') { if (Input.pressed('ArrowLeft') || Input.pressed('KeyA')) this.botLevel = (this.botLevel + 2) % 3; if (Input.pressed('ArrowRight') || Input.pressed('KeyD')) this.botLevel = (this.botLevel + 1) % 3; }
       if (lr[this.sel] === 'bots') { if (Input.pressed('ArrowLeft') || Input.pressed('KeyA')) this.bots = Math.max(0, this.bots - 1); if (Input.pressed('ArrowRight') || Input.pressed('KeyD')) this.bots = Math.min(3, this.bots + 1); }
       if (Input.pressed('Escape')) { this.leave(); return; }
+      if (Input.pressed('KeyL') && !this.pub) this.copyLink();
       if (lr[this.sel] === 'map') { if (Input.pressed('ArrowLeft') || Input.pressed('KeyA')) this.toggleMap(-1); if (Input.pressed('ArrowRight') || Input.pressed('KeyD')) this.toggleMap(1); }
       if (lr[this.sel] === 'game' && (Input.pressed('ArrowLeft') || Input.pressed('KeyA') || Input.pressed('ArrowRight') || Input.pressed('KeyD'))) this.toggleGame();
       if (lr[this.sel] === 'arena') { if (Input.pressed('ArrowLeft') || Input.pressed('KeyA')) this.togglePMap(-1); if (Input.pressed('ArrowRight') || Input.pressed('KeyD')) this.togglePMap(1); }
@@ -574,6 +576,17 @@ const Pvp = {
   },
 
   // Lobby: links die Knopfspalte, rechts Spielerkarten mit Schiff (Skin/Aura/Gear), im Team-Modus zwei Spalten A und B; oben der Code (Klick kopiert ihn)
+  // Einladungslink: dieselbe Adresse wie das Spiel mit ?join=CODE. Ein Tipp darauf (Handy, Nachricht, AirDrop) oeffnet das Spiel und tritt der Lobby von selbst bei.
+  inviteLink() { try { return location.origin + location.pathname + '?join=' + this.code; } catch (e) { return ''; } },
+  copyLink() {
+    const l = this.inviteLink();
+    if (!l) return;
+    try { navigator.clipboard.writeText(l); } catch (e) { /* kein Zugriff auf die Zwischenablage */ }
+    try { if (navigator.share && PWA.embedded === false && Input.touchSeen) navigator.share({ title: 'DeathArena', text: 'Join my DeathArena lobby!', url: l }).catch(() => {}); } catch (e) { /* egal */ }
+    this.linkCopied = Date.now(); Sfx.play('tick');
+  },
+  // Link aus der Adresse (?join=ABCDE): wird beim ersten Mal im Hauptmenue abgearbeitet (game.js updateMenu)
+  urlCode: (() => { try { const m = /[?&]join=([A-Za-z0-9]{5})/.exec(location.search); return m ? m[1].toUpperCase() : null; } catch (e) { return null; } })(),
   drawLobby(ctx, top) {
     const P = STYLE.pal, T = STYLE.type, t = G.realTime, W = STAGE_W, H = STAGE_H;
     const status = this.ch ? this.ch.status : 'closed', rows = this.lobbyRows(), coop = this.gameNow() === 'coop', mode = this.modeNow(), teams = !coop && mode !== 'ffa', accent = coop ? P.orange : P.red;
@@ -585,6 +598,9 @@ const Pvp = {
       const bw = 28, bh = 32, gap = 4, n = this.code.length || 5, tw = n * (bw + gap) - gap, x0 = W - 60 - tw, copied = Date.now() - this.copied < 1500;          // Platz fuer das X oben rechts
       UIHit.add(x0 - 4, 8, tw + 8, bh + 14, () => {}, { act: () => { try { navigator.clipboard.writeText(this.code); } catch (e) { /* egal */ } this.copied = Date.now(); Sfx.play('tick'); } });
       uiText(ctx, copied ? 'COPIED!' : 'LOBBY CODE', x0 + tw / 2, 14, { size: T.small, color: copied ? P.green : P.grey, align: 'center' });
+      const lc = Date.now() - (this.linkCopied || 0) < 1800;
+      UIHit.add(x0 - 4, 18 + bh + 2, tw + 8, 14, () => {}, { act: () => this.copyLink() });
+      uiText(ctx, lc ? 'INVITE LINK COPIED!' : '[L] COPY INVITE LINK', x0 + tw / 2, 18 + bh + 12, { size: T.small, color: lc ? P.green : P.grey, align: 'center' });
       for (let i = 0; i < n; i++) {
         const x = x0 + i * (bw + gap);
         uiPanel(ctx, x, 18, bw, bh, { color: P.yellow, fill: P.voidLight, alpha: 0.95, glow: true });
