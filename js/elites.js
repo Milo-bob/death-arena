@@ -102,44 +102,48 @@ const Elite = {
       for (const ey of [9.5, 17.5]) { circ(px, 19.5, ey, 2.2, '#ffe14a'); circ(px, 20, ey, 1, '#ffffff'); }
       for (let k = 0; k < 4; k++) px(2 + k, 7 + k * 4, '#5b2bd0');                                // Schweif
     });
-    if (type === 'compactor') return body('eliteCompactor', ({ px, poly }) => {                    // Schrottpresse: rostiger Block mit Pressplatte vorn
-      poly([[3, 4], [20, 4], [20, 24], [3, 24]], '#4a2512'); poly([[4, 5], [19, 5], [19, 23], [4, 23]], '#8a4a22'); poly([[4, 5], [19, 5], [19, 8], [4, 8]], '#c8743a');
-      poly([[19, 3], [26, 3], [26, 25], [19, 25]], '#2b2b30'); poly([[20, 4], [25, 4], [25, 24], [20, 24]], '#9aa0a8');
-      for (let y = 5; y < 24; y++) if (Math.floor(y / 3) % 2 === 0) for (let x = 21; x < 25; x++) px(x, y, '#ffd91f');         // Warnstreifen
-      for (const [x, y] of [[6, 11], [6, 17], [14, 11], [14, 17]]) { px(x, y, '#2b1608'); px(x + 1, y, '#2b1608'); }                   // Nieten
-      poly([[7, 12], [13, 12], [13, 16], [7, 16]], '#4a2512'); poly([[8, 13], [12, 13], [12, 15], [8, 15]], '#ffd91f');              // Sichtfenster
-      px(2, 9, '#7a808a'); px(1, 9, '#7a808a'); px(2, 18, '#7a808a'); px(1, 18, '#7a808a');                                              // Auspuff
-    });
-    if (type === 'glitch') return body('eliteGlitch', ({ px, poly }) => {                          // Raute mit verschobenen Streifen (Datenfehler)
-      poly([[14, 1], [27, 14], [14, 27], [1, 14]], '#06403a'); poly([[14, 3.5], [24.5, 14], [14, 24.5], [3.5, 14]], '#12a88c'); poly([[14, 6], [22, 14], [14, 22], [6, 14]], '#2bffb0');
-      for (let y = 1; y < 27; y += 5) for (let x = 0; x < 28; x++) { px(x + (y % 10 === 1 ? 2 : -2), y, '#ff3dd0'); px(x, y + 1, '#06403a'); }
-      circ(px, 14, 14, 3, '#ffffff'); circ(px, 14, 14, 1.5, '#06403a');
-    });
-    if (type === 'emberlord') return body('eliteEmberlord', ({ px, poly }) => {                    // Schmelzofen: dunkle Kugel mit gluehenden Rissen, Hoerner nach vorn
-      poly([[17, 4], [27, 1], [22, 10]], '#2b1008'); poly([[17, 24], [27, 27], [22, 18]], '#2b1008'); poly([[19, 5], [26, 2.5], [22, 9]], '#c8743a'); poly([[19, 23], [26, 25.5], [22, 19]], '#c8743a');
-      circ(px, 13, 14, 12, '#2b1008'); circ(px, 13, 14, 10.5, '#4a1a0c');
-      for (let k = 0; k < 7; k++) { const a = k * 0.9 + 0.4; for (let r = 3; r < 10; r++) { const x = Math.floor(13 + Math.cos(a) * r), y = Math.floor(14 + Math.sin(a) * r * 1.0 + ((r * k) % 3 - 1)); px(x, y, r < 6 ? '#ffd91f' : '#ff8a1f'); } }
-      circ(px, 13, 14, 4, '#ff8a1f'); circ(px, 13, 14, 2.5, '#ffd91f'); circ(px, 13, 14, 1.2, '#ffffff');
-    });
-    if (type === 'miasma') return body('eliteMiasma', ({ px }) => {                                // Giftblase: gruener Beutel mit Blasen und violetten Flecken
-      circ(px, 14, 14, 12.5, '#0f3a1a'); circ(px, 14, 14, 11, '#2a7a3a'); circ(px, 12, 13, 8, '#3fae4f');
-      for (const [x, y, r] of [[9, 9, 3], [17, 17, 3.4], [18, 8, 2], [8, 18, 2.2], [13, 14, 2.4]]) { circ(px, x, y, r, '#8aff7a'); circ(px, x - 0.6, y - 0.6, r * 0.4, '#e6ffe0'); }
-      for (const [x, y, r] of [[21, 13, 2], [14, 22, 1.8], [6, 12, 1.6]]) circ(px, x, y, r, '#7a3fb0');
-      for (let k = 0; k < 6; k++) { const a = k * 1.05; px(Math.floor(14 + Math.cos(a) * 13), Math.floor(14 + Math.sin(a) * 13), '#8aff7a'); }
-    });
-    if (type === 'glacier') return body('eliteGlacier', ({ px, poly }) => {                        // Eiskristall: Sechseck mit Facetten
-      const hx = (r) => { const pts = []; for (let k = 0; k < 6; k++) pts.push([14 + Math.cos(k * 1.0472) * r, 14 + Math.sin(k * 1.0472) * r]); return pts; };
-      poly(hx(13.5), '#1d5f82'); poly(hx(12), '#6fc8ee'); poly(hx(8.5), '#bfefff');
-      poly([[14, 14], [14 + 12 * Math.cos(-1.0472), 14 + 12 * Math.sin(-1.0472)], [14 + 12 * Math.cos(0), 14], [14 + 12 * Math.cos(1.0472), 14 + 12 * Math.sin(1.0472)]], '#2a7fa8');
-      poly([[14, 14], [14 + 8.5 * Math.cos(-2.0944), 14 + 8.5 * Math.sin(-2.0944)], [14 + 8.5 * Math.cos(-1.0472), 14 + 8.5 * Math.sin(-1.0472)]], '#ffffff');
-      circ(px, 14, 14, 2.5, '#ffffff');
-      for (const [x, y] of [[5, 9], [22, 20], [9, 21]]) { px(x, y, '#ffffff'); px(x + 1, y, '#bfefff'); px(x, y + 1, '#bfefff'); }
-    });
-    // Phantom und Bastion: gemalt wie die Karten-Elite, aber achsensymmetrisch (nur die obere Haelfte wird gemalt und nach unten gespiegelt)
-    const half = (g, w, h, paint) => {
+    const half = (g, w, h, paint) => {                                                  // achsensymmetrisch: nur die obere Haelfte wird gemalt und nach unten gespiegelt
       g.save(); g.beginPath(); g.rect(0, 0, w, h / 2); g.clip(); paint(); g.restore();
       g.save(); g.translate(0, h); g.scale(1, -1); g.drawImage(g.canvas, 0, 0, w, h / 2, 0, 0, w, h / 2); g.restore();
     };
+    if (type === 'compactor') return body('eliteCompactor2', ({ px, poly, g }) => half(g, 28, 28, () => {      // Schrottpresse: Rundkoerper mit zwei Hydraulik-Backen, die vorn zupacken
+      poly([[7, 8], [16, 5.5], [25, 6.5], [27.5, 9], [27.5, 12.6], [23.5, 12.6], [22.5, 10], [15, 10.6], [9, 12]], '#2c1606');
+      poly([[8, 8.6], [16, 6.4], [24.6, 7.4], [26.6, 9.4], [26.6, 11.6], [24, 11.6], [23, 9.2], [15.5, 9.6], [9, 11]], '#a85a20');
+      poly([[8, 8.6], [16, 6.4], [24.6, 7.4], [25, 8.2], [16, 7.4], [8.6, 9.6]], '#f09a50');
+      for (const x of [13, 17, 21]) { px(x, 8, '#ffd91f'); px(x + 1, 8, '#15110d'); }                              // Warnstreifen auf der Backe
+      px(26, 10, '#ffffff'); px(26, 11, '#c4cad2');                                                               // Backenspitze
+      for (let y = 0; y < 14; y++) for (let x = 0; x < 28; x++) { const d = Math.hypot(x + 0.5 - 9, y + 0.5 - 14); if (d <= 8.6) px(x, y, d > 7.4 ? '#2c1606' : d > 6 ? '#8a4a1c' : d > 3.6 ? '#5a2c0e' : d > 2.2 ? '#ffd91f' : '#fff6c0'); }
+      for (const [x, y] of [[4, 9], [14, 9]]) px(x, y, '#ffb070');                                                // Nieten
+      px(0, 11, '#7a808a'); px(1, 11, '#7a808a'); px(2, 12, '#7a808a');                                           // Auspuff
+    }));
+    if (type === 'glitch') return body('eliteGlitch2', ({ px, poly, g }) => half(g, 28, 28, () => {            // Datensplitter: drei ineinander geschobene Pfeilspitzen (magenta, gruen, weiss) mit Zeilenversatz
+      poly([[27.5, 14], [14, 3], [8, 3], [18, 14]], '#ff3dd0'); poly([[24, 14], [12, 5.5], [8, 5.5], [16, 14]], '#2bffb0'); poly([[20.5, 14], [11, 8], [8, 8], [14.5, 14]], '#ffffff');
+      poly([[10, 14], [4, 5], [0.5, 5], [6, 14]], '#12a88c'); poly([[8, 14], [3.6, 8], [1.6, 8], [5.5, 14]], '#06403a');
+      for (const y of [6, 9]) for (let x = 3; x < 25; x++) { px(x + (y === 6 ? 2 : -2), y, '#15151f'); }                // Datenfehler: dunkle Versatzzeilen
+      px(23, 13, '#ffffff'); px(22, 13, '#ff3dd0'); px(21, 13, '#2bffb0');
+    }));
+    if (type === 'emberlord') return body('eliteEmberlord2', ({ px, poly, g }) => half(g, 28, 28, () => {      // Flammenfuerst: breite Schultern mit gluehender Brust, zwei riesige Widderhoerner, Flammenkamm am Heck
+      poly([[21, 11], [24, 6], [27.6, 3], [26, 8], [24, 12]], '#c8743a'); poly([[22, 11], [24.2, 7], [26.6, 4.6], [25.4, 8.2], [23.6, 12]], '#f0b060');        // Horn
+      poly([[17, 8], [20, 3.5], [24, 1.4], [21.4, 4.4], [20.4, 8]], '#2b1008');
+      poly([[8, 9], [3, 3], [5.5, 7.2], [0.5, 5.4], [5, 10], [2, 11]], '#ff8a1f'); poly([[8, 10], [3.8, 5.2], [5.8, 8.2], [2.4, 7.6], [5.4, 11]], '#ffd23a');     // Flammenkamm
+      poly([[21, 14], [18, 7.5], [10, 7], [6, 14]], '#2b1008'); poly([[20, 14], [17.4, 8.6], [10.4, 8.2], [7.2, 14]], '#4a1a0c');
+      for (let k = 0; k < 4; k++) { const x = 10 + k * 3; px(x, 10 + (k % 2), '#ff8a1f'); px(x, 11 + (k % 2), '#ffd23a'); }  // Risse
+      for (let y = 0; y < 14; y++) for (let x = 0; x < 28; x++) { const d = Math.hypot(x + 0.5 - 14, y + 0.5 - 14); if (d <= 4) px(x, y, d <= 1.6 ? '#ffffff' : d <= 3 ? '#ffd23a' : '#ff8a1f'); }
+    }));
+    if (type === 'miasma') return body('eliteMiasma2', ({ px, poly, g }) => half(g, 28, 28, () => {            // Giftqualle: gewoelbte Glocke vorn, drei wellige Fangarme nach hinten
+      for (let y = 0; y < 14; y++) for (let x = 0; x < 28; x++) { const d = Math.hypot(x + 0.5 - 19, y + 0.5 - 14); if (d <= 8.8 && x > 12) px(x, y, d > 7.6 ? '#0f3a1a' : d > 5.6 ? '#3fae4f' : d > 3 ? '#6ad04a' : '#a8ff8a'); }
+      for (const [x, y] of [[17, 10], [22, 11]]) { px(x, y, '#e6ffe0'); px(x + 1, y, '#e6ffe0'); }
+      for (let k = 0; k < 3; k++) { const y0 = 12 - k * 3.2; for (let x = 0; x < 15; x++) { const y = y0 + Math.sin(x * 0.9 + k) * 1.4; px(x + 1, y, k === 1 ? '#8aff7a' : '#2f8a3a'); px(x + 1, y + 1, '#0f3a1a'); } px(0, y0, '#8aff7a'); }
+      for (const [x, y] of [[26, 11], [27, 13]]) px(x, y, '#c8ff5a');
+      px(20, 12, '#7a3fb0'); px(23, 9, '#7a3fb0');
+    }));
+    if (type === 'glacier') return body('eliteGlacier2', ({ px, poly, g }) => half(g, 28, 28, () => {          // Eisdorn: Kristallbuendel, ein grosser Speer nach vorn, zwei Seitenzacken, gezackter Fuss
+      poly([[27.8, 14], [14, 10.8], [3, 12], [2, 14]], '#1d5f82'); poly([[27, 14], [14, 11.8], [4, 12.8], [4, 14]], '#6fc8ee'); poly([[27, 14], [14, 11.8], [16, 14]], '#d8f4ff');
+      poly([[19, 11.6], [22, 2.6], [14.5, 10.8]], '#1d5f82'); poly([[18.4, 11.3], [21.2, 4.2], [15.8, 10.8]], '#bfefff');
+      poly([[12, 11.4], [10, 1], [6.6, 11]], '#1d5f82'); poly([[11.2, 11], [10, 3.2], [8, 10.8]], '#8fd8f8');
+      poly([[5, 12.4], [1, 5.6], [2.6, 12.8]], '#2a7fa8');
+      px(22, 13, '#ffffff'); px(23, 13, '#ffffff'); px(24, 13, '#bfefff');
+    }));
     if (type === 'phantom') return body('elitePhantom3', ({ px, poly, g }) => half(g, 28, 28, () => {      // Geisternadel: schlanker Speer mit zwei duennen, scharf nach hinten gepfeilten Klingen
       poly([[17, 11.2], [4, 1], [1, 2.4], [9, 10.8], [14, 11.8]], '#1b0a40');                                // hintere Klinge
       poly([[16.5, 11.6], [5, 2.8], [3.6, 3.4], [10, 11], [14, 11.9]], '#5b2bd0');
