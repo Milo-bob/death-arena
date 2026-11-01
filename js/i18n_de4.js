@@ -1,6 +1,7 @@
 // Deutsche Texte: Ascension, Challenge, erste Laeufe (retention.js), Koop-Wiederbeleben/Verbindung (coop.js), Einladungslink (pvp.js). Siehe i18n.js.
 if (typeof I18n !== 'undefined' && I18n.add) {
   I18n.add({
+    'Your attacks sometimes hit twice and bosses take more damage.': 'Deine Angriffe sind nicht mehr nur gegen Bosse stärker.', 'All your attacks deal more damage to enemies and bosses.': 'Alle deine Angriffe richten mehr Schaden an Gegnern und Bossen an.',
     'BREACH LIGHTS': 'SPAWNER-LICHT',
     'TOTAL ECLIPSE': 'TOTALE FINSTERNIS', 'Defeat the Eclipse.': 'Besiege den Eclipse.', 'WAKE UP': 'AUFWACHEN', 'Defeat the Nightmare.': 'Besiege den Nightmare.', 'OPPOSITES ATTRACT': 'GEGENSÄTZE ZIEHEN SICH AN', 'Defeat the Magnetron.': 'Besiege den Magnetron.', 'IMMOVABLE OBJECT': 'UNBEWEGLICHES OBJEKT', 'Defeat the Juggernaut.': 'Besiege den Juggernaut.', 'LIGHTS OUT!': 'LICHTER AUS!',
     // Meilensteine und Achievements der Karten 5 und 6
@@ -27,7 +28,7 @@ if (typeof I18n !== 'undefined' && I18n.add) {
     'YOU ARE OUT - A TEAMMATE CAN REVIVE YOU, OR YOU RETURN AFTER THE NEXT BOSS': 'DU BIST RAUS - EIN MITSPIELER KANN DICH WIEDERBELEBEN, SONST BIST DU NACH DEM NÄCHSTEN BOSS ZURÜCK',
   });
   I18n.phrases([
-    ['DAILY CHALLENGE', 'TAGES-CHALLENGE'], ['WEEKLY CHALLENGE', 'WOCHEN-CHALLENGE'], ['COMPLETE!', 'GESCHAFFT!'], [' COMPLETE  +', ' GESCHAFFT  +'], ['ALREADY DONE - NO REWARD', 'SCHON ERLEDIGT - KEINE BELOHNUNG'], [' ALREADY DONE', ' SCHON ERLEDIGT'], ['(STREAK ', '(SERIE '],
+    ['% damage dealt', '% verursachter Schaden'], ['DAILY CHALLENGE', 'TAGES-CHALLENGE'], ['WEEKLY CHALLENGE', 'WOCHEN-CHALLENGE'], ['COMPLETE!', 'GESCHAFFT!'], [' COMPLETE  +', ' GESCHAFFT  +'], ['ALREADY DONE - NO REWARD', 'SCHON ERLEDIGT - KEINE BELOHNUNG'], [' ALREADY DONE', ' SCHON ERLEDIGT'], ['(STREAK ', '(SERIE '],
     ['Daily: ', 'Heute: '], ['TIP: BUY ', 'TIPP: KAUFE '], [' UNDER HERO', ' UNTER HERO'], ['TIP: SPEND YOUR CREDITS UNDER HERO TO GET STRONGER', 'TIPP: GIB DEINE CREDITS UNTER HERO AUS, UM STÄRKER ZU WERDEN'], ['REVIVING ', 'WIEDERBELEBE '], [' - STAND HERE TO REVIVE', ' - HIER STEHEN ZUM WIEDERBELEBEN'], ['REVIVED ', 'WIEDERBELEBT: '],
     [' UNLOCKED!', ' FREIGESCHALTET!'], [' CLEARED  +', ' GESCHAFFT  +'], ['ROOKIE ASSIST ACTIVE (RUN ', 'ANFÄNGER-HILFE AKTIV (LAUF '],
   ]);

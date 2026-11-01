@@ -349,7 +349,7 @@ class Enemy {
   // stun = false: Dauerschaden (Feuer) betaeubt nicht. Artefakt Schadensboost: mit etwas Chance doppelter Schaden
   // src = Art des Angriffs (der Tank nimmt je nach Art unterschiedlich viel Schaden, siehe CFG.enemy.tank.dmg)
   takeHit(stun = true, src = null) {
-    let n = this.hitUnits();
+    let n = this.hitUnits() * (1 + Save.bonus('power'));          // Meta-Upgrade POWER: mehr Schaden gegen alle Gegner (Bosse: damageBoost)
     this.killSrc = src;                                     // Run-Statistik: womit wurde zuletzt getroffen
     if (this.type === 'tank') {
       const T = CFG.enemy.tank;
@@ -374,7 +374,7 @@ class Enemy {
 
   // Treffer-Einheiten eines Schlags: 1, mit der Chance auf einen doppelten Treffer (Implant Schadensverstaerker + Meta-Upgrade Power + Perk + Buff). Auch der PvP-Gegner nutzt das.
   hitUnits() {
-    const dc = (Save.equipped('artifact') === 'damage' ? CFG.items.damage.chance * Save.gearMul('damage') : 0) + Save.bonus('power') + Xp.val('power', 'chance') + (G.player.buffs.power > 0 ? CFG.drops.types.power.chance : 0);
+    const dc = (Save.equipped('artifact') === 'damage' ? CFG.items.damage.chance * Save.gearMul('damage') : 0) + Xp.val('power', 'chance') + (G.player.buffs.power > 0 ? CFG.drops.types.power.chance : 0);
     return Math.random() < dc ? 2 : 1;
   }
 

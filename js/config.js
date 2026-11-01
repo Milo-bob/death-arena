@@ -695,7 +695,7 @@ const CFG = {
       resist:   { tab: 'stats', name: 'ARMOR',             max: 15, cost: 65, step: 0.05, desc: (v, lv) => '-' + Math.round(v * 100) + '% damage taken  +' + (lv * 0.019).toFixed(2) + ' s safe after a hit', info: 'Hits hurt less, and you stay invulnerable a little longer after being hit.' },
       regen:    { tab: 'stats', name: 'RECOVERY',          max: 15, cost: 100, step: 0.25, desc: (v, lv) => '+' + v.toFixed(2) + ' health per second  +' + Math.round(lv * 10) + '% healing  -' + Math.round(lv * 6) + '% emergency burst cooldown', info: 'You heal over time, every kind of healing restores more, and your emergency burst near death is ready sooner.' },
       // COMBAT
-      power:      { tab: 'stats', name: 'POWER',           max: 15, cost: 80, step: 0.04, desc: (v) => '+' + Math.round(v * 100) + '% double-hit chance and boss damage', info: 'Your attacks sometimes hit twice and bosses take more damage.' },
+      power:      { tab: 'stats', name: 'POWER',           max: 15, cost: 80, step: 0.04, desc: (v) => '+' + Math.round(v * 100) + '% damage dealt', info: 'All your attacks deal more damage to enemies and bosses.' },
       attackSpeed: { tab: 'stats', name: 'ATTACK SPEED',  max: 15, cost: 70, step: 0.04, desc: (v) => '+' + Math.round(v * 100) + '% attack speed', info: 'All your weapons fire and swing faster.' },
       speed:    { tab: 'stats', name: 'SPEED',        max: 15, cost: 30, step: 0.02, desc: (v) => '+' + Math.round(v * 100) + '% move speed', info: 'You move faster permanently.' },
       cooldown: { tab: 'stats', name: 'COOLDOWNS',    max: 15, cost: 50, step: 0.03, desc: (v) => '-' + Math.round(v * 100) + '% ability cooldown', info: 'Abilities, grenades and more are ready sooner.' },
@@ -1433,7 +1433,7 @@ const CFG = {
         rim: { width: 80, push: 3.4, hot: 0.4, dps: 6 },
         magnets: { count: 3, radius: 135, idle: [5, 9], warn: 1.4, on: 4.5, pull: 1.5, bend: 3.2, minGap: 150 },
       },
-      obstacles: { style: 'scrap', radius: 16, hpMin: 6, hpMax: 10, start: 18, perWave: 2, max: 28, respawn: 7, minOther: 34, minPlayer: 70, cluster: 0.6 },
+      obstacles: { style: 'scrap', radius: 21, hpMin: 7, hpMax: 11, start: 14, perWave: 2, max: 22, respawn: 8, minOther: 46, minPlayer: 80, cluster: 0.6 },
       bossOrder: ['octagon', 'magnetron', 'summoner', 'juggernaut', 'twin', 'arena'],       // Magnetron ersetzt den Kite, Juggernaut den Laser-Turm
       foes: [{ v: 'rivet', from: 60, min: 11, max: 15, maxAlive: 8 }, { v: 'saw', from: 150, min: 20, max: 28, maxAlive: 3 }, { v: 'crusher', from: 240, min: 30, max: 40, maxAlive: 2 }],
       trim: { c: 1.35, t: 1.25, s: 1.3, tank: 1.5 },
