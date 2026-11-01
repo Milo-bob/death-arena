@@ -1265,7 +1265,7 @@ const CFG = {
     arena: { speed: 2.4, radius: 22, hpBase: 38, hpPerStage: 5, hitStun: 0.4, shootEvery: 1.2, shrinkFirst: 8, shrinkEvery: 14, shrinkStep: 0.18, minScale: 0.45, shrinkSpeed: 0.06 },
     // Finaler Boss "Death" (neu): jagt den Spieler, schießt Bolzen, feuert alle ringEvery s einen Ring aus ringCount Bolzen, ruft Minions (wie der Beschwörer)
     // und lässt die Karte schrumpfen (wie der Arena-Boss). Kein Zeitlimit, kein Upgrade danach: Sieg = Ending. drawSize = Größe des Bildes in %.
-    reaper: { speed: 2.7, radius: 26, hpBase: 170, hpPerStage: 0, hitStun: 0.05, shootEvery: 1.1, drawSize: 420,
+    reaper: { speed: 2.7, radius: 26, hpBase: 170, hpPerStage: 0, hitStun: 0.05, shootEvery: 1.1, drawSize: 330,
               ringFirst: 4, ringEvery: 5.5, ringCount: 12, summonFirst: 6, summonEvery: 11, summonCount: 3, maxMinions: 6, triangleChance: 0.3, rageBelow: 0.4, rageEvery: 8, rageCount: 4,
               shrinkFirst: 20, shrinkEvery: 18, shrinkStep: 0.12, minScale: 0.6, shrinkSpeed: 0.05 },
     // Reihenfolge der Bosskämpfe: jeder Boss kommt pro Lauf genau einmal (Standardmodus), danach erscheint direkt der finale Boss (CFG.finalBoss.at).
@@ -1274,44 +1274,44 @@ const CFG = {
     order: ['octagon', 'kite', 'summoner', 'turret', 'twin', 'arena'],
     // Kartenspezifische Bosse (nur Ember Foundry und Toxic Core, die Liste steht je Karte in CFG.maps als bossOrder). sprite/hue/drawSize = Aussehen (vorhandene Sprites umgefärbt).
     // Forge Warden: langsam, Bolzen + "Schlackenregen" (rainCount rote Einschlagkreise um den Spieler alle rainEvery s, wie die Einschläge des Laser-Turms).
-    forge: { name: 'FORGE WARDEN', sprite: 'octagon', hue: 15, drawSize: 360, speed: 2.1, radius: 26, hpBase: 44, hpPerStage: 6, hitStun: 0.3, shootEvery: 1.4,
+    forge: { name: 'FORGE WARDEN', sprite: 'bossForge', hue: 0, drawSize: 290, speed: 2.1, radius: 26, hpBase: 44, hpPerStage: 6, hitStun: 0.3, shootEvery: 1.4,
              rainFirst: 3, rainEvery: 5, rainCount: 3, rainSpread: 70 },
     // Slag Colossus: läuft, bleibt nach chargeEvery s mit Warnlinie stehen (tele), rast dann dashTime s mit dashSpeed (pro Bild) los und schlägt am Ende ein (Blast).
-    colossus: { name: 'SLAG COLOSSUS', sprite: 'octagon', hue: -40, drawSize: 330, speed: 2.9, radius: 24, hpBase: 40, hpPerStage: 5.5, hitStun: 0.3, shootEvery: 2.2,
+    colossus: { name: 'SLAG COLOSSUS', sprite: 'bossColossus', hue: 0, drawSize: 330, speed: 2.9, radius: 24, hpBase: 40, hpPerStage: 5.5, hitStun: 0.3, shootEvery: 2.2,
                 chargeFirst: 4, chargeEvery: 5, tele: 0.9, dashTime: 0.55, dashSpeed: 11 },
     // Spore Mother: hält Abstand (wie der Beschwörer), schießt langsam, setzt alle cloudEvery s cloudCount Giftwolken um den Spieler und ruft alle spawnEvery s Sporen (Minions).
-    spore: { name: 'SPORE MOTHER', sprite: 'summoner', hue: 100, drawSize: 320, speed: 1.6, radius: 22, hpBase: 42, hpPerStage: 5.5, hitStun: 0.2, shootEvery: 2.4, keepDist: 140,
+    spore: { name: 'SPORE MOTHER', sprite: 'bossSpore', hue: 0, drawSize: 320, speed: 1.6, radius: 22, hpBase: 42, hpPerStage: 5.5, hitStun: 0.2, shootEvery: 2.4, keepDist: 140,
              cloudFirst: 3, cloudEvery: 4.5, cloudCount: 3, cloudSpread: 75, spawnFirst: 5, spawnEvery: 9, spawnCount: 2, maxMinions: 6 },
     // Plague Drone: schnell, feuert 3er-Fächer (fanSpread Grad) und zieht Giftwolken hinter sich her (alle trailEvery s).
-    plague: { name: 'PLAGUE DRONE', sprite: 'kite', hue: 100, drawSize: 290, speed: 3.6, radius: 19, hpBase: 30, hpPerStage: 4.5, hitStun: 0.1, shootEvery: 1.7, fanSpread: 24, trailEvery: 1.6 },
+    plague: { name: 'PLAGUE DRONE', sprite: 'bossPlague', hue: 0, drawSize: 290, speed: 3.6, radius: 19, hpBase: 30, hpPerStage: 4.5, hitStun: 0.1, shootEvery: 1.7, fanSpread: 24, trailEvery: 1.6 },
     // Kartenspezifische Bosse der Cryo Station (chill = alle Bolzen und die Berührung kühlen den Spieler, CFG.chill).
     // Frost Sentinel: kommt langsam näher, steht beim Spiralfeuer still (spiralTime s lang alle spiralRate s spiralArms Bolzen, Drehung spiralTurn Grad pro Salve) und
     // lädt alle novaEvery s einen Frostring (novaTele s Vorwarnung, dann novaCount Bolzen rundherum).
-    frost: { name: 'FROST SENTINEL', sprite: 'octagon', hue: 185, drawSize: 350, speed: 1.9, radius: 25, hpBase: 42, hpPerStage: 5.5, hitStun: 0.25, shootEvery: 2.0, chill: true,
+    frost: { name: 'FROST SENTINEL', sprite: 'bossFrost', hue: 0, drawSize: 350, speed: 1.9, radius: 25, hpBase: 42, hpPerStage: 5.5, hitStun: 0.25, shootEvery: 2.0, chill: true,
              spiralFirst: 4, spiralEvery: 8, spiralTime: 2.4, spiralRate: 0.16, spiralArms: 3, spiralTurn: 24, novaFirst: 7, novaEvery: 9, novaTele: 1.0, novaCount: 14 },
     // Frost Wraith: schnell, feuert gekühlte 3er-Fächer und springt alle blinkEvery s zu einer Stelle nahe dem Spieler (blinkTele s Vorwarnring, Abstand blinkDist min/max),
     // dort bricht beim Auftauchen ein Ring aus arrivalCount Bolzen los.
-    wraith: { name: 'FROST WRAITH', sprite: 'kite', hue: 190, drawSize: 290, speed: 2.7, radius: 19, hpBase: 34, hpPerStage: 4.8, hitStun: 0.15, shootEvery: 1.7, fanSpread: 20, chill: true,
+    wraith: { name: 'FROST WRAITH', sprite: 'bossWraith', hue: 0, drawSize: 290, speed: 2.7, radius: 19, hpBase: 34, hpPerStage: 4.8, hitStun: 0.15, shootEvery: 1.7, fanSpread: 20, chill: true,
               blinkFirst: 4, blinkEvery: 6.5, blinkTele: 0.9, blinkDist: [70, 120], arrivalCount: 10 },
     // Karten-Bosse von Blackout (eclipse, nightmare) und Scrapyard (magnetron, juggernaut).
     // Eclipse: langsam. Alle darkEvery s kuendigt er darkTele s lang "Lichter aus" an, dann steht er darkTime s still, das Licht des Spielers schrumpft auf darkLight und er feuert
     // ein Spiral (spiralArms Arme, Drehung spiralTurn pro Salve alle spiralRate s). Dazu alle novaEvery s ein Ring aus novaCount Bolzen.
-    eclipse: { name: 'ECLIPSE', sprite: 'octagon', hue: 265, drawSize: 350, speed: 1.8, radius: 25, hpBase: 44, hpPerStage: 5.8, hitStun: 0.25, shootEvery: 2.0,
+    eclipse: { name: 'ECLIPSE', sprite: 'bossEclipse', hue: 0, drawSize: 280, speed: 1.8, radius: 25, hpBase: 44, hpPerStage: 5.8, hitStun: 0.25, shootEvery: 2.0,
                darkFirst: 5, darkEvery: 10, darkTele: 1.0, darkTime: 4, darkLight: 0.4, spiralRate: 0.2, spiralArms: 3, spiralTurn: 22, novaFirst: 7, novaEvery: 8, novaCount: 12 },
     // Nightmare: schnell, Dreierfaecher. Alle stealthEvery s wird er stealthTime s lang (fast) unsichtbar und laeuft stealthSpeed x so schnell, beim Auftauchen bricht ein Ring aus arrivalCount Bolzen los.
-    nightmare: { name: 'NIGHTMARE', sprite: 'kite', hue: 285, drawSize: 290, speed: 2.7, radius: 19, hpBase: 34, hpPerStage: 4.8, hitStun: 0.15, shootEvery: 1.7, fanSpread: 18,
+    nightmare: { name: 'NIGHTMARE', sprite: 'bossNightmare', hue: 0, drawSize: 290, speed: 2.7, radius: 19, hpBase: 34, hpPerStage: 4.8, hitStun: 0.15, shootEvery: 1.7, fanSpread: 18,
                  stealthFirst: 4, stealthEvery: 7, stealthTime: 1.5, stealthSpeed: 1.9, arrivalCount: 8 },
     // Magnetron: alle fieldEvery s ein Magnetfeld (fieldTele s Vorwarnung, dann fieldTime s, Radius fieldRange, Polung wechselt): zieht den Spieler heran / stoesst ihn ab (pull pro Bild)
     // und biegt die Schuesse des Spielers (bend Grad pro Bild). Dazu alle ringEvery s ein Ring aus ringCount Bolzen.
-    magnetron: { name: 'MAGNETRON', sprite: 'octagon', hue: 50, drawSize: 340, speed: 1.9, radius: 25, hpBase: 44, hpPerStage: 5.8, hitStun: 0.25, shootEvery: 1.9,
+    magnetron: { name: 'MAGNETRON', sprite: 'bossMagnetron', hue: 0, drawSize: 340, speed: 1.9, radius: 25, hpBase: 44, hpPerStage: 5.8, hitStun: 0.25, shootEvery: 1.9,
                  fieldFirst: 4, fieldEvery: 9, fieldTele: 1.1, fieldTime: 4, fieldRange: 190, pull: 1.5, bend: 3.6, ringEvery: 6, ringCount: 10 },
     // Juggernaut: wie der Slag Colossus (Anlauf mit Warnlinie), schleudert am Ende des Anlaufs shrapnel Schrottsplitter im Ring und laesst Schrottbrocken um den Spieler einschlagen (rain).
-    juggernaut: { name: 'JUGGERNAUT', sprite: 'octagon', hue: -25, drawSize: 380, speed: 2.5, radius: 28, hpBase: 46, hpPerStage: 6, hitStun: 0.3, shootEvery: 2.2,
+    juggernaut: { name: 'JUGGERNAUT', sprite: 'bossJuggernaut', hue: 0, drawSize: 330, speed: 2.5, radius: 28, hpBase: 46, hpPerStage: 6, hitStun: 0.3, shootEvery: 2.2,
                   chargeFirst: 4, chargeEvery: 5, tele: 0.9, dashTime: 0.6, dashSpeed: 11, shrapnel: 10, rainFirst: 6, rainEvery: 6, rainCount: 3, rainSpread: 80 },
     // Chainhound (Scrapyard): an einen Pfosten in der Arenamitte gekettet, kommt also nie weiter als `reach` vom Mittelpunkt weg. Pendelt in der Naehe des Pfostens; ist der Spieler in Reichweite
     // (reach + margin), duckt er sich (tele s, Warnlinie), schnellt mit lungeSpeed los, wird am Kettenende ruckartig gestoppt (strain s: Ring aus yankCount Bolzen) und zieht sich mit recoilSpeed
     // zurueck, dann rest s Pause. Die gespannte Kette verletzt bei Beruehrung. Steht der Spieler ausserhalb der Reichweite, beschiesst der Hund ihn mit Bolzen (shootEvery).
-    chomp: { name: 'CHAINHOUND', sprite: 'octagon', hue: 20, drawSize: 340, speed: 2.4, radius: 26, hpBase: 46, hpPerStage: 6, hitStun: 0.2, shootEvery: 2.0,
+    chomp: { name: 'CHAINHOUND', sprite: 'bossChomp', hue: 0, drawSize: 340, speed: 2.4, radius: 26, hpBase: 46, hpPerStage: 6, hitStun: 0.2, shootEvery: 2.0,
              reach: 200, margin: 30, tele: 0.7, lungeSpeed: 12.5, strain: 0.8, recoilSpeed: 4.2, rest: 0.9, yankCount: 8, chainDmg: 0.5 },
     // Konter aller Bosse (siehe Boss.updateCounters). Leben pro Boss oben: hpBase + hpPerStage x Stufe.
     // stunResist: so lange nach einer Betaeubung wirkt keine neue (Boss laeuft trotz Treffern weiter). Treffer machen weiter Schaden.

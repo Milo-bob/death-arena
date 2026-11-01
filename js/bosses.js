@@ -37,6 +37,9 @@ class Boss {
     this.enraged = false;               // Zwilling, dessen Partner gefallen ist
     this.sprite = this.cfg.sprite || (type === 'twin' ? (role === 'mortar' ? 'kite' : 'octagon') : type === 'turret' ? 'turret' : type === 'arena' || type === 'reaper' ? 'octagon' : type);     // Karten-Bosse: sprite/hue aus der Config
     this.hue = this.cfg.hue !== undefined ? this.cfg.hue : type === 'arena' ? 40 : type === 'reaper' ? 275 : 0;
+    if (type === 'twin') { this.sprite = role === 'mortar' ? 'bossTwinMortar' : 'bossTwinBolt'; this.hue = 0; }              // eigene Silhouetten (tools/gen_art.js)
+    else if (type === 'arena') { this.sprite = 'bossArena'; this.hue = 0; }
+    else if (type === 'reaper') { this.sprite = 'bossReaper'; this.hue = 0; }
     // Karten-Bosse (forge, colossus, spore, plague, frost, wraith): eigene Takte
     this.spT = type === 'forge' || type === 'juggernaut' ? this.cfg.rainFirst : type === 'spore' ? this.cfg.cloudFirst : type === 'frost' ? this.cfg.spiralFirst : type === 'eclipse' ? this.cfg.darkFirst : type === 'nightmare' ? this.cfg.stealthFirst : type === 'magnetron' ? this.cfg.fieldFirst : 0;     // Schlackenregen / Giftwolken / Spiralfeuer
     this.sp2T = type === 'spore' ? this.cfg.spawnFirst : type === 'plague' ? this.cfg.trailEvery : type === 'frost' ? this.cfg.novaFirst : type === 'wraith' ? this.cfg.blinkFirst : type === 'eclipse' ? this.cfg.novaFirst : type === 'magnetron' ? this.cfg.ringEvery : 0;   // Sporen rufen / Wolkenspur / Frostring / Sprung
