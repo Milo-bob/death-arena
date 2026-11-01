@@ -126,12 +126,12 @@ Obstacle.prototype.drawScrap = function (ctx) {
   ctx.save(); ctx.globalAlpha = A * 0.4; disc(g, g * 1.5, r * 0.98, BK); ctx.globalAlpha = A;               // Schatten (Licht von links oben)
   const l = this.look % 5;
   if (l === 0) {                                                                      // Reifenstapel von oben: drei Reifen
-    for (const [x, y, q] of [[-0.46, -0.36, 0.7], [0.5, -0.12, 0.68], [-0.04, 0.52, 0.7]]) {
+    for (const [x, y, q] of [[-0.42, -0.36, 0.58], [0.44, -0.1, 0.56], [-0.04, 0.46, 0.58]]) {
       const rr = r * q; disc(x * r, y * r, rr + g, BK); disc(x * r, y * r, rr, '#34343c'); ring(x * r, y * r, rr - g, '#5c5c68', 2); disc(x * r, y * r, rr * 0.56, '#17171c'); disc(x * r, y * r, rr * 0.3, '#8a8a95'); disc(x * r, y * r, rr * 0.12, BK);
       for (let a = 0; a < 6.28; a += 0.8) box(x * r + Math.cos(a) * rr * 0.8 - 1, y * r + Math.sin(a) * rr * 0.8 - 1, 2, 2, '#1c1c22');             // Profil
     }
   } else if (l === 1) {                                                               // Fassgruppe von oben: drei Deckel
-    for (const [x, y, q, body, lit] of [[-0.48, -0.38, 0.68, RM, RL], [0.52, -0.1, 0.68, '#b8892a', '#f2c94c'], [-0.04, 0.52, 0.68, '#8a3a1a', '#c85a2a']]) {
+    for (const [x, y, q, body, lit] of [[-0.42, -0.36, 0.56, RM, RL], [0.46, -0.08, 0.56, '#b8892a', '#f2c94c'], [-0.04, 0.46, 0.56, '#8a3a1a', '#c85a2a']]) {
       const rr = r * q; disc(x * r, y * r, rr + g, BK); disc(x * r, y * r, rr, body); ring(x * r, y * r, rr - g, lit, 2); disc(x * r, y * r, rr * 0.62, RD); ring(x * r, y * r, rr * 0.62, lit);
       box(x * r - rr * 0.3, y * r - 1, rr * 0.6, 2, BK); disc(x * r + rr * 0.35, y * r - rr * 0.3, rr * 0.14, SL);                                    // Spund
     }
@@ -142,7 +142,7 @@ Obstacle.prototype.drawScrap = function (ctx) {
     box(-r * 0.42, -r * 0.5, r * 0.78, r * 1.0, ST); box(-r * 0.42, -r * 0.5, r * 0.78, g, SL); box(-r * 0.34, -r * 0.4, r * 0.2, r * 0.8, GL); box(r * 0.16, -r * 0.4, r * 0.2, r * 0.8, GL);      // Dach + Scheiben
     box(r * 0.82, -r * 0.5, g * 2, g * 2, YL); box(r * 0.82, r * 0.34, g * 2, g * 2, YL); box(-r * 0.96, -r * 0.5, g * 2, g * 2, '#c0392b'); box(-r * 0.96, r * 0.34, g * 2, g * 2, '#c0392b');         // Scheinwerfer / Ruecklichter
   } else if (l === 3) {                                                               // Schrotthaufen von oben: uebereinander liegende Platten, Rohr, Zahnrad
-    plate(-r * 0.25, -r * 0.05, r * 1.7, r * 0.95, -0.35, RD, RM); plate(r * 0.3, r * 0.3, r * 1.5, r * 0.75, 0.5, ST, SL); plate(-r * 0.1, -r * 0.5, r * 1.2, r * 0.65, 0.2, RM, RL); plate(r * 0.3, -r * 0.25, r * 0.8, r * 0.55, -0.6, '#8a8f98', SL);
+    plate(-r * 0.2, -r * 0.05, r * 1.35, r * 0.8, -0.35, RD, RM); plate(r * 0.25, r * 0.28, r * 1.2, r * 0.62, 0.5, ST, SL); plate(-r * 0.1, -r * 0.45, r * 1.0, r * 0.55, 0.2, RM, RL); plate(r * 0.3, -r * 0.2, r * 0.65, r * 0.45, -0.6, '#8a8f98', SL);
     ctx.fillStyle = BK; pxLine(ctx, cx - r * 0.85, cy + r * 0.55, cx + r * 0.2, cy - r * 0.8, 3); ctx.fillStyle = '#9aa0a8'; pxLine(ctx, cx - r * 0.85, cy + r * 0.55, cx + r * 0.2, cy - r * 0.8, 1);           // Rohr
     disc(-r * 0.55, r * 0.5, r * 0.26, BK); disc(-r * 0.55, r * 0.5, r * 0.2, '#7a808a'); disc(-r * 0.55, r * 0.5, r * 0.08, BK);
     box(r * 0.55, -r * 0.55, g * 2, g * 2, YL);

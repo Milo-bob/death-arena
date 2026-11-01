@@ -215,20 +215,22 @@ class Director {
   // Zufällige freie Stelle auf der Karte (Abstand zu Spieler, anderen Barrikaden und Spawnpunkten), null wenn nichts gefunden
   freeObstaclePos() {
     const C = Object.assign({}, CFG.obstacles, G.map.obstacles || {}), p = G.player;
-    if (C.cluster && Math.random() < C.cluster) {                                   // Scrapyard: Mauern bauen. Ein Haufen kommt an das Ende einer Kette und setzt deren Richtung fort (leicht gebogen)
-      const alive = G.obstacles.filter((o) => o.alive), reach2 = (C.radius * 2.3) ** 2, edge = (G.map.env && G.map.env.rim ? G.map.env.rim.width : 0) + C.radius + 6;      // nie im Schredderrand
+    const cell = C.radius * 2, snap = (v) => Math.round(v / cell) * cell, edge = (G.map.env && G.map.env.rim ? G.map.env.rim.width : 0) + C.radius + 6;      // Scrapyard: Haufen sitzen auf einem Raster (nie im Schredderrand)
+    const free = (x, y) => Math.abs(x) <= CFG.map.halfW * G.arenaScale - edge && Math.abs(y) <= CFG.map.halfH * G.arenaScale - edge
+      && dist2(x, y, p.x, p.y) >= C.minPlayer * C.minPlayer && !G.obstacles.some((o) => o.alive && dist2(x, y, o.x, o.y) < (cell * 0.92) ** 2)
+      && !G.spawnPointList().some(([sx, sy]) => dist2(x, y, sx, sy) < C.minSpawn * C.minSpawn);
+    if (C.cluster && Math.random() < C.cluster) {                                   // Mauern: ein Haufen kommt rechtwinklig an das Ende einer Kette (geradeaus, mit der Chance auf eine Ecke)
+      const alive = G.obstacles.filter((o) => o.alive), reach2 = (cell * 1.2) ** 2;
       const ends = alive.filter((o) => alive.filter((q) => q !== o && dist2(o.x, o.y, q.x, q.y) < reach2).length <= 1);
-      for (let t = 0; t < 14 && alive.length; t++) {
+      for (let t = 0; t < 16 && alive.length; t++) {
         const pool = ends.length && Math.random() < 0.85 ? ends : alive, b = pool[randInt(0, pool.length - 1)];
-        const a = b.wall !== undefined ? b.wall + rand(-28, 28) : rand(0, 360), x = b.x + fwdX(a) * C.radius * 1.55, y = b.y + fwdY(a) * C.radius * 1.55;
-        if (Math.abs(x) > CFG.map.halfW * G.arenaScale - edge || Math.abs(y) > CFG.map.halfH * G.arenaScale - edge) { b.wall = dirTo(b.x, b.y, 0, 0) + rand(-50, 50); continue; }       // Kette stoesst an den Rand: dreht zur Mitte ab
-        if (dist2(x, y, p.x, p.y) < C.minPlayer * C.minPlayer) continue;
-        if (G.obstacles.some((o) => o.alive && dist2(x, y, o.x, o.y) < (C.radius * 1.4) ** 2)) continue;
-        if (G.spawnPointList().some(([sx, sy]) => dist2(x, y, sx, sy) < C.minSpawn * C.minSpawn)) continue;
-        this.wallDir = a;                                                              // updateObstacles gibt die Richtung an den neuen Haufen weiter
+        const a = b.wall === undefined ? randInt(0, 3) * 90 : Math.random() < 0.7 ? b.wall : b.wall + (Math.random() < 0.5 ? 90 : -90), x = snap(b.x) + Math.round(fwdX(a)) * cell, y = snap(b.y) + Math.round(fwdY(a)) * cell;
+        if (!free(x, y)) { b.wall = randInt(0, 3) * 90; continue; }
+        this.wallDir = ((a % 360) + 360) % 360;                                        // updateObstacles gibt die Richtung an den neuen Haufen weiter
         return [x, y];
       }
     }
+    if (C.cluster) for (let t = 0; t < 40; t++) { const x = snap(rand(-CFG.map.halfW, CFG.map.halfW)), y = snap(rand(-CFG.map.halfH, CFG.map.halfH)); if (free(x, y)) { this.wallDir = randInt(0, 3) * 90; return [x, y]; } }
     for (let t = 0; t < 30; t++) {
       let x, y;
       [x, y] = clampToMap(rand(-CFG.map.halfW, CFG.map.halfW), rand(-CFG.map.halfH, CFG.map.halfH), C.margin + (G.map.env && G.map.env.rim ? G.map.env.rim.width : 0));
