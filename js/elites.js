@@ -140,14 +140,15 @@ const Elite = {
       g.save(); g.beginPath(); g.rect(0, 0, w, h / 2); g.clip(); paint(); g.restore();
       g.save(); g.translate(0, h); g.scale(1, -1); g.drawImage(g.canvas, 0, 0, w, h / 2, 0, 0, w, h / 2); g.restore();
     };
-    if (type === 'phantom') return body('elitePhantom2', ({ px, poly, g }) => half(g, 28, 28, () => {      // Geisterklinge: Umhang-Fluegel, Kapuze, zwei Augen
-      poly([[27.5, 14], [19, 5.5], [8, 1.5], [0.5, 5], [5.5, 8.5], [1, 11.5], [8, 13.6], [13, 14]], '#1b0a40');
-      poly([[26.5, 14], [19, 6.8], [9, 3.2], [3, 5.6], [7, 9], [3.5, 11.2], [10, 13], [14, 14]], '#4a22b8');
-      poly([[26.5, 14], [19, 6.8], [14, 8.6], [20, 14]], '#a98aff');
-      poly([[25, 14], [20, 9.5], [13, 11], [11, 14]], '#12062e');
-      poly([[22, 14], [19, 10.8], [15, 11.6], [14, 14]], '#2a1470');
-      for (const [x, y, c] of [[20, 11, '#ffffff'], [21, 11, '#ffffff'], [20, 12, '#ffffff'], [21, 12, '#ffffff'], [21, 11, '#6ff0ff']]) px(x, y, c);
-      for (const [x, y] of [[2, 6], [4, 8], [6, 10], [9, 12]]) px(x, y, '#a98aff');
+    if (type === 'phantom') return body('elitePhantom3', ({ px, poly, g }) => half(g, 28, 28, () => {      // Geisternadel: schlanker Speer mit zwei duennen, scharf nach hinten gepfeilten Klingen
+      poly([[17, 11.2], [4, 1], [1, 2.4], [9, 10.8], [14, 11.8]], '#1b0a40');                                // hintere Klinge
+      poly([[16.5, 11.6], [5, 2.8], [3.6, 3.4], [10, 11], [14, 11.9]], '#5b2bd0');
+      poly([[13, 12], [3, 7.5], [1, 8.6], [8, 12.4]], '#1b0a40'); poly([[12.5, 12.2], [4, 8.6], [3, 9], [8.5, 12.4]], '#3a1a8a');   // zweite, kuerzere Klinge
+      poly([[27.9, 14], [20, 11.4], [9, 11.6], [3, 14]], '#12062e');                                          // Speerkoerper
+      poly([[27, 14], [20, 12.2], [10, 12.3], [5, 14]], '#4a22b8'); poly([[27, 14], [20, 12.2], [14, 12.3], [20, 14]], '#a98aff');
+      for (let x = 19; x < 25; x++) px(x, 13, x < 22 ? '#6ff0ff' : '#ffffff');                              // Augenschlitz
+      px(26, 13, '#ffffff');
+      for (const [x, y] of [[2, 12], [0, 13]]) px(x, y, '#a98aff');
     }));
     if (type === 'bastion') return body('eliteBastion3', ({ px, poly, g }) => half(g, 28, 28, () => {       // Festung: Stahlachteck mit gluehendem Kern und dreifach geplattetem Schildbogen vorn
       const oct = (r, col) => poly(Array.from({ length: 8 }, (_, k) => [12 + Math.cos(k * 0.7854 + 0.3927) * r, 14 + Math.sin(k * 0.7854 + 0.3927) * r]), col);
