@@ -11,20 +11,23 @@
 // bk_<bossTyp> = besiegte Bosse dieses Typs, hb_<held> = Bosse mit diesem Helden, t_<held> / tm_<karte> = laengste Zeit mit Held / auf Karte, art_<artefakt> = Artefakt-Einsaetze.
 
 const ACH_BRANCHES = [
-  { id: 'run',   label: 'SURVIVAL' },
-  { id: 'fight', label: 'COMBAT' },
-  { id: 'boss',  label: 'BOSSES' },
-  { id: 'grow',  label: 'GROWTH' },
-  { id: 'odd',   label: 'DUMB WAYS' },
-  { id: 'dumbd', label: 'DUMB DEATHS' },
-  { id: 'habit', label: 'DUMB HABITS' },
-  { id: 'world', label: 'WORLD' },
-  { id: 'maps',  label: 'MAPS' },
-  { id: 'hero',  label: 'HEROES' },
-  { id: 'gear',  label: 'LOADOUT' },
-  { id: 'grind', label: 'GRIND' },
-  { id: 'dark',  label: 'BLACKOUT' },
-  { id: 'scrap', label: 'SCRAPYARD' },
+  { id: 'run',     label: 'SURVIVAL' },
+  { id: 'fight',   label: 'COMBAT' },
+  { id: 'boss',    label: 'BOSSES' },
+  { id: 'grow',    label: 'GROWTH' },
+  { id: 'odd',     label: 'DUMB WAYS' },
+  { id: 'dumbd',   label: 'DUMB DEATHS' },
+  { id: 'habit',   label: 'DUMB HABITS' },
+  { id: 'world',   label: 'WORLD' },
+  { id: 'void',    label: 'NEON VOID' },          // je Karte ein Zweig: Freischalten, Ueberleben, Karten-Bosse, Karten-Elite, Gefahren
+  { id: 'foundry', label: 'EMBER FOUNDRY' },
+  { id: 'toxic',   label: 'TOXIC CORE' },
+  { id: 'cryo',    label: 'CRYO STATION' },
+  { id: 'dark',    label: 'BLACKOUT' },
+  { id: 'scrap',   label: 'SCRAPYARD' },
+  { id: 'hero',    label: 'HEROES' },
+  { id: 'gear',    label: 'LOADOUT' },
+  { id: 'grind',   label: 'GRIND' },
 ];
 const ACH_VISIBLE = 6;          // Zweige gleichzeitig auf dem Bildschirm
 const ACH_FAST_BOSS = 25;       // Sekunden fuer "Speedrun Strats"
@@ -92,11 +95,11 @@ const ACH_LIST = [
   { id: 'eclipse',   br: 'world', name: 'CRIMSON TIDE',         desc: 'Survive a Crimson Eclipse.',                     icon: 'blood1',       key: 'evMoon',    need: 1,    reward: { cores: 20 } },
   { id: 'rain',      br: 'world', name: 'RAIN CHECK',           desc: 'Survive a meteor shower.',                       icon: 'bombardIcon',  key: 'evMeteor',  need: 1,    reward: { cores: 20 } },
   { id: 'walls',     br: 'world', name: 'WALLS CLOSING IN',     desc: 'Survive the arena shrinking.',                   icon: 'barrierIcon',  key: 'evCollapse', need: 1,   reward: { cores: 20 } },
-  { id: 'hotstuff',  br: 'world', name: 'HOT STUFF',            desc: 'Unlock Ember Foundry.',                          icon: 'fireIcon',     key: 'maps',      need: 2,    reward: { cores: 25 } },
-  { id: 'chemrom',   br: 'world', name: 'CHEMICAL ROMANCE',     desc: 'Unlock Toxic Core.',                             icon: 'buffRegen',    key: 'maps',      need: 3,    reward: { cores: 40 } },
-  { id: 'coldopen',  br: 'world', name: 'COLD OPEN',            desc: 'Unlock Cryo Station.',                           icon: 'frostIcon',    key: 'maps',      need: 4,    reward: { cores: 40 } },
-  { id: 'darkopen',  br: 'world', name: 'INTO THE DARK',        desc: 'Unlock Blackout.',                               icon: 'blinkIcon',    key: 'maps',      need: 5,    reward: { cores: 50 } },
-  { id: 'junkopen',  br: 'world', name: 'JUNK FOR ALL',         desc: 'Unlock Scrapyard.',                              icon: 'armorIcon',    key: 'maps',      need: 6,    reward: { cores: 60 } },
+  { id: 'hotstuff',  br: 'foundry', name: 'HOT STUFF',            desc: 'Unlock Ember Foundry.',                          icon: 'fireIcon',     key: 'maps',      need: 2,    reward: { cores: 25 } },
+  { id: 'chemrom',   br: 'toxic', name: 'CHEMICAL ROMANCE',     desc: 'Unlock Toxic Core.',                             icon: 'buffRegen',    key: 'maps',      need: 3,    reward: { cores: 40 } },
+  { id: 'coldopen',  br: 'cryo', name: 'COLD OPEN',            desc: 'Unlock Cryo Station.',                           icon: 'frostIcon',    key: 'maps',      need: 4,    reward: { cores: 40 } },
+  { id: 'darkopen',  br: 'dark', name: 'INTO THE DARK',        desc: 'Unlock Blackout.',                               icon: 'blinkIcon',    key: 'maps',      need: 5,    reward: { cores: 50 } },
+  { id: 'junkopen',  br: 'scrap', name: 'JUNK FOR ALL',         desc: 'Unlock Scrapyard.',                              icon: 'armorIcon',    key: 'maps',      need: 6,    reward: { cores: 60 } },
 
   // ---- DUMB DEATHS (wer oder was dich erwischt hat) ----
   { id: 'dcircle',   br: 'dumbd', name: 'SERIOUSLY?',           desc: 'Be killed by a plain Circle.',                   icon: 'circle',       key: 'd_CIRCLE',  need: 1,    reward: { cores: 10 } },
@@ -121,25 +124,39 @@ const ACH_LIST = [
   { id: 'finger',    br: 'habit', name: 'FINGER WORKOUT',       desc: 'Hold the attack button for 10 minutes in total.', icon: 'shot',        key: 'attackT',   need: 600,  reward: { cos: 'skin:copper' } },
 
   // ---- MAPS ----
-  { id: 'tour',      br: 'maps', name: 'WORLD TOUR',            desc: 'Play a run on every map.',                       icon: 'spawnPoint',   key: 'mapsPlayed', need: 6,   reward: { cores: 40 } },
-  { id: 'meltdown',  br: 'maps', name: 'MELTDOWN',              desc: 'Survive 5 minutes on Ember Foundry.',            icon: 'fireIcon',     key: 'tm_foundry', need: 300, reward: { cores: 40 } },
-  { id: 'hazmat',    br: 'maps', name: 'HAZMAT SUIT',           desc: 'Survive 5 minutes on Toxic Core.',               icon: 'molotovIcon',  key: 'tm_toxic',  need: 300,  reward: { cores: 50 } },
-  { id: 'iceice',    br: 'maps', name: 'ICE ICE BABY',          desc: 'Survive 5 minutes on Cryo Station.',             icon: 'frostIcon',    key: 'tm_cryo',   need: 300,  reward: { cores: 60 } },
-  { id: 'abszero',   br: 'maps', name: 'ABSOLUTE ZERO',         desc: 'Survive 10 minutes on Cryo Station.',            icon: 'ult3',         key: 'tm_cryo',   need: 600,  reward: { cores: 80 } },
-  { id: 'sauna',     br: 'maps', name: 'SAUNA',                 desc: 'Get hit by lava vents 10 times in total.',       icon: 'fireIcon',     key: 'lavaHits',  need: 10,   reward: { cores: 25 } },
-  { id: 'acidbath',  br: 'maps', name: 'ACID BATH',             desc: 'Get hit by acid pools 20 times in total.',       icon: 'buffRegen',    key: 'acidHits',  need: 20,   reward: { cores: 25 } },
-  { id: 'coldwar',   br: 'maps', name: 'THE COLD WAR',          desc: 'Defeat the Frost Sentinel.',                     icon: 'octagon',      key: 'bk_frost',  need: 1,    reward: { cores: 60 } },
+  { id: 'tour',      br: 'world', name: 'WORLD TOUR',            desc: 'Play a run on every map.',                       icon: 'spawnPoint',   key: 'mapsPlayed', need: 6,   reward: { cores: 40 } },
+  { id: 'meltdown',  br: 'foundry', name: 'MELTDOWN',              desc: 'Survive 5 minutes on Ember Foundry.',            icon: 'fireIcon',     key: 'tm_foundry', need: 300, reward: { cores: 40 } },
+  { id: 'hazmat',    br: 'toxic', name: 'HAZMAT SUIT',           desc: 'Survive 5 minutes on Toxic Core.',               icon: 'molotovIcon',  key: 'tm_toxic',  need: 300,  reward: { cores: 50 } },
+  { id: 'iceice',    br: 'cryo', name: 'ICE ICE BABY',          desc: 'Survive 5 minutes on Cryo Station.',             icon: 'frostIcon',    key: 'tm_cryo',   need: 300,  reward: { cores: 60 } },
+  { id: 'abszero',   br: 'cryo', name: 'ABSOLUTE ZERO',         desc: 'Survive 10 minutes on Cryo Station.',            icon: 'ult3',         key: 'tm_cryo',   need: 600,  reward: { cores: 80 } },
+  { id: 'sauna',     br: 'foundry', name: 'SAUNA',                 desc: 'Get hit by lava vents 10 times in total.',       icon: 'fireIcon',     key: 'lavaHits',  need: 10,   reward: { cores: 25 } },
+  { id: 'acidbath',  br: 'toxic', name: 'ACID BATH',             desc: 'Get hit by acid pools 20 times in total.',       icon: 'buffRegen',    key: 'acidHits',  need: 20,   reward: { cores: 25 } },
+  { id: 'coldwar',   br: 'cryo', name: 'THE COLD WAR',          desc: 'Defeat the Frost Sentinel.',                     icon: 'octagon',      key: 'bk_frost',  need: 1,    reward: { cores: 60 } },
   { id: 'blackout',  br: 'dark', name: 'LIGHTS OUT',            desc: 'Survive 5 minutes on Blackout.',                 icon: 'blinkIcon',    key: 'tm_dark',   need: 300,  reward: { cores: 70 } },
   { id: 'nightowl',  br: 'dark', name: 'NIGHT OWL',             desc: 'Survive 10 minutes on Blackout.',                icon: 'ult3',         key: 'tm_dark',   need: 600,  reward: { cores: 90 } },
   { id: 'scrapmetal', br: 'scrap', name: 'SCRAP METAL',          desc: 'Survive 5 minutes on Scrapyard.',                icon: 'armorIcon',    key: 'tm_scrap',  need: 300,  reward: { cores: 80 } },
   { id: 'junkdealer', br: 'scrap', name: 'JUNK DEALER',          desc: 'Survive 10 minutes on Scrapyard.',               icon: 'ult3',         key: 'tm_scrap',  need: 600,  reward: { cores: 100 } },
-  { id: 'mapelites', br: 'scrap', name: 'MAP ELITE HUNTER',      desc: 'Defeat each elite that belongs to a map.',       icon: 'tank',         key: 'mapElites', need: 6,    reward: { cores: 200 } },
+  { id: 'mapelites', br: 'world', name: 'MAP ELITE HUNTER',      desc: 'Defeat each elite that belongs to a map.',       icon: 'tank',         key: 'mapElites', need: 6,    reward: { cores: 200 } },
   { id: 'eclipsek',  br: 'dark', name: 'TOTAL ECLIPSE',         desc: 'Defeat the Eclipse.',                            icon: 'octagon',      key: 'bk_eclipse', need: 1,   reward: { cores: 80 } },
   { id: 'nightmk',   br: 'dark', name: 'WAKE UP',               desc: 'Defeat the Nightmare.',                          icon: 'kite',         key: 'bk_nightmare', need: 1, reward: { cores: 80 } },
   { id: 'magnetk',   br: 'scrap', name: 'OPPOSITES ATTRACT',     desc: 'Defeat the Magnetron.',                          icon: 'octagon',      key: 'bk_magnetron', need: 1, reward: { cores: 90 } },
   { id: 'chompk',    br: 'scrap', name: 'WHO LET THE DOGS OUT',  desc: 'Defeat the Chainhound.',                         icon: 'octagon',      key: 'bk_chomp',  need: 1,    reward: { cores: 90 } },
   { id: 'juggk',     br: 'scrap', name: 'IMMOVABLE OBJECT',      desc: 'Defeat the Juggernaut.',                         icon: 'octagon',      key: 'bk_juggernaut', need: 1, reward: { cores: 90 } },
-  { id: 'lookback',  br: 'maps', name: "DON'T LOOK BACK",       desc: 'Defeat the Frost Wraith.',                       icon: 'kite',         key: 'bk_wraith', need: 1,    reward: { cores: 60 } },
+  { id: 'voidnight', br: 'void', name: 'NEON NIGHTS', desc: 'Survive 5 minutes on Neon Void.', icon: 'spawnPoint', key: 'tm_void', need: 300, reward: { cores: 30 } },
+  { id: 'voidlong', br: 'void', name: 'GRID LOCK', desc: 'Survive 10 minutes on Neon Void.', icon: 'ult3', key: 'tm_void', need: 600, reward: { cores: 50 } },
+  { id: 'glitchk', br: 'void', name: 'GLITCH IN THE MATRIX', desc: 'Defeat a Glitch.', icon: 'teleporter', key: 'ek_glitch', need: 1, reward: { cores: 40 } },
+  { id: 'forgek', br: 'foundry', name: 'HOT SEAT', desc: 'Defeat the Forge Warden.', icon: 'octagon', key: 'bk_forge', need: 1, reward: { cores: 60 } },
+  { id: 'colossusk', br: 'foundry', name: 'SLAG HEAP', desc: 'Defeat the Slag Colossus.', icon: 'octagon', key: 'bk_colossus', need: 1, reward: { cores: 60 } },
+  { id: 'moltenlong', br: 'foundry', name: 'MOLTEN MAN', desc: 'Survive 10 minutes on Ember Foundry.', icon: 'ult3', key: 'tm_foundry', need: 600, reward: { cores: 70 } },
+  { id: 'emberk', br: 'foundry', name: 'FORGED IN FIRE', desc: 'Defeat an Emberlord.', icon: 'tank', key: 'ek_emberlord', need: 1, reward: { cores: 50 } },
+  { id: 'sporek', br: 'toxic', name: 'SPORE ADVICE', desc: 'Defeat the Spore Mother.', icon: 'octagon', key: 'bk_spore', need: 1, reward: { cores: 60 } },
+  { id: 'plaguek', br: 'toxic', name: 'PLAGUE INC', desc: 'Defeat the Plague Drone.', icon: 'kite', key: 'bk_plague', need: 1, reward: { cores: 60 } },
+  { id: 'toxiclong', br: 'toxic', name: 'WASTE LAND', desc: 'Survive 10 minutes on Toxic Core.', icon: 'ult3', key: 'tm_toxic', need: 600, reward: { cores: 70 } },
+  { id: 'miasmak', br: 'toxic', name: 'TOXIC WASTE', desc: 'Defeat a Miasma.', icon: 'tank', key: 'ek_miasma', need: 1, reward: { cores: 50 } },
+  { id: 'glacierk', br: 'cryo', name: 'COLD SNAP', desc: 'Defeat a Glacier.', icon: 'tank', key: 'ek_glacier', need: 1, reward: { cores: 50 } },
+  { id: 'umbrak', br: 'dark', name: 'LIGHTS ON', desc: 'Defeat an Umbra.', icon: 'tank', key: 'ek_umbra', need: 1, reward: { cores: 50 } },
+  { id: 'compactork', br: 'scrap', name: 'SCRAP IT', desc: 'Defeat a Compactor.', icon: 'tank', key: 'ek_compactor', need: 1, reward: { cores: 50 } },
+  { id: 'lookback',  br: 'cryo', name: "DON'T LOOK BACK",       desc: 'Defeat the Frost Wraith.',                       icon: 'kite',         key: 'bk_wraith', need: 1,    reward: { cores: 60 } },
 
   // ---- HEROES ----
   { id: 'identity',  br: 'hero', name: 'IDENTITY CRISIS',       desc: 'Finish runs with 2 different heroes.',           icon: 'heroSpecter',  key: 'heroRuns',  need: 2,    reward: { cores: 30 } },
@@ -175,6 +192,14 @@ const ACH_LIST = [
   { id: 'hunter',    br: 'grind', name: 'ACHIEVEMENT HUNTER',   desc: 'Unlock 60 achievements.',                        icon: 'phoenixIcon',  key: 'achDone',   need: 60,   reward: { cores: 300 } },
 ];
 // Cosmetics gibt es nur noch fuer Credits: Belohnungen, die frueher ein Cosmetic waren, zahlen dessen Wert in Credits aus (cosRewardCredits in config.js)
+// Kartenzweige einheitlich sortieren: Freischalten, Ueberleben (kurz vor lang), Karten-Bosse, Karten-Elite, Rest
+{
+  const rank = (a) => (/^Unlock /.test(a.desc) ? 0 : /^tm_/.test(a.key) ? 1 : /^bk_/.test(a.key) ? 2 : /^ek_/.test(a.key) ? 3 : 4);
+  for (const b of ['void', 'foundry', 'toxic', 'cryo', 'dark', 'scrap']) {
+    const idx = ACH_LIST.map((a, i) => (a.br === b ? i : -1)).filter((i) => i >= 0), sorted = idx.map((i) => ACH_LIST[i]).sort((x, y) => rank(x) - rank(y) || x.need - y.need);
+    idx.forEach((i, k) => { ACH_LIST[i] = sorted[k]; });
+  }
+}
 for (const a of ACH_LIST) if (a.reward && a.reward.cos) a.reward = { cores: cosRewardCredits(a.reward.cos) };
 // Zusaetzlich Shards (nur fuer Cosmetics): floor(Credits / CFG.shards.achDiv), kleine Erfolge geben keine
 for (const a of ACH_LIST) if (a.reward && a.reward.cores) a.reward.shards = Math.floor(a.reward.cores / CFG.shards.achDiv);
@@ -255,7 +280,7 @@ const Ach = {
     if (!s[item]) { s[item] = 1; this.dirty = true; }
   },
   acc(key, v) { const c = this.data().cnt; c[key] = (c[key] || 0) + v; },       // wie add, aber ohne Neupruefung (fuer Werte, die jedes Bild wachsen; geprueft wird ohnehin einmal pro Sekunde)
-  kill(e) { if (e && e.elite && MAP_ELITES.includes(e.type)) this.mark('mapElites', e.type); if (e && e.elite) this.add('elites'); else if (e && e.type) this.mark('types', e.type); },       // Elite-Gegner zaehlen nicht zu "jede Art" (types)
+  kill(e) { if (e && e.elite && MAP_ELITES.includes(e.type)) { this.mark('mapElites', e.type); this.add('ek_' + e.type); } if (e && e.elite) this.add('elites'); else if (e && e.type) this.mark('types', e.type); },       // Elite-Gegner zaehlen nicht zu "jede Art" (types)
   bossDown(b) {                                           // Boss besiegt (vor G.endBossFight): Dauer und Schaden im Kampf
     if (!this.ok() || !b || b.type === 'reaper') return;
     this.mark('bossTypes', b.type); this.add('bk_' + b.type); this.add('hb_' + Hero.id());
