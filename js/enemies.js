@@ -132,7 +132,7 @@ const Flank = {
 };
 const BACKLINE = { triangle: 1, square: 1, rhombus: 1, sniper: 1, support: 2, necro: 2 };       // 1 = Schuetze (gap), 2 = Unterstuetzer (gapBack)
 const SHOOTERS = ['triangle', 'square', 'rhombus'];
-const HEAVY = ['square', 'rhombus', 'guard', 'support', 'sniper', 'miner', 'necro', 'tank', 'teleporter', 'phantom', 'bastion', 'magnetar', 'lancer'];
+const HEAVY = ['square', 'rhombus', 'guard', 'support', 'sniper', 'miner', 'necro', 'tank', 'teleporter', 'phantom', 'bastion', 'magnetar', 'lancer', 'umbra', 'compactor', 'glitch', 'emberlord', 'miasma', 'glacier'];
 const CORPSE_TYPES = ['circle', 'triangle', 'square', 'rhombus', 'guard', 'bomber', 'teleporter'];
 class Enemy {
   // type: 'circle' | 'triangle' | 'square' | 'rhombus'; mini = Miniboss (größer, mehr Leben)
@@ -510,6 +510,7 @@ class EnemyBolt {
     if (G.clearing || (G.bossFight && !this.fromMinion)) { this.alive = false; return; }
     const f = framesOf(dt);
     moveForward(this, this.speed * f);
+    MapEnv.bend(this, f); Elite.repel(this, f);
     this.ghost += 3 * f;
     this.frames -= f;
     const r = CFG.enemy.bolt.radius;

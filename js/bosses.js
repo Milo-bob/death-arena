@@ -38,10 +38,13 @@ class Boss {
     this.sprite = this.cfg.sprite || (type === 'twin' ? (role === 'mortar' ? 'kite' : 'octagon') : type === 'turret' ? 'turret' : type === 'arena' || type === 'reaper' ? 'octagon' : type);     // Karten-Bosse: sprite/hue aus der Config
     this.hue = this.cfg.hue !== undefined ? this.cfg.hue : type === 'arena' ? 40 : type === 'reaper' ? 275 : 0;
     // Karten-Bosse (forge, colossus, spore, plague, frost, wraith): eigene Takte
-    this.spT = type === 'forge' ? this.cfg.rainFirst : type === 'spore' ? this.cfg.cloudFirst : type === 'frost' ? this.cfg.spiralFirst : 0;     // Schlackenregen / Giftwolken / Spiralfeuer
-    this.sp2T = type === 'spore' ? this.cfg.spawnFirst : type === 'plague' ? this.cfg.trailEvery : type === 'frost' ? this.cfg.novaFirst : type === 'wraith' ? this.cfg.blinkFirst : 0;   // Sporen rufen / Wolkenspur / Frostring / Sprung
+    this.spT = type === 'forge' || type === 'juggernaut' ? this.cfg.rainFirst : type === 'spore' ? this.cfg.cloudFirst : type === 'frost' ? this.cfg.spiralFirst : type === 'eclipse' ? this.cfg.darkFirst : type === 'nightmare' ? this.cfg.stealthFirst : type === 'magnetron' ? this.cfg.fieldFirst : 0;     // Schlackenregen / Giftwolken / Spiralfeuer
+    this.sp2T = type === 'spore' ? this.cfg.spawnFirst : type === 'plague' ? this.cfg.trailEvery : type === 'frost' ? this.cfg.novaFirst : type === 'wraith' ? this.cfg.blinkFirst : type === 'eclipse' ? this.cfg.novaFirst : type === 'magnetron' ? this.cfg.ringEvery : 0;   // Sporen rufen / Wolkenspur / Frostring / Sprung
     this.fx = { spiral: 0, shot: 0, ang: 0, nova: 0, blink: 0, bx: 0, by: 0 };       // Frost-Bosse: Restzeit Spiralfeuer, Salventakt, Drehwinkel, Frostring-Vorwarnung, Sprung-Vorwarnung und Ziel
-    this.ch = { phase: 'walk', t: type === 'colossus' ? this.cfg.chargeFirst : 0, ang: 0 };            // Slag Colossus: walk -> tele -> dash
+    this.dk = { warn: 0, on: 0, shot: 0, ang: 0 };                       // Eclipse: Vorwarnung / Restzeit von "Lichter aus", Salventakt, Drehwinkel
+    this.st = { t: 0 };                                                   // Nightmare: Restzeit der Unsichtbarkeit
+    this.mg = { state: 'idle', t: 0, age: 0, pol: 1 };                    // Magnetron: Magnetfeld (idle | warn | on), Polung
+    this.ch = { phase: 'walk', t: type === 'colossus' || type === 'juggernaut' ? this.cfg.chargeFirst : 0, ang: 0 };            // Slag Colossus: walk -> tele -> dash
     if (this.cfg.name) G.notice(this.cfg.name + '!', STYLE.pal.red, STYLE.type.h1);
     // Laser-Turm: Zustand der Laser
     this.ls = { phase: 'rest', t: type === 'turret' ? this.cfg.restFirst : 0, n: 0, ang: 0, sign: 1, count: 1 };
@@ -65,12 +68,12 @@ class Boss {
   // Schussart und Berührungsschaden je Boss
   get shootKind() {
     if (this.type === 'kite' || (this.type === 'twin' && this.role === 'mortar')) return 'mortar';
-    if (this.type === 'plague' || this.type === 'wraith') return 'fan';
+    if (this.type === 'plague' || this.type === 'wraith' || this.type === 'nightmare') return 'fan';
     return this.type === 'summoner' ? 'summon' : 'bolt';
   }
   get speedNow() {
     const C = this.cfg;
-    return (this.type === 'twin' && this.role === 'mortar' ? C.partnerSpeed : C.speed) * (this.enraged ? C.enrageMul : 1) * (this.phase2 ? CFG.boss.counter.phase2Speed : 1);
+    return (this.type === 'twin' && this.role === 'mortar' ? C.partnerSpeed : C.speed) * (this.enraged ? C.enrageMul : 1) * (this.phase2 ? CFG.boss.counter.phase2Speed : 1) * (this.type === 'nightmare' && this.st.t > 0 ? C.stealthSpeed : 1);
   }
 
   update(dt) {
@@ -98,7 +101,7 @@ class Boss {
 
     // Bewegung: nur wenn nicht betäubt und kein Ultimate läuft (außer das Schild berührt ihn)
     const windup = this.type === 'octagon' && this.age < this.cfg.windup;
-    const canMove = !windup && !(this.type === 'frost' && this.fx.spiral > 0) && this.stun <= 0 && !(this.cn.act && this.cn.act.kind === 'shock') && (!G.clearing || touchesShield(this.x, this.y, this.radius));
+    const canMove = !windup && !(this.type === 'frost' && this.fx.spiral > 0) && !(this.type === 'eclipse' && this.dk.on > 0) && this.stun <= 0 && !(this.cn.act && this.cn.act.kind === 'shock') && (!G.clearing || touchesShield(this.x, this.y, this.radius));
     if (this.type === 'summoner' || this.type === 'spore') {
       // Beschwörer (und Spore Mother): weicht zurück, wenn man nah kommt, nähert sich, wenn man weit weg ist, sonst kreist er
       this.summonFlash = Math.max(0, this.summonFlash - dt);
@@ -111,7 +114,7 @@ class Boss {
       this.dir = face;
     } else if (this.type === 'turret') {
       this.updateLasers(dt, p, tg);
-    } else if (this.type === 'colossus' && this.updateCharge(dt, tg)) {
+    } else if ((this.type === 'colossus' || this.type === 'juggernaut') && this.updateCharge(dt, tg)) {
       if (canMove && this.ch.phase === 'dash') { const face = this.dir; this.dir = this.ch.ang; moveForward(this, this.cfg.dashSpeed * bossPower().speed * f); this.dir = face; }       // Anlauf: gerade durch
     } else if (canMove) {
       moveForward(this, this.speedNow * bossPower().speed * f);
@@ -169,7 +172,7 @@ class Boss {
   updateMapBoss(dt, tg) {
     const C = this.cfg, fast = (this.phase2 ? 0.75 : 1) * bossPower().fire, s = C.cloudSpread || C.rainSpread;
     const near = (spread) => (spread ? [tg.x + rand(-s, s), tg.y + rand(-s, s)] : [tg.x, tg.y]);       // erste Stelle genau auf dem Spieler, die anderen daneben
-    if (this.type === 'forge') {                                    // Schlackenregen: Einschlagkreise um den Spieler (der erste genau auf ihn)
+    if (this.type === 'forge' || this.type === 'juggernaut') {      // Schlackenregen (Juggernaut: Schrottbrocken): Einschlagkreise um den Spieler (der erste genau auf ihn)
       this.spT -= dt;
       if (this.spT <= 0) {
         this.spT += C.rainEvery * fast;
@@ -200,6 +203,9 @@ class Boss {
       if (this.sp2T <= 0) { this.sp2T += C.trailEvery * fast; dropCloud(this.x, this.y, true); }
     } else if (this.type === 'frost') this.updateFrost(dt, fast);
     else if (this.type === 'wraith') this.updateWraith(dt, tg, fast);
+    else if (this.type === 'eclipse') this.updateEclipse(dt, fast);
+    else if (this.type === 'nightmare') this.updateNightmare(dt, fast);
+    else if (this.type === 'magnetron') this.updateMagnetron(dt, fast);
   }
 
   // Gekühlter Bolzen (Frost-Bosse): Lenkung kaum, damit Ringe und Spiralen ihre Form behalten
@@ -256,6 +262,97 @@ class Boss {
     }
   }
 
+  // Eclipse (Blackout): "Lichter aus": Vorwarnung, dann steht er still und feuert ein Spiral, waehrend das Licht des Spielers schrumpft (DarkVeil.playerR). Dazu Bolzenring.
+  updateEclipse(dt, fast) {
+    const C = this.cfg, D = this.dk;
+    if (D.on > 0) {
+      D.on -= dt; D.shot -= dt;
+      if (D.shot <= 0) {
+        D.shot += C.spiralRate; const arms = C.spiralArms + (this.phase2 ? 1 : 0);
+        for (let i = 0; i < arms; i++) G.bossShots.push(Object.assign(new BossBolt(this.x, this.y, D.ang + (360 / arms) * i, 0.4), { src: Stats.bossName(this) }));
+        D.ang += C.spiralTurn; Sfx.play('enemyShot');
+      }
+    } else if (D.warn > 0) {
+      D.warn -= dt;
+      if (D.warn <= 0) { D.on = C.darkTime; D.shot = 0; D.ang = rand(0, 360); Sfx.play('wave'); Juice.shake(2); }
+    } else {
+      this.spT -= dt;
+      if (this.spT <= 0) { this.spT += C.darkEvery * fast; D.warn = C.darkTele; G.notice('LIGHTS OUT!', STYLE.pal.violet); Sfx.play('warn'); }
+    }
+    this.sp2T -= dt;
+    if (this.sp2T <= 0) {
+      this.sp2T += C.novaEvery * fast;
+      const n = C.novaCount + (this.phase2 ? 4 : 0), off = rand(0, 360);
+      for (let i = 0; i < n; i++) G.bossShots.push(Object.assign(new BossBolt(this.x, this.y, off + (360 / n) * i, 0.3), { src: Stats.bossName(this) }));
+      Sfx.play('missile'); Juice.shake(2); this.summonFlash = 0.4;
+    }
+  }
+  // Licht des Spielers im Bosskampf: Faktor (1 = normal), kleiner waehrend "Lichter aus" des Eclipse
+  static lightFactor() {
+    let f = 1;
+    for (const b of G.bossList()) if (b.type === 'eclipse' && b.dk && b.dk.on > 0) f = Math.min(f, b.cfg.darkLight);
+    return f;
+  }
+
+  // Nightmare (Blackout): wird kurz (fast) unsichtbar und laeuft schneller, beim Auftauchen ein Bolzenring
+  updateNightmare(dt, fast) {
+    const C = this.cfg, S = this.st;
+    if (S.t > 0) {
+      S.t -= dt;
+      if (S.t <= 0) {
+        const n = C.arrivalCount + (this.phase2 ? 4 : 0), off = rand(0, 360);
+        for (let i = 0; i < n; i++) G.bossShots.push(Object.assign(new BossBolt(this.x, this.y, off + (360 / n) * i, 0.3), { src: Stats.bossName(this) }));
+        Sfx.play('missile'); Juice.shake(1.5); this.summonFlash = 0.4;
+      }
+    } else {
+      this.spT -= dt;
+      if (this.spT <= 0) { this.spT += C.stealthEvery * fast; S.t = C.stealthTime; Sfx.play('blink'); }
+    }
+  }
+
+  // Magnetron (Scrapyard): Magnetfeld mit Vorwarnung zieht den Spieler heran / stoesst ihn ab und biegt seine Schuesse; dazu Bolzenring
+  updateMagnetron(dt, fast) {
+    const C = this.cfg, M = this.mg;
+    if (M.state === 'idle') {
+      this.spT -= dt;
+      if (this.spT <= 0) { this.spT += C.fieldEvery * fast; M.state = 'warn'; M.t = C.fieldTele; M.pol = -M.pol; Sfx.play('ventWarn'); }
+    } else if (M.state === 'warn') {
+      M.t -= dt;
+      if (M.t <= 0) { M.state = 'on'; M.t = C.fieldTime; M.age = 0; Sfx.play('wave'); Juice.shake(1.5); }
+    } else {
+      M.t -= dt; M.age += dt;
+      this.magnetTick(dt);
+      if (M.t <= 0) M.state = 'idle';
+    }
+    this.sp2T -= dt;
+    if (this.sp2T <= 0) {
+      this.sp2T += C.ringEvery * fast;
+      const n = C.ringCount + (this.phase2 ? 4 : 0), off = rand(0, 360);
+      for (let i = 0; i < n; i++) G.bossShots.push(Object.assign(new BossBolt(this.x, this.y, off + (360 / n) * i, 0.3), { src: Stats.bossName(this) }));
+      Sfx.play('missile'); this.summonFlash = 0.4;
+    }
+  }
+  magnetTick(dt) {
+    const C = this.cfg, M = this.mg, p = G.player, f = framesOf(dt), ramp = clamp(Math.min(M.age / 0.5, (C.fieldTime - M.age) / 0.6), 0, 1);
+    const d = Math.hypot(this.x - p.x, this.y - p.y);
+    if (d < C.fieldRange && d > this.radius + p.radius + 4 && !SafeSpot.inside) {
+      const s = (1 - d / C.fieldRange) * ramp * C.pull * M.pol * f;
+      p.x += (this.x - p.x) / d * s; p.y += (this.y - p.y) / d * s;
+    }
+    for (const a of G.attacks) {                                                   // Schuesse des Spielers biegen (zum Boss hin oder von ihm weg)
+      if (!a.alive || a.kind !== 'shot') continue;
+      const dd = Math.hypot(this.x - a.x, this.y - a.y);
+      if (dd >= C.fieldRange) continue;
+      const want = M.pol > 0 ? dirTo(a.x, a.y, this.x, this.y) : dirTo(this.x, this.y, a.x, a.y), b = C.bend * (1 - dd / C.fieldRange) * ramp * f;
+      a.dir += clamp(angleDiff(want, a.dir), -b, b);
+    }
+  }
+  // Juggernaut: Splitterring am Ende des Anlaufs
+  shrapnel() {
+    const n = this.cfg.shrapnel + (this.phase2 ? 4 : 0), off = rand(0, 360);
+    for (let i = 0; i < n; i++) G.bossShots.push(Object.assign(new BossBolt(this.x, this.y, off + (360 / n) * i, 0.2), { src: Stats.bossName(this) }));
+  }
+
   // Slag Colossus: läuft, nach chargeEvery s bleibt er stehen und zeigt eine Linie (tele), rast dann los (dash) und schlägt am Ende ein.
   // Gibt true zurück, solange er steht oder rast (dann übernimmt diese Funktion die Bewegung).
   updateCharge(dt, tg) {
@@ -270,6 +367,7 @@ class Boss {
     } else if (ch.t <= 0) {
       ch.phase = 'walk'; ch.t = C.chargeEvery * fast;
       G.blasts.push(bossBlast('bomb', this.x, this.y, Stats.bossName(this))); Juice.shake(3);       // Einschlag am Ende des Anlaufs
+      if (this.type === 'juggernaut') this.shrapnel();
     }
     return true;
   }
@@ -481,8 +579,8 @@ class Boss {
     const hit = this.hitCd > 0 || this.stun > 0, cx = STAGE_W / 2 + this.x, cy = STAGE_H / 2 - this.y, P = STYLE.pal;
     if (this.type === 'turret') this.drawLasers(ctx, cx, cy);
     this.drawCounters(ctx, cx, cy);
-    Cos.drawBoss(ctx, this.sprite + (hit ? 'Hit' : ''), this, this.type === 'turret' ? 90 : this.dir, this.cfg.drawSize || 300, { hue: this.hue }, G.realTime);
-    if (this.type === 'colossus' && this.ch.phase === 'tele') {  // Warnlinie des Anlaufs
+    Cos.drawBoss(ctx, this.sprite + (hit ? 'Hit' : ''), this, this.type === 'turret' ? 90 : this.dir, this.cfg.drawSize || 300, { hue: this.hue, alpha: this.type === 'nightmare' && this.st.t > 0 ? 0.08 : 1 }, G.realTime);
+    if ((this.type === 'colossus' || this.type === 'juggernaut') && this.ch.phase === 'tele') {  // Warnlinie des Anlaufs
       const C = this.cfg, len = C.dashSpeed * bossPower().speed * 30 * C.dashTime;
       ctx.save();
       ctx.globalAlpha = 0.35 + 0.5 * (1 - this.ch.t / C.tele); ctx.fillStyle = P.red;
@@ -501,6 +599,29 @@ class Boss {
       ctx.save(); ctx.fillStyle = P.ice;
       ctx.globalAlpha = 0.2 + 0.3 * (1 - k); pxGlow(ctx, bx, by, 24);
       ctx.globalAlpha = 0.9; pxRing(ctx, bx, by, 14 + 26 * k, 2, 10, G.realTime * 0.4);
+      ctx.restore();
+    }
+    if (this.type === 'eclipse' && (this.dk.warn > 0 || this.dk.on > 0)) {                    // Lichter aus: Warnring, dann dunkler Schleier um den Boss
+      const k = this.dk.warn > 0 ? 1 - this.dk.warn / this.cfg.darkTele : 1;
+      ctx.save(); ctx.fillStyle = P.violet;
+      ctx.globalAlpha = 0.15 + 0.25 * k; pxGlow(ctx, cx, cy, this.radius * 2.4 * (0.4 + 0.6 * k));
+      ctx.globalAlpha = 0.5 + 0.4 * k; pxRing(ctx, cx, cy, this.radius * (1.2 + 1.2 * k), 2, 14, G.realTime * 0.3);
+      ctx.restore();
+    }
+    if (this.type === 'nightmare' && this.st.t > 0) {                                         // unsichtbar: nur ein blasser Ring zeigt grob, wo er ist
+      ctx.save(); ctx.fillStyle = P.red; ctx.globalAlpha = 0.25 + 0.25 * Math.sin(G.realTime * 14); pxRing(ctx, cx, cy, this.radius * 1.4, 1, 12, G.realTime);
+      ctx.restore();
+    }
+    if (this.type === 'magnetron' && this.mg.state !== 'idle') {                              // Magnetfeld: Warnrand, dann nach innen (zieht) oder aussen (stoesst) laufende Ringe
+      const M = this.mg, C = this.cfg, pull = M.pol > 0, col = pull ? '#3a8bff' : '#ff3d5a', R = C.fieldRange, t = G.realTime;
+      ctx.save(); ctx.fillStyle = col;
+      if (M.state === 'warn') { const k = 1 - M.t / C.fieldTele; ctx.globalAlpha = 0.2 + 0.5 * k; pxRing(ctx, cx, cy, R, 1, 26, t * 0.2); }
+      else {
+        const fade = clamp(Math.min(M.age / 0.5, (C.fieldTime - M.age) / 0.6), 0, 1);
+        for (let i = 0; i < 3; i++) { const ph = (t * 0.9 + i / 3) % 1, rr = R * (pull ? 1 - ph : ph); ctx.globalAlpha = 0.55 * fade * (1 - Math.abs(ph - 0.5)); pxRing(ctx, cx, cy, rr, 1, 26, 0); }
+        ctx.globalAlpha = 0.1 * fade; pxDisc(ctx, cx, cy, R);
+        ctx.globalAlpha = 0.9 * fade; pxRing(ctx, cx, cy, R, 1, 20, t * 0.4);
+      }
       ctx.restore();
     }
     if (this.type === 'summoner' && this.phase2) {               // Blasterschild (Phase 2)

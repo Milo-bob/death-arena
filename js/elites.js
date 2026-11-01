@@ -25,6 +25,9 @@ const Elite = {
     if (e.type === 'bastion') e.bashT = rand(C.bashMin, C.bashMax);
     if (e.type === 'lancer') { e.stabT = C.first; e.stabPh = 0; e.stabLeft = 0; e.stabDir = 0; e.stabHit = false; e.rush = false; }
     if (e.type === 'magnetar') { e.slamT = C.first; e.slamWarn = 0; e.slamN = 0; e.pullOff = 0; }
+    if (e.type === 'umbra') e.bashT = rand(C.bashMin, C.bashMax);
+    if (C.tele !== undefined && !e.dmgInit) { e.actT = undefined; e.actWarn = 0; e.actPos = null; e.actDir = 0; e.charge = 0; e.dmgInit = true; }
+    if (e.type === 'compactor') { e.dropT = C.first; e.dropWarn = 0; e.dropN = 0; e.dropPos = null; }
   },
 
   // Jedes Bild im Lauf: das Upgrade zum festen Zeitpunkt (alle Elite-Gegner, auch die schon da sind)
@@ -88,10 +91,57 @@ const Elite = {
       for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const r = Math.hypot(x + 0.5 - cx, y + 0.5 - cy); if (r <= 3.6) px(x, y, r <= 1.8 ? '#e9ffe9' : r <= 2.8 ? '#4dff9a' : '#17a85b'); }       // gruener Kern
     });
   },
+  // Eigene Koerper der Karten-Elite (28 x 28, Blickrichtung Osten): Umbra, Compactor, Glitch, Emberlord, Miasma, Glacier
+  mapSprite(type) {
+    const body = (name, paint) => this.custom(name, 28, 28, paint);
+    const circ = (px, cx, cy, r, col) => { for (let y = 0; y < 28; y++) for (let x = 0; x < 28; x++) if (Math.hypot(x + 0.5 - cx, y + 0.5 - cy) <= r) px(x, y, col); };
+    const rng = (a, b) => ((a * 73856093) ^ (b * 19349663)) >>> 0;
+    if (type === 'umbra') return body('eliteUmbra', ({ px }) => {                                // dunkle Kugel mit Schleier und zwei gelben Augen
+      circ(px, 14, 14, 12.5, '#0b0420'); circ(px, 14, 14, 11, '#1a0b3a'); circ(px, 13, 14, 8, '#2c1566');
+      for (let y = 0; y < 28; y++) for (let x = 0; x < 28; x++) { const r = Math.hypot(x + 0.5 - 14, y + 0.5 - 14); if (r > 10.2 && r <= 11.4) px(x, y, '#5b2bd0'); if (r <= 11 && rng(x, y) % 9 === 0) px(x, y, '#3d1f8a'); }
+      for (const ey of [9.5, 17.5]) { circ(px, 19.5, ey, 2.2, '#ffe14a'); circ(px, 20, ey, 1, '#ffffff'); }
+      for (let k = 0; k < 4; k++) px(2 + k, 7 + k * 4, '#5b2bd0');                                // Schweif
+    });
+    if (type === 'compactor') return body('eliteCompactor', ({ px, poly }) => {                    // Schrottpresse: rostiger Block mit Pressplatte vorn
+      poly([[3, 4], [20, 4], [20, 24], [3, 24]], '#4a2512'); poly([[4, 5], [19, 5], [19, 23], [4, 23]], '#8a4a22'); poly([[4, 5], [19, 5], [19, 8], [4, 8]], '#c8743a');
+      poly([[19, 3], [26, 3], [26, 25], [19, 25]], '#2b2b30'); poly([[20, 4], [25, 4], [25, 24], [20, 24]], '#9aa0a8');
+      for (let y = 5; y < 24; y++) if (Math.floor(y / 3) % 2 === 0) for (let x = 21; x < 25; x++) px(x, y, '#ffd91f');         // Warnstreifen
+      for (const [x, y] of [[6, 11], [6, 17], [14, 11], [14, 17]]) { px(x, y, '#2b1608'); px(x + 1, y, '#2b1608'); }                   // Nieten
+      poly([[7, 12], [13, 12], [13, 16], [7, 16]], '#4a2512'); poly([[8, 13], [12, 13], [12, 15], [8, 15]], '#ffd91f');              // Sichtfenster
+      px(2, 9, '#7a808a'); px(1, 9, '#7a808a'); px(2, 18, '#7a808a'); px(1, 18, '#7a808a');                                              // Auspuff
+    });
+    if (type === 'glitch') return body('eliteGlitch', ({ px, poly }) => {                          // Raute mit verschobenen Streifen (Datenfehler)
+      poly([[14, 1], [27, 14], [14, 27], [1, 14]], '#06403a'); poly([[14, 3.5], [24.5, 14], [14, 24.5], [3.5, 14]], '#12a88c'); poly([[14, 6], [22, 14], [14, 22], [6, 14]], '#2bffb0');
+      for (let y = 1; y < 27; y += 5) for (let x = 0; x < 28; x++) { px(x + (y % 10 === 1 ? 2 : -2), y, '#ff3dd0'); px(x, y + 1, '#06403a'); }
+      circ(px, 14, 14, 3, '#ffffff'); circ(px, 14, 14, 1.5, '#06403a');
+    });
+    if (type === 'emberlord') return body('eliteEmberlord', ({ px, poly }) => {                    // Schmelzofen: dunkle Kugel mit gluehenden Rissen, Hoerner nach vorn
+      poly([[17, 4], [27, 1], [22, 10]], '#2b1008'); poly([[17, 24], [27, 27], [22, 18]], '#2b1008'); poly([[19, 5], [26, 2.5], [22, 9]], '#c8743a'); poly([[19, 23], [26, 25.5], [22, 19]], '#c8743a');
+      circ(px, 13, 14, 12, '#2b1008'); circ(px, 13, 14, 10.5, '#4a1a0c');
+      for (let k = 0; k < 7; k++) { const a = k * 0.9 + 0.4; for (let r = 3; r < 10; r++) { const x = Math.floor(13 + Math.cos(a) * r), y = Math.floor(14 + Math.sin(a) * r * 1.0 + ((r * k) % 3 - 1)); px(x, y, r < 6 ? '#ffd91f' : '#ff8a1f'); } }
+      circ(px, 13, 14, 4, '#ff8a1f'); circ(px, 13, 14, 2.5, '#ffd91f'); circ(px, 13, 14, 1.2, '#ffffff');
+    });
+    if (type === 'miasma') return body('eliteMiasma', ({ px }) => {                                // Giftblase: gruener Beutel mit Blasen und violetten Flecken
+      circ(px, 14, 14, 12.5, '#0f3a1a'); circ(px, 14, 14, 11, '#2a7a3a'); circ(px, 12, 13, 8, '#3fae4f');
+      for (const [x, y, r] of [[9, 9, 3], [17, 17, 3.4], [18, 8, 2], [8, 18, 2.2], [13, 14, 2.4]]) { circ(px, x, y, r, '#8aff7a'); circ(px, x - 0.6, y - 0.6, r * 0.4, '#e6ffe0'); }
+      for (const [x, y, r] of [[21, 13, 2], [14, 22, 1.8], [6, 12, 1.6]]) circ(px, x, y, r, '#7a3fb0');
+      for (let k = 0; k < 6; k++) { const a = k * 1.05; px(Math.floor(14 + Math.cos(a) * 13), Math.floor(14 + Math.sin(a) * 13), '#8aff7a'); }
+    });
+    if (type === 'glacier') return body('eliteGlacier', ({ px, poly }) => {                        // Eiskristall: Sechseck mit Facetten
+      const hx = (r) => { const pts = []; for (let k = 0; k < 6; k++) pts.push([14 + Math.cos(k * 1.0472) * r, 14 + Math.sin(k * 1.0472) * r]); return pts; };
+      poly(hx(13.5), '#1d5f82'); poly(hx(12), '#6fc8ee'); poly(hx(8.5), '#bfefff');
+      poly([[14, 14], [14 + 12 * Math.cos(-1.0472), 14 + 12 * Math.sin(-1.0472)], [14 + 12 * Math.cos(0), 14], [14 + 12 * Math.cos(1.0472), 14 + 12 * Math.sin(1.0472)]], '#2a7fa8');
+      poly([[14, 14], [14 + 8.5 * Math.cos(-2.0944), 14 + 8.5 * Math.sin(-2.0944)], [14 + 8.5 * Math.cos(-1.0472), 14 + 8.5 * Math.sin(-1.0472)]], '#ffffff');
+      circ(px, 14, 14, 2.5, '#ffffff');
+      for (const [x, y] of [[5, 9], [22, 20], [9, 21]]) { px(x, y, '#ffffff'); px(x + 1, y, '#bfefff'); px(x, y + 1, '#bfefff'); }
+    });
+    return null;
+  },
   // Umgefaerbtes Sprite des Typs (Cos.tinted merkt es sich, ein Farbfilter pro Bild waere in Edge sehr langsam); Lanzenreiter und Magnetar haben eigene Koerper
   sprite(e) {
     if (e.type === 'lancer') { const n = this.lancerSprite(); if (n) return n; }
     if (e.type === 'magnetar') { const n = this.magnetSprite(); if (n) return n; }
+    const mapN = this.mapSprite(e.type); if (mapN) return mapN;                            // Karten-Elite (Karten 1-6)
     return Cos.tinted(CFG.enemy[e.type].sprite, 'hue-rotate(' + CFG.elite[e.type].hue + 'deg)');
   },
   speedMul(e) { return e.mk === 2 ? CFG.elite.mk2.speed : 1; },
@@ -238,9 +288,146 @@ const Elite = {
     }
   },
 
+  // ---------- Umbra (Karte 5) ----------
+  umbraSteer(e, dt, tg) {
+    const C = CFG.elite.umbra, toP = dirTo(e.x, e.y, tg.x, tg.y), d = Math.hypot(tg.x - e.x, tg.y - e.y), step = CFG.enemy.umbra.speed * this.speedMul(e);
+    e.bashT -= dt;
+    if (e.bashT <= 0 && d < C.range) { e.bashT = rand(C.bashMin, C.bashMax); e.ov = Patterns.dashOv(e, C.tele, C.go, C.speed, true); }       // Rammstoss mit Vorwarnung
+    return { step, touch: true, move: toP };
+  },
+  // Dimmt das Licht einer Figur oder eines Spawners p (x, y): kleinster Faktor aller Umbras in Reichweite (1 = nichts)
+  umbraDim(p) {
+    let f = 1;
+    for (const e of G.enemies) {
+      if (!e.alive || e.type !== 'umbra') continue;
+      const C = CFG.elite.umbra, R = e.mk === 2 ? C.dimRange2 : C.dimRange;
+      if (dist2(e.x, e.y, p.x, p.y) < R * R) f = Math.min(f, C.dim);
+    }
+    return f;
+  },
+
+  // ---------- Compactor (Karte 6) ----------
+  compactorSteer(e, dt, tg) {
+    const C = CFG.elite.compactor, mk2 = e.mk === 2, toP = dirTo(e.x, e.y, tg.x, tg.y), d = Math.hypot(tg.x - e.x, tg.y - e.y), step = CFG.enemy.compactor.speed * this.speedMul(e);
+    e.dir = toP; e.dropT -= dt;
+    if (e.dropWarn > 0) {                                                            // wirft: steht still, Ring zeigt die Landestelle
+      e.dropWarn -= dt;
+      if (e.dropWarn <= 0) this.drop(e);
+      return { step: 0, touch: true };
+    }
+    if (e.dropT <= 0 && d < C.range && !SafeSpot.inside) {
+      e.dropN = mk2 ? 2 : 1; e.dropWarn = mk2 ? C.tele2 : C.tele; e.dropPos = [tg.x, tg.y]; Sfx.play('ventWarn');
+    }
+    if (d > C.keepDist + C.band) return { step, touch: true, move: toP };
+    if (d < C.keepDist - C.band) return { step: step * 0.6, touch: true, move: toP + 180 };
+    return { step: step * 0.5, touch: true, move: toP + e.side * 90 };
+  },
+  // Schrott landet: Schaden im Ring, dann eine neue Barrikade (wenn Platz ist)
+  drop(e) {
+    const C = CFG.elite.compactor, mk2 = e.mk === 2, R = mk2 ? C.radius2 : C.radius, [x, y] = e.dropPos;
+    G.blasts.push(new Pop(x, y, R, STYLE.pal.yellow));
+    Juice.shake(2); Sfx.play('ventBlast'); Juice.sparks(x, y, STYLE.pal.orange, 12, 4); Juice.sparks(x, y, STYLE.pal.grey, 8, 3);
+    for (const q of playersList()) if (dist2(q.x, q.y, x, y) <= (R + q.radius) ** 2) q.hit('shoot', e.dmgMul, Stats.enemyName(e));
+    if (!G.obstacles.some((o) => o.alive && dist2(o.x, o.y, x, y) < 30 * 30)) {
+      const o = new Obstacle(x, y); o.maxHp = o.hp = C.obstHp; G.obstacles.push(o);
+    }
+    if (--e.dropN > 0) { e.dropPos = [G.player.target.x + rand(-40, 40), G.player.target.y + rand(-40, 40)]; e.dropWarn = C.tele2; }
+    else { e.dropT = mk2 ? C.every2 : C.every; e.dropPos = null; }
+  },
+  // Eisenpanzer: lenkt Schuesse (Spieler und Gegner) im Umkreis ab, o = Geschoss mit dir/x/y, f = Bilder
+  repel(o, f) {
+    const C = CFG.elite.compactor;
+    for (const e of G.enemies) {
+      if (!e.alive || e.type !== 'compactor') continue;
+      const d = Math.hypot(o.x - e.x, o.y - e.y);
+      if (d > C.repelRange || d < e.radius) continue;
+      const away = dirTo(e.x, e.y, o.x, o.y), turn = C.repelTurn * (1 - d / C.repelRange) * f;
+      o.dir += clamp(angleDiff(away, o.dir), -turn, turn);
+    }
+  },
+
+  // ---------- Karten-Elite der Karten 1-4 ----------
+  // Gemeinsamer Abstandsgang: ran, weg oder seitlich kreisen
+  keep(e, step, toP, d, C) {
+    if (d > C.keepDist + C.band) return { step, touch: true, move: toP };
+    if (d < C.keepDist - C.band) return { step: step * 0.6, touch: true, move: toP + 180 };
+    return { step: step * 0.5, touch: true, move: toP + e.side * 90 };
+  },
+  bolts(e, n, spread, speed, frames, chill, around) {                           // n Bolzen: im Ring (around) oder als Faecher zum Spieler
+    const aim = dirTo(e.x, e.y, G.player.target.x, G.player.target.y);
+    for (let i = 0; i < n; i++) G.shots.push(Object.assign(new EnemyBolt(e.x, e.y, around ? e.phase * 57 + (360 / n) * i : aim + (i - (n - 1) / 2) * spread, speed, frames), { src: Stats.enemyName(e), mul: e.dmgMul, chill }));
+  },
+  // Glitch (Neon Void): blinkt neben den Spieler und schiesst dort einen Ring
+  glitchSteer(e, dt, tg) {
+    const C = CFG.elite.glitch, mk2 = e.mk === 2, toP = dirTo(e.x, e.y, tg.x, tg.y), d = Math.hypot(tg.x - e.x, tg.y - e.y), step = CFG.enemy.glitch.speed * this.speedMul(e);
+    e.dir = toP; e.actT = (e.actT === undefined ? C.first : e.actT) - dt;
+    if (e.actWarn > 0) {
+      e.actWarn -= dt;
+      if (e.actWarn <= 0) {
+        Juice.sparks(e.x, e.y, STYLE.pal.cyan, 8, 3); [e.x, e.y] = clampToMap(e.actPos[0], e.actPos[1], 20); Juice.sparks(e.x, e.y, STYLE.pal.cyan, 12, 4); Sfx.play('blink');
+        this.bolts(e, mk2 ? C.n2 : C.n, 0, C.boltSpeed, C.boltFrames, false, true); e.actT = mk2 ? C.every2 : C.every; e.actPos = null;
+      }
+      return { step: 0, touch: false };
+    }
+    if (e.actT <= 0 && !SafeSpot.inside) { const a = rand(0, 360); e.actPos = [tg.x + fwdX(a) * C.hop, tg.y + fwdY(a) * C.hop]; e.actWarn = mk2 ? C.tele2 : C.tele; Sfx.play('ventWarn'); }
+    return this.keep(e, step, toP, d, C);
+  },
+  // Emberlord (Ember Foundry): Sturmangriff mit Lavapfuetzen
+  emberSteer(e, dt, tg) {
+    const C = CFG.elite.emberlord, mk2 = e.mk === 2, toP = dirTo(e.x, e.y, tg.x, tg.y), d = Math.hypot(tg.x - e.x, tg.y - e.y), step = CFG.enemy.emberlord.speed * this.speedMul(e);
+    e.actT = (e.actT === undefined ? C.first : e.actT) - dt;
+    if (e.actWarn > 0) {                                                             // Vorwarnung: steht, Richtung festgelegt
+      e.actWarn -= dt; e.dir = e.actDir;
+      if (e.actWarn <= 0) { e.charge = C.dist; e.trailAcc = 0; Sfx.play('enemyShot'); }
+      return { step: 0, touch: false };
+    }
+    if (e.charge > 0) {                                                              // Sturm: Lavapfuetzen im Abstand `step`
+      const sp = mk2 ? C.speed2 : C.speed, mv = sp * framesOf(dt);
+      e.charge -= mv; e.trailAcc += mv; e.dir = e.actDir;
+      while (e.trailAcc >= C.step) { e.trailAcc -= C.step; G.blasts.push(new HeatPool(e.x, e.y, C.pool, mk2 ? C.life2 : C.life, e.dmgMul, Stats.enemyName(e))); }
+      return { step: sp, touch: true, move: e.actDir };
+    }
+    e.dir = toP;
+    if (e.actT <= 0 && d < 330 && !SafeSpot.inside) { e.actDir = toP; e.actWarn = mk2 ? C.tele2 : C.tele; e.actT = mk2 ? C.every2 : C.every; Sfx.play('ventWarn'); return { step: 0, touch: false }; }
+    return this.keep(e, step, toP, d, C);
+  },
+  // Miasma (Toxic Core): wirft Giftwolken um den Spieler
+  miasmaSteer(e, dt, tg) {
+    const C = CFG.elite.miasma, mk2 = e.mk === 2, toP = dirTo(e.x, e.y, tg.x, tg.y), d = Math.hypot(tg.x - e.x, tg.y - e.y), step = CFG.enemy.miasma.speed * this.speedMul(e);
+    e.dir = toP; e.actT = (e.actT === undefined ? C.first : e.actT) - dt;
+    if (e.actWarn > 0) {
+      e.actWarn -= dt;
+      if (e.actWarn <= 0) {
+        for (let i = 0; i < (mk2 ? C.n2 : C.n); i++) dropCloud(clamp(e.actPos[0] + rand(-C.spread, C.spread), -CFG.map.halfW, CFG.map.halfW), clamp(e.actPos[1] + rand(-C.spread, C.spread), -CFG.map.halfH, CFG.map.halfH));
+        Juice.sparks(e.x, e.y, STYLE.pal.green, 10, 3); Sfx.play('acidBurp'); e.actT = mk2 ? C.every2 : C.every; e.actPos = null;
+      }
+      return { step: 0, touch: true };
+    }
+    if (e.actT <= 0 && d < 320 && !SafeSpot.inside) { e.actPos = [tg.x, tg.y]; e.actWarn = mk2 ? C.tele2 : C.tele; Sfx.play('ventWarn'); }
+    return this.keep(e, step, toP, d, C);
+  },
+  // Glacier (Cryo Station): Frostnova, danach Eisbolzen
+  glacierSteer(e, dt, tg) {
+    const C = CFG.elite.glacier, mk2 = e.mk === 2, toP = dirTo(e.x, e.y, tg.x, tg.y), d = Math.hypot(tg.x - e.x, tg.y - e.y), step = CFG.enemy.glacier.speed * this.speedMul(e);
+    e.dir = toP; e.actT = (e.actT === undefined ? C.first : e.actT) - dt;
+    if (e.actWarn > 0) {
+      e.actWarn -= dt;
+      if (e.actWarn <= 0) {
+        const R = mk2 ? C.radius2 : C.radius;
+        G.blasts.push(new Pop(e.x, e.y, R, STYLE.pal.ice)); Juice.shake(2); Sfx.play('ventBlast'); Juice.sparks(e.x, e.y, STYLE.pal.ice, 14, 4);
+        hurtPlayersAt(e.x, e.y, R, 'shoot', e.dmgMul, Stats.enemyName(e), true);                                    // kuehlt (Frost)
+        this.bolts(e, mk2 ? C.n2 : C.n, C.spreadDeg, C.boltSpeed, C.boltFrames, true, false);
+        e.actT = mk2 ? C.every2 : C.every;
+      }
+      return { step: 0, touch: true };
+    }
+    if (e.actT <= 0 && d < 300 && !SafeSpot.inside) { e.actWarn = mk2 ? C.tele2 : C.tele; Sfx.play('ventWarn'); }
+    return this.keep(e, step, toP, d, C);
+  },
+
   // ---------- Zeichnen (unter dem Gegner): Schein, Ringe, Schildfront, Nachbilder, Mk-Markierung ----------
   drawFx(ctx, e) {
-    const P = STYLE.pal, r = e.radius, cx = STAGE_W / 2 + e.x, cy = STAGE_H / 2 - e.y, t = G.realTime, col = e.type === 'phantom' ? P.purple : e.type === 'magnetar' ? P.green : e.type === 'lancer' ? P.cyan : P.orange, mk2 = e.mk === 2;
+    const P = STYLE.pal, r = e.radius, cx = STAGE_W / 2 + e.x, cy = STAGE_H / 2 - e.y, t = G.realTime, col = e.type === 'phantom' ? P.purple : e.type === 'magnetar' ? P.green : e.type === 'lancer' ? P.cyan : e.type === 'umbra' ? P.violet : e.type === 'compactor' ? P.yellow : e.type === 'glitch' ? P.cyan : e.type === 'emberlord' ? P.orange : e.type === 'miasma' ? P.green : e.type === 'glacier' ? P.ice : P.orange, mk2 = e.mk === 2;
     ctx.save();
     if (e.type === 'phantom' && e.ghostT > 0 && e.ghostFrom) {                               // Nachbilder entlang des Ausweichsprungs
       for (let k = 1; k <= 3; k++) {
@@ -327,6 +514,32 @@ const Elite = {
       const fl = Math.sin(t * 14) * 2.5, wx = sx + (ex - sx) * 0.55, wy = sy + (ey - sy) * 0.55;       // Wimpel flattert
       ctx.fillStyle = P.red; pxPolyFill(ctx, [[wx, wy], [wx - ux * 12 + vx * (5 + fl), wy - uy * 12 + vy * (5 + fl)], [wx - ux * 4 + vx * 1, wy - uy * 4 + vy * 1]]);
       ctx.globalAlpha = 0.4 + 0.2 * Math.sin(t * 10); ctx.fillStyle = P.cyan; pxGlow(ctx, ex, ey, 6);                 // Spitze glimmt
+    }
+    if (e.actWarn > 0 && (e.type === 'glitch' || e.type === 'miasma' || e.type === 'glacier')) {                // Vorwarnung der Karten-Elite: Ring an der Zielstelle (Glitch: Sprungziel, Miasma: Wurfziel, Glacier: Nova um ihn)
+      const C = CFG.elite[e.type], tele = mk2 ? C.tele2 : C.tele, tl = 1 - e.actWarn / tele, R = e.type === 'glacier' ? (mk2 ? C.radius2 : C.radius) : e.type === 'glitch' ? 14 : C.spread;
+      const gx = e.type === 'glacier' ? cx : STAGE_W / 2 + e.actPos[0], gy = e.type === 'glacier' ? cy : STAGE_H / 2 - e.actPos[1];
+      ctx.globalAlpha = 0.14 + 0.12 * Math.sin(t * 24); ctx.fillStyle = e.type === 'miasma' ? P.green : P.red; pxGlow(ctx, gx, gy, R);
+      ctx.globalAlpha = 0.9; ctx.fillStyle = e.type === 'glitch' ? P.cyan : e.type === 'miasma' ? P.green : P.ice; pxRing(ctx, gx, gy, R, 2, 22, 0);
+      ctx.globalAlpha = 0.7; ctx.fillStyle = P.yellow; pxRing(ctx, gx, gy, R * Math.min(1, tl), 1, 22, 0);
+    }
+    if (e.type === 'emberlord') {                                                              // Emberlord: Warnlinie des Sturms, Glut
+      const C = CFG.elite.emberlord;
+      if (e.actWarn > 0) { ctx.globalAlpha = 0.3 + 0.5 * (1 - e.actWarn / (mk2 ? C.tele2 : C.tele)); ctx.fillStyle = P.red; pxLine(ctx, cx, cy, cx + fwdX(e.actDir) * C.dist, cy - fwdY(e.actDir) * C.dist, 1); }
+      for (let k = 0; k < 5; k++) { const ph = (t * 1.2 + k / 5) % 1; ctx.globalAlpha = 0.8 * (1 - ph); ctx.fillStyle = k % 2 ? P.orange : P.yellow; pxFill(ctx, cx + Math.sin(k * 2.7 + t) * r * 0.8, cy - ph * r * 2, 1); }
+    }
+    if (e.type === 'umbra') {                                                                  // Umbra: dunkle Schleier, Rammstoss-Warnung
+      for (let k = 0; k < 6; k++) { const ph = (t * 0.6 + k / 6) % 1, a = k * 1.05 + t; ctx.globalAlpha = 0.5 * (1 - ph); ctx.fillStyle = P.violetDark; pxFill(ctx, cx + Math.cos(a) * r * (1 + ph * 1.5), cy + Math.sin(a) * r * (1 + ph * 1.5), 3); }
+      if (e.ov && e.ov.phase === 'tele') { ctx.globalAlpha = 0.9; ctx.fillStyle = P.red; pxLine(ctx, cx, cy, cx + fwdX(e.ov.dir) * 70, cy - fwdY(e.ov.dir) * 70, 1); }
+    }
+    if (e.type === 'compactor') {                                                              // Compactor: Eisenfeld (Ring der Ablenkung), Wurf-Ring an der Landestelle
+      const C = CFG.elite.compactor, R = mk2 ? C.radius2 : C.radius;
+      ctx.globalAlpha = 0.18 + 0.1 * Math.sin(t * 4); ctx.fillStyle = P.grey; pxRing(ctx, cx, cy, C.repelRange, 1, 24, t * 0.2);
+      if (e.dropWarn > 0 && e.dropPos) {
+        const gx = STAGE_W / 2 + e.dropPos[0], gy = STAGE_H / 2 - e.dropPos[1], tl = 1 - e.dropWarn / (mk2 ? C.tele2 : C.tele);
+        ctx.globalAlpha = 0.15 + 0.15 * Math.sin(t * 24); ctx.fillStyle = P.red; pxGlow(ctx, gx, gy, R);
+        ctx.globalAlpha = 0.9; ctx.fillStyle = P.red; pxRing(ctx, gx, gy, R, 2, 22, 0);
+        ctx.globalAlpha = 0.7; ctx.fillStyle = P.yellow; pxRing(ctx, gx, gy, R * Math.min(1, tl), 1, 22, 0);
+      }
     }
     if (e.type === 'bastion') {                                                                // Schildfront
       const th = Math.atan2(-Math.cos(e.face * DEG), Math.sin(e.face * DEG)), A = this.arc(e) * DEG;

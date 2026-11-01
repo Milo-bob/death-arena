@@ -207,6 +207,7 @@ class Shot {
       if (best) steerTowards(this, best.x, best.y, S.turn * f);
     }
     moveForward(this, this.speed * f);
+    MapEnv.bend(this, f); Elite.repel(this, f);                  // Karte 6: Magnetkraene und Compactor lenken Schuesse ab
     if (this.bounce) {
       const hw = CFG.map.halfW * G.arenaScale, hh = CFG.map.halfH * G.arenaScale;
       if (Math.abs(this.x) > hw) { this.x = clamp(this.x, -hw, hw); this.dir = -this.dir; }

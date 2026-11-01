@@ -61,7 +61,7 @@ class CoopMate {
     this.x = 0; this.y = 0; this.dir = 0; this.nx = 0; this.ny = 0; this.nd = 0; this.vx = 0; this.vy = 0; this.at = G.realTime;
     this.hp = 100; this.mhp = 100; this.spr = 'player'; this.blink = false; this.shield = false; this.dead = false; this.seen = 0; this.first = true;
     this.ghosts = []; this.ghostAt = G.realTime;
-    this.clk = new NetClock(); this.sb = []; this.deathPos = null; this.revLeft = 0; this.revT = 0; this.rtt = 0;
+    this.clk = new NetClock(); this.sb = []; this.deathPos = null; this.revT = 0; this.rtt = 0;
   }
   get radius() { return CFG.player.hitRadius; }
   hasteFor() { return 1; }
@@ -77,7 +77,7 @@ class CoopMate {
   }
   // Grabmarke eines ausgeschiedenen Mitspielers: wer sich daneben stellt, belebt ihn wieder (CFG.coop.reviveTime)
   drawGrave(ctx) {
-    if (!this.deathPos || this.revLeft <= 0) return;
+    if (!this.deathPos) return;
     const P = STYLE.pal, K = CFG.coop, cx = STAGE_W / 2 + this.deathPos[0], cy = STAGE_H / 2 - this.deathPos[1], pulse = 0.5 + 0.5 * Math.sin(G.realTime * 4), f = clamp(this.revT / K.reviveTime, 0, 1);
     ctx.save();
     ctx.fillStyle = P.orange; ctx.globalAlpha = 0.25 + 0.2 * pulse; pxDisc(ctx, cx, cy, K.reviveRadius * 0.55);
@@ -261,6 +261,7 @@ const Coop = {
     add('TurretStrike', typeof TurretStrike !== 'undefined' && TurretStrike); add('Meteor', typeof Meteor !== 'undefined' && Meteor); add('ToxicCloud', typeof ToxicCloud !== 'undefined' && ToxicCloud);
     add('Obstacle', typeof Obstacle !== 'undefined' && Obstacle); add('LavaVent', typeof LavaVent !== 'undefined' && LavaVent); add('SlagBelt', typeof SlagBelt !== 'undefined' && SlagBelt);
     add('AcidPool', typeof AcidPool !== 'undefined' && AcidPool); add('IcePatch', typeof IcePatch !== 'undefined' && IcePatch);
+    add('ScrapMagnet', typeof ScrapMagnet !== 'undefined' && ScrapMagnet); add('HeatPool', typeof HeatPool !== 'undefined' && HeatPool);
     return (this._classes = L);
   },
 
@@ -378,17 +379,17 @@ const Coop = {
     }
     if (C.out) this.spectate();
   },
-  // Wiederbeleben: wer lange genug neben der Grabmarke eines ausgeschiedenen Mitspielers steht, holt ihn zurueck (hoechstens CFG.coop.reviveMax mal pro Spieler und Lauf)
+  // Wiederbeleben: wer lange genug neben der Grabmarke eines ausgeschiedenen Mitspielers steht, holt ihn zurueck (unbegrenzt oft)
   reviveTick(dt) {
     const C = G.coop, K = CFG.coop;
     if (C.out || G.mode !== 'play') return;
     for (const m of G.mates) {
-      if (!m.dead || !m.deathPos || m.revLeft <= 0) { m.revT = 0; continue; }
+      if (!m.dead || !m.deathPos) { m.revT = 0; continue; }
       const d = Math.hypot(G.player.x - m.deathPos[0], G.player.y - m.deathPos[1]);
       if (d <= K.reviveRadius) m.revT += dt; else m.revT = Math.max(0, m.revT - dt * 2);
       if (m.revT >= K.reviveTime) {
         this.send('ev', { k: 'rev', to: m.id, x: m.deathPos[0], y: m.deathPos[1] });
-        m.revT = 0; m.revLeft--; m.deathPos = null; Sfx.play('levelUp'); G.notice('REVIVED ' + m.name + '!', STYLE.pal.green);
+        m.revT = 0; m.deathPos = null; Sfx.play('levelUp'); G.notice('REVIVED ' + m.name + '!', STYLE.pal.green);
       }
     }
   },
@@ -706,7 +707,7 @@ const Coop = {
     if (p.k === 'n') G.notice(p.t, p.c || undefined, p.s || undefined);
     else if (p.k === 'bs' && C.role === 'guest') { if (!G.bossFight) G.startBossFight(p.ty); }
     else if (p.k === 'be' && C.role === 'guest') this.onBossEnd(p);
-    else if (p.k === 'cdead') { const m = G.mates.find((q) => q.id === p.from); if (m) { m.dead = true; m.ghosts = []; m.deathPos = typeof p.x === 'number' ? [p.x, p.y] : null; m.revLeft = p.rv | 0; m.revT = 0; } this.check(); }
+    else if (p.k === 'cdead') { const m = G.mates.find((q) => q.id === p.from); if (m) { m.dead = true; m.ghosts = []; m.deathPos = typeof p.x === 'number' ? [p.x, p.y] : null; m.revT = 0; } this.check(); }
     else if (p.k === 'rev') { if (p.to === C.me && C.out && !C.over) { C.rev++; this.reviveSelf(p.x, p.y); } }
     else if (p.k === 'ult') { if (!C.out && !C.over) { G.addUlt(CFG.coop.ultShare); } }
     else if (p.k === 'over') this.runOver(p.why);
@@ -752,9 +753,9 @@ const Coop = {
     C.deathPos = [G.player.x, G.player.y];
     G.player.hp = 0;
     Sfx.play('death'); Juice.shake(3);
-    this.send('ev', { k: 'cdead', x: Math.round(C.deathPos[0]), y: Math.round(C.deathPos[1]), rv: Math.max(0, CFG.coop.reviveMax - C.rev) });
+    this.send('ev', { k: 'cdead', x: Math.round(C.deathPos[0]), y: Math.round(C.deathPos[1]) });
     this.check();
-    if (!C.over) G.notice(CFG.coop.reviveMax - C.rev > 0 ? 'YOU ARE OUT - A TEAMMATE CAN REVIVE YOU, OR YOU RETURN AFTER THE NEXT BOSS' : 'YOU ARE OUT - WATCH, YOU RETURN AFTER THE NEXT BOSS', STYLE.pal.orange);
+    if (!C.over) G.notice('YOU ARE OUT - A TEAMMATE CAN REVIVE YOU, OR YOU RETURN AFTER THE NEXT BOSS', STYLE.pal.orange);
   },
   // Host: sind alle ausgeschieden, endet der Lauf fuer alle
   check() {

@@ -758,6 +758,25 @@ const CFG = {
     { id: 'cryoboss15', name: 'DEFEAT 15 BOSSES ON CRYO STATION', cat: 'cryo', stat: 'mapbosses:cryo', need: 15,  reward: { cos: 'boss:permafrost' } },
     { id: 'cryokill200', name: 'DEFEAT 200 ENEMIES ON CRYO STATION',  cat: 'cryo', stat: 'mapkills:cryo', need: 200,  reward: { cos: 'skin:royal' } },
     { id: 'cryokill1200', name: 'DEFEAT 1200 ENEMIES ON CRYO STATION', cat: 'cryo', stat: 'mapkills:cryo', need: 1200, reward: { cos: 'blade:glacier' } },
+    // Karte 5 (Blackout, cat 'dark') und Karte 6 (Scrapyard, cat 'scrap'): wie Karte 4, die Belohnung sind Credits
+    { id: 'dark180', name: 'SURVIVE 3 MIN ON BLACKOUT', cat: 'dark', stat: 'mapbest:dark', need: 180, reward: { cores: 150 } },
+    { id: 'dark420', name: 'SURVIVE 7 MIN ON BLACKOUT', cat: 'dark', stat: 'mapbest:dark', need: 420, reward: { cores: 250 } },
+    { id: 'dark600', name: 'SURVIVE 10 MIN ON BLACKOUT', cat: 'dark', stat: 'mapbest:dark', need: 600, reward: { cores: 400 } },
+    { id: 'dark840', name: 'REACH THE FINAL BOSS ON BLACKOUT', cat: 'dark', stat: 'mapbest:dark', need: 840, reward: { cores: 600 } },
+    { id: 'darkboss2', name: 'DEFEAT 2 BOSSES ON BLACKOUT', cat: 'dark', stat: 'mapbosses:dark', need: 2, reward: { cores: 150 } },
+    { id: 'darkboss6', name: 'DEFEAT 6 BOSSES ON BLACKOUT', cat: 'dark', stat: 'mapbosses:dark', need: 6, reward: { cores: 300 } },
+    { id: 'darkboss15', name: 'DEFEAT 15 BOSSES ON BLACKOUT', cat: 'dark', stat: 'mapbosses:dark', need: 15, reward: { cores: 600 } },
+    { id: 'darkkill200', name: 'DEFEAT 200 ENEMIES ON BLACKOUT', cat: 'dark', stat: 'mapkills:dark', need: 200, reward: { cores: 200 } },
+    { id: 'darkkill1200', name: 'DEFEAT 1200 ENEMIES ON BLACKOUT', cat: 'dark', stat: 'mapkills:dark', need: 1200, reward: { cores: 500 } },
+    { id: 'scrap180', name: 'SURVIVE 3 MIN ON SCRAPYARD', cat: 'scrap', stat: 'mapbest:scrap', need: 180, reward: { cores: 150 } },
+    { id: 'scrap420', name: 'SURVIVE 7 MIN ON SCRAPYARD', cat: 'scrap', stat: 'mapbest:scrap', need: 420, reward: { cores: 250 } },
+    { id: 'scrap600', name: 'SURVIVE 10 MIN ON SCRAPYARD', cat: 'scrap', stat: 'mapbest:scrap', need: 600, reward: { cores: 400 } },
+    { id: 'scrap840', name: 'REACH THE FINAL BOSS ON SCRAPYARD', cat: 'scrap', stat: 'mapbest:scrap', need: 840, reward: { cores: 600 } },
+    { id: 'scrapboss2', name: 'DEFEAT 2 BOSSES ON SCRAPYARD', cat: 'scrap', stat: 'mapbosses:scrap', need: 2, reward: { cores: 150 } },
+    { id: 'scrapboss6', name: 'DEFEAT 6 BOSSES ON SCRAPYARD', cat: 'scrap', stat: 'mapbosses:scrap', need: 6, reward: { cores: 300 } },
+    { id: 'scrapboss15', name: 'DEFEAT 15 BOSSES ON SCRAPYARD', cat: 'scrap', stat: 'mapbosses:scrap', need: 15, reward: { cores: 600 } },
+    { id: 'scrapkill200', name: 'DEFEAT 200 ENEMIES ON SCRAPYARD', cat: 'scrap', stat: 'mapkills:scrap', need: 200, reward: { cores: 200 } },
+    { id: 'scrapkill1200', name: 'DEFEAT 1200 ENEMIES ON SCRAPYARD', cat: 'scrap', stat: 'mapkills:scrap', need: 1200, reward: { cores: 500 } },
   ],
 
 
@@ -808,6 +827,14 @@ const CFG = {
     bastion: { speed: 1.5, push: 0.3, radius: 10, size: 420, hits: 16, sprite: 'tank' },          // Schildfront haelt Schuesse ab, Rammstoss
     magnetar: { speed: 1.8, push: 0.3, radius: 10, size: 380, hits: 14, sprite: 'support' },
     lancer: { speed: 0, push: 0.3, radius: 10, size: 340, hits: 9, sprite: 'triangle' },           // Lanzenreiter: fast so schnell wie der Spieler (Tempo = Anteil des Spielertempos, CFG.elite.lancer), haelt Abstand und sticht mit Vorwarnung       // zieht den Spieler heran, Erschuetterung mit Vorwarnung (gegen Kiten)
+    // Karten-Elite (nur Karte 5 Blackout / Karte 6 Scrapyard, Spawn in CFG.maps[].extraSpawn, Werte in CFG.elite)
+    // Karten-Elite der Karten 1-4
+    glitch: { speed: 2.4, push: 0.4, radius: 10, size: 320, hits: 11, sprite: 'rhombus' },         // Neon Void: blinkt mit Vorwarnung hinter dich und schiesst einen Ring
+    emberlord: { speed: 1.9, push: 0.3, radius: 12, size: 400, hits: 16, sprite: 'tank' },         // Ember Foundry: Sturmangriff, hinterlaesst Lavapfuetzen
+    miasma: { speed: 1.7, push: 0.3, radius: 11, size: 360, hits: 13, sprite: 'support' },         // Toxic Core: wirft Giftwolken auf deine Position
+    glacier: { speed: 1.5, push: 0.3, radius: 12, size: 400, hits: 15, sprite: 'tank' },           // Cryo Station: Frostnova und Eisbolzen
+    umbra: { speed: 2.9, push: 0.4, radius: 10, size: 330, hits: 12, sprite: 'teleporter' },        // Lichtfresser: dimmt das Licht von Spieler und Spawnern
+    compactor: { speed: 1.3, push: 0.3, radius: 13, size: 440, hits: 18, sprite: 'tank' },         // Schrottpresse: wirft Schrott (neue Barrikaden), lenkt Schuesse ab
     // Geschosse der Gegner
     bolt: { speed: 7, frames: 30, radius: 5 },
     missile: { speed: 4, frames: 60, turn: 5, radius: 5 },
@@ -886,6 +913,26 @@ const CFG = {
       speed: 0.93, mk2Speed: 1.05, boost: 1.4, boostDist: 140, keepDist: 62, band: 14, retreat: 0.4,
       range: 82, reach: 76, width: 6, first: 1.4, every: 1.7, every2: 1.25, tele: 0.45, tele2: 0.32, thrust: 0.14, recover: 0.4, lunge: 9,
     },
+    // Umbra (Karte 5): jagt den Spieler mit Rammstoss. Seine Naehe dimmt das Licht des Spielers und der Spawner (Radius x dim im Umkreis dimRange).
+    // Compactor (Karte 6): haelt Abstand, wirft alle every s Schrott auf die Stelle des Spielers (tele s Warnring, Radius radius, danach eine neue Barrikade mit obstHp Leben).
+    // Sein Eisenpanzer lenkt Schuesse im Umkreis repelRange ab (repelTurn Grad pro Bild). Mk II: zwei Wuerfe, groesserer Ring.
+    // Karten 1-4: Glitch (blinkt nach every s mit tele s Ring an einen Punkt `hop` neben dem Spieler und schiesst dort `n` Bolzen im Ring), Emberlord (stuermt nach every s mit tele s Warnlinie `dist` weit,
+    // hinterlaesst alle `step` Einheiten eine Lavapfuetze (Radius pool, `life` s), Mk II schneller und laenger), Miasma (steht tele s und wirft `n` Giftwolken in die Naehe des Spielers),
+    // Glacier (Frostnova: tele s Ring `radius`, kuehlt den Spieler, danach `n` Eisbolzen im Faecher).
+    glitch: { dmg: 1.4, gate: 0.5, gate2: 0.7, hue: 150, keepDist: 150, band: 30, first: 3, every: 5, every2: 3.8, tele: 0.7, tele2: 0.5, hop: 105, n: 8, n2: 12, boltSpeed: 6, boltFrames: 40 },
+    emberlord: { dmg: 1.7, gate: 0.7, gate2: 0.95, hue: 15, keepDist: 90, band: 30, first: 3.5, every: 5.5, every2: 4.2, tele: 0.8, tele2: 0.55, dist: 190, speed: 8.5, speed2: 10, step: 16, pool: 15, life: 5, life2: 7 },
+    miasma: { dmg: 1.4, gate: 0.55, gate2: 0.8, hue: 100, keepDist: 140, band: 30, first: 3, every: 5.5, every2: 4.2, tele: 0.9, tele2: 0.65, n: 3, n2: 5, spread: 55 },
+    glacier: { dmg: 1.6, gate: 0.65, gate2: 0.9, hue: 185, keepDist: 120, band: 30, first: 3.5, every: 6, every2: 4.6, tele: 1.0, tele2: 0.7, radius: 85, radius2: 105, n: 5, n2: 7, spreadDeg: 16, boltSpeed: 6, boltFrames: 44 },
+    umbra: {
+      dmg: 1.5, gate: 0.5, gate2: 0.7, hue: 255,
+      dim: 0.55, dimRange: 120, dimRange2: 160,
+      bashMin: 3.5, bashMax: 5.5, range: 160, tele: 0.7, go: 0.35, speed: 10,
+    },
+    compactor: {
+      dmg: 1.7, gate: 0.7, gate2: 0.95, hue: 25,
+      keepDist: 110, band: 30, first: 4, every: 6.5, every2: 5, tele: 1.1, tele2: 0.8, radius: 44, radius2: 54, obstHp: 9, range: 300,
+      repelRange: 95, repelTurn: 4,
+    },
     magnetar: {
       dmg: 1.6, gate: 0.6, gate2: 0.85, hue: 130,
       range: 190, minPull: 0.9, maxPull: 2.6, chargePull: 1.5, mk2Pull: 1.35,
@@ -907,6 +954,13 @@ const CFG = {
     rime:     { name: 'RIME',      base: 'circle',   hue: 175, size: 0.95, hits: 2, speed: 1.2, death: 'frost', chill: true },
     icicle:   { name: 'ICICLE',    base: 'triangle', hue: 190, size: 1.1,  hits: 2, fan: 3, fanSpread: 12, every: 1.9, chill: true },
     frostbite: { name: 'FROSTBITE', base: 'rhombus', hue: 200, size: 1.1,  hits: 3, chill: true },
+    // Karte 5 (Blackout): nur im Licht zu sehen. shade = schneller Kreis, gloam = Dreieck mit Fächer, dusk = zaehe Raute. Karte 6 (Scrapyard): rivet = Kreis mit Funkentod, saw = Dreieck mit Fächer, crusher = Quadrat mit Fächer.
+    shade:    { name: 'SHADE',    base: 'circle',   hue: 265, size: 0.95, hits: 2, speed: 1.3 },
+    gloam:    { name: 'GLOAM',    base: 'triangle', hue: 285, size: 1.1,  hits: 2, fan: 3, fanSpread: 16, every: 2.0 },
+    dusk:     { name: 'DUSK',     base: 'rhombus',  hue: 250, size: 1.1,  hits: 4 },
+    rivet:    { name: 'RIVET',    base: 'circle',   hue: 40,  size: 0.95, hits: 2, speed: 1.2, death: 'ember' },
+    saw:      { name: 'SAW',      base: 'triangle', hue: 55,  size: 1.1,  hits: 3, fan: 3, fanSpread: 18, every: 1.7 },
+    crusher:  { name: 'CRUSHER',  base: 'square',   hue: 30,  size: 1.2,  hits: 5, fan: 3, fanSpread: 28, every: 3.4 },
   },
   // Karte 4 (Kryo-Station): rime = schneller Kreis, bei dessen Tod ein Frostring entsteht, icicle = Dreieck mit Dreierfaecher, frostbite = Raute, deren Wellen frieren.
   // chill = Treffer (und der Frostring) kuehlen den Spieler: Tempo x CFG.chill.slow fuer CFG.chill.dur Sekunden.
@@ -1239,6 +1293,21 @@ const CFG = {
     // dort bricht beim Auftauchen ein Ring aus arrivalCount Bolzen los.
     wraith: { name: 'FROST WRAITH', sprite: 'kite', hue: 190, drawSize: 290, speed: 2.7, radius: 19, hpBase: 34, hpPerStage: 4.8, hitStun: 0.15, shootEvery: 1.7, fanSpread: 20, chill: true,
               blinkFirst: 4, blinkEvery: 6.5, blinkTele: 0.9, blinkDist: [70, 120], arrivalCount: 10 },
+    // Karten-Bosse von Blackout (eclipse, nightmare) und Scrapyard (magnetron, juggernaut).
+    // Eclipse: langsam. Alle darkEvery s kuendigt er darkTele s lang "Lichter aus" an, dann steht er darkTime s still, das Licht des Spielers schrumpft auf darkLight und er feuert
+    // ein Spiral (spiralArms Arme, Drehung spiralTurn pro Salve alle spiralRate s). Dazu alle novaEvery s ein Ring aus novaCount Bolzen.
+    eclipse: { name: 'ECLIPSE', sprite: 'octagon', hue: 265, drawSize: 350, speed: 1.8, radius: 25, hpBase: 44, hpPerStage: 5.8, hitStun: 0.25, shootEvery: 2.0,
+               darkFirst: 5, darkEvery: 10, darkTele: 1.0, darkTime: 4, darkLight: 0.4, spiralRate: 0.2, spiralArms: 3, spiralTurn: 22, novaFirst: 7, novaEvery: 8, novaCount: 12 },
+    // Nightmare: schnell, Dreierfaecher. Alle stealthEvery s wird er stealthTime s lang (fast) unsichtbar und laeuft stealthSpeed x so schnell, beim Auftauchen bricht ein Ring aus arrivalCount Bolzen los.
+    nightmare: { name: 'NIGHTMARE', sprite: 'kite', hue: 285, drawSize: 290, speed: 2.7, radius: 19, hpBase: 34, hpPerStage: 4.8, hitStun: 0.15, shootEvery: 1.7, fanSpread: 18,
+                 stealthFirst: 4, stealthEvery: 7, stealthTime: 1.5, stealthSpeed: 1.9, arrivalCount: 8 },
+    // Magnetron: alle fieldEvery s ein Magnetfeld (fieldTele s Vorwarnung, dann fieldTime s, Radius fieldRange, Polung wechselt): zieht den Spieler heran / stoesst ihn ab (pull pro Bild)
+    // und biegt die Schuesse des Spielers (bend Grad pro Bild). Dazu alle ringEvery s ein Ring aus ringCount Bolzen.
+    magnetron: { name: 'MAGNETRON', sprite: 'octagon', hue: 50, drawSize: 340, speed: 1.9, radius: 25, hpBase: 44, hpPerStage: 5.8, hitStun: 0.25, shootEvery: 1.9,
+                 fieldFirst: 4, fieldEvery: 9, fieldTele: 1.1, fieldTime: 4, fieldRange: 190, pull: 1.5, bend: 3.6, ringEvery: 6, ringCount: 10 },
+    // Juggernaut: wie der Slag Colossus (Anlauf mit Warnlinie), schleudert am Ende des Anlaufs shrapnel Schrottsplitter im Ring und laesst Schrottbrocken um den Spieler einschlagen (rain).
+    juggernaut: { name: 'JUGGERNAUT', sprite: 'octagon', hue: -25, drawSize: 380, speed: 2.5, radius: 28, hpBase: 46, hpPerStage: 6, hitStun: 0.3, shootEvery: 2.2,
+                  chargeFirst: 4, chargeEvery: 5, tele: 0.9, dashTime: 0.6, dashSpeed: 11, shrapnel: 10, rainFirst: 6, rainEvery: 6, rainCount: 3, rainSpread: 80 },
     // Konter aller Bosse (siehe Boss.updateCounters). Leben pro Boss oben: hpBase + hpPerStage x Stufe.
     // stunResist: so lange nach einer Betaeubung wirkt keine neue (Boss laeuft trotz Treffern weiter). Treffer machen weiter Schaden.
     // Schockwelle: nearTime Sekunden in nearDist -> Ring (Radius shockRadius), nach shockDelay s Schaden. Sog: farTime s weiter als farDist weg ->
@@ -1299,7 +1368,8 @@ const CFG = {
   // diff: hits = Gegner-Leben mal Faktor, rate = Spawn-Takt der Grundgegner mal (kleiner = mehr), allRate/capMul = Wartezeit/Obergrenze aller übrigen Gegner, boss = Bossstärke (hp/fire/speed/dmg, siehe CFG.boss.power). Karte 1 = alles 1 (Originalwerte, die "Härter-Runde" gilt nur ab Karte 2), speed = Gegnertempo, spawn = Spawn-Abstände (kleiner = mehr Gegner), damage = Schaden am Spieler, bossHp = Boss-Leben, cores = Belohnung.
   // Freischalten: unlockFrac x finaler-Boss-Zeit (CFG.finalBoss.at) auf der VORHERIGEN Karte erreichen (Bestzeit je Karte, nur normaler Modus), also die halbe Strecke.
   maps: [
-    { id: 'void', fx: { kind: 'void' }, name: 'NEON VOID', desc: 'The classic arena.', ground: 'ground', frame: STYLE.pal.cyan, half: [520, 390], diff: { speed: 1, spawn: 1, damage: 1, bossHp: 1, cores: 1, hits: 1, rate: 1, allRate: 1, capMul: 1, boss: { hp: 1, fire: 1, speed: 1, dmg: 1 } }, level: 1 },
+    { id: 'void', fx: { kind: 'void' }, name: 'NEON VOID', desc: 'The classic arena.', ground: 'ground', frame: STYLE.pal.cyan, half: [520, 390], diff: { speed: 1, spawn: 1, damage: 1, bossHp: 1, cores: 1, hits: 1, rate: 1, allRate: 1, capMul: 1, boss: { hp: 1, fire: 1, speed: 1, dmg: 1 } }, level: 1,
+      extraSpawn: { glitch: { from: 330, min: 46, max: 60, maxAlive: 1, fixedCap: true, up: { min: 34, max: 46, maxAlive: 2 } } } },
     { id: 'foundry', name: 'EMBER FOUNDRY', desc: 'Hotter, faster, meaner.', ground: 'ground2', frame: STYLE.pal.orange, half: [520, 390], diff: { speed: 1.08, spawn: 0.9, damage: 1.5, bossHp: 1.15, cores: 1.25, hits: 1.5, rate: 0.8125, allRate: 0.7, capMul: 1.4, boss: { hp: 1.6, fire: 0.8, speed: 1.1, dmg: 1.25 } }, level: 2, unlockFrac: 0.5,
       // Kartenspezifisch (nur Karte 2 und 3): bossOrder ersetzt CFG.boss.order (gleiche Länge, zwei Kämpfe sind durch Karten-Bosse ersetzt, die Dauer bleibt),
       // foes = zusätzliche Gegner-Varianten (CFG.variants), trim = Wartezeiten der normalen Gegner mal Faktor (größer = weniger davon, Schlüssel: c/t/r/s = Kreis/Dreieck/Raute/Quadrat, sonst Typname aus extraSpawn)
@@ -1315,6 +1385,7 @@ const CFG = {
       },
       foes: [{ v: 'cinder', from: 60, min: 11, max: 15, maxAlive: 8 }, { v: 'welder', from: 150, min: 20, max: 28, maxAlive: 3 }, { v: 'smelter', from: 240, min: 28, max: 38, maxAlive: 2 }],
       trim: { c: 1.35, t: 1.25, bomber: 1.6, sniper: 1.4 },
+      extraSpawn: { emberlord: { from: 340, min: 46, max: 60, maxAlive: 1, fixedCap: true, up: { min: 34, max: 46, maxAlive: 2 } } },
       fx: { kind: 'foundry' } },
     { id: 'toxic', name: 'TOXIC CORE', desc: 'Tight arena, no mistakes.', ground: 'ground3', frame: STYLE.pal.green, half: [440, 330], diff: { speed: 1.15, spawn: 0.8, damage: 2, bossHp: 1.3, cores: 1.6, hits: 2, rate: 0.69, allRate: 0.55, capMul: 1.8, boss: { hp: 2, fire: 0.68, speed: 1.15, dmg: 1.45 } }, level: 3, unlockFrac: 0.5,
       bossOrder: ['octagon', 'plague', 'spore', 'turret', 'twin', 'arena'],           // Plague Drone ersetzt Kite, Spore Mother ersetzt den Beschwörer
@@ -1326,6 +1397,7 @@ const CFG = {
       },
       foes: [{ v: 'spore', from: 60, min: 11, max: 15, maxAlive: 8 }, { v: 'blighter', from: 170, min: 22, max: 30, maxAlive: 2 }, { v: 'hazmat', from: 300, min: 45, max: 60, maxAlive: 1 }],
       trim: { c: 1.35, s: 1.3, splitter: 1.5, leech: 1.4, tank: 1.5 },
+      extraSpawn: { miasma: { from: 350, min: 46, max: 60, maxAlive: 1, fixedCap: true, up: { min: 34, max: 46, maxAlive: 2 } } },
       fx: { kind: 'toxic' } },
     { id: 'cryo', name: 'CRYO STATION', desc: 'Ice, blizzards, no grip.', ground: 'ground4', frame: STYLE.pal.ice, half: [440, 330], diff: { speed: 1.2, spawn: 0.72, damage: 2.75, bossHp: 1.45, cores: 2, hits: 2.5, rate: 0.6, allRate: 0.5, capMul: 2.1, boss: { hp: 2.4, fire: 0.6, speed: 1.2, dmg: 1.65 } }, level: 4, unlockFrac: 0.5,
       // Kryo-Station: Eisfelder (ice: Spieler rutscht, Tempo folgt der Eingabe nur langsam), Blizzard (blizzard: first = erster Sturm nach s, every = Pause (min/max), warn = Vorwarnung mit Richtungspfeil,
@@ -1338,7 +1410,33 @@ const CFG = {
       bossOrder: ['octagon', 'kite', 'frost', 'wraith', 'twin', 'arena'],            // Frost Sentinel ersetzt den Beschwörer, Frost Wraith den Laser-Turm
       foes: [{ v: 'rime', from: 60, min: 11, max: 15, maxAlive: 8 }, { v: 'icicle', from: 150, min: 20, max: 28, maxAlive: 3 }, { v: 'frostbite', from: 220, min: 30, max: 40, maxAlive: 2 }],
       trim: { c: 1.35, t: 1.25, r: 1.4, sniper: 1.4, teleporter: 1.4 },
+      extraSpawn: { glacier: { from: 360, min: 46, max: 60, maxAlive: 1, fixedCap: true, up: { min: 34, max: 46, maxAlive: 2 } } },
       fx: { kind: 'cryo' } },
+    // Karte 5: Blackout. Ausserhalb von Licht ist ALLES unsichtbar (js/mapnew.js: DarkVeil). Licht = Spieler (Radius playerLight, im Bosskampf x bossLight), Spawner/Breaches (spawnerLight),
+    // Mitspieler und kurz die eigenen Schuesse (shotLight). Umbra dimmt Spieler- und Spawnerlicht in seiner Naehe.
+    { id: 'dark', name: 'BLACKOUT', desc: 'Light is life.', ground: 'ground5', frame: STYLE.pal.violet, half: [440, 330], diff: { speed: 1.25, spawn: 0.66, damage: 3.25, bossHp: 1.6, cores: 2.5, hits: 3, rate: 0.55, allRate: 0.45, capMul: 2.4, boss: { hp: 2.8, fire: 0.55, speed: 1.25, dmg: 1.85 } }, level: 5, unlockFrac: 0.5,
+      hazards: ['TOTAL DARKNESS', 'BREACH LIGHTS'],
+      env: {
+        dark: { playerLight: 82, bossLight: 1.9, spawnerLight: 70, shotLight: 26, edge: 0.45 },
+      },
+      bossOrder: ['octagon', 'eclipse', 'summoner', 'nightmare', 'twin', 'arena'],          // Eclipse ersetzt den Kite, Nightmare den Laser-Turm
+      foes: [{ v: 'shade', from: 60, min: 11, max: 15, maxAlive: 8 }, { v: 'gloam', from: 150, min: 20, max: 28, maxAlive: 3 }, { v: 'dusk', from: 230, min: 30, max: 40, maxAlive: 2 }],
+      trim: { c: 1.35, t: 1.25, r: 1.4, sniper: 1.4 },
+      extraSpawn: { umbra: { from: 240, min: 36, max: 50, maxAlive: 1, fixedCap: true, up: { min: 26, max: 38, maxAlive: 2 } } },
+      fx: { kind: 'dark' } },
+    // Karte 6: Scrapyard. Magnetkraene (ScrapMagnet): pulsieren (Ruhe -> Vorwarnung -> Feld), Polung wechselt je Feld (ziehen / abstossen). Im Feld ziehen sie Spieler UND Gegner (pull Einheiten pro Bild)
+    // und biegen die Flugbahn aller Geschosse (Schuesse des Spielers, Gegnerbolzen, Raketen; bend Grad pro Bild bei vollem Feld). Dazu viel viel mehr, kleinere Schrotthaufen (obstacles ersetzt CFG.obstacles, style 'scrap' zeichnet Reifen, Fass, Autowrack, Schrotthaufen).
+    { id: 'scrap', name: 'SCRAPYARD', desc: 'Junk, cranes, magnets.', ground: 'ground6', frame: STYLE.pal.yellow, half: [480, 360], diff: { speed: 1.3, spawn: 0.62, damage: 3.5, bossHp: 1.7, cores: 3, hits: 3.5, rate: 0.52, allRate: 0.42, capMul: 2.6, boss: { hp: 3.2, fire: 0.52, speed: 1.3, dmg: 2.0 } }, level: 6, unlockFrac: 0.5,
+      hazards: ['MAGNET CRANES', 'SCRAP WALLS'],
+      env: {
+        magnets: { count: 3, radius: 135, idle: [5, 9], warn: 1.4, on: 4.5, pull: 1.5, bend: 3.2, minGap: 150 },
+      },
+      obstacles: { style: 'scrap', radius: 12, hpMin: 4, hpMax: 7, start: 24, perWave: 3, max: 36, respawn: 6, minOther: 30, minPlayer: 60 },
+      bossOrder: ['octagon', 'magnetron', 'summoner', 'juggernaut', 'twin', 'arena'],       // Magnetron ersetzt den Kite, Juggernaut den Laser-Turm
+      foes: [{ v: 'rivet', from: 60, min: 11, max: 15, maxAlive: 8 }, { v: 'saw', from: 150, min: 20, max: 28, maxAlive: 3 }, { v: 'crusher', from: 240, min: 30, max: 40, maxAlive: 2 }],
+      trim: { c: 1.35, t: 1.25, s: 1.3, tank: 1.5 },
+      extraSpawn: { compactor: { from: 260, min: 40, max: 55, maxAlive: 1, fixedCap: true, up: { min: 30, max: 42, maxAlive: 2 } } },
+      fx: { kind: 'scrap' } },
   ],
   // Koop: Spawnpunkte relativ zu jedem lebenden Spieler, ALLE ausserhalb des Bildes (Bild = +-240 x +-180, beim Rauszoomen etwas mehr), rundherum ein Rechteckring.
   coopSpawnOffsets: [[380, 0], [380, 130], [380, 240], [190, 255], [0, 255], [-190, 255], [-380, 240], [-380, 130], [-380, 0], [-380, -130], [-380, -240], [-190, -255], [0, -255], [190, -255], [380, -240], [380, -130]] ,
@@ -1624,7 +1722,7 @@ CFG.pvp.maps = {
 // mehr Gegner (m^spawnExp, Raten und Obergrenzen), Boss-Leben (m^bossExp). Credits: x m^coreExp. Karten sind mapScale-mal so gross (gleiche vier Karten).
 CFG.coop = { mapScale: 1.7, extra: 0.35, hpExp: 0.4, spawnExp: 0.7, bossExp: 0.9, coreExp: 0.5, obstacleMul: 1.5, countdown: 3,
   pickTime: 15, stateHz: 12, worldHz: 12, stateHzP2P: 20, worldHzP2P: 20, reviveFrac: 0.5,
-  reviveRadius: 34, reviveTime: 3, reviveMax: 2, linkRange: 120, linkMax: 3, linkHaste: 0.06, linkGuard: 0.06, ultShare: 20, maxEnemies: 140, maxShots: 90, mateTimeout: 8, maxPlayers: 6 };
+  reviveRadius: 34, reviveTime: 3,linkRange: 120, linkMax: 3, linkHaste: 0.06, linkGuard: 0.06, ultShare: 20, maxEnemies: 140, maxShots: 90, mateTimeout: 8, maxPlayers: 6 };
 CFG.coop.mult = (n) => n * (1 + CFG.coop.extra * (Math.max(1, n) - 1));
 
 // ---------------------------------------------------------------------------------------------------------------------------

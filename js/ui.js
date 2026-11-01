@@ -862,7 +862,8 @@ function drawMapSelectScreen(ctx) {
     uiText(ctx, small ? uiFit(ctx, M.name, w - 8, T.body) : M.name, x + w / 2, yy + 100, { size: small ? T.body : T.h2, color: open ? P.ice : P.grey, align: 'center' });
     if (small) uiWrap(ctx, M.desc, x + w / 2, yy + 111, w - 10, 9, { size: T.small, color: P.grey, align: 'center' }); else uiText(ctx, M.desc, x + w / 2, yy + 114, { size: T.small, color: P.grey, align: 'center', maxW: w - 12 });
     uiText(ctx, small ? 'LEVEL' : 'DIFFICULTY', x + 10, yy + 134, { size: T.small, color: P.grey });
-    for (let k = 0; k < 4; k++) { ctx.fillStyle = k < M.level ? col : P.greyDark; ctx.fillRect(x + w - 8 - (4 - k) * 14, yy + 127, 11, 8); }
+    const lvMax = Math.max(4, ...CFG.maps.map((m) => m.level)), bw = Math.floor((w - 50) / lvMax * 0.7), bs = bw + 2;          // Stufenanzeige: so viele Balken wie die hoechste Stufe (6), passt sich der Kartenbreite an
+    for (let k = 0; k < lvMax; k++) { ctx.fillStyle = k < M.level ? col : P.greyDark; ctx.fillRect(x + w - 8 - (lvMax - k) * bs, yy + 127, bw, 8); }
     uiText(ctx, 'CREDITS x' + M.diff.cores, x + 10, yy + 150, { size: T.small, color: open ? P.yellow : P.grey });
     if (open) {
       uiText(ctx, 'BEST ' + (Save.mapBestTime(i) > 0 ? formatTime(Save.mapBestTime(i)) : '-'), x + 10, yy + 165, { size: T.small, color: P.ice });

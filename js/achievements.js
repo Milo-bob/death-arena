@@ -93,6 +93,8 @@ const ACH_LIST = [
   { id: 'hotstuff',  br: 'world', name: 'HOT STUFF',            desc: 'Unlock Ember Foundry.',                          icon: 'fireIcon',     key: 'maps',      need: 2,    reward: { cores: 25 } },
   { id: 'chemrom',   br: 'world', name: 'CHEMICAL ROMANCE',     desc: 'Unlock Toxic Core.',                             icon: 'buffRegen',    key: 'maps',      need: 3,    reward: { cores: 40 } },
   { id: 'coldopen',  br: 'world', name: 'COLD OPEN',            desc: 'Unlock Cryo Station.',                           icon: 'frostIcon',    key: 'maps',      need: 4,    reward: { cores: 40 } },
+  { id: 'darkopen',  br: 'world', name: 'INTO THE DARK',        desc: 'Unlock Blackout.',                               icon: 'blinkIcon',    key: 'maps',      need: 5,    reward: { cores: 50 } },
+  { id: 'junkopen',  br: 'world', name: 'JUNK FOR ALL',         desc: 'Unlock Scrapyard.',                              icon: 'armorIcon',    key: 'maps',      need: 6,    reward: { cores: 60 } },
 
   // ---- DUMB DEATHS (wer oder was dich erwischt hat) ----
   { id: 'dcircle',   br: 'dumbd', name: 'SERIOUSLY?',           desc: 'Be killed by a plain Circle.',                   icon: 'circle',       key: 'd_CIRCLE',  need: 1,    reward: { cores: 10 } },
@@ -117,7 +119,7 @@ const ACH_LIST = [
   { id: 'finger',    br: 'habit', name: 'FINGER WORKOUT',       desc: 'Hold the attack button for 10 minutes in total.', icon: 'shot',        key: 'attackT',   need: 600,  reward: { cos: 'skin:copper' } },
 
   // ---- MAPS ----
-  { id: 'tour',      br: 'maps', name: 'WORLD TOUR',            desc: 'Play a run on every map.',                       icon: 'spawnPoint',   key: 'mapsPlayed', need: 4,   reward: { cores: 40 } },
+  { id: 'tour',      br: 'maps', name: 'WORLD TOUR',            desc: 'Play a run on every map.',                       icon: 'spawnPoint',   key: 'mapsPlayed', need: 6,   reward: { cores: 40 } },
   { id: 'meltdown',  br: 'maps', name: 'MELTDOWN',              desc: 'Survive 5 minutes on Ember Foundry.',            icon: 'fireIcon',     key: 'tm_foundry', need: 300, reward: { cores: 40 } },
   { id: 'hazmat',    br: 'maps', name: 'HAZMAT SUIT',           desc: 'Survive 5 minutes on Toxic Core.',               icon: 'molotovIcon',  key: 'tm_toxic',  need: 300,  reward: { cores: 50 } },
   { id: 'iceice',    br: 'maps', name: 'ICE ICE BABY',          desc: 'Survive 5 minutes on Cryo Station.',             icon: 'frostIcon',    key: 'tm_cryo',   need: 300,  reward: { cores: 60 } },
@@ -125,6 +127,15 @@ const ACH_LIST = [
   { id: 'sauna',     br: 'maps', name: 'SAUNA',                 desc: 'Get hit by lava vents 10 times in total.',       icon: 'fireIcon',     key: 'lavaHits',  need: 10,   reward: { cores: 25 } },
   { id: 'acidbath',  br: 'maps', name: 'ACID BATH',             desc: 'Get hit by acid pools 20 times in total.',       icon: 'buffRegen',    key: 'acidHits',  need: 20,   reward: { cores: 25 } },
   { id: 'coldwar',   br: 'maps', name: 'THE COLD WAR',          desc: 'Defeat the Frost Sentinel.',                     icon: 'octagon',      key: 'bk_frost',  need: 1,    reward: { cores: 60 } },
+  { id: 'blackout',  br: 'maps', name: 'LIGHTS OUT',            desc: 'Survive 5 minutes on Blackout.',                 icon: 'blinkIcon',    key: 'tm_dark',   need: 300,  reward: { cores: 70 } },
+  { id: 'nightowl',  br: 'maps', name: 'NIGHT OWL',             desc: 'Survive 10 minutes on Blackout.',                icon: 'ult3',         key: 'tm_dark',   need: 600,  reward: { cores: 90 } },
+  { id: 'scrapmetal', br: 'maps', name: 'SCRAP METAL',          desc: 'Survive 5 minutes on Scrapyard.',                icon: 'armorIcon',    key: 'tm_scrap',  need: 300,  reward: { cores: 80 } },
+  { id: 'junkdealer', br: 'maps', name: 'JUNK DEALER',          desc: 'Survive 10 minutes on Scrapyard.',               icon: 'ult3',         key: 'tm_scrap',  need: 600,  reward: { cores: 100 } },
+  { id: 'mapelites', br: 'maps', name: 'MAP ELITE HUNTER',      desc: 'Defeat each elite that belongs to a map.',       icon: 'tank',         key: 'mapElites', need: 6,    reward: { cores: 200 } },
+  { id: 'eclipsek',  br: 'maps', name: 'TOTAL ECLIPSE',         desc: 'Defeat the Eclipse.',                            icon: 'octagon',      key: 'bk_eclipse', need: 1,   reward: { cores: 80 } },
+  { id: 'nightmk',   br: 'maps', name: 'WAKE UP',               desc: 'Defeat the Nightmare.',                          icon: 'kite',         key: 'bk_nightmare', need: 1, reward: { cores: 80 } },
+  { id: 'magnetk',   br: 'maps', name: 'OPPOSITES ATTRACT',     desc: 'Defeat the Magnetron.',                          icon: 'octagon',      key: 'bk_magnetron', need: 1, reward: { cores: 90 } },
+  { id: 'juggk',     br: 'maps', name: 'IMMOVABLE OBJECT',      desc: 'Defeat the Juggernaut.',                         icon: 'octagon',      key: 'bk_juggernaut', need: 1, reward: { cores: 90 } },
   { id: 'lookback',  br: 'maps', name: "DON'T LOOK BACK",       desc: 'Defeat the Frost Wraith.',                       icon: 'kite',         key: 'bk_wraith', need: 1,    reward: { cores: 60 } },
 
   // ---- HEROES ----
@@ -167,6 +178,7 @@ for (const a of ACH_LIST) if (a.reward && a.reward.cores) a.reward.shards = Math
 // Credit-Belohnung der Erfolge senken (CFG.econ.achMul), die Shards oben wurden noch aus dem vollen Wert berechnet
 for (const a of ACH_LIST) if (a.reward && a.reward.cores) a.reward.cores = Math.max(1, Math.round(a.reward.cores * CFG.econ.achMul));
 
+const MAP_ELITES = ['glitch', 'emberlord', 'miasma', 'glacier', 'umbra', 'compactor'];       // Karten-Elite (CFG.maps[].extraSpawn)
 const ACH_TIME_KEYS = /^(time|tm_.*|attackT)$/;       // Zaehler in Sekunden: als m:ss anzeigen
 
 // Zaehler, die direkt aus dem Spielstand folgen (kein eigener Haken noetig)
@@ -185,6 +197,7 @@ const ACH_DERIVED = {
   bossTypes: () => Object.keys(Ach.data().cnt.bossTypes || {}).length,
   heroRuns: () => Object.keys(Ach.data().cnt.heroRuns || {}).length,
   mapsPlayed: () => Object.keys(Ach.data().cnt.mapsPlayed || {}).length,
+  mapElites: () => Object.keys(Ach.data().cnt.mapElites || {}).length,
   cores: () => Save.data.souls || 0,
   msCount: () => Object.keys(Save.data.milestones || {}).length,
   achDone: () => Ach.doneCount(),
@@ -239,7 +252,7 @@ const Ach = {
     if (!s[item]) { s[item] = 1; this.dirty = true; }
   },
   acc(key, v) { const c = this.data().cnt; c[key] = (c[key] || 0) + v; },       // wie add, aber ohne Neupruefung (fuer Werte, die jedes Bild wachsen; geprueft wird ohnehin einmal pro Sekunde)
-  kill(e) { if (e && e.elite) this.add('elites'); else if (e && e.type) this.mark('types', e.type); },       // Elite-Gegner zaehlen nicht zu "jede Art" (types)
+  kill(e) { if (e && e.elite && MAP_ELITES.includes(e.type)) this.mark('mapElites', e.type); if (e && e.elite) this.add('elites'); else if (e && e.type) this.mark('types', e.type); },       // Elite-Gegner zaehlen nicht zu "jede Art" (types)
   bossDown(b) {                                           // Boss besiegt (vor G.endBossFight): Dauer und Schaden im Kampf
     if (!this.ok() || !b || b.type === 'reaper') return;
     this.mark('bossTypes', b.type); this.add('bk_' + b.type); this.add('hb_' + Hero.id());

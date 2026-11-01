@@ -268,6 +268,7 @@ const MapEnv = {
     if (E.belts) make(SlagBelt, E.belts.count, 70);
     if (E.pools) make(AcidPool, E.pools.count, 70);
     if (E.ice) make(IcePatch, E.ice.count, 50);
+    if (E.magnets) make(ScrapMagnet, E.magnets.count, 90);   // mapnew.js: Karte 6 Scrapyard
   },
 
   // Freie Stelle: Abstand zum Spieler (minPlayer), zu anderen Gefahren (Radius + gap) und zu den Spawnpunkten. null = nichts gefunden

@@ -6,12 +6,12 @@
 const STAT_ENEMY_NAMES = {
   circle: 'CIRCLE', triangle: 'TRIANGLE', square: 'SQUARE', rhombus: 'RHOMBUS', guard: 'SHIELD GUARD', support: 'SUPPORT',
   bomber: 'BOMBER', splitter: 'SPLITTER', leech: 'BLOODSUCKER', teleporter: 'TELEPORTER', sniper: 'SNIPER', miner: 'MINELAYER',
-  tank: 'TANK', necro: 'NECROMANCER', phantom: 'PHANTOM', bastion: 'BASTION', magnetar: 'MAGNETAR', lancer: 'LANCER',
+  tank: 'TANK', necro: 'NECROMANCER', phantom: 'PHANTOM', bastion: 'BASTION', magnetar: 'MAGNETAR', lancer: 'LANCER', umbra: 'UMBRA', compactor: 'COMPACTOR', glitch: 'GLITCH', emberlord: 'EMBERLORD', miasma: 'MIASMA', glacier: 'GLACIER',
 };
 const STAT_BOSS_NAMES = {
   octagon: 'OCTAGON', kite: 'KITE', summoner: 'SUMMONER', turret: 'LASER TURRET', twin: 'TWINS', arena: 'ARENA BOSS', reaper: 'DEATH',
   forge: 'FORGE WARDEN', colossus: 'SLAG COLOSSUS', plague: 'PLAGUE DRONE', spore: 'SPORE MOTHER',
-  frost: 'FROST SENTINEL', wraith: 'FROST WRAITH',
+  frost: 'FROST SENTINEL', wraith: 'FROST WRAITH', eclipse: 'ECLIPSE', nightmare: 'NIGHTMARE', magnetron: 'MAGNETRON', juggernaut: 'JUGGERNAUT',
 };
 // Angriffsart (takeHit-Quelle) -> Anzeigename. 'grenade' ist die gemeinsame Quelle aller Flaechenschaeden (Granate, Rakete, Meteorit, Druckwelle ...)
 const STAT_WEAPON_NAMES = {

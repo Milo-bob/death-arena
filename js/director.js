@@ -121,8 +121,9 @@ class Director {
 
   // Weitere Gegnertypen (CFG.extraSpawn): je Typ ein eigener Takt
   spawnExtra(dt) {
-    for (const type of Object.keys(CFG.extraSpawn)) {
-      const C0 = CFG.extraSpawn[type], C = G.eliteUp && C0.up ? Object.assign({}, C0, C0.up) : C0;       // Elite-Gegner: nach dem Upgrade kuerzerer Takt und mehr gleichzeitig
+    const table = Object.assign({}, CFG.extraSpawn, G.map.extraSpawn || {});          // Karten-Elite (Umbra, Compactor) kommt aus CFG.maps[].extraSpawn
+    for (const type of Object.keys(table)) {
+      const C0 = table[type], C = G.eliteUp && C0.up ? Object.assign({}, C0, C0.up) : C0;       // Elite-Gegner: nach dem Upgrade kuerzerer Takt und mehr gleichzeitig
       if (G.time < C.from || G.enemies.filter((e) => e.alive && e.type === type).length >= (C.fixedCap ? C.maxAlive : Math.ceil(C.maxAlive * CFG.spawnAll.capMul * G.diff.capMul * (C.fixedCap ? 1 : Hero.world().cap)))) continue;
       if (this.extraT[type] === undefined) this.extraT[type] = rand(C.min, C.max) * this.spawnAllFactor * ((G.map.trim || {})[type] || 1) * Hero.type(type).wait;
       this.extraT[type] -= dt;
@@ -196,7 +197,7 @@ class Director {
 
   // Barrikaden: Zielanzahl wächst pro Welle. Zu Beginn und nach einem Boss werden alle fehlenden auf einmal aufgestellt, sonst eine alle `respawn` Sekunden.
   updateObstacles(dt) {
-    const C = CFG.obstacles;
+    const C = Object.assign({}, CFG.obstacles, G.map.obstacles || {});            // Karte 6 Scrapyard: mehr Barrikaden
     if (G.bossFight) { this.obstFill = true; return; }
     const target = Math.round(Math.min(C.max, C.start + Math.floor(G.time / CFG.waves.length) * C.perWave) * (G.coop ? CFG.coop.obstacleMul : 1)), have = G.obstacles.filter((o) => o.alive).length;
     if (have >= target) { this.obstT = C.respawn; return; }
@@ -213,7 +214,7 @@ class Director {
 
   // Zufällige freie Stelle auf der Karte (Abstand zu Spieler, anderen Barrikaden und Spawnpunkten), null wenn nichts gefunden
   freeObstaclePos() {
-    const C = CFG.obstacles, p = G.player;
+    const C = Object.assign({}, CFG.obstacles, G.map.obstacles || {}), p = G.player;
     for (let t = 0; t < 30; t++) {
       let x, y;
       [x, y] = clampToMap(rand(-CFG.map.halfW, CFG.map.halfW), rand(-CFG.map.halfH, CFG.map.halfH), C.margin);

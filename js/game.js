@@ -65,7 +65,7 @@ const STAT_GROUPS = [
   { label: 'LOOT', ids: ['luck', 'souls'] },
 ];
 const ABILITY_GROUPS = [{ id: 'weak', label: 'WEAK ABILITIES' }, { id: 'medium', label: 'MEDIUM ABILITIES' }, { id: 'strong', label: 'STRONG ABILITIES' }];
-const MILESTONE_GROUPS = [{ id: 'best', label: 'SURVIVAL TIME' }, { id: 'bosses', label: 'BOSSES' }, { id: 'kills', label: 'ENEMIES' }, { id: 'runs', label: 'RUNS' }, { id: 'tutorial', label: 'TUTORIAL' }, { id: 'heroes', label: 'HERO UNLOCKS' }, { id: 'cryo', label: 'CRYO STATION' }];
+const MILESTONE_GROUPS = [{ id: 'best', label: 'SURVIVAL TIME' }, { id: 'bosses', label: 'BOSSES' }, { id: 'kills', label: 'ENEMIES' }, { id: 'runs', label: 'RUNS' }, { id: 'tutorial', label: 'TUTORIAL' }, { id: 'heroes', label: 'HERO UNLOCKS' }, { id: 'cryo', label: 'CRYO STATION' }, { id: 'dark', label: 'BLACKOUT' }, { id: 'scrap', label: 'SCRAPYARD' }];
 
 // Gruppe einer Zeile: { idx (Reihenfolge, fuer Farbe), label }
 function upgradeGroup(r) {
@@ -1191,6 +1191,7 @@ const G = {
     Juice.drawWorld(ctx);
     drawWorldHud(ctx);
     ctx.restore();
+    DarkVeil.draw(ctx);                     // Karte 5 Blackout: alles ausserhalb von Licht ist unsichtbar (js/mapnew.js)
     ctx.restore();                          // Ende von Juice.begin
     Cos2.drawWeather(ctx, Cos.cur('weather'), this.realTime, 0, 0, STAGE_W, STAGE_H, this.cam.x, -this.cam.y);          // Cosmetic WEATHER
     if (this.bloodMoon) drawBloodMoonTint(ctx);

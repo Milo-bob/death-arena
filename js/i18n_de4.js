@@ -1,6 +1,13 @@
 // Deutsche Texte: Ascension, Challenge, erste Laeufe (retention.js), Koop-Wiederbeleben/Verbindung (coop.js), Einladungslink (pvp.js). Siehe i18n.js.
 if (typeof I18n !== 'undefined' && I18n.add) {
   I18n.add({
+    'BREACH LIGHTS': 'SPAWNER-LICHT',
+    'TOTAL ECLIPSE': 'TOTALE FINSTERNIS', 'Defeat the Eclipse.': 'Besiege den Eclipse.', 'WAKE UP': 'AUFWACHEN', 'Defeat the Nightmare.': 'Besiege den Nightmare.', 'OPPOSITES ATTRACT': 'GEGENSÄTZE ZIEHEN SICH AN', 'Defeat the Magnetron.': 'Besiege den Magnetron.', 'IMMOVABLE OBJECT': 'UNBEWEGLICHES OBJEKT', 'Defeat the Juggernaut.': 'Besiege den Juggernaut.', 'LIGHTS OUT!': 'LICHTER AUS!',
+    // Meilensteine und Achievements der Karten 5 und 6
+    'SURVIVE # MIN ON BLACKOUT': 'ÜBERLEBE # MIN AUF BLACKOUT', 'DEFEAT # BOSSES ON BLACKOUT': 'BESIEGE # BOSSE AUF BLACKOUT', 'DEFEAT # ENEMIES ON BLACKOUT': 'BESIEGE # GEGNER AUF BLACKOUT', 'REACH THE FINAL BOSS ON BLACKOUT': 'ERREICHE DEN ENDBOSS AUF BLACKOUT', 'SURVIVE # MIN ON SCRAPYARD': 'ÜBERLEBE # MIN AUF SCRAPYARD', 'DEFEAT # BOSSES ON SCRAPYARD': 'BESIEGE # BOSSE AUF SCRAPYARD', 'DEFEAT # ENEMIES ON SCRAPYARD': 'BESIEGE # GEGNER AUF SCRAPYARD', 'REACH THE FINAL BOSS ON SCRAPYARD': 'ERREICHE DEN ENDBOSS AUF SCRAPYARD', 'LIGHTS OUT': 'LICHT AUS', 'Survive # minutes on Blackout.': 'Überlebe # Minuten auf Blackout.', 'NIGHT OWL': 'NACHTEULE', 'SCRAP METAL': 'SCHROTTMETALL', 'Survive # minutes on Scrapyard.': 'Überlebe # Minuten auf Scrapyard.', 'JUNK DEALER': 'SCHROTTHÄNDLER', 'MAP ELITE HUNTER': 'KARTEN-ELITE-JÄGER', 'Defeat each elite that belongs to a map.': 'Besiege jede Elite, die zu einer Karte gehört.', 'INTO THE DARK': 'IN DIE DUNKELHEIT', 'Unlock Blackout.': 'Schalte Blackout frei.', 'JUNK FOR ALL': 'SCHROTT FÜR ALLE', 'Unlock Scrapyard.': 'Schalte Scrapyard frei.',
+    // Karte 5 Blackout und Karte 6 Scrapyard (mapnew.js, config.js)
+    'Light is life.': 'Licht ist Leben.', 'Junk, cranes, magnets.': 'Schrott, Kräne, Magnete.', 'TOTAL DARKNESS': 'TOTALE DUNKELHEIT', 'LAMPS': 'LAMPEN',
+    'MAGNET CRANES': 'MAGNETKRÄNE', 'SCRAP WALLS': 'SCHROTTWÄNDE', 'A LAMP WENT OUT!': 'EINE LAMPE IST AUSGEGANGEN!',
     'ROOKIE ASSIST: THE FIRST # RUNS ARE EASIER AND HAVE A GOAL EACH': 'ANFÄNGER-HILFE: DIE ERSTEN # LÄUFE SIND LEICHTER UND HABEN JE EIN ZIEL',
     'ASCENSION: WIN ONCE TO UNLOCK HARDER RUNS WITH MORE CREDITS': 'ASCENSION: GEWINNE EINMAL, UM HÄRTERE LÄUFE MIT MEHR CREDITS FREIZUSCHALTEN',
     'No extra rules.': 'Keine Zusatzregeln.', '[W/S] LEVEL # MAX': '[W/S] STUFE # MAX',

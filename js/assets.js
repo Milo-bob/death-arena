@@ -7,7 +7,7 @@ const IMG = {};
 
 function imageList() {
   const names = [
-    'startscreen', 'keysettings', 'ground', 'ground2', 'ground3', 'ground4', 'pulseIcon', 'blinkIcon', 'lanceIcon', 'impulseIcon', 'frostIcon', 'fieldIcon',
+    'startscreen', 'keysettings', 'ground', 'ground2', 'ground3', 'ground4', 'ground5', 'ground6', 'pulseIcon', 'blinkIcon', 'lanceIcon', 'impulseIcon', 'frostIcon', 'fieldIcon',
     'beamIcon', 'grenadeIcon', 'fireIcon', 'armorIcon', 'regenIcon', 'phoenixIcon', 'damageIcon',
     'whipIcon', 'katanaIcon', 'hammerIcon', 'shotgunIcon', 'boomerangIcon', 'molotovIcon', 'chainIcon', 'blackholeIcon',
     'shockstepIcon', 'adrenalineIcon', 'droneIcon', 'overchargeIcon', 'stormIcon', 'berserkIcon', 'nanoIcon', 'buffHaste', 'buffRapid', 'buffGuard', 'buffCharge', 'buffPower', 'buffMagnet', 'buffRegen', 'buffVampire', 'buffChrono', 'buffCoolant', 'buffNova', 'rocketIcon', 'swapIcon', 'pauseIcon', 'slotEmptyIcon', 'ultIcon', 'bladesIcon', 'hackIcon', 'necroIcon', 'stimIcon',

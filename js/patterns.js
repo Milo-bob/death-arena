@@ -173,6 +173,12 @@ const Patterns = {
     bastion(e, dt, tg) { return Elite.bastionSteer(e, dt, tg); },
     magnetar(e, dt, tg) { return Elite.magnetarSteer(e, dt, tg); },
     lancer(e, dt, tg) { return Elite.lancerSteer(e, dt, tg); },
+    umbra(e, dt, tg) { return Elite.umbraSteer(e, dt, tg); },
+    compactor(e, dt, tg) { return Elite.compactorSteer(e, dt, tg); },
+    glitch(e, dt, tg) { return Elite.glitchSteer(e, dt, tg); },
+    emberlord(e, dt, tg) { return Elite.emberSteer(e, dt, tg); },
+    miasma(e, dt, tg) { return Elite.miasmaSteer(e, dt, tg); },
+    glacier(e, dt, tg) { return Elite.glacierSteer(e, dt, tg); },
     circle(e) {
       const C = CFG.patterns.circle;
       e.dir += C.amp * Math.sin(G.realTime * C.freq + e.phase);
