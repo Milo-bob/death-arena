@@ -1,6 +1,7 @@
 // Deutsche Texte: Ascension, Challenge, erste Laeufe (retention.js), Koop-Wiederbeleben/Verbindung (coop.js), Einladungslink (pvp.js). Siehe i18n.js.
 if (typeof I18n !== 'undefined' && I18n.add) {
   I18n.add({
+    'WHO LET THE DOGS OUT': 'WER HAT DIE HUNDE RAUSGELASSEN', 'Defeat the Chainhound.': 'Besiege den Chainhound.',
     'Your attacks sometimes hit twice and bosses take more damage.': 'Deine Angriffe sind nicht mehr nur gegen Bosse stärker.', 'All your attacks deal more damage to enemies and bosses.': 'Alle deine Angriffe richten mehr Schaden an Gegnern und Bossen an.',
     'BREACH LIGHTS': 'SPAWNER-LICHT',
     'TOTAL ECLIPSE': 'TOTALE FINSTERNIS', 'Defeat the Eclipse.': 'Besiege den Eclipse.', 'WAKE UP': 'AUFWACHEN', 'Defeat the Nightmare.': 'Besiege den Nightmare.', 'OPPOSITES ATTRACT': 'GEGENSÄTZE ZIEHEN SICH AN', 'Defeat the Magnetron.': 'Besiege den Magnetron.', 'IMMOVABLE OBJECT': 'UNBEWEGLICHES OBJEKT', 'Defeat the Juggernaut.': 'Besiege den Juggernaut.', 'LIGHTS OUT!': 'LICHTER AUS!',

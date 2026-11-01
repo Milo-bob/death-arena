@@ -135,6 +135,7 @@ const ACH_LIST = [
   { id: 'eclipsek',  br: 'maps', name: 'TOTAL ECLIPSE',         desc: 'Defeat the Eclipse.',                            icon: 'octagon',      key: 'bk_eclipse', need: 1,   reward: { cores: 80 } },
   { id: 'nightmk',   br: 'maps', name: 'WAKE UP',               desc: 'Defeat the Nightmare.',                          icon: 'kite',         key: 'bk_nightmare', need: 1, reward: { cores: 80 } },
   { id: 'magnetk',   br: 'maps', name: 'OPPOSITES ATTRACT',     desc: 'Defeat the Magnetron.',                          icon: 'octagon',      key: 'bk_magnetron', need: 1, reward: { cores: 90 } },
+  { id: 'chompk',    br: 'maps', name: 'WHO LET THE DOGS OUT',  desc: 'Defeat the Chainhound.',                         icon: 'octagon',      key: 'bk_chomp',  need: 1,    reward: { cores: 90 } },
   { id: 'juggk',     br: 'maps', name: 'IMMOVABLE OBJECT',      desc: 'Defeat the Juggernaut.',                         icon: 'octagon',      key: 'bk_juggernaut', need: 1, reward: { cores: 90 } },
   { id: 'lookback',  br: 'maps', name: "DON'T LOOK BACK",       desc: 'Defeat the Frost Wraith.',                       icon: 'kite',         key: 'bk_wraith', need: 1,    reward: { cores: 60 } },
 

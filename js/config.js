@@ -1308,6 +1308,11 @@ const CFG = {
     // Juggernaut: wie der Slag Colossus (Anlauf mit Warnlinie), schleudert am Ende des Anlaufs shrapnel Schrottsplitter im Ring und laesst Schrottbrocken um den Spieler einschlagen (rain).
     juggernaut: { name: 'JUGGERNAUT', sprite: 'octagon', hue: -25, drawSize: 380, speed: 2.5, radius: 28, hpBase: 46, hpPerStage: 6, hitStun: 0.3, shootEvery: 2.2,
                   chargeFirst: 4, chargeEvery: 5, tele: 0.9, dashTime: 0.6, dashSpeed: 11, shrapnel: 10, rainFirst: 6, rainEvery: 6, rainCount: 3, rainSpread: 80 },
+    // Chainhound (Scrapyard): an einen Pfosten in der Arenamitte gekettet, kommt also nie weiter als `reach` vom Mittelpunkt weg. Pendelt in der Naehe des Pfostens; ist der Spieler in Reichweite
+    // (reach + margin), duckt er sich (tele s, Warnlinie), schnellt mit lungeSpeed los, wird am Kettenende ruckartig gestoppt (strain s: Ring aus yankCount Bolzen) und zieht sich mit recoilSpeed
+    // zurueck, dann rest s Pause. Die gespannte Kette verletzt bei Beruehrung. Steht der Spieler ausserhalb der Reichweite, beschiesst der Hund ihn mit Bolzen (shootEvery).
+    chomp: { name: 'CHAINHOUND', sprite: 'octagon', hue: 20, drawSize: 340, speed: 2.4, radius: 26, hpBase: 46, hpPerStage: 6, hitStun: 0.2, shootEvery: 2.0,
+             reach: 200, margin: 30, tele: 0.7, lungeSpeed: 12.5, strain: 0.8, recoilSpeed: 4.2, rest: 0.9, yankCount: 8, chainDmg: 0.5 },
     // Konter aller Bosse (siehe Boss.updateCounters). Leben pro Boss oben: hpBase + hpPerStage x Stufe.
     // stunResist: so lange nach einer Betaeubung wirkt keine neue (Boss laeuft trotz Treffern weiter). Treffer machen weiter Schaden.
     // Schockwelle: nearTime Sekunden in nearDist -> Ring (Radius shockRadius), nach shockDelay s Schaden. Sog: farTime s weiter als farDist weg ->
@@ -1434,7 +1439,7 @@ const CFG = {
         magnets: { count: 3, radius: 135, idle: [5, 9], warn: 1.4, on: 4.5, pull: 1.5, bend: 3.2, minGap: 150 },
       },
       obstacles: { style: 'scrap', radius: 15, hpMin: 5, hpMax: 8, start: 22, perWave: 3, max: 34, respawn: 7, minOther: 30, minPlayer: 70, cluster: 0.88 },
-      bossOrder: ['octagon', 'magnetron', 'summoner', 'juggernaut', 'twin', 'arena'],       // Magnetron ersetzt den Kite, Juggernaut den Laser-Turm
+      bossOrder: ['octagon', 'magnetron', 'chomp', 'juggernaut', 'twin', 'arena'],          // Magnetron ersetzt den Kite, Chainhound den Beschwoerer, Juggernaut den Laser-Turm
       foes: [{ v: 'rivet', from: 60, min: 11, max: 15, maxAlive: 8 }, { v: 'saw', from: 150, min: 20, max: 28, maxAlive: 3 }, { v: 'crusher', from: 240, min: 30, max: 40, maxAlive: 2 }],
       trim: { c: 1.35, t: 1.25, s: 1.3, tank: 1.5 },
       extraSpawn: { compactor: { from: 260, min: 40, max: 55, maxAlive: 1, fixedCap: true, up: { min: 30, max: 42, maxAlive: 2 } } },

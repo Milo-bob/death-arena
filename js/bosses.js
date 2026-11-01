@@ -44,6 +44,8 @@ class Boss {
     this.dk = { warn: 0, on: 0, shot: 0, ang: 0 };                       // Eclipse: Vorwarnung / Restzeit von "Lichter aus", Salventakt, Drehwinkel
     this.st = { t: 0 };                                                   // Nightmare: Restzeit der Unsichtbarkeit
     this.mg = { state: 'idle', t: 0, age: 0, pol: 1 };                    // Magnetron: Magnetfeld (idle | warn | on), Polung
+    this.ck = { phase: 'idle', t: 1.2, ang: 0 };                              // Chainhound: Phase, Restzeit, Satzrichtung
+    if (type === 'chomp') { this.x = 60; this.y = 0; }                         // Pfosten in der Mitte (0, 0)
     this.ch = { phase: 'walk', t: type === 'colossus' || type === 'juggernaut' ? this.cfg.chargeFirst : 0, ang: 0 };            // Slag Colossus: walk -> tele -> dash
     if (this.cfg.name) G.notice(this.cfg.name + '!', STYLE.pal.red, STYLE.type.h1);
     // Laser-Turm: Zustand der Laser
@@ -114,6 +116,8 @@ class Boss {
       this.dir = face;
     } else if (this.type === 'turret') {
       this.updateLasers(dt, p, tg);
+    } else if (this.type === 'chomp') {
+      this.updateChomp(dt, tg, canMove);
     } else if ((this.type === 'colossus' || this.type === 'juggernaut') && this.updateCharge(dt, tg)) {
       if (canMove && this.ch.phase === 'dash') { const face = this.dir; this.dir = this.ch.ang; moveForward(this, this.cfg.dashSpeed * bossPower().speed * f); this.dir = face; }       // Anlauf: gerade durch
     } else if (canMove) {
@@ -353,6 +357,41 @@ class Boss {
     for (let i = 0; i < n; i++) G.bossShots.push(Object.assign(new BossBolt(this.x, this.y, off + (360 / n) * i, 0.2), { src: Stats.bossName(this) }));
   }
 
+  // Chainhound (Scrapyard): Kettenhund am Pfosten in der Mitte. Phasen: idle (pendelt), tele (duckt sich, Warnlinie), lunge (schnellt los), strain (am Kettenende gestoppt), recoil (zieht sich zurueck).
+  updateChomp(dt, tg, canMove) {
+    const C = this.cfg, K = this.ck, p = G.player, f = framesOf(dt) * bossPower().speed * (this.phase2 ? 1.25 : 1);
+    const toAnchor = () => Math.hypot(this.x, this.y), face = this.dir;
+    K.t -= dt;
+    if (K.phase === 'idle') {
+      const dp = Math.hypot(tg.x, tg.y), a = dirTo(0, 0, tg.x, tg.y), want = Math.min(dp, 70);                      // pendelt zwischen Pfosten und Spieler
+      const wx = fwdX(a) * want, wy = fwdY(a) * want, d = Math.hypot(wx - this.x, wy - this.y);
+      if (canMove && d > 6) { this.dir = dirTo(this.x, this.y, wx, wy); moveForward(this, Math.min(C.speed * f, d)); }
+      this.dir = dirTo(this.x, this.y, tg.x, tg.y);
+      if (K.t <= 0 && dp < C.reach + C.margin + this.radius) { K.phase = 'tele'; K.t = C.tele * (this.phase2 ? 0.75 : 1); K.ang = this.dir; Sfx.play('ventWarn'); }
+    } else if (K.phase === 'tele') {
+      if (K.t > 0.2) K.ang = dirTo(this.x, this.y, tg.x, tg.y);
+      this.dir = K.ang;
+      if (K.t <= 0) { K.phase = 'lunge'; K.t = 1.2; Sfx.play('blast'); }
+    } else if (K.phase === 'lunge') {
+      this.dir = K.ang; moveForward(this, C.lungeSpeed * f);
+      if (toAnchor() >= C.reach || K.t <= 0) {                                                                       // Kette gespannt: Ruck
+        const d = toAnchor(); if (d > C.reach) { this.x *= C.reach / d; this.y *= C.reach / d; }
+        K.phase = 'strain'; K.t = C.strain; Juice.shake(3); Sfx.play('crateBreak');
+        const n = C.yankCount + (this.phase2 ? 4 : 0), off = rand(0, 360);
+        for (let i = 0; i < n; i++) G.bossShots.push(Object.assign(new BossBolt(this.x, this.y, off + (360 / n) * i, 0.3), { src: Stats.bossName(this) }));
+      }
+    } else if (K.phase === 'strain') {
+      if (K.t <= 0) { K.phase = 'recoil'; K.t = 4; }
+    } else {
+      const d = toAnchor(); this.dir = dirTo(this.x, this.y, 0, 0);
+      if (d > 50) moveForward(this, C.recoilSpeed * f); else { K.phase = 'idle'; K.t = C.rest; }
+      this.dir = dirTo(this.x, this.y, tg.x, tg.y);
+      if (K.t <= 0) { K.phase = 'idle'; K.t = C.rest; }
+    }
+    const d2 = toAnchor(); if (d2 > C.reach) { this.x *= C.reach / d2; this.y *= C.reach / d2; }                      // nie weiter als die Kette reicht
+    if (!Coop.guest) for (const q of playersList()) if (segHitsCircle(0, 0, this.x, this.y, 3, q.x, q.y, q.radius)) q.hit('touch', C.chainDmg * bossPower().dmg, Stats.bossName(this));         // Kette verletzt
+  }
+
   // Slag Colossus: läuft, nach chargeEvery s bleibt er stehen und zeigt eine Linie (tele), rast dann los (dash) und schlägt am Ende ein.
   // Gibt true zurück, solange er steht oder rast (dann übernimmt diese Funktion die Bewegung).
   updateCharge(dt, tg) {
@@ -578,6 +617,20 @@ class Boss {
   draw(ctx) {
     const hit = this.hitCd > 0 || this.stun > 0, cx = STAGE_W / 2 + this.x, cy = STAGE_H / 2 - this.y, P = STYLE.pal;
     if (this.type === 'turret') this.drawLasers(ctx, cx, cy);
+    if (this.type === 'chomp') {                                                                // Pfosten, Kette, Reichweite, Warnlinie des Satzes
+      const C = this.cfg, K = this.ck, ax = STAGE_W / 2, ay = STAGE_H / 2, t = G.realTime, d = Math.hypot(this.x, this.y), strain = K.phase === 'strain' || K.phase === 'lunge';
+      ctx.save();
+      ctx.globalAlpha = 0.18 + (K.phase === 'tele' ? 0.25 * (0.5 + 0.5 * Math.sin(t * 20)) : 0); ctx.fillStyle = P.red; pxRing(ctx, ax, ay, C.reach + this.radius, 1, 40, t * 0.1);              // Reichweite des Hundes
+      if (K.phase === 'tele') { ctx.globalAlpha = 0.35 + 0.5 * (1 - K.t / C.tele); ctx.fillStyle = P.red; pxDashLine(ctx, cx, cy, cx + fwdX(K.ang) * (C.reach - d + 20), cy - fwdY(K.ang) * (C.reach - d + 20), 2, 4); }
+      const n = Math.max(2, Math.round(d / 11));                                                                // Kettenglieder
+      for (let i = 0; i <= n; i++) {
+        const u = i / n, x = ax + (cx - ax) * u, y = ay + (cy - ay) * u + (strain ? 0 : Math.sin(u * 3.14) * 4);
+        ctx.globalAlpha = 1; ctx.fillStyle = '#120d09'; pxDisc(ctx, x, y, 4); ctx.fillStyle = i % 2 ? '#9aa0a8' : '#6a707a'; pxDisc(ctx, x, y, 3);
+        if (strain) { ctx.fillStyle = P.white; ctx.globalAlpha = 0.5; pxFill(ctx, x, y, 1); }
+      }
+      ctx.globalAlpha = 1; ctx.fillStyle = '#120d09'; pxDisc(ctx, ax, ay, 11); ctx.fillStyle = '#4a4f58'; pxDisc(ctx, ax, ay, 9); ctx.fillStyle = P.yellow; pxRing(ctx, ax, ay, 9, 1, 12, 0); ctx.fillStyle = '#9aa0a8'; pxDisc(ctx, ax, ay, 4);   // Pfosten
+      ctx.restore();
+    }
     this.drawCounters(ctx, cx, cy);
     Cos.drawBoss(ctx, this.sprite + (hit ? 'Hit' : ''), this, this.type === 'turret' ? 90 : this.dir, this.cfg.drawSize || 300, { hue: this.hue, alpha: this.type === 'nightmare' && this.st.t > 0 ? 0.08 : 1 }, G.realTime);
     if ((this.type === 'colossus' || this.type === 'juggernaut') && this.ch.phase === 'tele') {  // Warnlinie des Anlaufs
