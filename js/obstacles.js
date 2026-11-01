@@ -11,7 +11,7 @@ class Obstacle {
     const C = Object.assign({}, CFG.obstacles, (G.map && G.map.obstacles) || {});            // Karte 6 Scrapyard: kleinere, schwaechere Schrotthaufen
     this.x = x; this.y = y; this.r = C.radius;
     this.maxHp = this.hp = randInt(C.hpMin, C.hpMax);
-    this.scrap = C.style === 'scrap'; this.look = randInt(0, 3);                          // look: Reifenstapel / Fass / Autowrack / Schrotthaufen
+    this.scrap = C.style === 'scrap'; this.look = randInt(0, 4);                          // look: Reifenstapel / Fassgruppe / Autowrack / Schrotthaufen / Kiste
     this.alive = true;
     this.age = 0;
     this.hitCd = 0;
@@ -98,23 +98,40 @@ class Obstacle {
   }
 }
 
-// Schrotthaufen der Karte 6 (Scrapyard): vier Looks, rostig statt grau. Gleiche Groesse und Kollision wie eine Barrikade.
+// Schrotthaufen der Karte 6 (Scrapyard): fuenf Looks (Reifenstapel, Fassgruppe, Autowrack, Schrotthaufen, Kiste), rostig, mit dunkler Kontur, Lichtkante und Schatten.
+// Gleiche Groesse und Kollision wie eine Barrikade (Radius CFG.maps[].obstacles.radius).
 Obstacle.prototype.drawScrap = function (ctx) {
   const P = STYLE.pal, g = PIXEL, cx = Math.round((STAGE_W / 2 + this.x) / g) * g, cy = Math.round((STAGE_H / 2 - this.y) / g) * g;
   const k = Math.min(1, this.age / 0.35), r = this.r * (0.6 + 0.4 * k), ghost = G.player && G.player.blinkT > 0, f = this.flash > 0;
-  const RD = '#6a3418', RM = '#b0622c', RL = '#f09a50', ST = '#7a808a', SL = '#c4cad2', BK = '#15110d';
+  const RD = '#5a2a12', RM = '#b0622c', RL = '#f09a50', ST = '#6a707a', SL = '#c4cad2', BK = '#120d09', GL = '#2d4a5e', YL = '#ffd91f';
   const box = (x, y, w, h, col) => { ctx.fillStyle = f ? P.white : col; ctx.fillRect(Math.round((cx + x) / g) * g, Math.round((cy + y) / g) * g, Math.max(g, Math.round(w / g) * g), Math.max(g, Math.round(h / g) * g)); };
-  ctx.save(); ctx.globalAlpha = (ghost ? 0.35 : 1) * k;
-  box(-r, r * 0.55, r * 2, 3, BK);                                                   // Schatten
-  if (this.look === 0) {                                                             // Reifenstapel
-    for (let i = 0; i < 3; i++) { const y = r * 0.35 - i * r * 0.62; box(-r * 0.95, y, r * 1.9, r * 0.6, BK); box(-r * 0.75, y + 2, r * 1.5, r * 0.4, i % 2 ? '#4a4a54' : '#5c5c68'); box(-r * 0.3, y + 3, r * 0.6, r * 0.2, '#6b6f78'); }
-  } else if (this.look === 1) {                                                      // Oelfass
-    box(-r * 0.7, -r * 0.9, r * 1.4, r * 1.8, RD); box(-r * 0.6, -r * 0.8, r * 1.2, r * 1.6, RM); box(-r * 0.6, -r * 0.35, r * 1.2, 3, RD); box(-r * 0.6, r * 0.3, r * 1.2, 3, RD); box(-r * 0.6, -r * 0.8, r * 1.2, 3, RL); box(-r * 0.2, -r * 0.2, r * 0.4, r * 0.4, P.yellow);
-  } else if (this.look === 2) {                                                      // Autowrack (Draufsicht-Block)
-    box(-r, -r * 0.55, r * 2, r * 1.1, RD); box(-r * 0.9, -r * 0.45, r * 1.8, r * 0.9, RM); box(-r * 0.45, -r * 0.35, r * 0.9, r * 0.7, ST); box(-r * 0.35, -r * 0.25, r * 0.7, r * 0.2, SL); box(-r * 0.9, -r * 0.45, 3, r * 0.9, RL); box(r * 0.55, -r * 0.5, 3, 3, P.yellow);
-  } else {                                                                           // Schrotthaufen: Platten, Trager, Rohr
-    box(-r * 0.9, r * 0.05, r * 1.8, r * 0.55, RD); box(-r * 0.7, -r * 0.45, r * 1.2, r * 0.6, ST); box(-r * 0.5, -r * 0.8, r * 0.9, r * 0.45, RM); box(-r * 0.3, -r * 0.55, r * 1.1, 3, SL);
-    box(r * 0.45, -r * 0.95, 3, r * 1.1, '#6b6f78'); box(-r * 0.85, -r * 0.2, 3, r * 0.5, RL);
+  const solid = (x, y, w, h, body, light) => { box(x - g, y - g, w + 2 * g, h + 2 * g, BK); box(x, y, w, h, body); box(x, y, w, g, light); box(x, y, g, h, light); };      // Teil mit Kontur und Lichtkante oben/links
+  const A = (ghost ? 0.35 : 1) * k;
+  ctx.save(); ctx.globalAlpha = A * 0.45; box(-r * 1.05, r * 0.72, r * 2.1, r * 0.3, BK); ctx.globalAlpha = A;      // Schatten
+  const l = this.look % 5;
+  if (l === 0) {                                                                      // Reifenstapel
+    for (let i = 0; i < 3; i++) {
+      const y = r * 0.5 - i * r * 0.62, o = (i % 2 ? 1 : -1) * r * 0.1;
+      solid(-r * 0.9 + o, y, r * 1.8, r * 0.58, '#34343c', '#5c5c68'); box(-r * 0.6 + o, y + r * 0.16, r * 1.2, r * 0.26, '#1c1c22'); box(-r * 0.18 + o, y + r * 0.2, r * 0.36, r * 0.18, '#8a8a95');
+    }
+  } else if (l === 1) {                                                               // Fassgruppe: rostiges und gelbes Fass
+    solid(-r * 0.95, -r * 0.55, r * 0.9, r * 1.35, RM, RL); box(-r * 0.95, -r * 0.1, r * 0.9, 2, RD); box(-r * 0.95, r * 0.35, r * 0.9, 2, RD); box(-r * 0.8, -r * 0.55, r * 0.6, 2, SL);
+    solid(r * 0.05, -r * 0.9, r * 0.9, r * 1.6, '#b8892a', '#f2c94c'); for (let i = 0; i < 4; i++) box(r * 0.05 + i * r * 0.24, r * 0.1, r * 0.12, r * 0.28, BK); box(r * 0.05, -r * 0.4, r * 0.9, 2, RD);
+    box(r * 0.3, -r * 0.72, r * 0.35, 2, '#6a707a');
+  } else if (l === 2) {                                                               // Autowrack
+    solid(-r * 1.0, -r * 0.45, r * 2.0, r * 1.0, RM, RL); box(-r * 0.7, -r * 0.2, r * 0.5, r * 0.45, RD); box(r * 0.45, r * 0.05, r * 0.4, r * 0.3, RD);        // Rostflecken
+    solid(-r * 0.5, -r * 0.8, r * 1.0, r * 0.55, '#7b7f88', SL); box(-r * 0.35, -r * 0.7, r * 0.3, r * 0.3, GL); box(r * 0.05, -r * 0.7, r * 0.3, r * 0.3, GL); box(-r * 0.3, -r * 0.7, 2, 2, SL);   // Dach mit Scheiben
+    solid(-r * 0.8, r * 0.4, r * 0.4, r * 0.35, '#1c1c22', '#4a4a54'); solid(r * 0.4, r * 0.4, r * 0.4, r * 0.35, '#1c1c22', '#4a4a54');                       // Raeder
+    box(r * 0.85, -r * 0.2, g, r * 0.35, YL);
+  } else if (l === 3) {                                                               // Schrotthaufen: Platten, Traeger, Rohr, Draehte
+    solid(-r * 1.0, r * 0.05, r * 2.0, r * 0.65, RD, RM); solid(-r * 0.75, -r * 0.45, r * 1.2, r * 0.55, ST, SL); solid(-r * 0.4, -r * 0.85, r * 0.95, r * 0.5, RM, RL);
+    solid(r * 0.45, -r * 0.35, r * 0.5, r * 0.45, '#8a8f98', SL); box(-r * 0.9, -r * 0.1, g, r * 0.4, YL);
+    ctx.fillStyle = '#9aa0a8'; ctx.fillRect(cx + Math.round(r * 0.55 / g) * g, cy - Math.round(r * 1.15 / g) * g, g, Math.round(r * 0.9 / g) * g);                            // Rohr
+    ctx.fillStyle = BK; pxLine(ctx, cx - r * 0.9, cy - r * 0.3, cx - r * 0.35, cy - r * 0.95);
+  } else {                                                                            // Kiste mit Metallbaendern
+    solid(-r * 0.9, -r * 0.8, r * 1.8, r * 1.5, '#8a6a3a', '#c8a064'); box(-r * 0.9, -r * 0.35, r * 1.8, 3, '#4a3a20'); box(-r * 0.9, r * 0.2, r * 1.8, 3, '#4a3a20');
+    box(-r * 0.15, -r * 0.8, r * 0.3, r * 1.5, ST); box(-r * 0.9, -r * 0.8, g, r * 1.5, ST); box(r * 0.9 - g, -r * 0.8, g, r * 1.5, ST); box(-r * 0.05, -r * 0.05, r * 0.1, r * 0.1, YL);
+    pxLine(ctx, cx - r * 0.8, cy - r * 0.7, cx + r * 0.8, cy + r * 0.6);
   }
   pxCracks(ctx, cx, cy, this.cracks, r, Math.ceil((1 - this.hp / this.maxHp) * this.cracks.length));
   ctx.restore();

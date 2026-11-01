@@ -215,6 +215,16 @@ class Director {
   // Zufällige freie Stelle auf der Karte (Abstand zu Spieler, anderen Barrikaden und Spawnpunkten), null wenn nichts gefunden
   freeObstaclePos() {
     const C = Object.assign({}, CFG.obstacles, G.map.obstacles || {}), p = G.player;
+    if (C.cluster && Math.random() < C.cluster) {                                   // Scrapyard: neben einem vorhandenen Haufen aufstellen, damit Mauern entstehen
+      const alive = G.obstacles.filter((o) => o.alive);
+      for (let t = 0; t < 12 && alive.length; t++) {
+        const b = alive[randInt(0, alive.length - 1)], a = rand(0, 360), [x, y] = clampToMap(b.x + fwdX(a) * C.radius * 1.8, b.y + fwdY(a) * C.radius * 1.8, C.margin);
+        if (dist2(x, y, p.x, p.y) < C.minPlayer * C.minPlayer) continue;
+        if (G.obstacles.some((o) => o.alive && dist2(x, y, o.x, o.y) < (C.radius * 1.6) ** 2)) continue;
+        if (G.spawnPointList().some(([sx, sy]) => dist2(x, y, sx, sy) < C.minSpawn * C.minSpawn)) continue;
+        return [x, y];
+      }
+    }
     for (let t = 0; t < 30; t++) {
       let x, y;
       [x, y] = clampToMap(rand(-CFG.map.halfW, CFG.map.halfW), rand(-CFG.map.halfH, CFG.map.halfH), C.margin);

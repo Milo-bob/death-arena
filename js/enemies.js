@@ -231,7 +231,7 @@ class Enemy {
     this.dir = dirTo(this.x, this.y, tg.x, tg.y);
     if (lost && Math.hypot(tg.x - this.x, tg.y - this.y) < 10) f = 0;   // dort angekommen: stehen bleiben
     const r = this.radius;
-    if (G.hazards.length || MapEnv.gust) {                                 // Umgebung (mapenv.js): Schlackenband schiebt, Säurepfütze bremst
+    if (G.hazards.length || MapEnv.gust || (G.map.env && G.map.env.rim)) {                                 // Umgebung (mapenv.js): Schlackenband schiebt, Säurepfütze bremst
       const [bx, by] = MapEnv.pushAt(this.x, this.y, r), fr = framesOf(dt);
       this.x += bx * fr; this.y += by * fr;
       f *= MapEnv.slowAt(this.x, this.y, r, false);

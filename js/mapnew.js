@@ -137,3 +137,56 @@ MapEnv.bend = function (o, f) {
     o.dir += clamp(angleDiff(want, o.dir), -b, b);
   }
 };
+
+// ---------- Schredderrand (Karte 6) ----------
+// Aeusserer Streifen der Arena (env.rim): schiebt zur Mitte (nach aussen staerker) und verbrennt den Spieler im aeusseren Anteil. Folgt der Arena-Groesse (G.arenaScale).
+MapEnv.rimDepth = function (x, y) {                                                // 0 = innen, 1 = ganz am Rand; dazu die Richtung zur Mitte je Achse
+  const R = G.map.env.rim, hw = CFG.map.halfW * G.arenaScale, hh = CFG.map.halfH * G.arenaScale;
+  const dx = clamp(1 - (hw - Math.abs(x)) / R.width, 0, 1), dy = clamp(1 - (hh - Math.abs(y)) / R.width, 0, 1);
+  return [dx, dy];
+};
+MapEnv.rimPush = function (x, y) {
+  if (!this.on) return [0, 0];
+  const R = G.map.env.rim, [dx, dy] = this.rimDepth(x, y);
+  return [-Math.sign(x) * R.push * dx * dx, -Math.sign(y) * R.push * dy * dy];
+};
+MapEnv.updateRim = function (dt) {
+  const E = G.map && G.map.env, R = E && E.rim, p = G.player;
+  if (!R || !this.on || !p || G.god || p.invincible || p.shield) return;
+  const [dx, dy] = this.rimDepth(p.x, p.y);
+  if (Math.max(dx, dy) < 1 - R.hot) return;
+  p.hp -= R.dps * dt; Stats.dealt('SCRAP GRINDER', R.dps * dt, false);
+  if (Math.random() < 0.3) Juice.sparks(p.x, p.y, STYLE.pal.yellow, 1, 2);
+};
+MapEnv.drawRim = function (ctx) {
+  const E = G.map && G.map.env, R = E && E.rim;
+  if (!R || G.pvp) return;
+  const P = STYLE.pal, hw = CFG.map.halfW * G.arenaScale, hh = CFG.map.halfH * G.arenaScale, W = R.width, hot = W * R.hot, t = G.realTime, dim = this.on ? 1 : 0.4, g = PIXEL;
+  const X0 = STAGE_W / 2 - hw, X1 = STAGE_W / 2 + hw, Y0 = STAGE_H / 2 - hh, Y1 = STAGE_H / 2 + hh;
+  const vx0 = STAGE_W / 2 + G.cam.x - STAGE_W / 2 - 20, vx1 = STAGE_W / 2 + G.cam.x + STAGE_W / 2 + 20, vy0 = STAGE_H / 2 - G.cam.y - STAGE_H / 2 - 20, vy1 = STAGE_H / 2 - G.cam.y + STAGE_H / 2 + 20;
+  const rect = (x, y, w, h, col, a) => { const ax = Math.max(x, vx0), ay = Math.max(y, vy0), bx = Math.min(x + w, vx1), by = Math.min(y + h, vy1); if (bx <= ax || by <= ay) return; ctx.globalAlpha = a * dim; ctx.fillStyle = col; ctx.fillRect(Math.round(ax / g) * g, Math.round(ay / g) * g, Math.max(g, Math.round((bx - ax) / g) * g), Math.max(g, Math.round((by - ay) / g) * g)); };
+  ctx.save();
+  // Streifen: Grundflaeche, Warnstreifen im heissen Aussenteil, nach innen laufende Pfeile
+  const strip = (horiz, near, sign) => {                                       // horiz = oberer/unterer Rand, near = Koordinate der Arenakante, sign = Richtung nach innen
+    const len = horiz ? 2 * hw : 2 * hh, a0 = horiz ? X0 : Y0;
+    const band = (o, w, col, al) => horiz ? rect(a0, sign > 0 ? near + o : near - o - w, len, w, col, al) : rect(sign > 0 ? near + o : near - o - w, a0, w, len, col, al);
+    band(0, W, P.greyDark, 0.55); band(0, hot, '#3a2a08', 0.7);
+    for (let u = 0; u < len; u += 16) { const on = Math.floor(u / 16) % 2 === 0; const st = on ? P.yellow : '#15110d'; if (horiz) rect(a0 + u, sign > 0 ? near : near - hot, 16, hot, st, 0.55); else rect(sign > 0 ? near : near - hot, a0 + u, hot, 16, st, 0.55); }
+    const sp = 30, off = (t * 40) % sp;                                          // Pfeile laufen zur Mitte
+    for (let u = sp / 2; u < len; u += sp) {
+      const d = (off + 0) % sp, depth = W - d - 6;                               // Abstand zur Kante, waechst bis zur Mitte hin
+      const e = near + sign * (W - d), px = a0 + u;
+      ctx.globalAlpha = 0.8 * dim * (1 - d / sp * 0.4); ctx.fillStyle = P.orange;
+      if (horiz) { pxLine(ctx, px - 5, e - sign * 4, px, e, 1); pxLine(ctx, px + 5, e - sign * 4, px, e, 1); }
+      else { pxLine(ctx, e - sign * 4, px - 5, e, px, 1); pxLine(ctx, e - sign * 4, px + 5, e, px, 1); }
+    }
+  };
+  strip(true, Y0, 1); strip(true, Y1, -1); strip(false, X0, 1); strip(false, X1, -1);
+  ctx.globalAlpha = dim; ctx.fillStyle = P.yellow;
+  if (this.on) for (let i = 0; i < 6; i++) {                                    // Funken am Rand
+    const a = (t * 0.9 + i * 0.37) % 1, side = i % 4;
+    const fx = side < 2 ? STAGE_W / 2 + G.cam.x + (i * 53 % 380) - 190 : (side === 2 ? X0 + 4 : X1 - 4), fy = side < 2 ? (side === 0 ? Y0 + 3 : Y1 - 3) : STAGE_H / 2 - G.cam.y + (i * 41 % 240) - 120;
+    ctx.globalAlpha = 0.8 * (1 - a); pxFill(ctx, fx + Math.sin(t * 9 + i) * 4, fy + (side === 0 ? a * 6 : side === 1 ? -a * 6 : 0), 1);
+  }
+  ctx.restore();
+};

@@ -287,6 +287,7 @@ const MapEnv = {
 
   update(dt) {
     this.updateBlizzard(dt);
+    this.updateRim(dt);
     if (!G.hazards.length) return;
     const on = this.on;
     for (const h of G.hazards) h.update(dt, on);
@@ -297,6 +298,7 @@ const MapEnv = {
     let bx = 0, by = 0;
     if (!this.on) return [0, 0];
     for (const h of G.hazards) if (h.push) { const v = h.push(x, y, r); bx += v[0]; by += v[1]; }
+    if (G.map.env && G.map.env.rim) { const v = this.rimPush(x, y); bx += v[0]; by += v[1]; }                      // Schredderrand (mapnew.js)
     if (this.gust) { const w = this.windVec(), k = G.map.env.blizzard.push * this.gustRamp(); bx += w[0] * k; by += w[1] * k; }      // Blizzard schiebt alle in Windrichtung
     return [bx, by];
   },
@@ -310,6 +312,7 @@ const MapEnv = {
   },
 
   draw(ctx) {
+    this.drawRim(ctx);
     if (!G.hazards.length) return;
     const dim = this.on ? 1 : 0.45;                                               // ruhend: blass
     for (const h of G.hazards) h.draw(ctx, dim);
