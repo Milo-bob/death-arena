@@ -827,12 +827,19 @@ const Cos2 = {
       cbmDraw(ctx, CBM.tomb, sx, Math.round(sy + (1 - rise) * 20), 3, { '#': P.grey, o: P.greyDark });
       if (rise > 0.9) uiText(ctx, 'RIP', sx, sy - 8, { size: STYLE.type.small, color: P.ice, align: 'center' });
     } else if (d.type === 'hole') {
-      const r = 16 * Math.sin(Math.min(1, k * 1.15) * Math.PI);
-      ctx.fillStyle = P.purple; ctx.globalAlpha = 0.7; pxRing(ctx, sx, sy, r * 1.35 + 2, 1, 16, -d.t * 1.2); pxRing(ctx, sx, sy, r * 1.8 + 2, 1, 22, d.t * 0.9);
-      ctx.globalAlpha = 1; ctx.fillStyle = P.violet;
-      for (let arm = 0; arm < 3; arm++) pxArc(ctx, sx, sy, r * 1.5 + 2, arm * 2.094 + d.t * 9, arm * 2.094 + d.t * 9 + 1.1, 1);
+      const open = Math.sin(Math.min(1, k * 1.1) * Math.PI), r = 22 * open;                                       // Radius des Ereignishorizonts: oeffnet sich und schliesst sich wieder
+      if (d.t < 0.12) { ctx.fillStyle = P.white; ctx.globalAlpha = 1 - d.t / 0.12; pxDisc(ctx, sx, sy, 10 + d.t * 120); ctx.globalAlpha = 1; }
+      ctx.fillStyle = P.purple; ctx.globalAlpha = 0.8 * open; pxRing(ctx, sx, sy, r * 1.35 + 4, 2, 16, -d.t * 1.2); pxRing(ctx, sx, sy, r * 1.8 + 4, 2, 22, d.t * 0.9);
+      ctx.globalAlpha = open; ctx.fillStyle = P.violet;
+      for (let arm = 0; arm < 4; arm++) pxArc(ctx, sx, sy, r * 1.5 + 4, arm * 1.571 + d.t * 9, arm * 1.571 + d.t * 9 + 1.0, 2);
+      for (let i = 0; i < 32; i++) {                                                                               // Truemmer werden spiralfoermig hineingesogen
+        const ph = (d.t * 1.3 + i / 32) % 1, rr = 8 + 70 * (1 - ph) * open, a = i * 2.4 + ph * 7;
+        ctx.fillStyle = [P.cyan, P.violet, P.ice, P.pink][i % 4]; ctx.globalAlpha = Math.min(1, ph * 3) * open;
+        ctx.fillRect(Math.round((sx + Math.cos(a) * rr) / 2) * 2, Math.round((sy + Math.sin(a) * rr * 0.8) / 2) * 2, 2 + (i % 2) * 2, 2 + (i % 2) * 2);
+      }
+      ctx.globalAlpha = 1; ctx.fillStyle = P.ice; pxRing(ctx, sx, sy, Math.max(0, r) + 2, 1);                      // heller Rand, damit der schwarze Kern auf dunklem Boden zu sehen ist
       ctx.fillStyle = '#000000'; pxDisc(ctx, sx, sy, Math.max(0, r));
-      const s = Math.max(0, 1 - k * 1.5);
+      const s = Math.max(0, 1 - k * 1.4);
       if (s > 0) drawSprite(ctx, d.sprite, d.x, d.y, d.dir + d.t * 900, size * s, { alpha: s });
     }
     for (const q of d.list) Cos.drawParticle(ctx, q);
