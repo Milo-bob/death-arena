@@ -1245,10 +1245,13 @@ function drawDevBadge(ctx) {
 function drawShardCount(ctx) {
   const P = STYLE.pal, T = STYLE.type, m = Input.mouse;
   uiAmount(ctx, 'shards', Save.shards(), STAGE_W - 56, 20, { size: T.h2, color: P.cyan, align: 'right', glow: P.cyan });
-  const bw = 120, bx = STAGE_W - 56 - 150 - bw, by = 12, hot = m.x >= bx && m.x <= bx + bw && m.y >= by && m.y <= by + 22;
-  UIHit.add(bx, by, bw, 22, () => {}, { act: () => { G.exch = { sel: 0 }; Sfx.play('select'); }, noConfirm: true });
-  uiPanel(ctx, bx, by, bw, 22, { color: hot ? P.ice : P.cyan, fill: hot ? P.voidLight : P.void, alpha: 0.95, glow: hot });
-  uiText(ctx, 'GET SHARDS [G]', bx + bw / 2, by + 15, { size: T.small, color: hot ? P.ice : P.cyan, align: 'center' });
+  const bw = 170, bh = 30, bx = STAGE_W - 56 - 150 - bw, by = 8, hot = m.x >= bx && m.x <= bx + bw && m.y >= by && m.y <= by + bh;
+  const pulse = 0.5 + 0.5 * Math.sin(G.realTime * 4);                                                   // pulsiert, damit der Knopf auffaellt
+  UIHit.add(bx, by, bw, bh, () => {}, { act: () => { G.exch = { sel: 0 }; Sfx.play('select'); }, noConfirm: true });
+  ctx.save(); ctx.fillStyle = P.cyan; ctx.globalAlpha = 0.15 + 0.2 * pulse; ctx.fillRect(bx - 3, by - 3, bw + 6, bh + 6); ctx.restore();   // Schein um den Knopf
+  uiPanel(ctx, bx, by, bw, bh, { color: hot ? P.white : P.ice, fill: hot ? P.cyanMid : P.cyanDark, alpha: 1, glow: true });       // dunkle Fuellung + weisse Schrift (uiText zeichnet einen dunklen Umriss, dunkle Schrift waere unleserlich)
+  drawCurrencyIcon(ctx, 'shards', bx + 10, by + 9, 12);
+  uiText(ctx, 'GET SHARDS [G]', bx + 28 + (bw - 28) / 2, by + 20, { size: T.body, color: P.white, align: 'center' });
 }
 
 // Umtausch-Fenster: Credits gegen Shards in Paketen (G.exch, siehe G.updateExch). Liegt oben, darunter ist nichts klickbar.
