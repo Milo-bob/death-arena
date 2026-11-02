@@ -49,8 +49,11 @@ const Pad = {
     if (playing !== this.prevPlay) { this.release(); this.prevPlay = playing; }         // Wechsel zwischen Menü und Lauf: nichts hängen lassen
     if (playing) {
       const t = Input.touch;
-      t.mv.on = L.mag > 0; if (L.mag > 0) t.mv.dir = Math.atan2(L.x, -L.y) * 180 / Math.PI;
-      t.aim.on = R.mag > 0.35; if (R.mag > 0.35) t.aim.dir = Math.atan2(R.x, -R.y) * 180 / Math.PI;
+      if (L.mag > 0) { t.mv.on = true; t.mv.dir = Math.atan2(L.x, -L.y) * 180 / Math.PI; this.drove = true; }
+      else if (this.drove) t.mv.on = false;
+      if (R.mag > 0.35) { t.aim.on = true; t.aim.dir = Math.atan2(R.x, -R.y) * 180 / Math.PI; this.drove = true; }
+      else if (this.drove) t.aim.on = false;
+      if (L.mag === 0 && R.mag <= 0.35) this.drove = false;                          // beide Sticks los: Touch darf wieder übernehmen
       if (b(0) || b(7)) want[Input.code('attack')] = true;
       if (b(2)) want[Input.code('ability_weak')] = true;
       if (b(3)) want[Input.code('ability_medium')] = true;
@@ -104,8 +107,10 @@ const Pad = {
     this.held = {}; this.rep = {};
   },
 
+  // Nur zurücksetzen, was der Controller selbst gesetzt hat (sonst würde er die Touch-Sticks jedes Bild löschen)
   clearSticks() {
-    if (Input.touch) { Input.touch.mv.on = false; Input.touch.aim.on = false; }
+    if (this.drove && Input.touch) { Input.touch.mv.on = false; Input.touch.aim.on = false; }
+    this.drove = false;
   },
 };
 
