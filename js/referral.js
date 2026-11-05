@@ -16,7 +16,7 @@ const Ref = {
   get ready() { return this.on && this.st ? this.st.ready | 0 : 0; },
   get name() { return String((this.st && this.st.name) || (Account.meta && Account.meta.name) || '').toLowerCase(); },
   get link() { return 'https://' + (typeof Share !== 'undefined' ? Share.url : 'death-arena.holiday-games.com') + '/' + (this.name ? '?ref=' + encodeURIComponent(this.name) : ''); },
-  get text() { return 'Play DeathArena with me! Make an account and finish one run, then we both get a reward: ' + this.link; },
+  get text() { return (typeof I18n !== 'undefined' && I18n.lang === 'de' ? 'Spiel DeathArena mit mir! Ein Arcade-Shooter direkt im Browser, kostenlos. Leg ein Konto an und schaff einen Lauf, dann bekommen wir beide eine Belohnung: ' : 'Play DeathArena with me! A free arcade shooter right in your browser. Make an account and finish one run, then we both get a reward: ') + this.link; },
 
   isMissing(r) { return !r.ok && (r.status === 404 || /could not find the function/i.test(String((r.json && r.json.message) || ''))); },
 
