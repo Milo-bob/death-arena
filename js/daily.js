@@ -63,19 +63,22 @@ const Daily = {
   draw(ctx) {
     this.drawChip(ctx);
     if (!this.open || !this.st) return;
-    const P = STYLE.pal, T = STYLE.type, st = this.st, n = st.cycle || 7, rew = st.rewards || [], idx = (Math.max(1, st.next) - 1) % n, cx = STAGE_W / 2;
+    const P = STYLE.pal, T = STYLE.type, st = this.st, n = st.cycle || 7, cx = STAGE_W / 2;
+    // Die Serie zaehlt unbegrenzt weiter: gezeigt wird die Woche des heutigen Tages (Tag 1-7, 8-14 ...). Woche 1 = Einstieg, ab Tag 8 wiederholt sich der Rhythmus der "after"-Listen.
+    const got = this.result, claimedNow = !!got || !!st.claimed, cur = got ? got.streak : st.claimed ? Math.max(1, st.streak) : Math.max(1, st.next), week = Math.floor((cur - 1) / n), idx = (cur - 1) % n;
+    const rew = (week > 0 && st.rewards_after) || st.rewards || [], shs = (week > 0 && st.shards_after) || st.shards || [];
     const w = 440, h = 200, x = cx - w / 2, y = 70;
     UIHit.list.length = 0;                                                              // das Fenster liegt oben: darunter ist nichts klickbar
     ctx.save(); ctx.globalAlpha = 0.78; ctx.fillStyle = P.ink; ctx.fillRect(0, 0, STAGE_W, STAGE_H); ctx.restore();
     uiPanel(ctx, x, y, w, h, { color: P.yellow, fill: P.void, alpha: 0.98, glow: true });
     uiText(ctx, 'DAILY REWARD', cx, y + 28, { size: T.h1, color: P.yellow, align: 'center', glow: P.yellow });
-    const got = this.result, done = got ? (got.index + 1) : idx;                          // wie viele Kästchen des Zyklus schon erledigt sind
+    const done = claimedNow ? idx + 1 : idx;                                              // wie viele Kästchen der Woche schon erledigt sind
     const bw = 54, gap = 8, bx0 = cx - (n * bw + (n - 1) * gap) / 2;
     for (let i = 0; i < n; i++) {
-      const bx = bx0 + i * (bw + gap), by = y + 50, isDone = i < done, isToday = !got && i === idx, col = isDone ? P.green : isToday ? P.yellow : P.greyMid;
+      const bx = bx0 + i * (bw + gap), by = y + 50, isDone = i < done, isToday = !claimedNow && i === idx, col = isDone ? P.green : isToday ? P.yellow : P.greyMid;
       uiPanel(ctx, bx, by, bw, 66, { color: col, fill: isToday ? P.voidLight : P.void, alpha: 0.95, glow: isToday });
-      uiText(ctx, 'DAY ' + (i + 1), bx + bw / 2, by + 14, { size: T.small, color: col, align: 'center' });
-      const shd = Number((st.shards || [])[i]) || 0;
+      uiText(ctx, 'DAY ' + (week * n + i + 1), bx + bw / 2, by + 14, { size: T.small, color: col, align: 'center' });
+      const shd = Number(shs[i]) || 0;
       uiText(ctx, '+' + (shd || rew[i] || 0), bx + bw / 2, by + 40, { size: T.h2, color: shd ? P.cyan : isDone || isToday ? P.ice : P.grey, align: 'center' });
       uiText(ctx, shd ? 'SHARDS' : 'CREDITS', bx + bw / 2, by + 56, { size: T.small, color: shd ? P.cyan : P.grey, align: 'center' });
       if (isDone) { ctx.fillStyle = P.green; [[-6, 0], [-4, 2], [-2, 4], [0, 2], [2, 0], [4, -2], [6, -4]].forEach(([dx, dy]) => ctx.fillRect(bx + bw - 12 + dx, by + 6 + dy, 3, 3)); }

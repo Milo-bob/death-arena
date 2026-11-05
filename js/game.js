@@ -392,6 +392,7 @@ const G = {
     else if (id === 'fullscreen') { try { if (document.fullscreenElement) document.exitFullscreen(); else (Save.data.touch ? document.documentElement : canvas).requestFullscreen(); } catch (err) { /* Browser verbietet Vollbild */ } }
     else if (id === 'account') Account.open();
     else if (id === 'install') PWA.open();
+    else if (id === 'invite') Ref.open();
     else if (id === 'board') { this.mode = 'leaderboard'; Board.open(); }
   },
 
@@ -945,7 +946,7 @@ const G = {
     else if (this.mode === 'ending') playMusic(this.endAge < ENDING_SPLIT ? 'dead' : 'menu');
     if (Save.data.dev) this.devKeys();
     Account.menuTick(this.mode);
-    Social.tick(this.mode); Social.keys(); Daily.tick(this.mode); Board.tick();
+    Social.tick(this.mode); Social.keys(); Daily.tick(this.mode); Ref.tick(this.mode); Board.tick();
     PWA.tick(this.mode);
     if (this.mode === 'splash') {
       this.updateSplash(dt);

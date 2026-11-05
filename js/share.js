@@ -67,7 +67,7 @@ const Share = {
       if (!blob) { say('SHARING FAILED'); return; }
       const name = 'deatharena-' + formatTime(info.time).replace(':', 'm') + 's.png';
       const file = new File([blob], name, { type: 'image/png' });
-      const msg = { files: [file], title: 'Death Arena Evolution', text: (info.won ? 'I beat Death Arena Evolution' : 'I survived ' + formatTime(info.time) + ' in Death Arena Evolution') + ' - can you beat that? https://' + this.url };
+      const msg = { files: [file], title: 'Death Arena Evolution', text: (info.won ? 'I beat Death Arena Evolution' : 'I survived ' + formatTime(info.time) + ' in Death Arena Evolution') + ' - can you beat that? ' + (typeof Ref !== 'undefined' && Ref.on && Ref.name ? Ref.link : 'https://' + this.url) };
       if (navigator.canShare && navigator.canShare(msg) && navigator.share) {
         try { await navigator.share(msg); return; } catch (e) { if (e && e.name === 'AbortError') return; }      // abgebrochen = fertig, sonst Download
       }

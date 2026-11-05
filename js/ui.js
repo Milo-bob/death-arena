@@ -740,7 +740,8 @@ function drawHomeScreen(ctx) {
   drawSyncIndicator(ctx);
   if (Save.data.dev) drawDevBadge(ctx);
   // kleine Symbole unter dem Profil: Konto, Installieren, Statistik (Ton/Effekte stehen in den Einstellungen)
-  if (PWA.visible) drawMenuIcons(ctx, ['install'], 8, 68);
+  { const icons = [].concat(Account.configured ? ['invite'] : [], PWA.visible ? ['install'] : []); if (icons.length) drawMenuIcons(ctx, icons, 8, 68); }
+  if (Ref.stored && !Ref.on && Account.configured) uiText(ctx, 'YOU WERE INVITED - LOG IN OR CREATE AN ACCOUNT FOR YOUR BONUS', 8, 158, { size: T.small, color: P.orange, maxW: 300 });
   // Knoepfe
   btns.forEach((b, i) => {
     const hot = m.x >= b.x && m.x <= b.x + b.w && m.y >= b.y && m.y <= b.y + b.h, on = G.homeSel === i || hot;
@@ -781,6 +782,7 @@ function drawSyncIndicator(ctx) {
 // ---- Kleine Symbole oben rechts im Hauptmenue: Konto, Musik, Sound, Effekte, Vollbild ----
 const MENU_ICON_ART = {
   board: ['XXXXXXXXX', 'X.XXXXX.X', 'X.XXXXX.X', '.XXXXXXX.', '..XXXXX..', '...XXX...', '....X....', '...XXX...', '..XXXXX..'],
+  invite: ['..XXX....', '..XXX..X.', '..XXX.XXX', '.XXXXX.X.', 'XXXXXXX..', 'XXXXXXX..', 'XXXXXXX..'],
   install: ['....X....', '....X....', '....X....', '..X.X.X..', '...XXX...', '....X....', 'X.......X', 'XXXXXXXXX'],
   account: ['...XXX...', '..XXXXX..', '..XXXXX..', '...XXX...', '.XXXXXXX.', 'XXXXXXXXX', 'XXXXXXXXX', 'XXXXXXXXX'],
   music: ['....XXXX', '....XXXX', '....X..X', '....X...', '....X...', '..XXX...', '.XXXX...', '.XXXX...', '..XX....'],
@@ -794,6 +796,7 @@ function drawMenuIcons(ctx, only, ax, ay) {
   const pct = (v) => Math.round(v * 100) + '%';
   const info = {
     board: { name: 'LEADERBOARD [B]', lvl: -1 },
+    invite: { name: 'INVITE A FRIEND' + (Ref.ready ? ' (BONUS READY!)' : ''), lvl: -1 },
     install: { name: 'INSTALL AS APP' + (PWA.offlineReady ? ' (OFFLINE READY)' : ''), lvl: -1 },
     account: { name: Account.on ? 'ACCOUNT: ' + Account.meta.name.toUpperCase() : (Account.configured ? 'NOT LOGGED IN - CLICK TO LOG IN' : 'ACCOUNT (NOT SET UP)'), lvl: -1 },
     music: { name: 'MUSIC ' + pct(Save.data.musicVol), lvl: Save.data.musicVol },
@@ -806,7 +809,7 @@ function drawMenuIcons(ctx, only, ax, ay) {
   ids.forEach((id, i) => {
     const x = x0 + i * (S + GAP), hot = m.x >= x && m.x <= x + S && m.y >= y && m.y <= y + S + 6;
     const off = (id === 'music' || id === 'sfx') && info[id].lvl <= 0.001 || (id === 'fx' && Juice.level === 0);
-    const col = id === 'board' ? P.yellow : id === 'install' ? P.green : id === 'account' ? (Account.on ? P.green : P.orange) : off ? P.greyMid : P.cyan;
+    const col = id === 'board' ? P.yellow : id === 'install' ? P.green : id === 'invite' ? P.orange : id === 'account' ? (Account.on ? P.green : P.orange) : off ? P.greyMid : P.cyan;
     UIHit.add(x, y, S, S + 6, () => {}, { act: () => G.menuQuick(id) });
     uiPanel(ctx, x, y, S, S, { color: hot ? P.ice : col, fill: P.void, alpha: 0.9, glow: hot });
     const art = MENU_ICON_ART[id], sc = 2, aw = art[0].length * sc, ah = art.length * sc, ax = x + Math.round((S - aw) / 2), ay = y + Math.round((S - ah) / 2);
@@ -814,6 +817,7 @@ function drawMenuIcons(ctx, only, ax, ay) {
     art.forEach((row, ry) => { for (let rx = 0; rx < row.length; rx++) if (row[rx] === 'X') ctx.fillRect(ax + rx * sc, ay + ry * sc, sc, sc); });
     if (off) { ctx.fillStyle = P.red; for (let k = 3; k < S - 3; k++) ctx.fillRect(x + k, y + S - 1 - k, 3, 3); }             // durchgestrichen = aus
     if (info[id].lvl >= 0) { const n = id === 'fx' ? 3 : 4, on = id === 'fx' ? Juice.level + 1 : Math.round(info[id].lvl * 3) + (info[id].lvl > 0.001 ? 1 : 0); for (let k = 0; k < n; k++) { ctx.fillStyle = k < on ? col : P.greyDark; ctx.fillRect(x + 3 + k * Math.floor((S - 6) / n), y + S + 2, Math.floor((S - 6) / n) - 2, 3); } }
+    if (id === 'invite' && Ref.ready) { ctx.globalAlpha = 1; ctx.fillStyle = P.red; ctx.fillRect(x + S - 7, y - 4, 11, 11); ctx.fillStyle = P.ice; ctx.fillRect(x + S - 4, y - 1, 5, 5); }
     if (id === 'account') {                                                         // Anzeige: gruener Punkt = angemeldet, roter blinkender Punkt = nicht angemeldet
       const c = !Account.configured ? P.greyMid : Account.on ? P.green : P.red, blink = Account.on || !Account.configured ? 1 : 0.5 + 0.5 * Math.sin(t * 6) ** 2;
       ctx.globalAlpha = 1; ctx.fillStyle = P.void; ctx.fillRect(x + S - 8, y - 5, 12, 12);
