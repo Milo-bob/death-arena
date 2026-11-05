@@ -717,6 +717,10 @@ function drawHomeScreen(ctx) {
   const chips = ['BEST ' + (Save.data.best > 0 ? formatTime(Save.data.best) : '-'), 'RUNS ' + Save.data.runs].concat(Save.data.wins ? ['WINS ' + Save.data.wins] : []);
   const cw = 78, cg = 6, cx0 = cx - (chips.length * cw + (chips.length - 1) * cg) / 2;
   chips.forEach((c, i) => { const x = cx0 + i * (cw + cg); uiPanel(ctx, x, 276, cw, 18, { color: P.greyMid, fill: P.void, alpha: 0.85 }); uiText(ctx, c, x + cw / 2, 289, { size: T.small, color: P.grey, align: 'center' }); });
+  if (Save.data.tutorialDone && Ach.total() > 0) {                                                      // Sammlung sichtbar machen: Luecken ziehen zurueck ins Spiel
+    const pct = Math.floor(100 * Ach.doneCount() / Ach.total());
+    uiText(ctx, 'AWARDS ' + Ach.doneCount() + '/' + Ach.total() + '  (' + pct + '%)', cx, 312, { size: T.small, color: P.green, align: 'center', maxW: Math.min(180, STAGE_W - 2 * 142 - 8) });
+  }
   const I = Save.levelInfo(), name = Account.on && Account.meta.name ? Account.meta.name.toUpperCase() : 'PLAYER';
   // Profil (nur Anzeige): Level-Plakette links, rechts Name, Credits, Balken und XP
   ctx.save();                                                                                // Profil oben links, die Plakette liegt am oberen Rand

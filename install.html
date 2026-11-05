@@ -15,7 +15,7 @@
   html, body { margin: 0; min-height: 100%; background: #05060f; color: #e5fffe; font-family: "Pixel Digits", "Pixelify Sans", monospace; }
   body { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 24px 16px; text-align: center; }
   main { width: min(560px, 100%); }
-  img { width: 128px; height: 128px; image-rendering: pixelated; border: 3px solid #3dff8a; margin-bottom: 18px; }
+  img.logo { width: 128px; height: 128px; image-rendering: pixelated; border: 3px solid #3dff8a; margin-bottom: 18px; }
   h1 { margin: 0 0 6px; font-size: clamp(34px, 9vw, 52px); letter-spacing: 2px; color: #ffbb00; font-weight: 600; }
   p { margin: 0 0 26px; font-size: 18px; color: #8a93a8; line-height: 1.4; }
   button { display: block; width: 100%; padding: 26px 16px; font: inherit; font-size: clamp(28px, 8vw, 44px); letter-spacing: 2px; cursor: pointer;
@@ -23,33 +23,149 @@
   button:hover { background: #7dffb0; }
   button:active { transform: translateY(2px); }
   button:disabled { background: #262b3d; color: #8a93a8; border-color: #505870; box-shadow: none; cursor: default; transform: none; }
+  button.small { padding: 14px 12px; font-size: 22px; margin-top: 14px; }
   #note { margin: 22px 0 0; font-size: 17px; color: #ffbb00; line-height: 1.5; min-height: 26px; }
   #sub { margin: 12px 0 0; font-size: 14px; color: #8a93a8; }
+  .box { margin: 22px 0 0; padding: 14px; border: 3px solid #3dff8a; background: #0b0e1d; text-align: left; }
+  .box.warn { border-color: #ffbb00; }
+  .box h2 { margin: 0 0 10px; font-size: 20px; color: #ffbb00; font-weight: 600; text-align: center; }
+  .step { display: flex; align-items: center; gap: 14px; padding: 10px 0; border-top: 2px solid #1d2238; }
+  .step:first-of-type { border-top: 0; }
+  .step svg { flex: none; width: 58px; height: 58px; background: #e5fffe; border-radius: 12px; padding: 8px; }
+  .step b { color: #3dff8a; font-size: 28px; flex: none; width: 24px; text-align: center; }
+  .step span { font-size: 17px; line-height: 1.35; color: #e5fffe; }
+  .step em { color: #ffbb00; font-style: normal; }
+  #qr { text-align: center; }
+  #qr img { width: 190px; height: 190px; image-rendering: pixelated; display: block; margin: 8px auto 0; border: 3px solid #e5fffe; }
+  #arrow { position: fixed; left: 50%; bottom: 6px; transform: translateX(-50%); font-size: 54px; line-height: 1; color: #ffbb00; animation: bob 0.9s ease-in-out infinite; pointer-events: none; text-shadow: 0 0 12px #000; }
+  #arrow small { display: block; font-size: 14px; text-align: center; }
+  #arrow.top { bottom: auto; top: 6px; right: 14px; left: auto; transform: none; animation-name: bobTop; }
+  @keyframes bob { 50% { transform: translate(-50%, 10px); } }
+  @keyframes bobTop { 50% { transform: translateY(-8px); } }
+  [hidden] { display: none !important; }
 </style>
 </head>
 <body>
 <main>
-  <img src="icons/icon-512.png" alt="">
+  <img class="logo" src="icons/icon-512.png" alt="">
   <h1>DEATHARENA</h1>
-  <p>Download the app. It runs offline and updates itself.</p>
+  <p id="lead">Download the app. It runs offline and updates itself.</p>
   <button id="btn" type="button">DOWNLOAD</button>
   <div id="note"></div>
+
+  <div id="inapp" class="box warn" hidden>
+    <h2 id="inappTitle"></h2>
+    <div class="step"><b>1</b><span id="inappText"></span></div>
+    <button id="copy" class="small" type="button"></button>
+  </div>
+
+  <div id="ios" class="box" hidden>
+    <h2 id="iosTitle"></h2>
+    <div class="step">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#0a84ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M8 7l4-4 4 4"/><path d="M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg>
+      <span id="s1"></span>
+    </div>
+    <div class="step">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="M12 8v8M8 12h8"/></svg>
+      <span id="s2"></span>
+    </div>
+    <div class="step">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#0a84ff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>
+      <span id="s3"></span>
+    </div>
+  </div>
+
+  <div id="qr" class="box" hidden>
+    <h2 id="qrTitle"></h2>
+    <img src="assets/install_qr.svg" alt="QR code">
+  </div>
+
   <div id="sub"></div>
 </main>
+<div id="arrow" hidden>&#9660;<small id="arrowText"></small></div>
 <script>
 (function () {
-  var btn = document.getElementById('btn'), note = document.getElementById('note'), sub = document.getElementById('sub'), prompt = null;
-  var ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  var $ = function (id) { return document.getElementById(id); };
+  var btn = $('btn'), note = $('note'), prompt = null;
+  var ua = navigator.userAgent || '';
+  var lang = /^de/i.test(navigator.language || '') ? 'de' : 'en';
+  var T = {
+    en: {
+      lead: 'Download the app. It runs offline and updates itself.',
+      iosTitle: 'Install on iPhone / iPad',
+      s1: 'Tap the <em>Share</em> button (square with an arrow). Safari iPhone: bottom bar. iPad and Chrome: top right.',
+      s2: 'Scroll down and tap <em>Add to Home Screen</em>.',
+      s3: 'Tap <em>Add</em>. Open DeathArena from the new icon.',
+      howto: 'HOW TO INSTALL', arrow: 'SHARE',
+      inappTitle: 'Open in your browser first',
+      inappIos: 'You are inside another app (Instagram, WhatsApp, ...). Installing only works in Safari. Copy the link, open Safari and paste it.',
+      inappAnd: 'You are inside another app (Instagram, WhatsApp, ...). Installing only works in Chrome. Copy the link, open Chrome and paste it.',
+      copy: 'COPY LINK', copied: 'LINK COPIED!', copyFail: 'Press and hold the address bar to copy the link.',
+      qrTitle: 'Install on your phone: scan with the camera',
+      installed: 'ALREADY INSTALLED', openIt: 'Open DeathArena from your desktop or home screen.', done: 'INSTALLED!',
+      hintMac: 'Safari on Mac: File > Add to Dock. Chrome and Edge: browser menu > "Install DeathArena".',
+      hintOther: 'Open your browser menu and choose "Install DeathArena" or "Install app" (Chrome, Edge) or "Add to Home Screen" (mobile).'
+    },
+    de: {
+      lead: 'Lade die App herunter. Sie läuft offline und aktualisiert sich selbst.',
+      iosTitle: 'Auf iPhone / iPad installieren',
+      s1: 'Tippe auf <em>Teilen</em> (Quadrat mit Pfeil). Safari auf dem iPhone: untere Leiste. iPad und Chrome: oben rechts.',
+      s2: 'Nach unten scrollen und <em>Zum Home-Bildschirm</em> antippen.',
+      s3: 'Tippe auf <em>Hinzufügen</em>. Starte DeathArena über das neue Symbol.',
+      howto: 'SO GEHT\'S', arrow: 'TEILEN',
+      inappTitle: 'Erst im Browser öffnen',
+      inappIos: 'Du bist in einer anderen App (Instagram, WhatsApp, ...). Installieren geht nur in Safari. Kopiere den Link, öffne Safari und füge ihn ein.',
+      inappAnd: 'Du bist in einer anderen App (Instagram, WhatsApp, ...). Installieren geht nur in Chrome. Kopiere den Link, öffne Chrome und füge ihn ein.',
+      copy: 'LINK KOPIEREN', copied: 'LINK KOPIERT!', copyFail: 'Halte die Adresszeile gedrückt, um den Link zu kopieren.',
+      qrTitle: 'Aufs Handy: mit der Kamera scannen',
+      installed: 'SCHON INSTALLIERT', openIt: 'Öffne DeathArena über den Desktop oder Home-Bildschirm.', done: 'INSTALLIERT!',
+      hintMac: 'Safari am Mac: Ablage > Zum Dock hinzufügen. Chrome und Edge: Browsermenü > "DeathArena installieren".',
+      hintOther: 'Öffne das Browsermenü und wähle "DeathArena installieren" oder "App installieren" (Chrome, Edge) bzw. "Zum Startbildschirm hinzufügen" (Handy).'
+    }
+  }[lang];
+  document.documentElement.lang = lang;
+  $('lead').textContent = T.lead;
+
+  var ios = /iphone|ipad|ipod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  var ipad = /ipad/i.test(ua) || (ios && !/iphone|ipod/i.test(ua));
+  var android = /android/i.test(ua);
+  var mac = !ios && /Macintosh/i.test(ua);
+  // In-App-Browser (Instagram, WhatsApp, TikTok ...): dort gibt es kein Installieren. iOS: die Seite laeuft in einer WebView ohne "Safari/" im User-Agent.
+  var inApp = /FBAN|FBAV|FB_IAB|Instagram|Line\/|MicroMessenger|TikTok|musical_ly|Snapchat|Twitter|LinkedInApp|Pinterest|WhatsApp|Discord|GSA\//i.test(ua)
+    || (ios && !/Safari\//.test(ua)) || (android && /; wv\)/.test(ua));
   var standalone = (window.matchMedia && matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches) || navigator.standalone === true;
-  function hint() {
-    note.textContent = ios
-      ? 'Tap the SHARE button of Safari (square with an arrow), then "Add to Home Screen".'
-      : 'Open your browser menu and choose "Install DeathArena" or "Install app" (Chrome, Edge) or "Add to Home Screen" (mobile).';
+  var desktop = !ios && !android && !(window.matchMedia && matchMedia('(pointer: coarse)').matches);
+
+  function fill(el, html) { el.innerHTML = html; }   // nur feste Texte aus T, keine Nutzereingaben
+  function showIos() {
+    $('iosTitle').textContent = T.iosTitle; fill($('s1'), T.s1); fill($('s2'), T.s2); fill($('s3'), T.s3);
+    $('ios').hidden = false;
+    $('arrowText').textContent = T.arrow; $('arrow').className = ipad ? 'top' : ''; $('arrow').hidden = false;
+    $('arrow').firstChild.nodeValue = ipad ? '▲' : '▼';
   }
+  function showInApp() {
+    $('inappTitle').textContent = T.inappTitle; $('inappText').textContent = ios ? T.inappIos : T.inappAnd;
+    $('copy').textContent = T.copy; $('inapp').hidden = false;
+    $('copy').addEventListener('click', function () {
+      var url = location.href.replace(/[?#].*$/, '');
+      var ok = function () { $('copy').textContent = T.copied; };
+      var fail = function () { note.textContent = T.copyFail; };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(ok, fail);
+      else { try { var t = document.createElement('textarea'); t.value = url; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); ok(); } catch (e) { fail(); } }
+    });
+  }
+  function hint() {
+    if (ios) { showIos(); $('ios').scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    else note.textContent = mac ? T.hintMac : T.hintOther;
+  }
+
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () {});
-  if (standalone) { btn.textContent = 'ALREADY INSTALLED'; btn.disabled = true; note.textContent = 'Open DeathArena from your desktop or home screen.'; return; }
+  if (standalone) { btn.textContent = T.installed; btn.disabled = true; note.textContent = T.openIt; return; }
+  if (desktop) { $('qrTitle').textContent = T.qrTitle; $('qr').hidden = false; }
+  if (inApp) { showInApp(); btn.hidden = true; return; }
+  if (ios) { btn.textContent = T.howto; showIos(); }
   window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); prompt = e; note.textContent = ''; });
-  window.addEventListener('appinstalled', function () { prompt = null; btn.textContent = 'INSTALLED!'; btn.disabled = true; note.textContent = 'Open DeathArena from your desktop or home screen.'; sub.textContent = ''; });
+  window.addEventListener('appinstalled', function () { prompt = null; btn.textContent = T.done; btn.disabled = true; note.textContent = T.openIt; $('qr').hidden = true; });
   btn.addEventListener('click', function () {
     if (prompt) { var p = prompt; prompt = null; try { p.prompt(); } catch (e) { hint(); } }
     else hint();

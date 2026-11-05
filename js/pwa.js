@@ -10,6 +10,8 @@ const PWA = {
   get embedded() { try { return window.parent !== window; } catch (e) { return true; } },
   get standalone() { try { return (window.matchMedia && matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches) || navigator.standalone === true; } catch (e) { return false; } },
   get ios() { try { return /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); } catch (e) { return false; } },
+  // In-App-Browser (Instagram, WhatsApp, TikTok ...): dort ist Installieren nicht moeglich, man muss in Safari / Chrome oeffnen
+  get inApp() { try { const ua = navigator.userAgent || ''; return /FBAN|FBAV|FB_IAB|Instagram|Line\/|MicroMessenger|TikTok|musical_ly|Snapchat|Twitter|LinkedInApp|Pinterest|WhatsApp|Discord|GSA\//i.test(ua) || (this.ios && !/Safari\//.test(ua)) || (/android/i.test(ua) && /; wv\)/.test(ua)); } catch (e) { return false; } },
   get visible() { return this.secure && !this.standalone; },          // Install-Symbol im Hauptmenue: nicht in der installierten App selbst
 
   init() {
@@ -90,10 +92,37 @@ const PWA = {
       const info = mk('div', 'border:2px solid ' + P.cyanDark + ';background:' + P.ink + ';padding:10px 12px;');
       info.appendChild(mk('div', 'color:' + P.ice + ';font-size:14px;line-height:1.5;', 'Own icon and window, works fully offline and is always the same version as the website (it updates itself when you are online). Your saves and your account stay the same.'));
       info.appendChild(mk('div', 'font-size:14px;margin-top:8px;color:' + (this.offlineReady ? P.green : P.grey) + ';', this.offlineReady ? 'OFFLINE: READY' : 'OFFLINE: PREPARING... (OPEN THE GAME ONCE WHILE ONLINE)'));
-      if (!this.embedded && !this.prompt) info.appendChild(mk('div', 'color:' + P.yellow + ';font-size:14px;line-height:1.6;margin-top:8px;', this.ios
-        ? 'On iPhone / iPad: tap the SHARE button of Safari (square with an arrow), then "Add to Home Screen". Open the game from the new icon.'
-        : 'Use your browser menu: "Install DeathArena" / "Install app" (Chrome, Edge) or "Add to Home Screen" (mobile). If nothing is offered, the app is probably installed already.'));
+      if (!this.embedded && !this.prompt) {
+        if (this.inApp) info.appendChild(mk('div', 'color:' + P.yellow + ';font-size:14px;line-height:1.6;margin-top:8px;', this.ios
+          ? 'You are inside another app (Instagram, WhatsApp, ...). Installing only works in Safari: copy the link, open Safari and paste it.'
+          : 'You are inside another app (Instagram, WhatsApp, ...). Installing only works in Chrome: copy the link, open Chrome and paste it.'));
+        else if (!this.ios) info.appendChild(mk('div', 'color:' + P.yellow + ';font-size:14px;line-height:1.6;margin-top:8px;', 'Use your browser menu: "Install DeathArena" / "Install app" (Chrome, Edge) or "Add to Home Screen" (mobile). If nothing is offered, the app is probably installed already.'));
+      }
       box.appendChild(info);
+      if (!this.embedded && !this.prompt && !this.inApp && this.ios) {
+        // iPhone / iPad (Safari kennt keinen Installieren-Dialog): drei Schritte mit Symbolen
+        const svg = (inner, col) => '<svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="' + col + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="background:#e5fffe;border-radius:8px;padding:5px;flex:none">' + inner + '</svg>';
+        const steps = [
+          [svg('<path d="M12 15V3M8 7l4-4 4 4"/><path d="M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/>', '#0a84ff'), 'Tap SHARE (square with an arrow). Safari on iPhone: bottom bar. iPad and Chrome: top right.'],
+          [svg('<rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="M12 8v8M8 12h8"/>', '#111'), 'Scroll down and tap "Add to Home Screen".'],
+          [svg('<path d="M5 13l4 4L19 7"/>', '#0a84ff'), 'Tap "Add". Open DeathArena from the new icon.'],
+        ];
+        steps.forEach(([icon, text], i) => {
+          const row = mk('div', 'display:flex;align-items:center;gap:12px;margin-top:10px;');
+          row.appendChild(mk('div', 'color:' + P.green + ';font-size:22px;width:18px;flex:none;text-align:center;', String(i + 1)));
+          const holder = mk('div', 'flex:none;line-height:0;'); holder.innerHTML = icon; row.appendChild(holder);   // feste SVG-Zeichen, keine Nutzereingabe
+          row.appendChild(mk('div', 'font-size:14px;line-height:1.4;color:' + P.ice + ';', text));
+          box.appendChild(row);
+        });
+      }
+      if (!this.embedded && !this.prompt && this.inApp) {
+        const cp = mk('button', 'display:block;box-sizing:border-box;width:100%;text-align:center;padding:10px 8px;margin:10px 0 0;cursor:pointer;background:' + P.voidLight + ';color:' + P.green + ';border:2px solid ' + P.green + ';font:inherit;font-size:17px;', 'COPY LINK');
+        cp.onclick = () => {
+          const url = location.origin + '/install.html', done = () => { cp.textContent = I18n.t('LINK COPIED!'); };
+          try { navigator.clipboard.writeText(url).then(done, () => {}); } catch (e) { /* Adresszeile lange druecken */ }
+        };
+        box.appendChild(cp);
+      }
       if (this.embedded) {
         const a = installBtn('a', 'INSTALL THE APP', 'Opens the download page in a new tab.'); a.href = location.origin + '/install.html'; a.target = '_blank'; a.rel = 'noopener'; box.appendChild(a);
       } else if (this.prompt) {
