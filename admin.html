@@ -112,7 +112,7 @@ async function rpc(fn, args) {
   let json = null; try { json = await res.json(); } catch (e) { /* leer */ }
   if (!res.ok) {
     const m = (json && (json.message || json.hint || json.error)) || ('HTTP ' + res.status);
-    throw new Error(/not allowed/.test(m) ? 'Wrong admin password.' : /Could not find the function|schema cache/i.test(m) ? 'Server not set up: run tools/supabase_admin.sql in Supabase first.' : m);
+    throw new Error(/not allowed/.test(m) ? 'Wrong admin password.' : /Could not find the function|schema cache/i.test(m) ? 'Server not set up: run tools/supabase_admin.sql (and tools/supabase_admin2.sql / supabase_social.sql for the newer tabs) in Supabase first.' : m);
   }
   return json;
 }
@@ -142,7 +142,8 @@ function logout() { KEY = ''; clearInterval(NOTIF.timer); NOTIF.timer = null; st
 
 // ====== Rahmen ======
 function renderMain() {
-  const tabs = [['dashboard', 'DASHBOARD'], ['players', 'PLAYERS'], ['create', 'CREATE ACCOUNTS'], ['stats', 'STATISTICS'], ['gifts', 'GIFTS'], ['cheats', 'CHEATS'], ['audit', 'ACTION LOG']];
+  clearInterval(S.liveTimer); S.liveTimer = null;
+  const tabs = [['dashboard', 'DASHBOARD'], ['online', 'ONLINE'], ['players', 'PLAYERS'], ['create', 'CREATE ACCOUNTS'], ['stats', 'STATISTICS'], ['retention', 'RETENTION'], ['gifts', 'GIFTS & NEWS'], ['cheats', 'CHEATS'], ['guilds', 'GUILDS'], ['errors', 'ERRORS'], ['audit', 'ACTION LOG']];
   $('#app').innerHTML = '<header><h1>DEATHARENA ADMIN</h1><nav>' + tabs.map(([id, l]) => '<button data-t="' + id + '" class="' + (S.tab === id ? 'on' : '') + '">' + l + '</button>').join('') + '</nav><span class="sp"></span><span class="muted" id="cnt">' + (S.users ? S.users.length + ' accounts' : '') + '</span><button id="nt" title="Alert when a new account is created (while this page is open)"></button><button id="rl">RELOAD</button>' + instBtn() + '<button id="lo" class="warn">LOG OUT</button></header><div class="wrap" id="main"></div>';
   document.querySelectorAll('nav button').forEach((b) => { b.onclick = () => { S.tab = b.dataset.t; renderMain(); }; });
   $('#lo').onclick = logout;
@@ -150,7 +151,7 @@ function renderMain() {
   if (NOTIF.on && !NOTIF.pushed) { NOTIF.pushed = true; pushSub(true).catch(() => {}); }
   if (!S.notes) loadNotes().then(() => { if (S.tab === 'players' && $('#ut')) drawUsers(); });
   $('#rl').onclick = async () => { try { S.users = await rpc('adm_users'); S.logs = null; S.allSaves = null; if (S.sel) await loadSel(); toast('Reloaded'); renderMain(); } catch (e) { toast(e.message, true); } };
-  ({ dashboard: viewDashboard, players: viewPlayers, create: viewCreate, stats: viewStats, gifts: viewGifts, cheats: viewCheats, audit: viewAudit }[S.tab])();
+  ({ dashboard: viewDashboard, online: viewOnline, players: viewPlayers, create: viewCreate, stats: viewStats, retention: viewRetention, gifts: viewGifts, cheats: viewCheats, guilds: viewGuilds, errors: viewErrors, audit: viewAudit }[S.tab])();
 }
 
 // ====== Benachrichtigung bei neuen Konten ======
@@ -159,7 +160,13 @@ const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v == n
 const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* egal */ } };
 const NOTIF = { on: lsGet('da.admin.notif', false), timer: null, feed: lsGet('da.admin.feed', []), unseen: 0, every: lsGet('da.admin.every', 30), pushed: false };
 // Einstellbare Meldungsarten (gespeichert im Browser). Nur "account" und "cheat" kommen auch per Push bei geschlossener Seite (Datenbank-Trigger), der Rest nur bei offener Seite.
-const CFG_DEF = { account: true, login: false, loginMode: 'all', returnDays: 7, first: false, join: false, cheat: true, cheatSev: 2, watch: '' };
+const CFG_DEF = { account: true, login: false, loginMode: 'all', returnDays: 7, first: false, join: false, cheat: true, cheatSev: 2, watch: '', errors: true, quiet: false, quietFrom: 23, quietTo: 8, quietCheat: true, digest: 0 };
+NOTIF.pending = { login: [], first: [], join: [] }; NOTIF.flushAt = Date.now();
+function inQuiet() {      // Ruhezeit (Stunden, auch ueber Mitternacht)
+  const C = NOTIF.cfg; if (!C.quiet) return false;
+  const h = new Date().getHours(), a = +C.quietFrom, b = +C.quietTo;
+  return a === b ? false : a < b ? h >= a && h < b : h >= a || h < b;
+}
 NOTIF.cfg = Object.assign({}, CFG_DEF, lsGet('da.admin.cfg', {}));
 const saveCfg = () => lsSet('da.admin.cfg', NOTIF.cfg);
 const snapOf = (users) => { const o = {}; for (const u of users) o[u.user_id] = [u.last_sign_in || '', u.saved_at || '', +u.slots || 0, u.optin ? 1 : 0]; return o; };
@@ -172,10 +179,11 @@ function beep() {
   try { const c = new (window.AudioContext || window.webkitAudioContext)(), o = c.createOscillator(), g = c.createGain(); o.type = 'sine'; o.frequency.value = 880; g.gain.value = 0.08; o.connect(g); g.connect(c.destination); o.start(); o.frequency.setValueAtTime(1175, c.currentTime + 0.12); o.stop(c.currentTime + 0.3); } catch (e) { /* egal */ }
 }
 // Eine Meldung ueberall: Toast, Ton, Tab-Titel, System-Popup (tag ersetzt gleiche Meldungen, auch die per Push eingetroffenen)
-function notify(title, body, tag) {
-  toast(title + ': ' + body); beep();
+function notify(title, body, tag, loud) {
+  const quiet = inQuiet() && !(loud && NOTIF.cfg.quietCheat);      // Ruhezeit: nur in den Verlauf und den Tab-Titel, kein Ton/Popup (Cheat-Meldungen auf Wunsch trotzdem)
+  if (!quiet) { toast(title + ': ' + body); beep(); }
   if (document.hidden || !document.hasFocus()) { NOTIF.unseen++; document.title = '(' + NOTIF.unseen + ') ' + title + ' - DeathArena Admin'; }
-  if ('Notification' in window && Notification.permission === 'granted') {
+  if (!quiet && 'Notification' in window && Notification.permission === 'granted') {
     const opts = { body, icon: 'icons/admin-192.png', badge: 'icons/admin-192.png', tag, data: { url: 'admin.html' } };
     if (navigator.serviceWorker && navigator.serviceWorker.ready) navigator.serviceWorker.ready.then((r) => r.showNotification(title, opts)).catch(() => { try { new Notification(title, opts); } catch (e) { /* egal */ } });
     else { try { new Notification(title, opts); } catch (e) { /* egal */ } }
@@ -211,7 +219,28 @@ function checkNew(users) {
     if ((+u.slots || 0) > 0 && !p[2]) out.first.push(u);
     if (u.optin && !p[3]) out.join.push(u);
   }
-  for (const k of Object.keys(out)) if (C[k] && out[k].length) announce(out[k], false, k);
+  for (const k of Object.keys(out)) {
+    if (!C[k] || !out[k].length) continue;
+    if (+C.digest > 0 && NOTIF.pending[k]) NOTIF.pending[k].push(...out[k]);       // Sammelmeldung statt Einzelmeldungen
+    else announce(out[k], false, k);
+  }
+}
+function flushDigest(force) {
+  const every = +NOTIF.cfg.digest * 60000;
+  if (!force && (!every || Date.now() - NOTIF.flushAt < every)) return;
+  NOTIF.flushAt = Date.now();
+  for (const k of Object.keys(NOTIF.pending)) {
+    const seen = new Set(), list = NOTIF.pending[k].filter((u) => !seen.has(u.user_id) && seen.add(u.user_id)); NOTIF.pending[k] = [];
+    if (list.length) announce(list, false, k);
+  }
+}
+async function checkErrors() {      // neue Spielfehler (braucht tools/supabase_admin2.sql; fehlt es, bleibt es still)
+  let list; try { list = await rpc('adm_errors'); } catch (e) { return; }
+  const key = list.reduce((m, f) => (f.last_at > m ? f.last_at : m), ''), seen = lsGet('da.admin.errAt', null), cnt = lsGet('da.admin.errN', {});
+  const fresh = list.filter((f) => cnt[f.id] == null || f.n > cnt[f.id]);
+  lsSet('da.admin.errAt', key); lsSet('da.admin.errN', Object.fromEntries(list.map((f) => [f.id, f.n])));
+  if (seen == null || !NOTIF.cfg.errors || !fresh.length) return;
+  notify('Game error', fresh.slice(0, 2).map((f) => f.msg.slice(0, 70)).join('; ') + (fresh.length > 2 ? ' +' + (fresh.length - 2) : ''), 'da-error');
 }
 const FLAG_WHAT = { run_time: 'run longer than real time', run_stats: 'impossible run values', run_quota: 'too many offline runs', save_gain_credits: 'credits gained without runs', save_gain_xp: 'XP gained without runs', save_gain_shards: 'shards gained without a source', save_counters: 'counters above the verified total', save_absurd: 'impossible save (rejected)', save_format: 'unreadable save' };
 async function checkFlags() {      // neue Anticheat-Verstoesse ab Schweregrad 2 (braucht tools/supabase_anticheat.sql; fehlt es, bleibt es still)
@@ -221,7 +250,7 @@ async function checkFlags() {      // neue Anticheat-Verstoesse ab Schweregrad 2
   if (seen == null) return;
   if (!NOTIF.cfg.cheat) return;
   const fresh = list.filter((f) => +f.id > seen && f.sev >= NOTIF.cfg.cheatSev && !f.cleared);
-  if (fresh.length) notify('Cheat suspicion', fresh.slice(0, 3).map((f) => f.name + ': ' + (FLAG_WHAT[f.code] || f.code)).join('; ') + (fresh.length > 3 ? ' +' + (fresh.length - 3) : ''), 'da-cheat');
+  if (fresh.length) notify('Cheat suspicion', fresh.slice(0, 3).map((f) => f.name + ': ' + (FLAG_WHAT[f.code] || f.code)).join('; ') + (fresh.length > 3 ? ' +' + (fresh.length - 3) : ''), 'da-cheat', true);
 }
 async function pollNew() {
   if (!NOTIF.on || !KEY) return;
@@ -230,7 +259,7 @@ async function pollNew() {
     const c = $('#cnt'); if (c) c.textContent = us.length + ' accounts';
     if (S.tab === 'dashboard') viewDashboard(); else if (S.tab === 'players' && $('#ut')) drawUsers();
   } catch (e) { /* naechster Versuch */ }
-  checkFlags();
+  flushDigest(); checkFlags(); checkErrors();
 }
 function startPoll() { clearInterval(NOTIF.timer); NOTIF.timer = NOTIF.on ? setInterval(pollNew, NOTIF.every * 1000) : null; }
 function updateNotifBtn() { const b = $('#nt'); if (b) { b.textContent = 'ALERTS: ' + (NOTIF.on ? 'ON' : 'OFF'); b.className = NOTIF.on ? 'on' : ''; } }
@@ -284,13 +313,19 @@ function exportCsv() {
 function notifSettingsHtml() {
   const C = NOTIF.cfg, cb = (k, label, note) => '<label class="row" style="gap:8px"><input type="checkbox" data-cfg="' + k + '"' + (C[k] ? ' checked' : '') + '> ' + label + (note ? ' <span class="muted">' + note + '</span>' : '') + '</label>';
   const sel = (k, opts) => '<select data-cfg="' + k + '">' + opts.map(([v, l]) => '<option value="' + v + '"' + (String(C[k]) === String(v) ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>';
+  const hours = Array.from({ length: 24 }, (_, h) => [h, String(h).padStart(2, '0') + ':00']);
   return '<div style="margin:10px 0"><div class="muted" style="margin-bottom:6px">WHAT TO BE ALERTED ABOUT</div>' +
     cb('account', 'New account created', '(also as push when the app is closed)') +
     cb('cheat', 'Cheat suspicion, from severity ' + sel('cheatSev', [[1, '1 (all)'], [2, '2'], [3, '3 (worst)']]), '(also as push)') +
     cb('login', 'Player logs in ' + sel('loginMode', [['all', 'every login'], ['returning', 'only returning players']]) + (C.loginMode === 'returning' ? ' away for ' + sel('returnDays', [[1, '1 day'], [3, '3 days'], [7, '7 days'], [14, '14 days'], [30, '30 days']]) : ''), '(only while this page is open)') +
     cb('first', 'Player saves for the first time', '(only while this page is open)') +
     cb('join', 'Player joins the leaderboard', '(only while this page is open)') +
-    (C.login || C.first || C.join ? '<label class="muted">Only these players for login / first save / leaderboard (comma separated, empty = everybody): <input type="text" data-cfg="watch" value="' + esc(C.watch) + '" style="width:260px"></label>' : '') + '</div>';
+    cb('errors', 'Game error reported by a player', '(needs tools/supabase_admin2.sql; only while this page is open)') +
+    (C.login || C.first || C.join ? '<label class="muted">Only these players for login / first save / leaderboard (comma separated, empty = everybody): <input type="text" data-cfg="watch" value="' + esc(C.watch) + '" style="width:260px"></label>' : '') +
+    '<div class="muted" style="margin:8px 0 4px">QUIET TIMES AND BUNDLING</div>' +
+    cb('quiet', 'Quiet hours from ' + sel('quietFrom', hours) + ' to ' + sel('quietTo', hours) + ' (no sound or popup, alerts still land in the list)') +
+    (C.quiet ? cb('quietCheat', 'Cheat suspicion still rings during quiet hours') : '') +
+    '<label class="row" style="gap:8px">Bundle logins / first saves / leaderboard joins into one alert ' + sel('digest', [[0, 'never (one alert each)'], [15, 'every 15 min'], [60, 'every hour'], [180, 'every 3 hours']]) + '</label></div>';
 }
 function viewDashboard() {
   const us = S.users || [], now = Date.now(), H = 36e5, D = 24 * H, cnt = (fn) => us.filter(fn).length;
@@ -314,10 +349,15 @@ function viewDashboard() {
     el.onchange = () => {
       const k = el.dataset.cfg, v = el.type === 'checkbox' ? el.checked : el.type === 'text' ? el.value : (isNaN(+el.value) ? el.value : +el.value);
       NOTIF.cfg[k] = v; saveCfg();
-      if (k === 'login' || k === 'loginMode' || k === 'watch') viewDashboard();
+      if (k === 'digest' && !+v) flushDigest(true);
+      if (['login', 'loginMode', 'watch', 'first', 'join', 'quiet'].includes(k)) viewDashboard();
     };
   });
   $('#csv').onclick = exportCsv;
+  rpc('adm_online').then((l) => {      // "Online jetzt" nachtragen (braucht supabase_social.sql + supabase_admin2.sql, sonst bleibt es weg)
+    const n = l.filter((x) => Date.now() - new Date(x.last_seen) < 100000).length, k = document.querySelector('.kpis');
+    if (k && S.tab === 'dashboard') k.insertAdjacentHTML('afterbegin', '<div class="kpi"><b class="ok">' + n + '</b><span>Online now</span></div>');
+  }).catch(() => {});
 }
 
 // ====== Spieler ======
@@ -368,6 +408,7 @@ function drawDetail() {
   const u = user(), el = $('#detail'); if (!el) return; if (!u) { el.innerHTML = ''; return; }
   const gh = S.gifts.length ? '<table><tr><th>WHEN</th><th>SLOT</th><th>CREDITS</th><th>XP</th><th>NOTE</th><th>STATE</th><th></th></tr>' + S.gifts.map((g) => '<tr><td>' + fmtD(g.created_at) + '</td><td>' + (g.slot + 1) + '</td><td>' + (g.credits > 0 ? '+' : '') + g.credits + '</td><td>' + (g.xp > 0 ? '+' : '') + (g.xp || 0) + '</td><td>' + esc(g.note) + '</td><td>' + (g.claimed_at ? '<span class="ok">collected ' + fmtD(g.claimed_at) + '</span>' : '<span class="yel">waiting</span>') + '</td><td>' + (g.claimed_at ? '' : '<button data-a="cancelgift" data-id="' + g.id + '" class="warn">CANCEL</button>') + '</td></tr>').join('') + '</table>' : '<span class="muted">No gifts yet.</span>';
   el.innerHTML = '<h2>' + esc(u.name) + ' <span class="muted" style="font-size:12px">' + u.user_id + '</span></h2>' +
+    '<div class="card" id="hist"><h3>ACTIVITY AND HISTORY</h3><span class="muted">Loading...</span></div>' +
     '<div class="grid">' + [0, 1, 2].map(slotCard).join('') + '</div>' +
     '<div class="card"><h3>ACCOUNT</h3><div class="row"><input type="text" id="npw" placeholder="new password (6+)" style="width:200px"><button id="rnd">RANDOM</button><button id="setpw" class="warn">SET PASSWORD</button></div>' +
     '<div class="row"><textarea id="note" rows="2" maxlength="500" placeholder="Private note about this player (only you see it)" style="flex:1;min-width:220px;font:13px/1.4 inherit">' + esc((S.notes || {})[u.user_id] || '') + '</textarea><button id="sn" class="on">SAVE NOTE</button></div>' +
@@ -387,6 +428,23 @@ function drawDetail() {
     lab.textContent = add ? 'level ' + levelOf(cur) + ' → ' + levelOf(to) + ' (' + fmtN(to) + ' XP)' : 'level ' + levelOf(cur) + ' now';
   }; });
   el.querySelectorAll('[data-a]').forEach((b) => { b.onclick = () => detailAction(b.dataset.a, b.dataset.s === '' || b.dataset.s === undefined ? null : +b.dataset.s, b); });
+  loadHistory(u);
+}
+// Verlauf eines Spielers: Anwesenheit, Gilde, Freunde, letzte Laeufe und Cheat-Verstoesse (alles aus bestehenden Funktionen)
+async function loadHistory(u) {
+  const [ex, logs, flags] = await Promise.all([rpc('adm_player_extra', { p_user: u.user_id }).catch(() => null), rpc('adm_logs', { p_user: u.user_id, p_limit: 1000, p_offset: 0 }).catch(() => []), rpc('adm_flags', { p_limit: 300 }).then((l) => l.filter((f) => f.name === u.name)).catch(() => [])]);
+  const el = $('#hist'); if (!el || S.sel !== u.user_id) return;
+  const runs = logs.filter((r) => r.kind === 'death' && !(r.data && r.data.dv)).map((r) => Object.assign({ _at: r.created_at, _sl: r.slot }, r.data)), real = runs.filter((r) => r.by !== 'GAVE UP');
+  const times = real.map((r) => r.t).sort((a, b) => a - b), killers = {}; for (const r of real) if (!r.win) killers[r.by] = (killers[r.by] || 0) + 1;
+  const top = Object.keys(killers).sort((a, b) => killers[b] - killers[a]).slice(0, 3).map((k) => k + ' x' + killers[k]).join(', ');
+  const on = ex && ex.last_seen && Date.now() - new Date(ex.last_seen) < 100000;
+  const facts = [['Status', ex && ex.last_seen ? (on ? '<span class="ok">ONLINE</span> ' + (ACT_TEXT[ex.activity] || '') : 'last ping ' + ago(ex.last_seen)) : '<span class="muted">no ping yet (or social SQL missing)</span>'],
+    ['Last login', fmtD(u.last_sign_in)], ['Guild', ex && ex.guild ? esc(ex.guild.name) + ' [' + esc(ex.guild.tag) + ']' + (ex.guild.leader ? ' (leader)' : '') + ', ' + fmtN(ex.guild.points) + ' points this week' : '-'],
+    ['Friends', ex ? ex.friends + (ex.requests ? ' (+' + ex.requests + ' open requests)' : '') : '-'], ['Logged runs', real.length + ' (' + real.filter((r) => r.win).length + ' wins)'],
+    ['Median / best time', real.length ? fmtT(quant(times, .5)) + ' / ' + fmtT(times[times.length - 1]) : '-'], ['Killed most by', top || '-'], ['Cheat flags', flags.length ? flags.length + ' (' + flags.filter((f) => !f.cleared).length + ' open' + (flags.some((f) => f.suspect) ? ', <span class="err">SUSPECTED</span>' : '') + ')' : 'none']];
+  el.innerHTML = '<h3>ACTIVITY AND HISTORY</h3><div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr))"><table>' + facts.map(([a, b]) => '<tr><td class="muted">' + a + '</td><td>' + b + '</td></tr>').join('') + '</table>' +
+    '<div style="overflow:auto"><table><tr><th>WHEN</th><th>TIME</th><th>BOSSES</th><th>RESULT</th></tr>' + (runs.length ? runs.slice(-10).reverse().map((r) => '<tr><td>' + fmtD(r._at) + '</td><td>' + fmtT(r.t) + '</td><td>' + (r.b || 0) + '</td><td>' + (r.win ? '<span class="ok">WIN</span>' : esc(r.by)) + '</td></tr>').join('') : '<tr><td colspan="4" class="muted">No uploaded runs.</td></tr>') + '</table></div></div>' +
+    (flags.length ? '<table style="margin-top:8px"><tr><th>FLAG</th><th>WHEN</th><th>SEV</th><th>STATE</th></tr>' + flags.slice(0, 6).map((f) => '<tr><td>' + esc(FLAG_WHAT[f.code] || f.code) + '</td><td>' + fmtD(f.at) + '</td><td>' + f.sev + '</td><td>' + (f.cleared ? 'reviewed' : 'open') + '</td></tr>').join('') + '</table>' : '');
 }
 async function reloadUsers() { S.users = await rpc('adm_users'); renderMain(); if (S.sel && S.tab === 'players') { await loadSel(); drawDetail(); } }
 function detailAction(a, i, btn) {
@@ -572,6 +630,34 @@ function chart(a) {
   w.forEach((x, i) => { if (i % Math.ceil(w.length / 10) === 0) svg += '<text x="' + (pad + i * bw) + '" y="' + (H - 8) + '" fill="#7f8fb0" font-size="12">' + fmtT(x.lo) + '</text>'; });
   return svg + '</svg><div class="muted">Bars = deaths per ' + WINDOW + ' s window, red line = chance to die in that window (of the runs that reached it).</div>';
 }
+// Balance-Uebersicht ueber ALLE Karten und alle Spieler (die Kartenwahl oben gilt hier nicht): Vergleich der Karten, schwerste/leichteste Bosse, Vorschlaege mit Verweis auf js/config.js
+function balanceHtml() {
+  const f = S.stat, rows = (S.logs || []).filter((r) => (f.slot === '' || r.slot === +f.slot) && (f.dev || !(r.data && r.data.dv)));
+  const deaths = rows.filter((r) => r.kind === 'death').map((r) => Object.assign({ _u: r.name }, r.data)), bosses = rows.filter((r) => r.kind === 'boss').map((r) => Object.assign({ _u: r.name }, r.data));
+  if (!deaths.length) return '<div class="card muted">No run data yet.</div>';
+  const keys = Object.keys(MAP_NAMES).concat(['inf']), label = (k) => (k === 'inf' ? 'ENDLESS' : MAP_NAMES[k]), tips = [];
+  const per = keys.map((k) => {
+    const d = deaths.filter((e) => (k === 'inf' ? e.inf : !e.inf && e.map === k)), a = analyze(d); if (a.n < 3) return { k, a, n: a.n };
+    const kb = a.killList[0], worst = a.windows.filter((w) => w.risk >= 5).sort((x, y) => y.hazard - x.hazard)[0];
+    if (kb && a.n - a.wins >= 8 && kb.n / (a.n - a.wins) > 0.3) tips.push('<b>' + esc(kb.name) + '</b> causes ' + pct(kb.n / (a.n - a.wins)) + ' of the deaths on ' + label(k) + ' (' + kb.n + '). If that feels unfair, tune that enemy in <code>CFG.enemy</code> / <code>CFG.patterns</code> (config.js [7]).');
+    if (worst && worst.hazard > 0.35) tips.push('On ' + label(k) + ' the window <b>' + fmtT(worst.lo) + ' - ' + fmtT(worst.lo + WINDOW) + '</b> kills ' + pct(worst.hazard) + ' of the runs that reach it: spawn times / events there (<code>CFG.waves</code>, <code>CFG.events</code>' + (k === 'inf' ? '' : ', <code>CFG.maps[].diff</code>') + ').');
+    return { k, a, n: a.n, kb, worst };
+  });
+  const ok = per.filter((x) => x.n >= 3 && x.k !== 'inf');
+  for (let i = 1; i < ok.length; i++) if (ok[i].a.median >= ok[i - 1].a.median * 1.1) tips.push(label(ok[i].k) + ' (median ' + fmtT(ok[i].a.median) + ') is not harder than ' + label(ok[i - 1].k) + ' (' + fmtT(ok[i - 1].a.median) + '): raise <code>CFG.maps[].diff</code> if the maps should get harder in this order.');
+  const bs = analyzeBosses(bosses);
+  for (const b of bs) {
+    if (b.n >= 5 && b.win / b.n < 0.35) tips.push('<b>' + esc(BOSS_NAMES[b.ty] || b.ty) + '</b> is very hard: only ' + pct(b.win / b.n) + ' won over ' + b.n + ' fights. Soften <code>CFG.boss.' + esc(b.ty) + '</code> (hp / fire / speed) or <code>CFG.maps[].diff.boss</code>.');
+    else if (b.n >= 8 && b.win / b.n > 0.92) tips.push('<b>' + esc(BOSS_NAMES[b.ty] || b.ty) + '</b> is almost never lost (' + pct(b.win / b.n) + ' over ' + b.n + ' fights). Raise <code>CFG.boss.' + esc(b.ty) + '</code> if it should be a real obstacle.');
+    if (b.n >= 5 && b.timeout / b.n > 0.25) tips.push('<b>' + esc(BOSS_NAMES[b.ty] || b.ty) + '</b> ends by timeout in ' + pct(b.timeout / b.n) + ' of the fights: damage race too slow or <code>CFG.boss.timeout</code> too short.');
+  }
+  return '<div class="muted" style="margin-bottom:8px">All maps and all players that uploaded runs (' + deaths.length + ' runs, ' + bosses.length + ' boss fights). The map filter above does not apply here.</div>' +
+    '<div class="card" style="overflow:auto"><h3>MAPS COMPARED</h3><table><tr><th>MAP</th><th>RUNS</th><th>WINS</th><th>MEDIAN</th><th>75%</th><th>AVG LEVEL</th><th>TOP KILLER</th><th>RISKIEST WINDOW</th></tr>' +
+    per.map((x) => x.n < 3 ? '<tr><td>' + label(x.k) + '</td><td colspan="7" class="muted">' + x.n + ' runs, too few</td></tr>' : '<tr><td><b>' + label(x.k) + '</b></td><td>' + x.n + '</td><td>' + x.a.wins + ' (' + pct(x.a.wins / x.n) + ')</td><td>' + fmtT(x.a.median) + '</td><td>' + fmtT(x.a.p75) + '</td><td>' + (x.a.lvAvg ? x.a.lvAvg.toFixed(1) : '-') + '</td><td>' + (x.kb ? esc(x.kb.name) + ' (' + pct(x.kb.n / Math.max(1, x.n - x.a.wins)) + ')' : '-') + '</td><td>' + (x.worst ? fmtT(x.worst.lo) + ' (' + pct(x.worst.hazard) + ')' : '-') + '</td></tr>').join('') + '</table></div>' +
+    '<div class="card" style="overflow:auto"><h3>BOSSES, ALL MAPS</h3><table><tr><th>BOSS</th><th>FIGHTS</th><th>WIN RATE</th><th>TIMEOUT</th><th>AVG DURATION</th><th>AVG DAMAGE TAKEN</th></tr>' +
+    bs.map((b) => '<tr><td><b>' + esc(BOSS_NAMES[b.ty] || b.ty) + '</b></td><td>' + b.n + '</td><td>' + pct(b.win / b.n) + '</td><td>' + pct(b.timeout / b.n) + '</td><td>' + b.dur.toFixed(1) + ' s</td><td>' + Math.round(b.dm) + '</td></tr>').join('') + '</table></div>' +
+    '<h2>Suggestions</h2><div class="card">' + (tips.length ? '<ul>' + tips.map((t) => '<li>' + t + '</li>').join('') + '</ul>' : '<span class="muted">Nothing stands out yet (it needs about 8+ runs or 5+ fights per case).</span>') + '<div class="muted">Hints from correlation, not proof: better players also pick other gear and maps. Values live in <code>js/config.js</code>; Cores/XP sections are not covered here.</div></div>';
+}
 function viewStats() {
   const m = $('#main'), f = S.stat;
   const ul = (S.users || []).slice().sort((a, b) => a.name.localeCompare(b.name));
@@ -579,7 +665,7 @@ function viewStats() {
     '<label>Slot <select id="ss"><option value="">ALL</option>' + [0, 1, 2].map((i) => '<option value="' + i + '"' + (f.slot === String(i) ? ' selected' : '') + '>SLOT ' + (i + 1) + '</option>').join('') + '</select></label>' +
     '<label>Map <select id="sm"><option value="all">ALL MAPS (regular)</option>' + Object.keys(MAP_NAMES).map((k) => '<option value="' + k + '"' + (f.map === k ? ' selected' : '') + '>' + MAP_NAMES[k] + '</option>').join('') + '<option value="inf"' + (f.map === 'inf' ? ' selected' : '') + '>ENDLESS</option></select></label>' +
     '<label><input type="checkbox" id="sd" style="min-width:0"' + (f.dev ? ' checked' : '') + '> include dev/cheat runs</label></div>' +
-    '<div class="row">' + [['saves', 'SAVE FILES'], ['overview', 'RUNS'], ['killers', 'KILLERS'], ['bosses', 'BOSSES'], ['builds', 'BUILDS'], ['players', 'PLAYERS'], ['recent', 'RECENT']].map(([id, l]) => '<button data-s="' + id + '" class="' + (f.sub === id ? 'on' : '') + '">' + l + '</button>').join('') + '</div></div><div id="sbody"><span class="muted">Loading...</span></div>';
+    '<div class="row">' + [['saves', 'SAVE FILES'], ['overview', 'RUNS'], ['killers', 'KILLERS'], ['bosses', 'BOSSES'], ['builds', 'BUILDS'], ['balance', 'BALANCE'], ['players', 'PLAYERS'], ['recent', 'RECENT']].map(([id, l]) => '<button data-s="' + id + '" class="' + (f.sub === id ? 'on' : '') + '">' + l + '</button>').join('') + '</div></div><div id="sbody"><span class="muted">Loading...</span></div>';
   $('#su').onchange = (e) => { f.user = e.target.value; viewStats(); }; $('#ss').onchange = (e) => { f.slot = e.target.value; drawStats(); }; $('#sm').onchange = (e) => { f.map = e.target.value; drawStats(); }; $('#sd').onchange = (e) => { f.dev = e.target.checked; drawStats(); };
   m.querySelectorAll('button[data-s]').forEach((b) => { b.onclick = () => { f.sub = b.dataset.s; viewStats(); }; });
   (f.sub === 'saves' ? ensureSaves() : ensureLogs(f.user)).then(drawStats, (e) => { const el = $('#sbody'); if (el) el.innerHTML = '<span class="err">' + esc(e.message) + '</span>'; });
@@ -588,6 +674,7 @@ function drawStats() {
   const f = S.stat, el = $('#sbody'); if (!el) return;
   if (f.sub === 'saves') { if (S.allSaves) drawSaves(el); return; }
   if (!S.logs) return;
+  if (f.sub === 'balance') { el.innerHTML = balanceHtml(); return; }
   const { deaths, bosses } = statSets(), a = analyze(deaths);
   let h = '<div class="muted" style="margin-bottom:8px">' + fmtN(S.logs.length) + ' log entries loaded, ' + a.n + ' runs and ' + bosses.length + ' boss fights match the filter. Only runs of logged-in players are uploaded.</div>';
   if (!deaths.length && !bosses.length) h += '<div class="card muted">No data for this filter yet. Players upload their runs when they are in the main menu while logged in (needs the updated game).</div>';
@@ -624,11 +711,23 @@ function drawStats() {
 async function viewGifts() {
   const m = $('#main'); m.innerHTML = '<span class="muted">Loading...</span>';
   let list; try { list = await rpc('adm_gifts', { p_user: null }); } catch (e) { m.innerHTML = '<span class="err">' + esc(e.message) + '</span>'; return; }
+  let news = null; try { news = await rpc('adm_announce_list'); } catch (e) { /* supabase_admin2.sql noch nicht ausgefuehrt */ }
+  const live = (a) => new Date(a.expires_at) > new Date();
+  const newsHtml = '<div class="card"><h3>ANNOUNCEMENT TO ALL PLAYERS</h3>' + (news === null ? '<span class="muted">Needs tools/supabase_admin2.sql.</span>' :
+    '<div class="muted" style="margin-bottom:6px">Shows once as a window in the game\'s main menu (also for players who are not logged in). Plain text only.</div>' +
+    '<div class="row"><input type="text" id="at" maxlength="40" placeholder="Title (max 40)" style="width:260px"><select id="ah">' + [[24, '1 day'], [72, '3 days'], [168, '1 week'], [720, '30 days']].map(([v, l]) => '<option value="' + v + '">' + l + '</option>').join('') + '</select><button id="ap" class="on">PUBLISH</button></div>' +
+    '<div class="row"><textarea id="ab" rows="3" maxlength="400" placeholder="Message (max 400 characters)" style="font:13px/1.4 inherit"></textarea></div>' +
+    (news.length ? '<table><tr><th>PUBLISHED</th><th>TITLE</th><th>TEXT</th><th>UNTIL</th><th></th></tr>' + news.slice(0, 8).map((a) => '<tr><td>' + fmtD(a.created_at) + '</td><td><b>' + esc(a.title) + '</b></td><td class="muted">' + esc(a.body.slice(0, 90)) + '</td><td>' + (live(a) ? '<span class="ok">' + fmtD(a.expires_at) + '</span>' : '<span class="muted">ended</span>') + '</td><td>' + (live(a) ? '<button data-ae="' + a.id + '" class="warn">END NOW</button>' : '') + '</td></tr>').join('') + '</table>' : '')) + '</div>';
   const AUD = [['all', 'All accounts with a save'], ['active7', 'Active in the last 7 days'], ['active30', 'Active in the last 30 days'], ['leaderboard', 'Leaderboard members']];
-  m.innerHTML = '<div class="card"><h3>GIFT TO MANY PLAYERS</h3><div class="row"><label>Who <select id="ma">' + AUD.map(([v, l]) => '<option value="' + v + '">' + l + '</option>').join('') + '</select></label><label>Credits <input type="number" id="mc" min="0" value="100" style="width:100px"></label><label>XP <input type="number" id="mx" min="0" value="0" style="width:100px"></label><label>Note <input type="text" id="mn" maxlength="80" placeholder="e.g. Welcome back" style="width:200px"></label><button id="mg" class="on">GIVE TO ALL</button></div><div class="muted" id="mcnt">Goes to each player\'s most recently saved slot and is collected in the main menu. Positive amounts only.</div></div>' +
+  m.innerHTML = newsHtml + '<div class="card"><h3>GIFT TO MANY PLAYERS</h3><div class="row"><label>Who <select id="ma">' + AUD.map(([v, l]) => '<option value="' + v + '">' + l + '</option>').join('') + '</select></label><label>Credits <input type="number" id="mc" min="0" value="100" style="width:100px"></label><label>XP <input type="number" id="mx" min="0" value="0" style="width:100px"></label><label>Note <input type="text" id="mn" maxlength="80" placeholder="e.g. Welcome back" style="width:200px"></label><button id="mg" class="on">GIVE TO ALL</button></div><div class="muted" id="mcnt">Goes to each player\'s most recently saved slot and is collected in the main menu. Positive amounts only.</div></div>' +
     '<div class="card" style="overflow:auto"><table><tr><th>WHEN</th><th>PLAYER</th><th>SLOT</th><th>CREDITS</th><th>XP</th><th>NOTE</th><th>STATE</th></tr>' + list.map((g) => '<tr><td>' + fmtD(g.created_at) + '</td><td>' + esc(g.name) + '</td><td>' + (g.slot + 1) + '</td><td>' + (g.credits > 0 ? '+' : '') + g.credits + '</td><td>' + (g.xp > 0 ? '+' : '') + (g.xp || 0) + '</td><td>' + esc(g.note) + '</td><td>' + (g.claimed_at ? '<span class="ok">collected ' + fmtD(g.claimed_at) + '</span>' : '<span class="yel">waiting</span>') + '</td></tr>').join('') + (list.length ? '' : '<tr><td colspan="6" class="muted">No gifts yet. Give credits from a player\'s slot card.</td></tr>') + '</table></div>';
   const preview = async () => { try { const n = await rpc('adm_audience_count', { p_audience: $('#ma').value }); $('#mcnt').textContent = n + ' accounts would receive this gift.'; return n; } catch (e) { $('#mcnt').textContent = e.message.replace('supabase_admin.sql', 'supabase_admin_extras.sql'); return null; } };
   $('#ma').onchange = preview; preview();
+  const ap = $('#ap'); if (ap) ap.onclick = () => {
+    const t = $('#at').value.trim(), b = $('#ab').value.trim(); if (!t || !b) return toast('Title and text are needed', true);
+    if (confirm('Publish this announcement to all players?\n\n' + t + '\n' + b)) act('Announcement published', 'adm_announce_add', { p_title: t, p_body: b, p_hours: +$('#ah').value }, viewGifts);
+  };
+  m.querySelectorAll('[data-ae]').forEach((b) => { b.onclick = () => act('Announcement ended', 'adm_announce_end', { p_id: +b.dataset.ae }, viewGifts); });
   $('#mg').onclick = async () => {
     const c = parseInt($('#mc').value, 10) || 0, x = parseInt($('#mx').value, 10) || 0; if (c < 0 || x < 0 || (!c && !x)) return toast('Enter a positive amount', true);
     const n = await preview(); if (n == null) return;
@@ -646,12 +745,36 @@ async function viewCheats() {
   const open = [...new Set(list.filter((f) => !f.cleared).map((f) => f.name))].filter((n) => !sus.includes(n));
   const WHAT = { run_time: 'run longer than real time', run_stats: 'impossible run values', run_quota: 'too many offline runs', save_gain_credits: 'credits gained without runs', save_gain_xp: 'XP gained without runs', save_gain_shards: 'shards gained without a source', save_counters: 'counters above the verified total', save_absurd: 'impossible save (rejected)', save_format: 'unreadable save' };
   const chip = (n, cls) => '<span class="tag ' + cls + '">' + esc(n) + '</span> <button class="small" data-clear="' + esc(n) + '">CLEAR</button> <button class="small" data-trust="' + esc(n) + '">TRUST</button>';
-  m.innerHTML = '<div class="card"><b>' + (sus.length ? 'SUSPECTED (not on leaderboards): ' + sus.map((n) => chip(n, 'err')).join(' ') : 'Nobody is suspected right now.') + '</b>' +
+  const grp = {}; for (const f of list) if (!f.cleared) (grp[f.name] = grp[f.name] || []).push(f);
+  const queue = Object.keys(grp).sort((a, b) => (sus.includes(b) - sus.includes(a)) || Math.max(...grp[b].map((f) => f.sev)) - Math.max(...grp[a].map((f) => f.sev)) || grp[b].length - grp[a].length);
+  const reasons = (fl) => { const c = {}; for (const f of fl) c[f.code] = (c[f.code] || 0) + 1; return Object.keys(c).map((k) => esc(WHAT[k] || k) + (c[k] > 1 ? ' x' + c[k] : '')).join('; '); };
+  const queueHtml = '<div class="card"><h3>REVIEW QUEUE (' + queue.length + ')</h3>' + (queue.length ? '<div style="overflow:auto"><table><tr><th>PLAYER</th><th>FLAGS</th><th>MAX SEV</th><th>WHY</th><th>LAST</th><th>DECISION</th></tr>' + queue.map((n) => {
+    const fl = grp[n], e = esc(n);
+    return '<tr><td>' + nameLink(n) + (sus.includes(n) ? ' <span class="tag err">SUSPECTED</span>' : '') + '</td><td>' + fl.length + '</td><td>' + Math.max(...fl.map((f) => f.sev)) + '</td><td>' + reasons(fl) + '</td><td>' + fmtD(fl[0].at) + '</td><td style="white-space:nowrap"><button data-rv="ok" data-n="' + e + '">LOOKS FINE</button> <button data-rv="trust" data-n="' + e + '">TRUST</button> <button data-rv="take" data-n="' + e + '" class="warn">TAKE CREDITS</button> <button data-rv="lb" data-n="' + e + '" class="warn">LB BAN</button> <button data-rv="block" data-n="' + e + '" class="bad">CHEATER: BLOCK</button></td></tr>';
+  }).join('') + '</table></div><div class="muted" style="margin-top:6px">Every decision lands in the ACTION LOG. LOOKS FINE clears the current flags (new ones count again); TAKE CREDITS queues a negative gift for one slot.</div>' : '<span class="muted">No open flags. Nothing to decide.</span>') + '</div>';
+  m.innerHTML = queueHtml + '<div class="card"><b>' + (sus.length ? 'SUSPECTED (not on leaderboards): ' + sus.map((n) => chip(n, 'err')).join(' ') : 'Nobody is suspected right now.') + '</b>' +
     (open.length ? '<div style="margin-top:8px">OPEN FLAGS (not suspected yet): ' + open.map((n) => chip(n, '')).join(' ') + '</div>' : '') +
     '<div class="row" style="margin-top:8px"><input type="text" id="acname" placeholder="Account name" style="width:180px"><button id="acclear" class="on">CLEAR FLAGS</button><button id="actrust" class="on">TRUST</button><button id="acuntrust">UNTRUST</button></div>' +
     '<div style="margin-top:8px">TRUSTED (never suspected, flags still logged): ' + (trusted.length ? trusted.map((n) => '<span class="tag ok">' + esc(n) + '</span> <button class="small" data-untrust="' + esc(n) + '">UNTRUST</button>').join(' ') : '<span class="muted">nobody</span>') + '</div>' +
     '<div class="muted" style="margin-top:6px">Severity 1-3, 3 points within 30 days = suspected (removed from leaderboards, no guild rewards). CLEAR marks all current flags of a player as reviewed; new flags count again. TRUST exempts the account from suspicion for good (needs tools/supabase_ac_trust.sql). The leaderboard updates at the next save of that account. An honest player can be flagged after playing offline or with an old app version.</div></div>' +
     '<div class="card" style="overflow:auto"><table><tr><th>WHEN</th><th>PLAYER</th><th>SLOT</th><th>WHAT</th><th>SEV</th><th>DETAIL</th><th>STATE</th></tr>' + (list.length ? list.map((f) => '<tr><td>' + fmtD(f.at) + '</td><td><b>' + esc(f.name) + '</b></td><td>' + (f.slot == null ? '-' : f.slot + 1) + '</td><td>' + esc(WHAT[f.code] || f.code) + '</td><td>' + f.sev + '</td><td class="muted">' + esc(JSON.stringify(f.detail)) + '</td><td>' + (f.cleared ? 'reviewed' : f.suspect ? '<span class="err">suspected</span>' : 'open') + '</td></tr>').join('') : '<tr><td colspan="7" class="muted">No flags yet.</td></tr>') + '</table></div>';
+  m.querySelectorAll('[data-rv]').forEach((b) => {
+    b.onclick = async () => {
+      const n = b.dataset.n, u = (S.users || []).find((x) => x.name === n), v = b.dataset.rv, done = (t, verdict, detail) => rpc('adm_log', { p_user: u ? u.user_id : null, p_action: 'review ' + verdict, p_detail: n + ' ' + (detail || '') }).catch(() => {}).then(() => { toast(t); return viewCheats(); });
+      try {
+        if (v === 'ok') { await rpc('adm_ac_clear', { p_user_name: n }); await done(n + ': flags cleared', 'ok'); }
+        else if (v === 'trust') { await rpc('adm_ac_trust', { p_user_name: n, p_on: true }); await done(n + ' trusted', 'trust'); }
+        else if (!u) toast('Account not found (reload first)', true);
+        else if (v === 'lb') { await rpc('adm_ban', { p_user: u.user_id, p_on: true }); await done(n + ' banned from leaderboards', 'lb ban'); }
+        else if (v === 'block') { if (!confirm('Block ' + n + ' completely (no login, removed from all leaderboards)?')) return; await rpc('adm_block', { p_user: u.user_id, p_on: true, p_reason: 'cheating' }); await done(n + ' blocked', 'block', 'cheating'); }
+        else if (v === 'take') {
+          const slot = parseInt(prompt('Take credits from which slot (1-3)?', '1'), 10), amt = parseInt(prompt('How many credits to take away?', '1000'), 10);
+          if (!(slot >= 1 && slot <= 3) || !(amt > 0)) return;
+          await rpc('adm_gift', { p_user: u.user_id, p_slot: slot - 1, p_credits: -amt, p_note: 'admin' }); await done(amt + ' credits queued to be taken from ' + n, 'take credits', '-' + amt + ' slot ' + slot);
+        }
+      } catch (e) { toast(e.message, true); }
+    };
+  });
   m.querySelectorAll('[data-clear]').forEach((b) => { b.onclick = () => act('Flags cleared', 'adm_ac_clear', { p_user_name: b.dataset.clear }, viewCheats); });
   m.querySelectorAll('[data-trust]').forEach((b) => { b.onclick = () => act('Account trusted', 'adm_ac_trust', { p_user_name: b.dataset.trust, p_on: true }, viewCheats); });
   m.querySelectorAll('[data-untrust]').forEach((b) => { b.onclick = () => act('Trust removed', 'adm_ac_trust', { p_user_name: b.dataset.untrust, p_on: false }, viewCheats); });
@@ -664,6 +787,81 @@ async function viewAudit() {
   const m = $('#main'); m.innerHTML = '<span class="muted">Loading...</span>';
   let list; try { list = await rpc('adm_audit'); } catch (e) { m.innerHTML = '<span class="err">' + esc(e.message) + '</span>'; return; }
   m.innerHTML = '<div class="card" style="overflow:auto"><table><tr><th>WHEN</th><th>ACTION</th><th>PLAYER</th><th>DETAIL</th></tr>' + list.map((r) => '<tr><td>' + fmtD(r.at) + '</td><td>' + esc(r.action) + '</td><td>' + esc(r.name) + '</td><td>' + esc(r.detail) + '</td></tr>').join('') + (list.length ? '' : '<tr><td colspan="4" class="muted">Nothing yet.</td></tr>') + '</table></div>';
+}
+
+// ====== Online jetzt (Anwesenheit aus soc_ping, alle 40 s vom Spiel gemeldet; online = vor weniger als 100 s) ======
+const ago = (d) => { const s = Math.max(0, Math.round((Date.now() - new Date(d)) / 1000)); return s < 90 ? s + ' s ago' : s < 5400 ? Math.round(s / 60) + ' min ago' : s < 129600 ? Math.round(s / 3600) + ' h ago' : Math.round(s / 86400) + ' d ago'; };
+const ACT_TEXT = { run: 'IN A RUN', lobby: 'IN A LOBBY', menu: 'IN THE MENU' };
+async function viewOnline() {
+  const m = $('#main'); m.innerHTML = '<span class="muted">Loading...</span>';
+  const draw = async () => {
+    let list; try { list = await rpc('adm_online'); } catch (e) { if (S.tab === 'online') m.innerHTML = '<span class="err">' + esc(e.message) + '</span><div class="muted">Needs tools/supabase_social.sql and tools/supabase_admin2.sql.</div>'; return; }
+    if (S.tab !== 'online') return;
+    const now = Date.now(), on = list.filter((x) => now - new Date(x.last_seen) < 100000), rest = list.filter((x) => !on.includes(x)), c = (a) => on.filter((x) => x.activity === a).length;
+    m.innerHTML = '<div class="kpis">' + [['Online now', on.length], ['In a run', c('run')], ['In a lobby', c('lobby')], ['In the menu', c('menu')], ['Seen in 24 h', list.length]].map(([l, v]) => '<div class="kpi"><b>' + v + '</b><span>' + l + '</span></div>').join('') + '</div>' +
+      '<div class="card"><h3>ONLINE NOW</h3><table><tr><th>PLAYER</th><th>DOING</th><th>LAST PING</th></tr>' + (on.length ? on.map((x) => '<tr><td>' + nameLink(x.name) + '</td><td>' + (ACT_TEXT[x.activity] || esc(x.activity)) + '</td><td>' + ago(x.last_seen) + '</td></tr>').join('') : '<tr><td colspan="3" class="muted">Nobody right now.</td></tr>') + '</table></div>' +
+      '<div class="card"><h3>SEEN IN THE LAST 24 HOURS</h3><table><tr><th>PLAYER</th><th>LAST SEEN</th></tr>' + (rest.length ? rest.slice(0, 60).map((x) => '<tr><td>' + nameLink(x.name) + '</td><td>' + ago(x.last_seen) + '</td></tr>').join('') : '<tr><td colspan="2" class="muted">-</td></tr>') + '</table></div>' +
+      '<div class="muted">Refreshes every 20 s. Only logged-in players in the game version with friends and guilds are listed.</div>';
+  };
+  await draw(); if (S.tab === 'online') S.liveTimer = setInterval(draw, 20000);
+}
+
+// ====== Bindung / Retention ======
+// "Rolling" = die letzte bekannte Aktivitaet (Anmeldung, Speichern, Lauf-Protokoll) liegt mindestens N Tage nach der Anmeldung.
+// "Genau Tag N" = an genau diesem Tag nach der Anmeldung wurde ein Lauf protokolliert (nur Spieler mit hochgeladenen Laeufen).
+async function viewRetention() {
+  const m = $('#main'); m.innerHTML = '<span class="muted">Loading...</span>';
+  let rows; try { rows = await rpc('adm_retention'); } catch (e) { m.innerHTML = '<span class="err">' + esc(e.message) + '</span><div class="muted">Needs tools/supabase_admin2.sql.</div>'; return; }
+  const D = 864e5, now = Date.now(), age = (r) => (now - new Date(r.created_at)) / D, back = (r) => (new Date(r.last_active || r.created_at) - new Date(r.created_at)) / D;
+  const Ns = [1, 2, 3, 7, 14, 30], p = (a, b) => (b ? pct(a / b) : '-');
+  const real = rows.filter((r) => r.days && r.days.length || back(r) > 0.01);        // Konten, die ueberhaupt etwas getan haben
+  const tab = Ns.map((n) => { const el = rows.filter((r) => age(r) >= n), roll = el.filter((r) => back(r) >= n).length, el2 = rows.filter((r) => age(r) >= n + 1), ex = el2.filter((r) => (r.days || []).includes(n)).length; return { n, el: el.length, roll, el2: el2.length, ex }; });
+  const wk = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return dayKey(x); };
+  const co = {}; for (const r of rows) (co[wk(r.created_at)] = co[wk(r.created_at)] || []).push(r);
+  const cohorts = Object.keys(co).sort().reverse().slice(0, 12).map((k) => { const a = co[k], cell = (n) => { const el = a.filter((r) => age(r) >= n); return el.length ? p(el.filter((r) => back(r) >= n).length, el.length) : '-'; }; return '<tr><td>' + k + '</td><td>' + a.length + '</td><td>' + cell(1) + '</td><td>' + cell(7) + '</td><td>' + cell(30) + '</td></tr>'; }).join('');
+  const drift = rows.filter((r) => back(r) > 0.01 && now - new Date(r.last_active) > 7 * D && now - new Date(r.last_active) < 30 * D);
+  const nm = (id) => { const u = (S.users || []).find((x) => x.user_id === id); return u ? u.name : '?'; };
+  const dead = rows.filter((r) => back(r) <= 0.01 && age(r) >= 1).length;
+  const d7 = tab.find((x) => x.n === 7);
+  m.innerHTML = '<div class="kpis">' + [['Accounts', rows.length], ['Ever active', real.length], ['Never came back', dead], ['Day 1 back', p(tab[0].roll, tab[0].el)], ['Day 7 back', p(d7.roll, d7.el)], ['Day 30 back', p(tab[5].roll, tab[5].el)], ['Drifting away', drift.length]].map(([l, v]) => '<div class="kpi"><b>' + v + '</b><span>' + l + '</span></div>').join('') + '</div>' +
+    '<div class="card" style="overflow:auto"><h3>RETENTION BY DAY</h3><table><tr><th>DAY</th><th>ACCOUNTS OLD ENOUGH</th><th>STILL ACTIVE AFTER (ROLLING)</th><th>PLAYED ON EXACTLY THAT DAY</th></tr>' +
+    tab.map((x) => '<tr><td>Day ' + x.n + '</td><td>' + x.el + '</td><td>' + x.roll + ' (' + p(x.roll, x.el) + ')</td><td>' + x.ex + ' of ' + x.el2 + ' (' + p(x.ex, x.el2) + ')</td></tr>').join('') + '</table>' +
+    '<div class="muted" style="margin-top:6px">Rolling: the last known activity (login, save, uploaded run) is at least N days after sign-up. Exact day: an uploaded run exists on that day, so it only counts players whose runs get uploaded. Use it to judge the new retention features (daily reward, winter event, guilds).</div></div>' +
+    '<div class="card" style="overflow:auto"><h3>SIGN-UP WEEKS</h3><table><tr><th>WEEK OF</th><th>NEW</th><th>DAY 1</th><th>DAY 7</th><th>DAY 30</th></tr>' + (cohorts || '<tr><td colspan="5" class="muted">No accounts.</td></tr>') + '</table></div>' +
+    '<div class="card"><h3>DRIFTING AWAY (last seen 7-30 days ago)</h3>' + (drift.length ? drift.slice(0, 40).map((r) => nameLink(nm(r.user_id)) + ' <span class="muted">' + ago(r.last_active) + '</span>').join(', ') + '<div class="muted" style="margin-top:6px">A "welcome back" gift in GIFTS &amp; NEWS (audience: active in the last 30 days) reaches them.</div>' : '<span class="muted">Nobody.</span>') + '</div>';
+}
+
+// ====== Gilden moderieren ======
+async function viewGuilds() {
+  const m = $('#main'); m.innerHTML = '<span class="muted">Loading...</span>';
+  let list; try { list = await rpc('adm_guilds'); } catch (e) { m.innerHTML = '<span class="err">' + esc(e.message) + '</span><div class="muted">Needs tools/supabase_social.sql and tools/supabase_admin2.sql.</div>'; return; }
+  m.innerHTML = '<div class="kpis">' + [['Guilds', list.length], ['Members', list.reduce((s, g) => s + g.members, 0)], ['Points this week', fmtN(list.reduce((s, g) => s + g.week_points, 0))]].map(([l, v]) => '<div class="kpi"><b>' + v + '</b><span>' + l + '</span></div>').join('') + '</div>' +
+    '<div class="card" style="overflow:auto"><table><tr><th>#</th><th>GUILD</th><th>LEADER</th><th>MEMBERS</th><th>WEEK</th><th>TOTAL</th><th>CREATED</th><th></th></tr>' +
+    (list.length ? list.map((g, i) => '<tr class="pick ' + (S.guildSel === g.id ? 'sel' : '') + '" data-g="' + g.id + '"><td>' + (i + 1) + '</td><td><b>' + esc(g.name) + '</b> <span class="tag">' + esc(g.tag) + '</span></td><td>' + nameLink(g.leader_name) + '</td><td>' + g.members + '</td><td>' + fmtN(g.week_points) + '</td><td>' + fmtN(g.total_points) + '</td><td>' + fmtD(g.created_at) + '</td><td style="white-space:nowrap"><button data-gr="' + g.id + '" class="warn">RENAME</button> <button data-gd="' + g.id + '" class="bad">DELETE</button></td></tr>').join('') : '<tr><td colspan="8" class="muted">No guilds yet.</td></tr>') + '</table></div><div id="gdetail"></div>';
+  const byId = (id) => list.find((g) => String(g.id) === String(id));
+  m.querySelectorAll('tr.pick').forEach((tr) => { tr.onclick = async (e) => { if (e.target.closest('button,a')) return; S.guildSel = +tr.dataset.g; await showGuild(S.guildSel); }; });
+  m.querySelectorAll('[data-gr]').forEach((b) => { b.onclick = (e) => { e.stopPropagation(); const g = byId(b.dataset.gr), n = prompt('New guild name (3-20 letters, numbers, space, _ or -):', g.name); if (n === null) return; const t = prompt('New tag (2-4 letters/numbers):', g.tag); if (t === null) return; act('Guild renamed', 'adm_guild_rename', { p_id: g.id, p_name: n, p_tag: t }, viewGuilds); }; });
+  m.querySelectorAll('[data-gd]').forEach((b) => { b.onclick = (e) => { e.stopPropagation(); const g = byId(b.dataset.gd); if (confirm('Delete guild "' + g.name + '" with all ' + g.members + ' members\' memberships and points?')) act('Guild deleted', 'adm_guild_delete', { p_id: g.id }, viewGuilds); }; });
+  if (S.guildSel && byId(S.guildSel)) showGuild(S.guildSel);
+}
+async function showGuild(id) {
+  const el = $('#gdetail'); if (!el) return;
+  let mem; try { mem = await rpc('adm_guild_members', { p_id: id }); } catch (e) { el.innerHTML = '<span class="err">' + esc(e.message) + '</span>'; return; }
+  document.querySelectorAll('tr.pick[data-g]').forEach((tr) => tr.classList.toggle('sel', tr.dataset.g === String(id)));
+  el.innerHTML = '<div class="card"><h3>MEMBERS</h3><table><tr><th>PLAYER</th><th>ROLE</th><th>WEEK POINTS</th><th>JOINED</th><th></th></tr>' + mem.map((x) => '<tr><td>' + nameLink(x.name) + '</td><td>' + (x.is_leader ? 'LEADER' : 'member') + '</td><td>' + fmtN(x.week_points) + '</td><td>' + fmtD(x.joined_at) + '</td><td>' + (x.is_leader ? '' : '<button data-k="' + x.user_id + '" class="bad">KICK</button>') + '</td></tr>').join('') + '</table></div>';
+  el.querySelectorAll('[data-k]').forEach((b) => { b.onclick = () => { if (confirm('Remove this player from the guild?')) act('Member removed', 'adm_guild_kick', { p_user: b.dataset.k }, () => showGuild(id)); }; });
+}
+
+// ====== Fehlerprotokoll aus dem Spiel (js/errlog.js) ======
+async function viewErrors() {
+  const m = $('#main'); m.innerHTML = '<span class="muted">Loading...</span>';
+  let list; try { list = await rpc('adm_errors'); } catch (e) { m.innerHTML = '<span class="err">' + esc(e.message) + '</span><div class="muted">Needs tools/supabase_admin2.sql.</div>'; return; }
+  const total = list.reduce((s, e) => s + e.n, 0);
+  m.innerHTML = '<div class="row"><span class="muted">' + list.length + ' different errors, ' + total + ' times in total. The game reports each error anonymously (no name, no save), at most 5 per session.</span><span style="flex:1"></span>' + (list.length ? '<button id="ecl" class="warn">CLEAR ALL</button>' : '') + '</div>' +
+    '<div class="card" style="overflow:auto"><table><tr><th>LAST</th><th>x</th><th>MESSAGE</th><th>WHERE</th><th>DEVICE</th><th>VERSION</th><th></th></tr>' +
+    (list.length ? list.map((e) => '<tr><td>' + fmtD(e.last_at) + '<div class="muted" style="font-size:12px">first ' + fmtD(e.first_at) + '</div></td><td><b>' + e.n + '</b></td><td class="err">' + esc(e.msg) + '</td><td class="muted">' + esc(e.ctx) + '</td><td class="muted" style="font-size:12px">' + esc(e.ua) + '</td><td class="muted">' + esc(e.ver) + '</td><td><button data-e="' + e.id + '">CLEAR</button></td></tr>').join('') : '<tr><td colspan="7" class="muted">No errors reported. Good.</td></tr>') + '</table></div>';
+  m.querySelectorAll('[data-e]').forEach((b) => { b.onclick = () => act('Cleared', 'adm_errors_clear', { p_id: +b.dataset.e }, viewErrors); });
+  const c = $('#ecl'); if (c) c.onclick = () => { if (confirm('Delete all error entries?')) act('All cleared', 'adm_errors_clear', {}, viewErrors); };
 }
 
 // ====== Start ======

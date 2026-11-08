@@ -6,7 +6,7 @@
 //   - Neue Version: jede Aenderung an einer Datei aendert VERSION, damit auch sw.js selbst -> der Browser installiert den neuen Worker,
 //     der uebernimmt sofort (skipWaiting + claim); die Seite (js/pwa.js) laedt dann im Hauptmenue neu.
 // Nur gleiche Herkunft: Anfragen an Supabase (Konto) und andere Server laufen unveraendert am Worker vorbei.
-const VERSION = '432301475f';
+const VERSION = 'be7c01bd0d';
 const FILES = [
   "./",
   "CLAUDE.md",
@@ -293,6 +293,7 @@ const FILES = [
   "install.html",
   "js/account.js",
   "js/achievements.js",
+  "js/announce.js",
   "js/anticheat.js",
   "js/arsenal.js",
   "js/art_manifest.js",
@@ -307,6 +308,7 @@ const FILES = [
   "js/director.js",
   "js/elites.js",
   "js/enemies.js",
+  "js/errlog.js",
   "js/events.js",
   "js/game.js",
   "js/gamepad.js",

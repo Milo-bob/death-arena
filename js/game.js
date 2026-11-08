@@ -946,7 +946,7 @@ const G = {
     else if (this.mode === 'ending') playMusic(this.endAge < ENDING_SPLIT ? 'dead' : 'menu');
     if (Save.data.dev) this.devKeys();
     Account.menuTick(this.mode);
-    Social.tick(this.mode); Social.keys(); Daily.tick(this.mode); Ref.tick(this.mode); Board.tick();
+    Social.tick(this.mode); Social.keys(); Daily.tick(this.mode); Announce.tick(this.mode); Ref.tick(this.mode); Board.tick();
     PWA.tick(this.mode);
     if (this.mode === 'splash') {
       this.updateSplash(dt);
@@ -956,7 +956,7 @@ const G = {
       GuildRoom.update();
     } else if (this.mode === 'start') {
       if (this.coop) Coop.exit();                                                   // Koop-Lauf vorbei: Verbindung schliessen
-      if (Daily.open) Daily.update(); else this.updateMenu();
+      if (Announce.open) Announce.update(); else if (Daily.open) Daily.update(); else this.updateMenu();
     } else if (this.mode === 'achievements') {
       Ach.updateScreen();
     } else if (this.mode === 'leaderboard') {
@@ -1123,6 +1123,7 @@ const G = {
     } else if (this.mode === 'start') {
       drawHomeScreen(ctx);
       Daily.draw(ctx);
+      Announce.draw(ctx);
     } else if (this.mode === 'achievements') {
       Ach.drawScreen(ctx);
     } else if (this.mode === 'leaderboard') {
@@ -1290,6 +1291,7 @@ function loop(now) {
   } catch (err) {
     console.error(err);
     G.lastError = String(err && err.message || err);
+    ErrLog.report(G.lastError + (err && err.stack ? " @" + String(err.stack).split("\n")[1] : ""), "loop");
     G.errorT = 5;
   }
   if (G.errorT > 0) {
