@@ -121,7 +121,7 @@ async function act(label, fn, args, after) {
 }
 
 // ====== Zustand ======
-const S = { tab: 'players', users: null, sel: null, saves: {}, gifts: [], filter: '', sort: { k: 'created_at', d: -1 }, logs: null, logsFor: null, stat: { user: '', slot: '', map: 'all', sub: 'saves', dev: false }, allSaves: null };
+const S = { tab: 'dashboard', users: null, sel: null, saves: {}, gifts: [], filter: '', sort: { k: 'created_at', d: -1 }, logs: null, logsFor: null, stat: { user: '', slot: '', map: 'all', sub: 'saves', dev: false }, allSaves: null };
 
 // ====== Login ======
 function renderLogin(msg) {
@@ -138,31 +138,156 @@ function renderLogin(msg) {
   };
   $('#go').onclick = go; $('#pw').addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
 }
-function logout() { KEY = ''; store.del(); S.users = null; S.sel = null; S.logs = null; renderLogin(); }
+function logout() { KEY = ''; clearInterval(NOTIF.timer); NOTIF.timer = null; store.del(); S.users = null; S.sel = null; S.logs = null; renderLogin(); }
 
 // ====== Rahmen ======
 function renderMain() {
-  const tabs = [['players', 'PLAYERS'], ['create', 'CREATE ACCOUNTS'], ['stats', 'STATISTICS'], ['gifts', 'GIFTS'], ['cheats', 'CHEATS'], ['audit', 'ACTION LOG']];
-  $('#app').innerHTML = '<header><h1>DEATHARENA ADMIN</h1><nav>' + tabs.map(([id, l]) => '<button data-t="' + id + '" class="' + (S.tab === id ? 'on' : '') + '">' + l + '</button>').join('') + '</nav><span class="sp"></span><span class="muted">' + (S.users ? S.users.length + ' accounts' : '') + '</span><button id="rl">RELOAD</button>' + instBtn() + '<button id="lo" class="warn">LOG OUT</button></header><div class="wrap" id="main"></div>';
+  const tabs = [['dashboard', 'DASHBOARD'], ['players', 'PLAYERS'], ['create', 'CREATE ACCOUNTS'], ['stats', 'STATISTICS'], ['gifts', 'GIFTS'], ['cheats', 'CHEATS'], ['audit', 'ACTION LOG']];
+  $('#app').innerHTML = '<header><h1>DEATHARENA ADMIN</h1><nav>' + tabs.map(([id, l]) => '<button data-t="' + id + '" class="' + (S.tab === id ? 'on' : '') + '">' + l + '</button>').join('') + '</nav><span class="sp"></span><span class="muted" id="cnt">' + (S.users ? S.users.length + ' accounts' : '') + '</span><button id="nt" title="Alert when a new account is created (while this page is open)"></button><button id="rl">RELOAD</button>' + instBtn() + '<button id="lo" class="warn">LOG OUT</button></header><div class="wrap" id="main"></div>';
   document.querySelectorAll('nav button').forEach((b) => { b.onclick = () => { S.tab = b.dataset.t; renderMain(); }; });
   $('#lo').onclick = logout;
+  $('#nt').onclick = () => setNotif(!NOTIF.on); updateNotifBtn(); if (!NOTIF.timer) startPoll();
+  if (NOTIF.on && !NOTIF.pushed) { NOTIF.pushed = true; pushSub(true).catch(() => {}); }
+  if (!S.notes) loadNotes().then(() => { if (S.tab === 'players' && $('#ut')) drawUsers(); });
   $('#rl').onclick = async () => { try { S.users = await rpc('adm_users'); S.logs = null; S.allSaves = null; if (S.sel) await loadSel(); toast('Reloaded'); renderMain(); } catch (e) { toast(e.message, true); } };
-  ({ players: viewPlayers, create: viewCreate, stats: viewStats, gifts: viewGifts, cheats: viewCheats, audit: viewAudit }[S.tab])();
+  ({ dashboard: viewDashboard, players: viewPlayers, create: viewCreate, stats: viewStats, gifts: viewGifts, cheats: viewCheats, audit: viewAudit }[S.tab])();
+}
+
+// ====== Benachrichtigung bei neuen Konten ======
+// Die Seite fragt alle 30 s die Kontoliste ab (solange sie offen ist, auch im Hintergrund-Tab / als installierte App) und meldet unbekannte Konten.
+const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* egal */ } };
+const NOTIF = { on: lsGet('da.admin.notif', false), timer: null, feed: lsGet('da.admin.feed', []), unseen: 0, every: lsGet('da.admin.every', 30), pushed: false };
+const nameLink = (n) => '<a href="#" data-open="' + esc(n) + '"><b>' + esc(n) + '</b></a>';
+function openPlayer(name) { const u = (S.users || []).find((x) => x.name === name); if (!u) return; S.sel = u.user_id; S.tab = 'players'; renderMain(); }
+document.addEventListener('click', (e) => { const a = e.target.closest && e.target.closest('[data-open]'); if (a) { e.preventDefault(); openPlayer(a.dataset.open); } });
+window.addEventListener('focus', () => { NOTIF.unseen = 0; document.title = 'DeathArena Admin'; });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) pollNew(); });
+function beep() {
+  try { const c = new (window.AudioContext || window.webkitAudioContext)(), o = c.createOscillator(), g = c.createGain(); o.type = 'sine'; o.frequency.value = 880; g.gain.value = 0.08; o.connect(g); g.connect(c.destination); o.start(); o.frequency.setValueAtTime(1175, c.currentTime + 0.12); o.stop(c.currentTime + 0.3); } catch (e) { /* egal */ }
+}
+// Eine Meldung ueberall: Toast, Ton, Tab-Titel, System-Popup (tag ersetzt gleiche Meldungen, auch die per Push eingetroffenen)
+function notify(title, body, tag) {
+  toast(title + ': ' + body); beep();
+  if (document.hidden || !document.hasFocus()) { NOTIF.unseen++; document.title = '(' + NOTIF.unseen + ') ' + title + ' - DeathArena Admin'; }
+  if ('Notification' in window && Notification.permission === 'granted') {
+    const opts = { body, icon: 'icons/admin-192.png', badge: 'icons/admin-192.png', tag, data: { url: 'admin.html' } };
+    if (navigator.serviceWorker && navigator.serviceWorker.ready) navigator.serviceWorker.ready.then((r) => r.showNotification(title, opts)).catch(() => { try { new Notification(title, opts); } catch (e) { /* egal */ } });
+    else { try { new Notification(title, opts); } catch (e) { /* egal */ } }
+  }
+}
+function announce(fresh, test) {
+  const names = fresh.map((u) => u.name), text = names.length > 3 ? names.slice(0, 3).join(', ') + ' +' + (names.length - 3) : names.join(', ');
+  if (!test) { for (const u of fresh) NOTIF.feed.unshift({ name: u.name, at: u.created_at, seen: new Date().toISOString() }); NOTIF.feed = NOTIF.feed.slice(0, 30); lsSet('da.admin.feed', NOTIF.feed); }
+  notify(fresh.length > 1 ? fresh.length + ' new DeathArena accounts' : 'New DeathArena account', text, 'da-new-account');
+}
+function checkNew(users) {
+  const known = lsGet('da.admin.known', null), ids = users.map((u) => u.user_id);
+  lsSet('da.admin.known', ids);
+  if (!known) return;                                            // erster Lauf: nur merken
+  const set = new Set(known), fresh = users.filter((u) => !set.has(u.user_id));
+  if (fresh.length) announce(fresh);
+}
+const FLAG_WHAT = { run_time: 'run longer than real time', run_stats: 'impossible run values', run_quota: 'too many offline runs', save_gain_credits: 'credits gained without runs', save_gain_xp: 'XP gained without runs', save_gain_shards: 'shards gained without a source', save_counters: 'counters above the verified total', save_absurd: 'impossible save (rejected)', save_format: 'unreadable save' };
+async function checkFlags() {      // neue Anticheat-Verstoesse ab Schweregrad 2 (braucht tools/supabase_anticheat.sql; fehlt es, bleibt es still)
+  let list; try { list = await rpc('adm_flags', { p_limit: 30 }); } catch (e) { return; }
+  const maxId = list.reduce((m, f) => Math.max(m, +f.id), 0), seen = lsGet('da.admin.flagId', null);
+  lsSet('da.admin.flagId', Math.max(maxId, seen || 0));
+  if (seen == null) return;
+  const fresh = list.filter((f) => +f.id > seen && f.sev >= 2 && !f.cleared);
+  if (fresh.length) notify('Cheat suspicion', fresh.slice(0, 3).map((f) => f.name + ': ' + (FLAG_WHAT[f.code] || f.code)).join('; ') + (fresh.length > 3 ? ' +' + (fresh.length - 3) : ''), 'da-cheat');
+}
+async function pollNew() {
+  if (!NOTIF.on || !KEY) return;
+  try {
+    const us = await rpc('adm_users'); S.users = us; checkNew(us);
+    const c = $('#cnt'); if (c) c.textContent = us.length + ' accounts';
+    if (S.tab === 'dashboard') viewDashboard(); else if (S.tab === 'players' && $('#ut')) drawUsers();
+  } catch (e) { /* naechster Versuch */ }
+  checkFlags();
+}
+function startPoll() { clearInterval(NOTIF.timer); NOTIF.timer = NOTIF.on ? setInterval(pollNew, NOTIF.every * 1000) : null; }
+function updateNotifBtn() { const b = $('#nt'); if (b) { b.textContent = 'ALERTS: ' + (NOTIF.on ? 'ON' : 'OFF'); b.className = NOTIF.on ? 'on' : ''; } }
+// Push (kommt auch bei geschlossener Seite an): braucht Edge Function + tools/supabase_admin_extras.sql, sonst nur die Meldungen bei offener Seite
+const VAPID_PUBLIC = 'BKJELsBEnQRchsi4_YOQzqfLgf2OnMnuVY4Cy81fz5NlhtNggqSyZ1hgGhv78o04XHHxf41CLucaxtn93zPLEYw';
+const b64ToU8 = (s) => { const p = '='.repeat((4 - s.length % 4) % 4), r = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(r, (c) => c.charCodeAt(0)); };
+async function pushSub(on) {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return 'unsupported';
+  const reg = await navigator.serviceWorker.ready; let sub = await reg.pushManager.getSubscription();
+  if (!on) { if (sub) { try { await rpc('adm_push_remove', { p_endpoint: sub.endpoint }); } catch (e) { /* egal */ } await sub.unsubscribe(); } return 'off'; }
+  if (Notification.permission !== 'granted') return 'denied';
+  if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToU8(VAPID_PUBLIC) });
+  const j = sub.toJSON(); await rpc('adm_push_save', { p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth });
+  return 'ok';
+}
+async function setNotif(on) {
+  if (on) {
+    let perm = 'unsupported';
+    if ('Notification' in window) { perm = Notification.permission; if (perm === 'default') { try { perm = await Notification.requestPermission(); } catch (e) { /* egal */ } } }
+    NOTIF.on = true; lsSet('da.admin.known', (S.users || []).map((u) => u.user_id));
+    let push = '';
+    try { push = await pushSub(true); } catch (e) { push = /Could not find|schema cache|run tools/i.test(e.message) ? 'setup' : 'error'; }
+    toast(perm !== 'granted' ? 'Alerts on (in-page only; browser notifications are ' + (perm === 'unsupported' ? 'not supported here' : 'blocked') + ')'
+      : push === 'ok' ? 'Alerts on: you also get push messages when the app is closed' : 'Alerts on (while this page is open' + (push === 'setup' ? '; push not set up yet, see tools/supabase_admin_extras.sql' : push === 'unsupported' ? '; push not supported on this device' : '') + ')', perm !== 'granted');
+  } else { NOTIF.on = false; try { await pushSub(false); } catch (e) { /* egal */ } toast('Alerts off'); }
+  lsSet('da.admin.notif', NOTIF.on); startPoll(); updateNotifBtn(); if (S.tab === 'dashboard') viewDashboard();
+}
+
+// ====== Notizen zu Spielern (tools/supabase_admin_extras.sql) ======
+async function loadNotes() {
+  S.notes = {};
+  try { for (const r of await rpc('adm_notes')) S.notes[r.user_id] = r.note; } catch (e) { /* Extras-SQL noch nicht ausgefuehrt */ }
+}
+
+// ====== Dashboard ======
+const dayKey = (d) => { const x = new Date(d); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); };
+function signupChart(us, days) {
+  const W = 1000, H = 180, pad = 24, cnt = {}, keys = [];
+  for (let i = days - 1; i >= 0; i--) { const k = dayKey(Date.now() - i * 864e5); keys.push(k); cnt[k] = 0; }
+  for (const u of us) { const k = dayKey(u.created_at); if (k in cnt) cnt[k]++; }
+  const mx = Math.max(1, ...keys.map((k) => cnt[k])), bw = (W - pad * 2) / days;
+  let s = '<svg class="chart" style="height:180px" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">';
+  keys.forEach((k, i) => { const h = (H - pad * 2) * cnt[k] / mx; s += '<rect x="' + (pad + i * bw + 2) + '" y="' + (H - pad - h) + '" width="' + Math.max(1, bw - 4) + '" height="' + h + '" fill="#3de8ff"><title>' + k + ': ' + cnt[k] + ' new</title></rect>'; if (cnt[k]) s += '<text x="' + (pad + i * bw + bw / 2) + '" y="' + (H - pad - h - 4) + '" fill="#e6fdff" font-size="12" text-anchor="middle">' + cnt[k] + '</text>'; if (i % 5 === 0) s += '<text x="' + (pad + i * bw) + '" y="' + (H - 6) + '" fill="#7f8fb0" font-size="12">' + k.slice(5) + '</text>'; });
+  return s + '</svg>';
+}
+function exportCsv() {
+  const cols = ['name', 'created_at', 'last_sign_in', 'slots', 'saved_at', 'logs', 'optin', 'banned', 'blocked'];
+  const csv = [cols.join(';')].concat((S.users || []).map((u) => cols.map((c) => u[c] == null ? '' : String(u[c]).replace(/;/g, ',')).join(';'))).join('\n');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv' })); a.download = 'deatharena-players-' + dayKey(Date.now()) + '.csv'; a.click();
+}
+function viewDashboard() {
+  const us = S.users || [], now = Date.now(), H = 36e5, D = 24 * H, cnt = (fn) => us.filter(fn).length;
+  const last = (u) => Math.max(+new Date(u.last_sign_in || 0), +new Date(u.saved_at || 0));
+  const kp = [['Accounts', us.length], ['New today', cnt((u) => now - new Date(u.created_at) < D)], ['New 7 days', cnt((u) => now - new Date(u.created_at) < 7 * D)], ['Active 1 h', cnt((u) => now - last(u) < H)], ['Active 24 h', cnt((u) => now - last(u) < D)], ['Active 7 days', cnt((u) => now - last(u) < 7 * D)],
+    ['Never saved', cnt((u) => !u.slots)], ['Inactive 30+ days', cnt((u) => u.slots && now - last(u) > 30 * D)], ['On leaderboard', cnt((u) => u.optin)], ['Blocked / banned', cnt((u) => u.blocked || u.banned)], ['Gifts waiting', us.reduce((s, u) => s + (+u.gifts || 0), 0)]];
+  const recent = us.slice().sort((a, b) => (a.created_at < b.created_at ? 1 : -1)).slice(0, 10);
+  const active = us.filter((u) => now - last(u) < D).sort((a, b) => last(b) - last(a)).slice(0, 10);
+  $('#main').innerHTML = '<div class="kpis">' + kp.map(([l, v]) => '<div class="kpi"><b>' + v + '</b><span>' + l + '</span></div>').join('') + '</div>' +
+    '<div class="card"><h3>NEW ACCOUNT ALERTS</h3><div class="row"><button id="dn" class="' + (NOTIF.on ? 'on' : '') + '">ALERTS: ' + (NOTIF.on ? 'ON' : 'OFF') + '</button><button id="dt">TEST ALERT</button><label class="muted">check every <select id="de">' + [[15, '15 s'], [30, '30 s'], [60, '1 min'], [300, '5 min']].map(([v, l]) => '<option value="' + v + '"' + (NOTIF.every === v ? ' selected' : '') + '>' + l + '</option>').join('') + '</select></label><span class="muted">' + (NOTIF.on ? 'On: new accounts and cheat suspicion' : 'Turned off') + '. Popup + sound while this page (or the installed app) is open' + ('Notification' in window ? ' (browser permission: ' + Notification.permission + ')' : '') + '.</span></div>' +
+    (NOTIF.feed.length ? '<table><tr><th>ALERTED</th><th>PLAYER</th><th>CREATED</th></tr>' + NOTIF.feed.slice(0, 8).map((f) => '<tr><td>' + fmtD(f.seen) + '</td><td>' + nameLink(f.name) + '</td><td>' + fmtD(f.at) + '</td></tr>').join('') + '</table>' : '') + '</div>' +
+    '<h2>New accounts, last 30 days</h2><div class="card">' + signupChart(us, 30) + '</div>' +
+    '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))"><div class="card"><h3>NEWEST ACCOUNTS</h3><table><tr><th>PLAYER</th><th>CREATED</th><th>SLOTS</th></tr>' + recent.map((u) => '<tr><td>' + nameLink(u.name) + '</td><td>' + fmtD(u.created_at) + '</td><td>' + u.slots + '</td></tr>').join('') + '</table></div>' +
+    '<div class="card"><h3>RECENTLY ACTIVE</h3><table><tr><th>PLAYER</th><th>LAST SEEN</th><th>SLOTS</th></tr>' + (active.length ? active.map((u) => '<tr><td>' + nameLink(u.name) + '</td><td>' + fmtD(last(u)) + '</td><td>' + u.slots + '</td></tr>').join('') : '<tr><td colspan="3" class="muted">Nobody in the last 24 h.</td></tr>') + '</table></div></div>' +
+    '<div class="row"><button id="csv">EXPORT PLAYERS (CSV)</button></div>';
+  $('#dn').onclick = () => setNotif(!NOTIF.on);
+  $('#de').onchange = (e) => { NOTIF.every = +e.target.value; lsSet('da.admin.every', NOTIF.every); startPoll(); };
+  $('#dt').onclick = () => announce([{ name: 'test_account', created_at: new Date().toISOString() }], true);
+  $('#csv').onclick = exportCsv;
 }
 
 // ====== Spieler ======
 function viewPlayers() {
   const m = $('#main');
-  m.innerHTML = '<div class="row"><input type="search" id="q" placeholder="Search name..." value="' + esc(S.filter) + '"><span class="muted">click a row for details</span></div><div class="card" style="overflow:auto"><table id="ut"></table></div><div id="detail"></div>';
+  m.innerHTML = '<div class="row"><input type="search" id="q" placeholder="Search name or note..." value="' + esc(S.filter) + '"><span class="muted">click a row for details</span></div><div class="card" style="overflow:auto"><table id="ut"></table></div><div id="detail"></div>';
   $('#q').oninput = (e) => { S.filter = e.target.value; drawUsers(); };
   drawUsers(); if (S.sel) loadSel().then(drawDetail);
 }
 function drawUsers() {
   const cols = [['name', 'NAME'], ['created_at', 'CREATED'], ['last_sign_in', 'LAST LOGIN'], ['slots', 'SLOTS'], ['saved_at', 'LAST SAVE'], ['logs', 'RUNS LOGGED'], ['gifts', 'GIFTS PENDING']];
-  const q = S.filter.toLowerCase(), k = S.sort.k, d = S.sort.d;
-  const list = (S.users || []).filter((u) => !q || u.name.toLowerCase().includes(q)).sort((a, b) => { const x = a[k] == null ? '' : a[k], y = b[k] == null ? '' : b[k]; return (x > y ? 1 : x < y ? -1 : 0) * d; });
+  const q = S.filter.toLowerCase(), k = S.sort.k, d = S.sort.d, nt = S.notes || {};
+  const list = (S.users || []).filter((u) => !q || u.name.toLowerCase().includes(q) || (nt[u.user_id] || '').toLowerCase().includes(q)).sort((a, b) => { const x = a[k] == null ? '' : a[k], y = b[k] == null ? '' : b[k]; return (x > y ? 1 : x < y ? -1 : 0) * d; });
   $('#ut').innerHTML = '<tr>' + cols.map(([c, l]) => '<th class="s" data-c="' + c + '">' + l + (S.sort.k === c ? (d > 0 ? ' ▲' : ' ▼') : '') + '</th>').join('') + '<th>STATUS</th><th>QUICK</th></tr>' +
-    list.map((u) => '<tr class="pick ' + (S.sel === u.user_id ? 'sel' : '') + '" data-u="' + u.user_id + '"><td><b>' + esc(u.name) + '</b></td><td>' + fmtD(u.created_at) + '</td><td>' + fmtD(u.last_sign_in) + '</td><td>' + u.slots + '</td><td>' + fmtD(u.saved_at) + '</td><td>' + u.logs + '</td><td>' + (u.gifts || '') + '</td><td>' + (u.blocked ? '<span class="tag err">BLOCKED</span>' : '') + (u.banned ? '<span class="tag err">LB-BANNED</span>' : '') + (u.optin ? '<span class="tag ok">LEADERBOARD</span>' : '') + '</td><td style="white-space:nowrap"><button data-q="lb" data-u="' + u.user_id + '" class="' + (u.banned ? '' : 'warn') + '">' + (u.banned ? 'LB UNBAN' : 'LB BAN') + '</button> <button data-q="block" data-u="' + u.user_id + '" class="' + (u.blocked ? '' : 'bad') + '">' + (u.blocked ? 'UNBLOCK' : 'BLOCK') + '</button></td></tr>').join('') +
+    list.map((u) => '<tr class="pick ' + (S.sel === u.user_id ? 'sel' : '') + '" data-u="' + u.user_id + '"><td><b>' + esc(u.name) + '</b>' + (nt[u.user_id] ? '<div class="muted" style="font-size:12px">' + esc(nt[u.user_id].slice(0, 70)) + '</div>' : '') + '</td><td>' + fmtD(u.created_at) + '</td><td>' + fmtD(u.last_sign_in) + '</td><td>' + u.slots + '</td><td>' + fmtD(u.saved_at) + '</td><td>' + u.logs + '</td><td>' + (u.gifts || '') + '</td><td>' + (u.blocked ? '<span class="tag err">BLOCKED</span>' : '') + (u.banned ? '<span class="tag err">LB-BANNED</span>' : '') + (u.optin ? '<span class="tag ok">LEADERBOARD</span>' : '') + '</td><td style="white-space:nowrap"><button data-q="lb" data-u="' + u.user_id + '" class="' + (u.banned ? '' : 'warn') + '">' + (u.banned ? 'LB UNBAN' : 'LB BAN') + '</button> <button data-q="block" data-u="' + u.user_id + '" class="' + (u.blocked ? '' : 'bad') + '">' + (u.blocked ? 'UNBLOCK' : 'BLOCK') + '</button></td></tr>').join('') +
     (list.length ? '' : '<tr><td colspan="9" class="muted">No accounts.</td></tr>');
   document.querySelectorAll('#ut th.s').forEach((th) => { th.onclick = () => { S.sort = { k: th.dataset.c, d: S.sort.k === th.dataset.c ? -S.sort.d : 1 }; drawUsers(); }; });
   document.querySelectorAll('#ut button[data-q]').forEach((b) => { b.onclick = (e) => { e.stopPropagation(); quick(b.dataset.q, b.dataset.u); }; });
@@ -200,6 +325,7 @@ function drawDetail() {
   el.innerHTML = '<h2>' + esc(u.name) + ' <span class="muted" style="font-size:12px">' + u.user_id + '</span></h2>' +
     '<div class="grid">' + [0, 1, 2].map(slotCard).join('') + '</div>' +
     '<div class="card"><h3>ACCOUNT</h3><div class="row"><input type="text" id="npw" placeholder="new password (6+)" style="width:200px"><button id="rnd">RANDOM</button><button id="setpw" class="warn">SET PASSWORD</button></div>' +
+    '<div class="row"><textarea id="note" rows="2" maxlength="500" placeholder="Private note about this player (only you see it)" style="flex:1;min-width:220px;font:13px/1.4 inherit">' + esc((S.notes || {})[u.user_id] || '') + '</textarea><button id="sn" class="on">SAVE NOTE</button></div>' +
     '<div class="muted">Takes effect immediately; the player is logged out everywhere. Tell them the new password.</div>' +
     '<div class="row"><button data-a="stats" data-s="">ALL STATS OF THIS PLAYER</button><button id="ban" class="' + (u.banned ? '' : 'warn') + '">' + (u.banned ? 'UNBAN FROM LEADERBOARDS' : 'BAN FROM LEADERBOARDS') + '</button><button id="bk" class="' + (u.blocked ? '' : 'bad') + '">' + (u.blocked ? 'UNBLOCK ACCOUNT' : 'BLOCK ACCOUNT') + '</button><button id="du" class="bad">DELETE ACCOUNT</button></div>' +
     '<div class="row"><input type="text" id="nn" placeholder="new name" style="width:200px"><button id="rn" class="warn">RENAME</button><span class="muted">3-20 lowercase letters, numbers or _ (the login name changes too)</span></div></div>' +
@@ -208,6 +334,7 @@ function drawDetail() {
   $('#setpw').onclick = () => { const pw = $('#npw').value; if (pw.length < 6) return toast('Password needs 6+ characters', true); if (!confirm('Set a new password for ' + u.name + '?')) return; act('Password set for ' + u.name + ': ' + pw, 'adm_set_password', { p_user: u.user_id, p_pw: pw }); };
   $('#ban').onclick = () => act(u.banned ? 'Unbanned' : 'Banned', 'adm_ban', { p_user: u.user_id, p_on: !u.banned }, reloadUsers);
   $('#bk').onclick = () => quick('block', u.user_id);
+  $('#sn').onclick = () => { const t = $('#note').value.trim(); act(t ? 'Note saved' : 'Note removed', 'adm_set_note', { p_user: u.user_id, p_note: t }, async () => { S.notes = S.notes || {}; if (t) S.notes[u.user_id] = t; else delete S.notes[u.user_id]; drawUsers(); }); };
   $('#rn').onclick = () => { const n = $('#nn').value.trim().toLowerCase(); if (!/^[a-z0-9_]{3,20}$/.test(n)) return toast('Name: 3-20 letters, numbers or _', true); if (confirm('Rename ' + u.name + ' to ' + n + '? They must log in with the new name.')) act('Renamed to ' + n, 'adm_rename', { p_user: u.user_id, p_name: n }, reloadUsers); };
   $('#du').onclick = () => { const n = prompt('Delete account ' + u.name + ' with all saves? Type the name to confirm:'); if (n !== u.name) return; act('Account deleted', 'adm_delete_user', { p_user: u.user_id }, async () => { S.sel = null; await reloadUsers(); }); };
   el.querySelectorAll('input[data-xp]').forEach((inp) => { inp.oninput = () => {      // Live-Anzeige: welches Level entspricht Stand + Eingabe
@@ -310,9 +437,13 @@ async function ensureSaves() {
   }
   S.allSaves = out.map((r) => ({ user_id: r.user_id, name: r.name, slot: r.slot, at: r.updated_at, d: decodeCode(r.code) })).filter((r) => r.d);
 }
-function histo(values, edges, fmt) {      // values -> Balken je Bereich [edges[i], edges[i+1])
-  const rows = edges.map((lo, i) => { const hi = edges[i + 1]; return [fmt(lo) + (hi === undefined ? '+' : ' - ' + fmt(hi)), values.filter((v) => v >= lo && (hi === undefined || v < hi)).length]; });
-  return bars(rows.map(([l, n]) => [l, n, n + (values.length ? ' (' + pct(n / values.length) + ')' : '')]));
+function histo(values, edges, fmt, names) {      // values -> Balken je Bereich [edges[i], edges[i+1]); names = Spielernamen parallel zu values
+  const rows = edges.map((lo, i) => { const hi = edges[i + 1], idx = []; values.forEach((v, j) => { if (v >= lo && (hi === undefined || v < hi)) idx.push(j); }); return [fmt(lo) + (hi === undefined ? '+' : ' - ' + fmt(hi)), idx.length, idx.map((j) => names && names[j]).filter(Boolean)]; });
+  return bars(rows.map(([l, n, who]) => [l, n, n + (values.length ? ' (' + pct(n / values.length) + ')' : '') + (who.length ? '  -  ' + [...new Set(who)].slice(0, 6).join(', ') + (new Set(who).size > 6 ? ' +' + (new Set(who).size - 6) : '') : '')]));
+}
+function whoCount(list, key) {      // "name x3, name2 x1" (haeufigste zuerst)
+  const c = {}; for (const x of list) { const n = key(x); if (n) c[n] = (c[n] || 0) + 1; }
+  return Object.keys(c).sort((a, b) => c[b] - c[a]).slice(0, 4).map((n) => n + (c[n] > 1 ? ' x' + c[n] : '')).join(', ');
 }
 function drawSaves(el) {
   const f = S.stat;
@@ -323,15 +454,24 @@ function drawSaves(el) {
   const players = new Set(rows.map((r) => r.user_id)).size;
   let h = '<div class="muted" style="margin-bottom:8px">' + rows.length + ' save files of ' + players + ' players, read straight from the cloud (dev saves left out). Updated whenever a player saves while logged in.</div>' +
     '<div class="kpis">' + [['Save files', rows.length], ['Players', players], ['Avg player level', avg(num(lv)).toFixed(1)], ['Total runs', fmtN(sum(num((r) => r.d.runs || 0)))], ['Total wins', fmtN(sum(num((r) => r.d.wins || 0)))], ['Total kills', fmtN(sum(num((r) => (r.d.stats && r.d.stats.kills) || 0)))], ['Total bosses', fmtN(sum(num((r) => (r.d.stats && r.d.stats.bosses) || 0)))], ['Credits held', fmtN(sum(num((r) => r.d.souls || 0)))], ['Avg achievements', avg(num(ach)).toFixed(1)]].map(([l, v]) => '<div class="kpi"><b>' + v + '</b><span>' + l + '</span></div>').join('') + '</div>';
-  h += '<h2>Player level</h2><div class="card">' + histo(num(lv), [1, 3, 5, 7, 10, 15, 20, 30], (x) => 'Lv ' + x) + '</div>';
-  const best = num((r) => r.d.best || 0).filter((x) => x > 0);
-  h += '<h2>Best time (regular mode)</h2><div class="card">' + (best.length ? histo(best, [0, 120, 240, 360, 480, 600, 720, 840], fmtT) : '<span class="muted">No runs yet.</span>') + '</div>';
-  const maps = Object.keys(MAP_NAMES).map((id) => { const t = rows.map((r) => (r.d.mapBest && r.d.mapBest[id]) || 0).filter((x) => x > 0).sort((a, b) => a - b); return [id, t]; });
-  h += '<h2>Best time per map</h2><div class="card"><table><tr><th>MAP</th><th>PLAYERS WITH A TIME</th><th>MEDIAN BEST</th><th>BEST</th></tr>' + maps.map(([id, t]) => '<tr><td>' + MAP_NAMES[id] + '</td><td>' + t.length + '</td><td>' + (t.length ? fmtT(quant(t, .5)) : '-') + '</td><td>' + (t.length ? fmtT(t[t.length - 1]) : '-') + '</td></tr>').join('') + '</table></div>';
-  const heroes = {}; for (const r of rows) heroes[r.d.hero || 'vanguard'] = (heroes[r.d.hero || 'vanguard'] || 0) + 1;
-  h += '<h2>Selected hero</h2><div class="card">' + bars(Object.keys(heroes).sort((a, b) => heroes[b] - heroes[a]).map((k) => [k, heroes[k], heroes[k] + ''])) + '</div>';
+  const top = (title, fn, fmt) => {      // beste 5 Spielstaende (je Spieler nur der beste Slot)
+    const bestOf = {}; for (const r of rows) { const v = fn(r); if (v > 0 && (!bestOf[r.name] || v > bestOf[r.name].v)) bestOf[r.name] = { r, v }; }
+    const list = Object.values(bestOf).sort((a, b) => b.v - a.v).slice(0, 5);
+    return '<div class="card"><h3>' + title + '</h3>' + (list.length ? '<table>' + list.map((x, i) => '<tr><td class="muted" style="width:22px">' + (i + 1) + '</td><td>' + nameLink(x.r.name) + '</td><td>' + fmt(x.v) + '</td></tr>').join('') + '</table>' : '<span class="muted">-</span>') + '</div>';
+  };
+  h += '<h2>Top players</h2><div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(210px,1fr))">' + [
+    top('HIGHEST LEVEL', (r) => r.d.pxp || 0, (v) => 'Lv ' + levelOf(v)), top('MOST WINS', (r) => r.d.wins || 0, fmtN), top('BEST TIME', (r) => r.d.best || 0, fmtT), top('BEST ENDLESS', (r) => r.d.bestInf || 0, fmtT),
+    top('MOST RUNS', (r) => r.d.runs || 0, fmtN), top('MOST KILLS', (r) => (r.d.stats && r.d.stats.kills) || 0, fmtN), top('MOST BOSSES', (r) => (r.d.stats && r.d.stats.bosses) || 0, fmtN), top('ACHIEVEMENTS', ach, fmtN), top('MOST CREDITS', (r) => r.d.souls || 0, fmtN)].join('') + '</div>';
+  const nm = num((r) => r.name);
+  h += '<h2>Player level</h2><div class="card">' + histo(num(lv), [1, 3, 5, 7, 10, 15, 20, 30], (x) => 'Lv ' + x, nm) + '</div>';
+  const bestRows = rows.filter((r) => (r.d.best || 0) > 0);
+  h += '<h2>Best time (regular mode)</h2><div class="card">' + (bestRows.length ? histo(bestRows.map((r) => r.d.best), [0, 120, 240, 360, 480, 600, 720, 840], fmtT, bestRows.map((r) => r.name)) : '<span class="muted">No runs yet.</span>') + '</div>';
+  const maps = Object.keys(MAP_NAMES).map((id) => { const t = rows.map((r) => ({ v: (r.d.mapBest && r.d.mapBest[id]) || 0, n: r.name })).filter((x) => x.v > 0).sort((a, b) => a.v - b.v); return [id, t]; });
+  h += '<h2>Best time per map</h2><div class="card"><table><tr><th>MAP</th><th>PLAYERS WITH A TIME</th><th>MEDIAN BEST</th><th>BEST</th><th>BEST PLAYER</th></tr>' + maps.map(([id, t]) => '<tr><td>' + MAP_NAMES[id] + '</td><td>' + t.length + '</td><td>' + (t.length ? fmtT(quant(t.map((x) => x.v), .5)) : '-') + '</td><td>' + (t.length ? fmtT(t[t.length - 1].v) : '-') + '</td><td>' + (t.length ? nameLink(t[t.length - 1].n) : '-') + '</td></tr>').join('') + '</table></div>';
+  const heroes = {}, heroWho = {}; for (const r of rows) { const k = r.d.hero || 'vanguard'; heroes[k] = (heroes[k] || 0) + 1; (heroWho[k] = heroWho[k] || []).push(r.name); }
+  h += '<h2>Selected hero</h2><div class="card">' + bars(Object.keys(heroes).sort((a, b) => heroes[b] - heroes[a]).map((k) => [k, heroes[k], heroes[k] + '  -  ' + [...new Set(heroWho[k])].slice(0, 6).join(', ')])) + '</div>';
   h += '<h2>All save files</h2><div class="card" style="overflow:auto"><table><tr><th>PLAYER</th><th>SLOT</th><th>LEVEL</th><th>CREDITS</th><th>BEST</th><th>ENDLESS</th><th>RUNS</th><th>WINS</th><th>BOSSES</th><th>KILLS</th><th>ACH.</th><th>HERO</th><th>SAVED</th></tr>' +
-    rows.slice().sort((x, y) => (x.d.pxp || 0) < (y.d.pxp || 0) ? 1 : -1).map((r) => '<tr><td><b>' + esc(r.name) + '</b></td><td>' + (r.slot + 1) + '</td><td>' + lv(r) + '</td><td>' + fmtN(r.d.souls) + '</td><td>' + fmtT(r.d.best) + '</td><td>' + fmtT(r.d.bestInf) + '</td><td>' + fmtN(r.d.runs) + '</td><td>' + fmtN(r.d.wins) + '</td><td>' + fmtN(r.d.stats && r.d.stats.bosses) + '</td><td>' + fmtN(r.d.stats && r.d.stats.kills) + '</td><td>' + ach(r) + '</td><td>' + esc(r.d.hero || '-') + '</td><td>' + fmtD(r.at) + '</td></tr>').join('') + '</table></div>';
+    rows.slice().sort((x, y) => (x.d.pxp || 0) < (y.d.pxp || 0) ? 1 : -1).map((r) => '<tr><td>' + nameLink(r.name) + '</td><td>' + (r.slot + 1) + '</td><td>' + lv(r) + '</td><td>' + fmtN(r.d.souls) + '</td><td>' + fmtT(r.d.best) + '</td><td>' + fmtT(r.d.bestInf) + '</td><td>' + fmtN(r.d.runs) + '</td><td>' + fmtN(r.d.wins) + '</td><td>' + fmtN(r.d.stats && r.d.stats.bosses) + '</td><td>' + fmtN(r.d.stats && r.d.stats.kills) + '</td><td>' + ach(r) + '</td><td>' + esc(r.d.hero || '-') + '</td><td>' + fmtD(r.at) + '</td></tr>').join('') + '</table></div>';
   el.innerHTML = h;
 }
 async function ensureLogs(userId) {
@@ -354,8 +494,9 @@ function statSets() {
 }
 function analyze(all) {
   const runs = all.filter((r) => r.by !== 'GAVE UP'), n = runs.length, times = runs.map((r) => r.t).sort((a, b) => a - b), killers = {};
-  for (const r of runs) if (!r.win) (killers[r.by] = killers[r.by] || []).push(r.t);
-  const killList = Object.keys(killers).map((k) => { const t = killers[k].sort((a, b) => a - b); return { name: k, n: t.length, med: quant(t, .5) }; }).sort((a, b) => b.n - a.n);
+  const victims = {};
+  for (const r of runs) if (!r.win) { (killers[r.by] = killers[r.by] || []).push(r.t); (victims[r.by] = victims[r.by] || []).push(r._u); }
+  const killList = Object.keys(killers).map((k) => { const t = killers[k].sort((a, b) => a - b); return { name: k, n: t.length, med: quant(t, .5), who: whoCount(victims[k], (x) => x) }; }).sort((a, b) => b.n - a.n);
   const maxT = times.length ? times[times.length - 1] : 0, windows = [];
   for (let lo = 0; lo <= maxT; lo += WINDOW) {
     const risk = runs.filter((r) => r.win || r.t >= lo).length, dead = runs.filter((r) => !r.win && r.t >= lo && r.t < lo + WINDOW).length;
@@ -365,7 +506,7 @@ function analyze(all) {
 }
 function analyzeBosses(list) {
   const by = {}; for (const b of list) (by[b.ty] = by[b.ty] || []).push(b);
-  return Object.keys(by).map((ty) => { const a = by[ty], c = (r) => a.filter((b) => b.r === r).length; return { ty, n: a.length, win: c('win'), died: c('died'), timeout: c('timeout'), dur: avg(a.map((b) => b.d)), dm: avg(a.map((b) => b.dm)), at: avg(a.map((b) => b.at)) }; }).sort((x, y) => x.at - y.at);
+  return Object.keys(by).map((ty) => { const a = by[ty], c = (r) => a.filter((b) => b.r === r).length; return { ty, n: a.length, win: c('win'), died: c('died'), timeout: c('timeout'), dur: avg(a.map((b) => b.d)), dm: avg(a.map((b) => b.dm)), at: avg(a.map((b) => b.at)), wonBy: whoCount(a.filter((b) => b.r === 'win'), (b) => b._u), diedTo: whoCount(a.filter((b) => b.r === 'died'), (b) => b._u) }; }).sort((x, y) => x.at - y.at);
 }
 function analyzeBuilds(runs) {
   const items = {};
@@ -415,21 +556,21 @@ function drawStats() {
       (bb ? '<li>Hardest boss: <b>' + esc(BOSS_NAMES[bb.ty] || bb.ty) + '</b> (' + pct(bb.win / bb.n) + ' win rate over ' + bb.n + ' fights).</li>' : '') +
       '<li>Balance values live in <code>js/config.js</code> (enemy, boss, waves).</li></ul></div>';
   } else if (f.sub === 'killers') {
-    h += '<div class="card">' + (a.killList.length ? bars(a.killList.map((k) => [k.name, k.n, k.n + ' deaths (' + pct(k.n / Math.max(1, a.n - a.wins)) + '), median ' + fmtT(k.med)])) : '<span class="muted">No deaths.</span>') + '</div>';
+    h += '<div class="card">' + (a.killList.length ? bars(a.killList.map((k) => [k.name, k.n, k.n + ' deaths (' + pct(k.n / Math.max(1, a.n - a.wins)) + '), median ' + fmtT(k.med) + (k.who ? '  -  ' + k.who : '')])) : '<span class="muted">No deaths.</span>') + '</div>';
   } else if (f.sub === 'bosses') {
     const b = analyzeBosses(bosses);
-    h += '<div class="card" style="overflow:auto"><table><tr><th>BOSS</th><th>FIGHTS</th><th>WIN RATE</th><th>WON</th><th>DIED</th><th>TIMEOUT</th><th>AVG DURATION</th><th>AVG DAMAGE TAKEN</th><th>STARTS AT</th></tr>' +
-      b.map((x) => '<tr><td><b>' + esc(BOSS_NAMES[x.ty] || x.ty) + '</b></td><td>' + x.n + '</td><td>' + pct(x.win / x.n) + '</td><td>' + x.win + '</td><td>' + x.died + '</td><td>' + x.timeout + '</td><td>' + x.dur.toFixed(1) + ' s</td><td>' + Math.round(x.dm) + '</td><td>' + fmtT(x.at) + '</td></tr>').join('') + '</table></div>';
+    h += '<div class="card" style="overflow:auto"><table><tr><th>BOSS</th><th>FIGHTS</th><th>WIN RATE</th><th>WON</th><th>DIED</th><th>TIMEOUT</th><th>AVG DURATION</th><th>AVG DAMAGE TAKEN</th><th>STARTS AT</th><th>BEATEN BY</th><th>DIED MOST</th></tr>' +
+      b.map((x) => '<tr><td><b>' + esc(BOSS_NAMES[x.ty] || x.ty) + '</b></td><td>' + x.n + '</td><td>' + pct(x.win / x.n) + '</td><td>' + x.win + '</td><td>' + x.died + '</td><td>' + x.timeout + '</td><td>' + x.dur.toFixed(1) + ' s</td><td>' + Math.round(x.dm) + '</td><td>' + fmtT(x.at) + '</td><td>' + esc(x.wonBy || '-') + '</td><td>' + esc(x.diedTo || '-') + '</td></tr>').join('') + '</table></div>';
   } else if (f.sub === 'builds') {
     const b = analyzeBuilds(a.runs).sort((x, y) => y.n - x.n), part = (p, t) => '<div class="card"><h3>' + t + '</h3><table><tr><th>ITEM</th><th>RUNS</th><th>MEDIAN SURVIVAL</th><th>AVERAGE</th></tr>' + b.filter((x) => x.id.startsWith(p)).map((x) => '<tr><td>' + esc(x.id.slice(2).toUpperCase()) + '</td><td>' + x.n + '</td><td>' + fmtT(x.med) + '</td><td>' + fmtT(x.avg) + '</td></tr>').join('') + '</table></div>';
     h += part('w:', 'WEAPONS AND IMPLANTS') + part('a:', 'ABILITIES') + '<div class="muted">Hint only: better players pick other gear, so this shows correlation, not cause.</div>';
   } else if (f.sub === 'players') {
     const by = {}; for (const r of a.runs) (by[r._u] = by[r._u] || []).push(r);
     const rows = Object.keys(by).map((n) => { const x = by[n], t = x.map((r) => r.t).sort((p, q) => p - q); return { n, runs: x.length, wins: x.filter((r) => r.win).length, med: quant(t, .5), best: t[t.length - 1] || 0, lv: avg(x.filter((r) => typeof r.lv === 'number').map((r) => r.lv)) }; }).sort((x, y) => y.runs - x.runs);
-    h += '<div class="card" style="overflow:auto"><table><tr><th>PLAYER</th><th>RUNS</th><th>WINS</th><th>MEDIAN</th><th>BEST</th><th>AVG LEVEL</th></tr>' + rows.map((x) => '<tr><td><b>' + esc(x.n) + '</b></td><td>' + x.runs + '</td><td>' + x.wins + '</td><td>' + fmtT(x.med) + '</td><td>' + fmtT(x.best) + '</td><td>' + (x.lv ? x.lv.toFixed(1) : '-') + '</td></tr>').join('') + '</table></div>';
+    h += '<div class="card" style="overflow:auto"><table><tr><th>PLAYER</th><th>RUNS</th><th>WINS</th><th>MEDIAN</th><th>BEST</th><th>AVG LEVEL</th></tr>' + rows.map((x) => '<tr><td>' + nameLink(x.n) + '</td><td>' + x.runs + '</td><td>' + x.wins + '</td><td>' + fmtT(x.med) + '</td><td>' + fmtT(x.best) + '</td><td>' + (x.lv ? x.lv.toFixed(1) : '-') + '</td></tr>').join('') + '</table></div>';
   } else if (f.sub === 'recent') {
     const rec = deaths.slice().sort((x, y) => String(y._at).localeCompare(String(x._at))).slice(0, 60);
-    h += '<div class="card" style="overflow:auto"><table><tr><th>WHEN</th><th>PLAYER</th><th>SLOT</th><th>TIME</th><th>BOSSES</th><th>LV</th><th>RESULT</th><th>KILLS</th><th>GEAR</th></tr>' + rec.map((r) => '<tr><td>' + fmtD(r._at) + '</td><td>' + esc(r._u) + '</td><td>' + (r._sl == null ? '-' : r._sl + 1) + '</td><td>' + fmtT(r.t) + '</td><td>' + (r.b || 0) + '</td><td>' + (r.lv || '-') + '</td><td>' + (r.win ? '<span class="ok">WIN</span>' : esc(r.by) + (r.fy ? ' <span class="muted">(' + esc(BOSS_NAMES[r.fy] || r.fy) + ')</span>' : '')) + '</td><td>' + (r.k || 0) + '</td><td class="muted">' + esc([].concat(r.w || [], r.ab || []).filter(Boolean).join(', ')) + '</td></tr>').join('') + '</table></div>';
+    h += '<div class="card" style="overflow:auto"><table><tr><th>WHEN</th><th>PLAYER</th><th>SLOT</th><th>TIME</th><th>BOSSES</th><th>LV</th><th>RESULT</th><th>KILLS</th><th>GEAR</th></tr>' + rec.map((r) => '<tr><td>' + fmtD(r._at) + '</td><td>' + nameLink(r._u) + '</td><td>' + (r._sl == null ? '-' : r._sl + 1) + '</td><td>' + fmtT(r.t) + '</td><td>' + (r.b || 0) + '</td><td>' + (r.lv || '-') + '</td><td>' + (r.win ? '<span class="ok">WIN</span>' : esc(r.by) + (r.fy ? ' <span class="muted">(' + esc(BOSS_NAMES[r.fy] || r.fy) + ')</span>' : '')) + '</td><td>' + (r.k || 0) + '</td><td class="muted">' + esc([].concat(r.w || [], r.ab || []).filter(Boolean).join(', ')) + '</td></tr>').join('') + '</table></div>';
   }
   el.innerHTML = h;
 }
@@ -438,7 +579,18 @@ function drawStats() {
 async function viewGifts() {
   const m = $('#main'); m.innerHTML = '<span class="muted">Loading...</span>';
   let list; try { list = await rpc('adm_gifts', { p_user: null }); } catch (e) { m.innerHTML = '<span class="err">' + esc(e.message) + '</span>'; return; }
-  m.innerHTML = '<div class="card" style="overflow:auto"><table><tr><th>WHEN</th><th>PLAYER</th><th>SLOT</th><th>CREDITS</th><th>XP</th><th>NOTE</th><th>STATE</th></tr>' + list.map((g) => '<tr><td>' + fmtD(g.created_at) + '</td><td>' + esc(g.name) + '</td><td>' + (g.slot + 1) + '</td><td>' + (g.credits > 0 ? '+' : '') + g.credits + '</td><td>' + (g.xp > 0 ? '+' : '') + (g.xp || 0) + '</td><td>' + esc(g.note) + '</td><td>' + (g.claimed_at ? '<span class="ok">collected ' + fmtD(g.claimed_at) + '</span>' : '<span class="yel">waiting</span>') + '</td></tr>').join('') + (list.length ? '' : '<tr><td colspan="6" class="muted">No gifts yet. Give credits from a player\'s slot card.</td></tr>') + '</table></div>';
+  const AUD = [['all', 'All accounts with a save'], ['active7', 'Active in the last 7 days'], ['active30', 'Active in the last 30 days'], ['leaderboard', 'Leaderboard members']];
+  m.innerHTML = '<div class="card"><h3>GIFT TO MANY PLAYERS</h3><div class="row"><label>Who <select id="ma">' + AUD.map(([v, l]) => '<option value="' + v + '">' + l + '</option>').join('') + '</select></label><label>Credits <input type="number" id="mc" min="0" value="100" style="width:100px"></label><label>XP <input type="number" id="mx" min="0" value="0" style="width:100px"></label><label>Note <input type="text" id="mn" maxlength="80" placeholder="e.g. Welcome back" style="width:200px"></label><button id="mg" class="on">GIVE TO ALL</button></div><div class="muted" id="mcnt">Goes to each player\'s most recently saved slot and is collected in the main menu. Positive amounts only.</div></div>' +
+    '<div class="card" style="overflow:auto"><table><tr><th>WHEN</th><th>PLAYER</th><th>SLOT</th><th>CREDITS</th><th>XP</th><th>NOTE</th><th>STATE</th></tr>' + list.map((g) => '<tr><td>' + fmtD(g.created_at) + '</td><td>' + esc(g.name) + '</td><td>' + (g.slot + 1) + '</td><td>' + (g.credits > 0 ? '+' : '') + g.credits + '</td><td>' + (g.xp > 0 ? '+' : '') + (g.xp || 0) + '</td><td>' + esc(g.note) + '</td><td>' + (g.claimed_at ? '<span class="ok">collected ' + fmtD(g.claimed_at) + '</span>' : '<span class="yel">waiting</span>') + '</td></tr>').join('') + (list.length ? '' : '<tr><td colspan="6" class="muted">No gifts yet. Give credits from a player\'s slot card.</td></tr>') + '</table></div>';
+  const preview = async () => { try { const n = await rpc('adm_audience_count', { p_audience: $('#ma').value }); $('#mcnt').textContent = n + ' accounts would receive this gift.'; return n; } catch (e) { $('#mcnt').textContent = e.message.replace('supabase_admin.sql', 'supabase_admin_extras.sql'); return null; } };
+  $('#ma').onchange = preview; preview();
+  $('#mg').onclick = async () => {
+    const c = parseInt($('#mc').value, 10) || 0, x = parseInt($('#mx').value, 10) || 0; if (c < 0 || x < 0 || (!c && !x)) return toast('Enter a positive amount', true);
+    const n = await preview(); if (n == null) return;
+    if (!n) return toast('Nobody matches', true);
+    if (!confirm('Give ' + (c ? c + ' credits' : '') + (c && x ? ' and ' : '') + (x ? x + ' XP' : '') + ' to ' + n + ' accounts (' + $('#ma').selectedOptions[0].text + ')?')) return;
+    act('Gift queued for ' + n + ' accounts', 'adm_gift_many', { p_audience: $('#ma').value, p_credits: c, p_xp: x, p_note: $('#mn').value.trim() }, viewGifts);
+  };
 }
 // Anticheat: Verstoesse (tools/supabase_anticheat.sql). Schweregrad 1-3; wer 3 Punkte in 30 Tagen hat, gilt als verdaechtig und steht in keiner Rangliste.
 async function viewCheats() {

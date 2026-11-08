@@ -404,9 +404,15 @@ self.addEventListener('periodicsync', (e) => {
     await self.registration.showNotification('DeathArena', { body: 'Your daily reward is waiting! Keep your streak alive.', icon: 'icons/icon-192.png', badge: 'icons/icon-192.png', tag: 'da-daily', renotify: false });
   })());
 });
+// Push vom Server (nur die Admin-Seite meldet sich dafuer an, siehe tools/admin-push-function.ts): Meldung bei neuem Konto / Cheat-Verdacht
+self.addEventListener('push', (e) => {
+  let d = {}; try { d = e.data ? e.data.json() : {}; } catch (err) { d = { body: e.data ? e.data.text() : '' }; }
+  e.waitUntil(self.registration.showNotification(d.title || 'DeathArena Admin', { body: d.body || '', icon: 'icons/admin-192.png', badge: 'icons/admin-192.png', tag: d.tag || 'da-admin', data: { url: 'admin.html' } }));
+});
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
-  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((cs) => (cs.length ? cs[0].focus() : self.clients.openWindow(self.registration.scope))));
+  const page = new URL((e.notification.data && e.notification.data.url) || '', self.registration.scope).href;      // Admin-Meldungen oeffnen admin.html, alle anderen die Spielseite
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((cs) => { const hit = cs.find((c) => c.url.split('?')[0].split('#')[0] === page.split('?')[0]) || (e.notification.data && e.notification.data.url ? null : cs[0]); return hit ? hit.focus() : self.clients.openWindow(page); }));
 });
 
 self.addEventListener('fetch', (e) => {
