@@ -158,6 +158,11 @@ function renderMain() {
 const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* egal */ } };
 const NOTIF = { on: lsGet('da.admin.notif', false), timer: null, feed: lsGet('da.admin.feed', []), unseen: 0, every: lsGet('da.admin.every', 30), pushed: false };
+// Einstellbare Meldungsarten (gespeichert im Browser). Nur "account" und "cheat" kommen auch per Push bei geschlossener Seite (Datenbank-Trigger), der Rest nur bei offener Seite.
+const CFG_DEF = { account: true, login: false, loginMode: 'all', returnDays: 7, first: false, join: false, cheat: true, cheatSev: 2, watch: '' };
+NOTIF.cfg = Object.assign({}, CFG_DEF, lsGet('da.admin.cfg', {}));
+const saveCfg = () => lsSet('da.admin.cfg', NOTIF.cfg);
+const snapOf = (users) => { const o = {}; for (const u of users) o[u.user_id] = [u.last_sign_in || '', u.saved_at || '', +u.slots || 0, u.optin ? 1 : 0]; return o; };
 const nameLink = (n) => '<a href="#" data-open="' + esc(n) + '"><b>' + esc(n) + '</b></a>';
 function openPlayer(name) { const u = (S.users || []).find((x) => x.name === name); if (!u) return; S.sel = u.user_id; S.tab = 'players'; renderMain(); }
 document.addEventListener('click', (e) => { const a = e.target.closest && e.target.closest('[data-open]'); if (a) { e.preventDefault(); openPlayer(a.dataset.open); } });
@@ -176,17 +181,37 @@ function notify(title, body, tag) {
     else { try { new Notification(title, opts); } catch (e) { /* egal */ } }
   }
 }
-function announce(fresh, test) {
+const KINDS = {
+  account: { one: 'New DeathArena account', many: ' new DeathArena accounts', tag: 'da-new-account', label: 'NEW ACCOUNT' },
+  login: { one: 'Player login', many: ' player logins', tag: 'da-login', label: 'LOGIN' },
+  first: { one: 'First save', many: ' first saves', tag: 'da-first', label: 'FIRST SAVE' },
+  join: { one: 'Joined the leaderboard', many: ' joined the leaderboard', tag: 'da-join', label: 'LEADERBOARD' },
+};
+function announce(fresh, test, kind) {
+  kind = kind || 'account'; const K = KINDS[kind];
   const names = fresh.map((u) => u.name), text = names.length > 3 ? names.slice(0, 3).join(', ') + ' +' + (names.length - 3) : names.join(', ');
-  if (!test) { for (const u of fresh) NOTIF.feed.unshift({ name: u.name, at: u.created_at, seen: new Date().toISOString() }); NOTIF.feed = NOTIF.feed.slice(0, 30); lsSet('da.admin.feed', NOTIF.feed); }
-  notify(fresh.length > 1 ? fresh.length + ' new DeathArena accounts' : 'New DeathArena account', text, 'da-new-account');
+  if (!test) { for (const u of fresh) NOTIF.feed.unshift({ name: u.name, at: u.created_at, seen: new Date().toISOString(), kind }); NOTIF.feed = NOTIF.feed.slice(0, 30); lsSet('da.admin.feed', NOTIF.feed); }
+  notify(fresh.length > 1 ? fresh.length + K.many : K.one, text, K.tag);
 }
 function checkNew(users) {
-  const known = lsGet('da.admin.known', null), ids = users.map((u) => u.user_id);
-  lsSet('da.admin.known', ids);
-  if (!known) return;                                            // erster Lauf: nur merken
-  const set = new Set(known), fresh = users.filter((u) => !set.has(u.user_id));
-  if (fresh.length) announce(fresh);
+  const snap = lsGet('da.admin.snap', null), C = NOTIF.cfg;
+  lsSet('da.admin.snap', snapOf(users));
+  if (!snap) return;                                             // erster Lauf: nur merken
+  const watch = String(C.watch || '').split(/[,;\n]/).map((s) => s.trim().toLowerCase()).filter(Boolean), watched = (u) => !watch.length || watch.includes(String(u.name).toLowerCase());
+  const out = { account: [], login: [], first: [], join: [] }, now = Date.now(), gap = C.returnDays * 864e5;
+  for (const u of users) {
+    const p = snap[u.user_id];
+    if (!p) { out.account.push(u); continue; }
+    if (!watched(u)) continue;
+    const ls = u.last_sign_in || '';
+    if (ls && ls !== p[0]) {
+      const before = Math.max(+new Date(p[0] || 0), +new Date(p[1] || 0), +new Date(u.created_at || 0));
+      if (C.loginMode !== 'returning' || now - before > gap) out.login.push(u);
+    }
+    if ((+u.slots || 0) > 0 && !p[2]) out.first.push(u);
+    if (u.optin && !p[3]) out.join.push(u);
+  }
+  for (const k of Object.keys(out)) if (C[k] && out[k].length) announce(out[k], false, k);
 }
 const FLAG_WHAT = { run_time: 'run longer than real time', run_stats: 'impossible run values', run_quota: 'too many offline runs', save_gain_credits: 'credits gained without runs', save_gain_xp: 'XP gained without runs', save_gain_shards: 'shards gained without a source', save_counters: 'counters above the verified total', save_absurd: 'impossible save (rejected)', save_format: 'unreadable save' };
 async function checkFlags() {      // neue Anticheat-Verstoesse ab Schweregrad 2 (braucht tools/supabase_anticheat.sql; fehlt es, bleibt es still)
@@ -194,7 +219,8 @@ async function checkFlags() {      // neue Anticheat-Verstoesse ab Schweregrad 2
   const maxId = list.reduce((m, f) => Math.max(m, +f.id), 0), seen = lsGet('da.admin.flagId', null);
   lsSet('da.admin.flagId', Math.max(maxId, seen || 0));
   if (seen == null) return;
-  const fresh = list.filter((f) => +f.id > seen && f.sev >= 2 && !f.cleared);
+  if (!NOTIF.cfg.cheat) return;
+  const fresh = list.filter((f) => +f.id > seen && f.sev >= NOTIF.cfg.cheatSev && !f.cleared);
   if (fresh.length) notify('Cheat suspicion', fresh.slice(0, 3).map((f) => f.name + ': ' + (FLAG_WHAT[f.code] || f.code)).join('; ') + (fresh.length > 3 ? ' +' + (fresh.length - 3) : ''), 'da-cheat');
 }
 async function pollNew() {
@@ -224,7 +250,7 @@ async function setNotif(on) {
   if (on) {
     let perm = 'unsupported';
     if ('Notification' in window) { perm = Notification.permission; if (perm === 'default') { try { perm = await Notification.requestPermission(); } catch (e) { /* egal */ } } }
-    NOTIF.on = true; lsSet('da.admin.known', (S.users || []).map((u) => u.user_id));
+    NOTIF.on = true; lsSet('da.admin.snap', snapOf(S.users || []));
     let push = '';
     try { push = await pushSub(true); } catch (e) { push = /Could not find|schema cache|run tools/i.test(e.message) ? 'setup' : 'error'; }
     toast(perm !== 'granted' ? 'Alerts on (in-page only; browser notifications are ' + (perm === 'unsupported' ? 'not supported here' : 'blocked') + ')'
@@ -255,6 +281,17 @@ function exportCsv() {
   const csv = [cols.join(';')].concat((S.users || []).map((u) => cols.map((c) => u[c] == null ? '' : String(u[c]).replace(/;/g, ',')).join(';'))).join('\n');
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv' })); a.download = 'deatharena-players-' + dayKey(Date.now()) + '.csv'; a.click();
 }
+function notifSettingsHtml() {
+  const C = NOTIF.cfg, cb = (k, label, note) => '<label class="row" style="gap:8px"><input type="checkbox" data-cfg="' + k + '"' + (C[k] ? ' checked' : '') + '> ' + label + (note ? ' <span class="muted">' + note + '</span>' : '') + '</label>';
+  const sel = (k, opts) => '<select data-cfg="' + k + '">' + opts.map(([v, l]) => '<option value="' + v + '"' + (String(C[k]) === String(v) ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>';
+  return '<div style="margin:10px 0"><div class="muted" style="margin-bottom:6px">WHAT TO BE ALERTED ABOUT</div>' +
+    cb('account', 'New account created', '(also as push when the app is closed)') +
+    cb('cheat', 'Cheat suspicion, from severity ' + sel('cheatSev', [[1, '1 (all)'], [2, '2'], [3, '3 (worst)']]), '(also as push)') +
+    cb('login', 'Player logs in ' + sel('loginMode', [['all', 'every login'], ['returning', 'only returning players']]) + (C.loginMode === 'returning' ? ' away for ' + sel('returnDays', [[1, '1 day'], [3, '3 days'], [7, '7 days'], [14, '14 days'], [30, '30 days']]) : ''), '(only while this page is open)') +
+    cb('first', 'Player saves for the first time', '(only while this page is open)') +
+    cb('join', 'Player joins the leaderboard', '(only while this page is open)') +
+    (C.login || C.first || C.join ? '<label class="muted">Only these players for login / first save / leaderboard (comma separated, empty = everybody): <input type="text" data-cfg="watch" value="' + esc(C.watch) + '" style="width:260px"></label>' : '') + '</div>';
+}
 function viewDashboard() {
   const us = S.users || [], now = Date.now(), H = 36e5, D = 24 * H, cnt = (fn) => us.filter(fn).length;
   const last = (u) => Math.max(+new Date(u.last_sign_in || 0), +new Date(u.saved_at || 0));
@@ -264,7 +301,8 @@ function viewDashboard() {
   const active = us.filter((u) => now - last(u) < D).sort((a, b) => last(b) - last(a)).slice(0, 10);
   $('#main').innerHTML = '<div class="kpis">' + kp.map(([l, v]) => '<div class="kpi"><b>' + v + '</b><span>' + l + '</span></div>').join('') + '</div>' +
     '<div class="card"><h3>NEW ACCOUNT ALERTS</h3><div class="row"><button id="dn" class="' + (NOTIF.on ? 'on' : '') + '">ALERTS: ' + (NOTIF.on ? 'ON' : 'OFF') + '</button><button id="dt">TEST ALERT</button><label class="muted">check every <select id="de">' + [[15, '15 s'], [30, '30 s'], [60, '1 min'], [300, '5 min']].map(([v, l]) => '<option value="' + v + '"' + (NOTIF.every === v ? ' selected' : '') + '>' + l + '</option>').join('') + '</select></label><span class="muted">' + (NOTIF.on ? 'On: new accounts and cheat suspicion' : 'Turned off') + '. Popup + sound while this page (or the installed app) is open' + ('Notification' in window ? ' (browser permission: ' + Notification.permission + ')' : '') + '.</span></div>' +
-    (NOTIF.feed.length ? '<table><tr><th>ALERTED</th><th>PLAYER</th><th>CREATED</th></tr>' + NOTIF.feed.slice(0, 8).map((f) => '<tr><td>' + fmtD(f.seen) + '</td><td>' + nameLink(f.name) + '</td><td>' + fmtD(f.at) + '</td></tr>').join('') + '</table>' : '') + '</div>' +
+    notifSettingsHtml() +
+    (NOTIF.feed.length ? '<table><tr><th>ALERTED</th><th>TYPE</th><th>PLAYER</th><th>CREATED</th></tr>' + NOTIF.feed.slice(0, 8).map((f) => '<tr><td>' + fmtD(f.seen) + '</td><td>' + ((KINDS[f.kind] || KINDS.account).label) + '</td><td>' + nameLink(f.name) + '</td><td>' + fmtD(f.at) + '</td></tr>').join('') + '</table>' : '') + '</div>' +
     '<h2>New accounts, last 30 days</h2><div class="card">' + signupChart(us, 30) + '</div>' +
     '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))"><div class="card"><h3>NEWEST ACCOUNTS</h3><table><tr><th>PLAYER</th><th>CREATED</th><th>SLOTS</th></tr>' + recent.map((u) => '<tr><td>' + nameLink(u.name) + '</td><td>' + fmtD(u.created_at) + '</td><td>' + u.slots + '</td></tr>').join('') + '</table></div>' +
     '<div class="card"><h3>RECENTLY ACTIVE</h3><table><tr><th>PLAYER</th><th>LAST SEEN</th><th>SLOTS</th></tr>' + (active.length ? active.map((u) => '<tr><td>' + nameLink(u.name) + '</td><td>' + fmtD(last(u)) + '</td><td>' + u.slots + '</td></tr>').join('') : '<tr><td colspan="3" class="muted">Nobody in the last 24 h.</td></tr>') + '</table></div></div>' +
@@ -272,6 +310,13 @@ function viewDashboard() {
   $('#dn').onclick = () => setNotif(!NOTIF.on);
   $('#de').onchange = (e) => { NOTIF.every = +e.target.value; lsSet('da.admin.every', NOTIF.every); startPoll(); };
   $('#dt').onclick = () => announce([{ name: 'test_account', created_at: new Date().toISOString() }], true);
+  document.querySelectorAll('[data-cfg]').forEach((el) => {
+    el.onchange = () => {
+      const k = el.dataset.cfg, v = el.type === 'checkbox' ? el.checked : el.type === 'text' ? el.value : (isNaN(+el.value) ? el.value : +el.value);
+      NOTIF.cfg[k] = v; saveCfg();
+      if (k === 'login' || k === 'loginMode' || k === 'watch') viewDashboard();
+    };
+  });
   $('#csv').onclick = exportCsv;
 }
 
