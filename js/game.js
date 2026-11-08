@@ -796,11 +796,11 @@ const G = {
     }
     if (k.age > 0.6 && confirm) {
       const id = k.ids[k.sel], A = CFG.loadout.abilities[id], p = this.player;
+      const prev = p.slots[A.tier];
       p.owned.push(id);
-      if (!p.slots[A.tier]) {                                         // freier Slot: gleich einsetzen
-        p.slots[A.tier] = id;
-        this.notice(A.name + (A.passive ? '' : ' [' + Input.label('ability_' + A.tier) + ']'), STYLE.pal.cyan);
-      } else this.notice('COLLECTED: ' + A.name + ' (SWAP IN PAUSE MENU)', STYLE.pal.yellow);       // belegter Slot: die aktuelle Ability bleibt, die neue ist im Pausenmenue tauschbar
+      p.slots[A.tier] = id;                                           // die Wahl wird immer sofort eingesetzt; eine verdraengte Ability bleibt gesammelt und ist im Pausenmenue (ABILITIES) wieder tauschbar
+      this.notice(A.name + (A.passive ? '' : ' [' + Input.label('ability_' + A.tier) + ']') + (prev ? ' EQUIPPED' : ''), STYLE.pal.cyan);
+      if (prev) this.notice(CFG.loadout.abilities[prev].name + ' STAYS COLLECTED - SWAP BACK IN PAUSE MENU', STYLE.pal.yellow);
       this.pick = null;
       this.mode = 'play';
     }

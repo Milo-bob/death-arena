@@ -186,7 +186,8 @@ function hudSlots(p) {
     const id = p.slots[tier.id], key = Input.label('ability_' + tier.id);
     if (!id) return { icon: null, key, color: P.greyMid, ready: 1 };
     const st = p.abilityStatus(id), passive = CFG.loadout.abilities[id].passive;
-    return { icon: st.icon, iconW: st.iconW, key: passive ? '' : key, color: P.cyan, ready: st.active ? 1 : st.frac, active: st.active, left: st.left };
+    const more = p.owned.filter((o) => CFG.loadout.abilities[o].tier === tier.id).length - 1;       // weitere gesammelte Abilities dieser Gruppe (im Pausenmenue tauschbar)
+    return { icon: st.icon, iconW: st.iconW, key: passive ? '' : key, color: P.cyan, ready: st.active ? 1 : st.frac, active: st.active, left: st.left, count: more > 0 ? '+' + more : undefined };
   });
   const art = Hero.artifact();
   if (art) {
@@ -1451,7 +1452,7 @@ function drawArmoryAbilityInfo(ctx, px, py, pw, ph, nd) {
   const tr = CFG.loadout.tiers.find((q) => q.id === nd.id);
   uiText(ctx, 'KEY: ' + Input.label('ability_' + nd.id), tx, ty + 14, { size: T.small, color: P.cyan });
   if (Ab) { const need = CFG.loadout.tiers.findIndex((q) => q.id === nd.id) + 1; uiText(ctx, 'STARTS AT ' + Math.round(CFG.ramp.start * 100) + '% POWER, FULL AFTER BOSS ' + need, tx, ty + 26, { size: T.small, color: P.yellow, maxW: tw }); }
-  if (!IS_MOBILE) uiWrap(ctx, 'This ability is yours from the start of every run and every PvP match. Abilities you pick after bosses are collected, you can swap them in at the pause menu. More abilities unlock under HERO > ABILITIES.', tx, py + ph - 52, tw, 11, { size: T.small, color: P.greyMid });
+  if (!IS_MOBILE) uiWrap(ctx, 'This ability is yours from the start of every run and every PvP match. Abilities you pick after bosses are equipped right away; the one they replace stays collected and can be swapped back at the pause menu. More abilities unlock under HERO > ABILITIES.', tx, py + ph - 52, tw, 11, { size: T.small, color: P.greyMid });
   uiText(ctx, '[SPACE] CHANGE', px + pw - 14, py + ph - 12, { size: T.small, color: P.cyan, align: 'right' });
 }
 
@@ -1841,7 +1842,7 @@ function drawPauseScreen(ctx) {
     resume: 'RESUME',
     music: 'MUSIC  ' + '|'.repeat(bars) + '.'.repeat(10 - bars),
     sfx: 'SOUND FX  ' + '|'.repeat(Math.round(Save.data.sfxVol * 10)) + '.'.repeat(10 - Math.round(Save.data.sfxVol * 10)),
-    abilities: 'ABILITIES',
+    abilities: 'SWAP ABILITIES',
     binds: 'KEYBINDS',
     exitfs: 'EXIT FULLSCREEN',
     quit: G.pauseConfirm ? 'SURE? [SPACE]' : Tutorial.active ? 'LEAVE TUTORIAL' : 'GIVE UP',
@@ -1884,7 +1885,7 @@ function drawSwapScreen(ctx) {
   const P = STYLE.pal, T = STYLE.type, p = G.player, rows = G.swapRows();
   ctx.fillStyle = 'rgba(5,6,15,0.85)'; ctx.fillRect(0, 0, STAGE_W, STAGE_H);
   uiText(ctx, 'ABILITIES', STAGE_W / 2, 42, { size: T.h1, color: P.cyan, align: 'center', glow: P.cyan });
-  uiText(ctx, 'COLLECTED ABILITIES CAN BE SWAPPED INTO THEIR SLOT ANY TIME', STAGE_W / 2, 58, { size: T.small, color: P.grey, align: 'center' });
+  uiText(ctx, 'ONE ABILITY PER SLOT IS ACTIVE. PICK ANOTHER TO SWITCH IT IN - ANY TIME', STAGE_W / 2, 58, { size: T.small, color: P.grey, align: 'center' });
   const COLORS = { weak: P.cyan, medium: P.yellow, strong: P.orange };
   const w = 400, x = STAGE_W / 2 - w / 2, H = 32, GAP = 35, Y0 = 70, VIS = 6;
   const all = rows.concat(['_back']), off = clamp(G.swapSel - (VIS - 1), 0, Math.max(0, all.length - VIS));
@@ -2192,7 +2193,7 @@ function drawPickScreen(ctx) {
   ctx.fillStyle = 'rgba(5,6,15,0.78)'; ctx.fillRect(0, 0, STAGE_W, STAGE_H);
   const evo = k.kind === 'evo', xp = k.kind === 'xp';
   uiText(ctx, evo ? 'EVOLUTION' : xp ? 'LEVEL UP!' : 'NEW ABILITY', STAGE_W / 2, 50, { size: T.h1 || T.h2, color: evo ? P.yellow : P.cyan, align: 'center', glow: xp ? P.cyan : undefined });
-  uiText(ctx, evo ? 'ONE PER WEAPON SLOT - [ESC] SKIPS (OFFERED AGAIN AFTER THE NEXT BOSS)' : xp ? 'LEVEL ' + k.level + ' - PICK ONE UPGRADE, IT LASTS FOR THIS RUN' : k.tier ? 'SLOT: ' + k.tier.label : 'COLLECT ONE - SWAP LATER IN THE PAUSE MENU', STAGE_W / 2, 70, { size: T.small, color: P.yellow, align: 'center' });
+  uiText(ctx, evo ? 'ONE PER WEAPON SLOT - [ESC] SKIPS (OFFERED AGAIN AFTER THE NEXT BOSS)' : xp ? 'LEVEL ' + k.level + ' - PICK ONE UPGRADE, IT LASTS FOR THIS RUN' : k.tier ? 'FILLS YOUR ' + k.tier.label + ' SLOT' : 'ALL SLOTS FULL - YOUR PICK REPLACES THE ONE IN ITS SLOT. THE OLD ONE STAYS COLLECTED.', STAGE_W / 2, 70, { size: T.small, color: P.yellow, align: 'center' });
   const n = k.ids.length, w = 140, gap = 10, x0 = STAGE_W / 2 - (n * w + (n - 1) * gap) / 2, y = 95, h = 190;
   k.ids.forEach((id, i) => {
     let A = xp ? null : CFG.loadout.abilities[id];
@@ -2221,11 +2222,13 @@ function drawPickScreen(ctx) {
     if (A.xp) { uiText(ctx, '[' + (i + 1) + ']  ' + A.foot, x + w / 2, yy + h - 8, { size: T.small, color: P.yellow, align: 'center' }); return; }
     if (A.evo) { uiText(ctx, A.foot, x + w / 2, yy + h - 14, { size: T.small, color: P.yellow, align: 'center' }); return; }
     const tl = CFG.loadout.tiers.find((t) => t.id === A.tier);
+    const cur = G.player.slots[A.tier];
+    if (cur) uiText(ctx, 'REPLACES: ' + CFG.loadout.abilities[cur].name, x + w / 2, yy + h - 34, { size: T.small, color: P.red, align: 'center', maxW: w - 8 });
     uiText(ctx, tl.label + ' SLOT', x + w / 2, yy + h - 22, { size: T.small, color: ({ weak: P.cyan, medium: P.yellow, strong: P.orange })[A.tier], align: 'center' });
     uiText(ctx, '[' + (i + 1) + ']  ' + (A.passive ? 'PASSIVE' : 'KEY ' + Input.label('ability_' + A.tier)), x + w / 2, yy + h - 8, { size: T.small, color: P.yellow, align: 'center' });
   });
   if (Tutorial.active) uiText(ctx, 'After every boss you pick a new ability like this. Choose one.', STAGE_W / 2, 84, { size: T.small, color: P.yellow, align: 'center' });
-  if (k.age > 0.6) drawPrompt(ctx, 'SELECT [SPACE]', 318);
+  if (k.age > 0.6) drawPrompt(ctx, k.kind || !k.ids.some((i) => G.player.slots[CFG.loadout.abilities[i].tier]) ? 'SELECT [SPACE]' : 'EQUIP [SPACE]', 318);
   if (G.coop) {                                                       // Koop: ablaufender Balken, am Ende nimmt das Spiel die markierte Karte
     const T2 = CFG.coop.pickTime, left = clamp(1 - k.age / T2, 0, 1), bw = 200, bx = STAGE_W / 2 - 150, by = 296;
     const col = left > 0.5 ? P.cyan : left > 0.25 ? P.yellow : P.red;
