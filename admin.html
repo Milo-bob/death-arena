@@ -232,7 +232,7 @@ function logout() { KEY = ''; clearInterval(NOTIF.timer); NOTIF.timer = null; st
 // ====== Rahmen ======
 function renderMain() {
   clearInterval(S.liveTimer); S.liveTimer = null;
-  const groups = [['OVERVIEW', [['dashboard', 'Dashboard'], ['online', 'Online now']]], ['PLAYERS', [['players', 'Players'], ['create', 'Create accounts']]], ['INSIGHTS', [['stats', 'Statistics'], ['retention', 'Retention'], ['errors', 'Bugs & errors']]], ['MODERATION', [['cheats', 'Cheats'], ['guilds', 'Guilds'], ['gifts', 'Gifts & news'], ['audit', 'Action log']]], ['SETTINGS', [['alerts', 'Alerts']]]];
+  const groups = [['OVERVIEW', [['dashboard', 'Dashboard'], ['online', 'Online now']]], ['PLAYERS', [['players', 'Players'], ['create', 'Create accounts']]], ['INSIGHTS', [['trends', 'Trends'], ['stats', 'Statistics'], ['retention', 'Retention'], ['errors', 'Bugs & errors']]], ['MODERATION', [['cheats', 'Cheats'], ['guilds', 'Guilds'], ['gifts', 'Gifts & news'], ['audit', 'Action log']]], ['SETTINGS', [['alerts', 'Alerts']]]];
   const badge = (id) => id === 'online' ? '<span class="bdg' + (NOTIF.onlineN ? '' : ' off') + '" id="bd-online"' + (NOTIF.onlineN == null ? ' hidden' : '') + '>' + (NOTIF.onlineN || 0) + '</span>' : id === 'errors' ? '<span class="bdg red" id="bd-bugs"' + (NOTIF.bugsNew ? '' : ' hidden') + '>' + (NOTIF.bugsNew || 0) + '</span>' : id === 'alerts' ? '<span class="bdg' + (NOTIF.on ? '' : ' off') + '" id="bd-alerts">' + (NOTIF.on ? 'ON' : 'OFF') + '</span>' : '';
   $('#app').innerHTML = '<header class="top"><h1>DEATHARENA ADMIN</h1><span class="sp"></span><span class="muted hide-s" id="cnt">' + (S.users ? S.users.length + ' accounts' : '') + '</span><button id="gsb" title="Find a player ( / )">🔍</button><button id="nt" title="Alerts on/off (details under Settings > Alerts)"></button><button id="rl">RELOAD</button><span class="hide-s">' + instBtn() + '</span><button id="lo" class="warn">LOG OUT</button></header>' +
     '<div class="shell"><aside id="side">' + groups.map(([g, items]) => '<div class="grp"><div class="gl">' + g + '</div>' + items.map(([id, l]) => '<button data-t="' + id + '" class="' + (S.tab === id ? 'on' : '') + '">' + l + badge(id) + '</button>').join('') + '</div>').join('') + '</aside><div class="wrap" id="main"></div></div>';
@@ -243,7 +243,7 @@ function renderMain() {
   if (NOTIF.on && !NOTIF.pushed) { NOTIF.pushed = true; pushSub(true).catch(() => {}); }
   if (!S.notes) loadNotes().then(() => { if (S.tab === 'players' && $('#ut')) drawUsers(); });
   $('#rl').onclick = async () => { try { S.users = await rpc('adm_users'); S.logs = null; S.allSaves = null; if (S.sel) await loadSel(); toast('Reloaded'); renderMain(); } catch (e) { toast(e.message, true); } };
-  ({ dashboard: viewDashboard, online: viewOnline, alerts: viewAlerts, players: viewPlayers, create: viewCreate, stats: viewStats, retention: viewRetention, gifts: viewGifts, cheats: viewCheats, guilds: viewGuilds, errors: viewErrors, audit: viewAudit }[S.tab])();
+  ({ dashboard: viewDashboard, online: viewOnline, alerts: viewAlerts, trends: viewTrends, players: viewPlayers, create: viewCreate, stats: viewStats, retention: viewRetention, gifts: viewGifts, cheats: viewCheats, guilds: viewGuilds, errors: viewErrors, audit: viewAudit }[S.tab])();
 }
 
 // ====== Benachrichtigung bei neuen Konten ======
@@ -426,6 +426,57 @@ async function loadNotes() {
   try { for (const r of await rpc('adm_notes')) S.notes[r.user_id] = r.note; } catch (e) { /* Extras-SQL noch nicht ausgefuehrt */ }
 }
 
+// ====== Spieler-Gruppen (nur in diesem Browser gespeichert, im Backup enthalten) ======
+const getGroups = () => lsGet('da.admin.groups', {}), setGroups = (g) => lsSet('da.admin.groups', g);
+const groupMembers = (name) => (getGroups()[name] || []).filter((n) => (S.users || []).some((u) => u.name === n));
+
+// ====== Backup: Spielerliste, Notizen, Gruppen und alle Spielstaende als Datei ======
+async function exportBackup() {
+  toast('Preparing backup ...');
+  try {
+    const saves = []; let off = 0;
+    for (;;) { const part = await rpc('adm_all_saves', { p_limit: 200, p_offset: off }); saves.push(...part.map((r) => ({ user_id: r.user_id, name: r.name, slot: r.slot, updated_at: r.updated_at, code: r.code }))); if (part.length < 200) break; off += 200; if (off > 20000) break; }
+    const data = { exported_at: new Date().toISOString(), app: 'deatharena-admin', users: S.users || [], notes: S.notes || {}, groups: getGroups(), saves };
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: 'application/json' })); a.download = 'deatharena-backup-' + dayKey(Date.now()) + '.json'; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000); toast('Backup saved: ' + (S.users || []).length + ' accounts, ' + saves.length + ' save files');
+  } catch (e) { toast(e.message, true); }
+}
+
+// ====== Trends: Aktive pro Tag, gleichzeitig Online, beste Uhrzeiten (tools/supabase_admin_trends.sql) ======
+function colChart(rows, colors, unit) {      // rows: [{ l: Beschriftung, v: [Teilwerte] }], gestapelt
+  const mob = window.innerWidth < 700, W = Math.max(300, Math.min(window.innerWidth >= 820 ? window.innerWidth - 300 : window.innerWidth - 50, 1140)), H = mob ? 190 : 180, padX = 6, padT = 20, padB = 22, n = rows.length;
+  const tot = rows.map((r) => r.v.reduce((a, b) => a + b, 0)), mx = Math.max(2, ...tot), bw = (W - padX * 2) / n, gap = bw > 14 ? 3 : 1, step = Math.max(1, Math.ceil(n / (mob ? 7 : 14))), ch = H - padT - padB;
+  let s = '<svg class="chart" style="height:' + H + 'px" viewBox="0 0 ' + W + ' ' + H + '"><line x1="0" x2="' + W + '" y1="' + (H - padB) + '" y2="' + (H - padB) + '" stroke="#1f3a66"/><line x1="0" x2="' + W + '" y1="' + padT + '" y2="' + padT + '" stroke="#16264d" stroke-dasharray="3 4"/><text x="4" y="' + (padT - 5) + '" fill="#7f8fb0" font-size="11">max ' + mx + (unit ? ' ' + unit : '') + '</text>';
+  rows.forEach((r, i) => {
+    let y = H - padB; const x = padX + i * bw;
+    r.v.forEach((v, k) => { if (v <= 0) return; const h = ch * v / mx; y -= h; s += '<rect x="' + (x + gap) + '" y="' + y + '" width="' + Math.max(2, bw - gap * 2) + '" height="' + h + '" fill="' + colors[k] + '"><title>' + esc(r.l) + ': ' + v + '</title></rect>'; });
+    if (tot[i] && n <= 31) s += '<text x="' + (x + bw / 2) + '" y="' + (y - 4) + '" fill="#e6fdff" font-size="11" text-anchor="middle">' + tot[i] + '</text>';
+    if ((n - 1 - i) % step === 0) s += '<text x="' + (x + bw / 2) + '" y="' + (H - 6) + '" fill="#7f8fb0" font-size="11" text-anchor="middle">' + esc(r.l) + '</text>';
+  });
+  return s + '</svg>';
+}
+async function viewTrends() {
+  const m = $('#main'), T = S.tr = S.tr || { days: 30 };
+  m.innerHTML = '<div class="pg"><h2>Trends</h2><span class="muted">Players over time</span></div><div class="chips" id="trc">' + [[7, '7 days'], [30, '30 days'], [90, '90 days']].map(([d, l]) => '<button data-v="' + d + '" class="' + (T.days === d ? 'on' : '') + '">' + l + '</button>').join('') + '</div><div id="trb"><span class="muted">Loading...</span></div>';
+  document.querySelectorAll('#trc button').forEach((b) => { b.onclick = () => { T.days = +b.dataset.v; viewTrends(); }; });
+  let days, hours; try { days = await rpc('adm_trends', { p_days: T.days }); hours = await rpc('adm_trends_hourly', { p_hours: 336 }); } catch (e) { $('#trb').innerHTML = '<div class="card"><span class="err">' + esc(e.message) + '</span><div class="muted" style="margin-top:4px">Needs tools/supabase_admin_trends.sql in Supabase (also needs supabase_social.sql).</div></div>'; return; }
+  if (S.tab !== 'trends') return;
+  const first = days.find((d) => d.active > 0 || d.peak > 0);
+  if (!first) { $('#trb').innerHTML = '<div class="card muted">No data yet. The server now records who is active and how many are online at the same time. This page fills as players play, nothing is available for the past.</div>'; return; }
+  const lab = (d) => String(d.day).slice(8) + '.' + String(d.day).slice(5, 7), used = days.filter((d) => d.day >= first.day);
+  const peak = used.reduce((a, d) => (d.peak > a.peak ? d : a), used[0]), sumA = used.reduce((a, d) => a + d.active, 0), sumF = used.reduce((a, d) => a + d.fresh, 0);
+  const today = days[days.length - 1], yest = days[days.length - 2];
+  // beste Uhrzeiten: Durchschnitt der Stundenspitzen je Uhrzeit (Ortszeit) ueber die Tage mit Daten
+  const byH = Array(24).fill(0), spanDays = new Set(hours.map((h) => dayKey(h.hour))).size || 1;
+  for (const h of hours) byH[new Date(h.hour).getHours()] += h.peak;
+  const avgH = byH.map((v) => +(v / spanDays).toFixed(1)), order = avgH.map((v, i) => [v, i]).sort((a, b) => b[0] - a[0]), best = order[0][0] > 0 ? order.slice(0, 3).map((x) => String(x[1]).padStart(2, '0') + ':00').sort() : [];
+  $('#trb').innerHTML = '<div class="kpis" style="margin-top:8px">' + [['Today active', today.active], ['Yesterday', yest ? yest.active : 0], ['Avg per day', (sumA / used.length).toFixed(1)], ['Peak online', peak.peak], ['Returning share', sumA ? pct((sumA - sumF) / sumA) : '-']].map(([l, v]) => '<div class="kpi"><b>' + v + '</b><span>' + l + '</span></div>').join('') + '</div>' +
+    '<div class="muted" style="font-size:12px;margin:6px 0">Collecting since ' + first.day + '. Peak of ' + peak.peak + ' online at once on ' + peak.day + '.</div>' +
+    '<div class="sec">ACTIVE PLAYERS PER DAY</div><div class="card" style="margin-top:0"><div class="muted" style="font-size:12px;margin-bottom:4px"><span style="color:#3de8ff">■</span> returning &nbsp; <span style="color:#ffd91f">■</span> new that day</div>' + colChart(days.map((d) => ({ l: lab(d), v: [d.active - d.fresh, d.fresh] })), ['#3de8ff', '#ffd91f'], 'players') + '</div>' +
+    '<div class="sec">MOST ONLINE AT THE SAME TIME, PER DAY</div><div class="card" style="margin-top:0">' + colChart(days.map((d) => ({ l: lab(d), v: [d.peak] })), ['#8a4bff'], 'online') + '</div>' +
+    '<div class="sec">BUSIEST HOURS (AVERAGE PEAK, LAST 14 DAYS, YOUR TIME)</div><div class="card" style="margin-top:0">' + (best.length ? '<div style="margin-bottom:6px">Most players are around at <b>' + best.join(', ') + '</b>. A good time for updates is the quietest hours; for events and announcements, the busiest.</div>' : '') + colChart(avgH.map((v, i) => ({ l: String(i), v: [v] })), ['#39ff6e'], 'avg') + '</div>';
+}
+
 // ====== Spieler-Suche (Lupe oben, Taste /) ======
 function openSearch() {
   if ($('#gs') || !KEY) return;
@@ -451,7 +502,7 @@ async function runHealth() {
   const out = [], hint = (e, file) => (/not set up|Could not find|schema cache/i.test(e.message) ? 'run tools/' + file : e.message);
   let t0 = performance.now();
   try { await rpc('adm_users'); const ms = Math.round(performance.now() - t0); out.push({ label: 'Server reachable', st: ms < 1500 ? 'ok' : 'warn', hint: ms + ' ms' }); } catch (e) { out.push({ label: 'Server reachable', st: 'bad', hint: e.message }); }
-  const checks = [['Online, errors, guilds', 'adm_errors', {}, 'supabase_admin2.sql'], ['Notes and mass gifts', 'adm_notes', {}, 'supabase_admin_extras.sql'], ['Anticheat flags', 'adm_flags', { p_limit: 1 }, 'supabase_anticheat.sql'], ['Trusted accounts', 'adm_ac_trusted', {}, 'supabase_ac_trust.sql'], ['Player bug reports', 'adm_bugs', {}, 'supabase_admin3.sql'], ['Game versions', 'adm_versions', {}, 'supabase_admin3.sql']];
+  const checks = [['Online, errors, guilds', 'adm_errors', {}, 'supabase_admin2.sql'], ['Notes and mass gifts', 'adm_notes', {}, 'supabase_admin_extras.sql'], ['Anticheat flags', 'adm_flags', { p_limit: 1 }, 'supabase_anticheat.sql'], ['Trusted accounts', 'adm_ac_trusted', {}, 'supabase_ac_trust.sql'], ['Player bug reports', 'adm_bugs', {}, 'supabase_admin3.sql'], ['Game versions', 'adm_versions', {}, 'supabase_admin3.sql'], ['Player trends', 'adm_trends', { p_days: 1 }, 'supabase_admin_trends.sql']];
   const res = await Promise.all(checks.map(([l, fn, a, f]) => rpc(fn, a).then((r) => ({ ok: true, r }), (e) => ({ ok: false, e }))));
   checks.forEach(([l, fn, a, f], i) => out.push(res[i].ok ? { label: l, st: 'ok', hint: '' } : { label: l, st: 'bad', hint: hint(res[i].e, f) }));
   if (res[0].ok) { const n = (res[0].r || []).filter((e) => Date.now() - new Date(e.last_at) < 36e5).length; out.push({ label: 'Game errors, last hour', st: n ? 'warn' : 'ok', hint: n ? n + ' different error' + (n > 1 ? 's' : '') + ' (see Bugs & errors)' : 'none' }); }
@@ -554,7 +605,7 @@ function viewDashboard() {
   const kp = (t, arr) => '<div class="sec">' + t + '</div><div class="kpis">' + arr.map(([l, v, id]) => '<div class="kpi' + (id ? ' hot' : '') + '"' + (id ? ' id="' + id + '"' : '') + '><b>' + v + '</b><span>' + l + '</span></div>').join('') + '</div>';
   const recent = us.slice().sort((a, b) => (a.created_at < b.created_at ? 1 : -1)).slice(0, 8), cd = S.cd || (window.innerWidth < 700 ? 14 : 30), newIn = (d) => us.filter((u) => now - new Date(u.created_at) < d * D).length;
   const active = us.filter((u) => now - last(u) < D).sort((a, b) => last(b) - last(a)).slice(0, 8);
-  $('#main').innerHTML = '<div class="pg"><h2>Dashboard</h2><span class="muted">' + us.length + ' accounts</span><span class="sp" style="flex:1"></span><button id="csv">EXPORT PLAYERS (CSV)</button></div>' +
+  $('#main').innerHTML = '<div class="pg"><h2>Dashboard</h2><span class="muted">' + us.length + ' accounts</span><span class="sp" style="flex:1"></span><button id="bk" title="Players, notes, groups and all save files as one file">BACKUP (JSON)</button><button id="csv">EXPORT PLAYERS (CSV)</button></div>' +
     '<div class="card hero' + (NOTIF.on ? ' live' : '') + '" style="margin-top:8px"><button id="dn" class="' + (NOTIF.on ? 'on' : '') + '">' + (NOTIF.on ? '🔔 ALERTS ON' : '🔕 ALERTS OFF') + '</button><div style="flex:1;min-width:200px"><b>' + (NOTIF.on ? 'Watching:' : 'Would watch:') + '</b> <span class="muted">' + esc(alertsSummary()) + '</span></div><button id="da">ALERT SETTINGS</button></div>' +
     '<div id="hlc">' + healthHtml(S.health) + '</div>' +
     kp('NOW', [['Online now', '…', 'k-on'], ['Active 1 h', cnt((u) => now - last(u) < H)], ['Active 24 h', cnt((u) => now - last(u) < D)], ['Active 7 days', cnt((u) => now - last(u) < 7 * D)]]) +
@@ -568,7 +619,7 @@ function viewDashboard() {
   $('#dn').onclick = () => setNotif(!NOTIF.on);
   $('#da').onclick = () => { S.tab = 'alerts'; renderMain(); };
   document.querySelectorAll('#cd button').forEach((b) => { b.onclick = () => { S.cd = +b.dataset.d; document.querySelectorAll('#cd button').forEach((x) => x.classList.toggle('on', x === b)); $('#cbox').innerHTML = signupChart(us, S.cd); $('#csum').textContent = newIn(S.cd) + ' new in ' + S.cd + ' days (' + (newIn(S.cd) / S.cd).toFixed(1) + ' per day)'; }; });
-  $('#csv').onclick = exportCsv;
+  $('#csv').onclick = exportCsv; $('#bk').onclick = exportBackup;
   if (!S.health || Date.now() - S.health.at > 60000) runHealth().then(() => { const el = $('#hlc'); if (el && S.tab === 'dashboard') el.innerHTML = healthHtml(S.health); });
   rpc('adm_versions').then((l) => l, () => null).then((l) => { const el = $('#vsc'); if (el && S.tab === 'dashboard') el.innerHTML = versionsHtml(l); });
   rpc('adm_online').then((l) => {      // "Online jetzt" nachtragen (braucht supabase_social.sql + supabase_admin2.sql, sonst bleibt es '-')
@@ -584,7 +635,7 @@ function viewPlayers() {
   const m = $('#main'); S.pf = S.pf || 'all';
   m.innerHTML = '<div class="pg"><h2>Players</h2><span class="muted" id="pcount"></span></div>' +
     '<div class="row"><input type="search" id="q" placeholder="Search name or note..." value="' + esc(S.filter) + '" style="flex:1;min-width:160px"><select id="psort">' + PSORT.map(([v, l]) => '<option value="' + v + '"' + (v === S.sort.k + '|' + S.sort.d ? ' selected' : '') + '>' + l + '</option>').join('') + '</select></div>' +
-    '<div class="chips" id="pf">' + PF.map(([id, l]) => '<button data-f="' + id + '" class="' + (S.pf === id ? 'on' : '') + '">' + l + '</button>').join('') + '</div>' +
+    '<div class="chips" id="pf">' + PF.concat(Object.keys(getGroups()).map((g) => ['grp:' + g, '★ ' + g])).map(([id, l]) => '<button data-f="' + id + '" class="' + (S.pf === id ? 'on' : '') + '">' + l + '</button>').join('') + '</div>' +
     '<div class="card" style="overflow:auto"><table id="ut"></table><div id="ul"></div></div><div id="detail"></div>';
   $('#q').oninput = (e) => { S.filter = e.target.value; drawUsers(); };
   $('#psort').onchange = (e) => { const [k, d] = e.target.value.split('|'); S.sort = { k, d: +d }; drawUsers(); };
@@ -595,7 +646,7 @@ function viewPlayers() {
 function drawUsers() {
   const cols = [['name', 'NAME'], ['created_at', 'CREATED'], ['last_sign_in', 'LAST LOGIN'], ['slots', 'SLOTS'], ['saved_at', 'LAST SAVE'], ['logs', 'RUNS LOGGED'], ['gifts', 'GIFTS PENDING']];
   const q = S.filter.toLowerCase(), k = S.sort.k, d = S.sort.d, nt = S.notes || {}, on = S.onSet || new Set(), nowT = Date.now(), lastAct = (u) => Math.max(+new Date(u.last_sign_in || 0), +new Date(u.saved_at || 0));
-  const pfOk = (u) => { const f = S.pf || 'all'; return f === 'all' || (f === 'online' && on.has(u.name)) || (f === 'active7' && nowT - lastAct(u) < 7 * 864e5) || (f === 'new7' && nowT - new Date(u.created_at) < 7 * 864e5) || (f === 'never' && !u.slots) || (f === 'lb' && u.optin) || (f === 'bad' && (u.blocked || u.banned)); };
+  const pfOk = (u) => { const f = S.pf || 'all'; return f === 'all' || (f === 'online' && on.has(u.name)) || (f === 'active7' && nowT - lastAct(u) < 7 * 864e5) || (f === 'new7' && nowT - new Date(u.created_at) < 7 * 864e5) || (f === 'never' && !u.slots) || (f === 'lb' && u.optin) || (f === 'bad' && (u.blocked || u.banned)) || (f.startsWith('grp:') && (getGroups()[f.slice(4)] || []).includes(u.name)); };
   const list = (S.users || []).filter((u) => pfOk(u) && (!q || u.name.toLowerCase().includes(q) || (nt[u.user_id] || '').toLowerCase().includes(q))).sort((a, b) => { const x = a[k] == null ? '' : a[k], y = b[k] == null ? '' : b[k]; return (x > y ? 1 : x < y ? -1 : 0) * d; });
   const pc0 = $('#pcount'); if (pc0) pc0.textContent = list.length + ' of ' + (S.users || []).length + ' accounts' + (S.onSet ? ', ' + S.onSet.size + ' online' : '');
   const mob = window.innerWidth < 700; $('#ut').style.display = mob ? 'none' : ''; const ulEl = $('#ul'); ulEl.innerHTML = '';
@@ -643,6 +694,7 @@ function drawDetail() {
   const gh = S.gifts.length ? '<table><tr><th>WHEN</th><th>SLOT</th><th>CREDITS</th><th>XP</th><th>NOTE</th><th>STATE</th><th></th></tr>' + S.gifts.map((g) => '<tr><td>' + fmtD(g.created_at) + '</td><td>' + (g.slot + 1) + '</td><td>' + (g.credits > 0 ? '+' : '') + g.credits + '</td><td>' + (g.xp > 0 ? '+' : '') + (g.xp || 0) + '</td><td>' + esc(g.note) + '</td><td>' + (g.claimed_at ? '<span class="ok">collected ' + fmtD(g.claimed_at) + '</span>' : '<span class="yel">waiting</span>') + '</td><td>' + (g.claimed_at ? '' : '<button data-a="cancelgift" data-id="' + g.id + '" class="warn">CANCEL</button>') + '</td></tr>').join('') + '</table>' : '<span class="muted">No gifts yet.</span>';
   el.innerHTML = '<h2>' + esc(u.name) + ' <span class="muted" style="font-size:12px">' + u.user_id + '</span></h2>' +
     '<div class="card" id="hist"><h3>ACTIVITY AND HISTORY</h3><span class="muted">Loading...</span></div>' +
+    '<div class="card"><h3>GROUPS</h3><div class="chips" id="gr">' + Object.keys(getGroups()).map((g) => '<button data-g="' + esc(g) + '" class="' + (getGroups()[g].includes(u.name) ? 'on' : '') + '">★ ' + esc(g) + '</button>').join('') + '<button id="gnew">+ NEW GROUP</button></div><div class="muted" style="font-size:12px">Groups are for filtering the player list and for gifts to a chosen set of players. Saved in this browser only.</div></div>' +
     '<div class="grid">' + [0, 1, 2].map(slotCard).join('') + '</div>' +
     '<div class="card"><h3>ACCOUNT</h3><div class="row"><input type="text" id="npw" placeholder="new password (6+)" style="width:200px"><button id="rnd">RANDOM</button><button id="setpw" class="warn">SET PASSWORD</button></div>' +
     '<div class="row"><textarea id="note" rows="2" maxlength="500" placeholder="Private note about this player (only you see it)" style="flex:1;min-width:220px;font:13px/1.4 inherit">' + esc((S.notes || {})[u.user_id] || '') + '</textarea><button id="sn" class="on">SAVE NOTE</button></div>' +
@@ -651,6 +703,8 @@ function drawDetail() {
     '<div class="row"><input type="text" id="nn" placeholder="new name" style="width:200px"><button id="rn" class="warn">RENAME</button><span class="muted">3-20 lowercase letters, numbers or _ (the login name changes too)</span></div></div>' +
     '<div class="card"><h3>GIFTS</h3><div class="muted" style="margin-bottom:6px">Gifts are collected when the player is in the main menu and online; they are never overwritten by their own progress.</div>' + gh + '</div>';
   $('#rnd').onclick = () => { $('#npw').value = randomPw(); };
+  document.querySelectorAll('#gr button[data-g]').forEach((b) => { b.onclick = () => { const G = getGroups(), a = G[b.dataset.g] || [], i = a.indexOf(u.name); if (i < 0) a.push(u.name); else a.splice(i, 1); G[b.dataset.g] = a; setGroups(G); drawDetail(); }; });
+  $('#gnew').onclick = () => { const n = (prompt('Name of the new group (e.g. Beta testers):') || '').trim().slice(0, 24); if (!n) return; const G = getGroups(); G[n] = Array.from(new Set((G[n] || []).concat([u.name]))); setGroups(G); drawDetail(); };
   $('#setpw').onclick = () => { const pw = $('#npw').value; if (pw.length < 6) return toast('Password needs 6+ characters', true); if (!confirm('Set a new password for ' + u.name + '?')) return; act('Password set for ' + u.name + ': ' + pw, 'adm_set_password', { p_user: u.user_id, p_pw: pw }); };
   $('#ban').onclick = () => act(u.banned ? 'Unbanned' : 'Banned', 'adm_ban', { p_user: u.user_id, p_on: !u.banned }, reloadUsers);
   $('#bk').onclick = () => quick('block', u.user_id);
@@ -962,13 +1016,15 @@ async function viewGifts() {
       '<div class="muted" style="font-size:12px">PREVIEW</div><div class="prev" id="apv"></div><button id="ap" class="on big">PUBLISH TO ALL PLAYERS</button></div>' +
       '<div class="card"><h3>PUBLISHED</h3>' + (news.length ? news.slice(0, 10).map((a) => '<div class="rrow"><div class="l1"><b>' + esc(a.title) + '</b>' + (live(a) ? '<span class="tag ok">LIVE until ' + fmtD(a.expires_at) + '</span>' : '<span class="tag muted">ended</span>') + '</div><div class="l2">' + fmtD(a.created_at) + ' · ' + esc(a.body.slice(0, 140)) + '</div>' + (live(a) ? '<div class="acts"><button data-ae="' + a.id + '" class="warn">END NOW</button></div>' : '') + '</div>').join('') : '<span class="muted">Nothing published yet.</span>') + '</div>';
   } else if (T.tab === 'gift') {
-    const AUD = [['all', 'Everyone with a save'], ['active7', 'Active 7 days'], ['active30', 'Active 30 days'], ['leaderboard', 'Leaderboard']];
+    const AUD = [['all', 'Everyone with a save'], ['active7', 'Active 7 days'], ['active30', 'Active 30 days'], ['leaderboard', 'Leaderboard']].concat(Object.keys(getGroups()).map((g) => ['grp:' + g, '★ ' + g])), isG = T.aud.startsWith('grp:');
+    const TPL = [['Welcome back', 100, 0, 'Welcome back!'], ['Thanks for the report', 250, 0, 'Thank you for your bug report!'], ['Event reward', 500, 100, 'Event reward'], ['Sorry for the trouble', 300, 0, 'Sorry for the trouble - enjoy!']].concat(lsGet('da.admin.gtpl', []));
     body = '<div class="card"><h3>GIFT TO MANY PLAYERS</h3><div class="muted" style="font-size:13px">Goes to each player\'s most recently saved slot and is collected in the main menu. Positive amounts only.</div>' +
-      '<div class="fld"><span>WHO</span>' + chips('ga', AUD, T.aud) + '<div class="muted" id="mcnt" style="font-size:13px">...</div></div>' +
+      '<div class="fld"><span>TEMPLATE</span><div class="chips" id="gtp">' + TPL.map((t, i) => '<button data-i="' + i + '">' + esc(t[0]) + '</button>').join('') + '</div></div>' +
+      '<div class="fld"><span>WHO</span>' + chips('ga', AUD, T.aud) + '<div class="muted" id="mcnt" style="font-size:13px">...</div>' + (isG ? '<div class="acts"><button id="gdel" class="bad">DELETE THIS GROUP</button></div>' : '') + '</div>' +
       '<label class="fld"><span>CREDITS</span><input type="number" id="mc" min="0" inputmode="numeric" value="' + T.cr + '"></label>' + chips('gq', [[100, '100'], [250, '250'], [500, '500'], [1000, '1000'], [5000, '5000']], '') +
       '<label class="fld"><span>XP (OPTIONAL)</span><input type="number" id="mx" min="0" inputmode="numeric" value="0"></label>' +
       '<label class="fld"><span>NOTE SHOWN TO THE PLAYER</span><input type="text" id="mn" maxlength="80" placeholder="e.g. Welcome back!"></label>' +
-      '<div class="prev" id="gpv"></div><button id="mg" class="on big">SEND GIFT</button></div>';
+      '<div class="prev" id="gpv"></div><button id="mg" class="on big">SEND GIFT</button><div class="acts"><button id="gst">SAVE AS TEMPLATE</button></div></div>';
   } else {
     const rows = list.filter((g) => T.f === 'all' || (T.f === 'wait' ? !g.claimed_at : !!g.claimed_at));
     body = chips('gf', [['all', 'All (' + list.length + ')'], ['wait', 'Waiting (' + waiting + ')'], ['done', 'Collected (' + (list.length - waiting) + ')']], T.f) +
@@ -989,18 +1045,28 @@ async function viewGifts() {
     m.querySelectorAll('[data-ae]').forEach((b) => { b.onclick = () => act('Announcement ended', 'adm_announce_end', { p_id: +b.dataset.ae }, viewGifts); });
   }
   if (T.tab === 'gift') {
-    const aud = () => (AUDL.find(([v]) => v === T.aud) || [])[1] || T.aud, AUDL = [['all', 'everyone with a save'], ['active7', 'players active in the last 7 days'], ['active30', 'players active in the last 30 days'], ['leaderboard', 'leaderboard members']];
+    const aud = () => (AUDL.find(([v]) => v === T.aud) || [])[1] || (T.aud.startsWith('grp:') ? 'members of the group "' + T.aud.slice(4) + '"' : T.aud), AUDL = [['all', 'everyone with a save'], ['active7', 'players active in the last 7 days'], ['active30', 'players active in the last 30 days'], ['leaderboard', 'leaderboard members']];
     let count = null;
-    const pv = () => { T.cr = parseInt($('#mc').value, 10) || 0; const x = parseInt($('#mx').value, 10) || 0; $('#gpv').innerHTML = (T.cr || x) ? 'Each of <b>' + (count == null ? '?' : count) + '</b> ' + esc(aud()) + ' gets <b>' + [T.cr ? T.cr + ' credits' : '', x ? x + ' XP' : ''].filter(Boolean).join(' + ') + '</b>' + (count != null && T.cr ? '<div class="muted" style="font-size:12px">' + fmtN(count * T.cr) + ' credits in total</div>' : '') : '<span class="muted">Enter an amount.</span>'; };
-    const preview = async () => { try { count = await rpc('adm_audience_count', { p_audience: T.aud }); $('#mcnt').textContent = count + ' accounts would receive this.'; } catch (e) { count = null; $('#mcnt').textContent = e.message.replace('supabase_admin.sql', 'supabase_admin_extras.sql'); } pv(); return count; };
+    const pv = () => { T.cr = parseInt($('#mc').value, 10) || 0; const x = parseInt($('#mx').value, 10) || 0; $('#gpv').innerHTML = (T.cr || x) ? '<b>' + (count == null ? '?' : count) + '</b> players (' + esc(aud()) + ') get <b>' + [T.cr ? T.cr + ' credits' : '', x ? x + ' XP' : ''].filter(Boolean).join(' + ') + '</b> each' + (count != null && T.cr ? '<div class="muted" style="font-size:12px">' + fmtN(count * T.cr) + ' credits in total</div>' : '') : '<span class="muted">Enter an amount.</span>'; };
+    const preview = async () => { if (T.aud.startsWith('grp:')) { count = groupMembers(T.aud.slice(4)).length; $('#mcnt').textContent = count + ' players in this group.'; pv(); return count; } try { count = await rpc('adm_audience_count', { p_audience: T.aud }); $('#mcnt').textContent = count + ' accounts would receive this.'; } catch (e) { count = null; $('#mcnt').textContent = e.message.replace('supabase_admin.sql', 'supabase_admin_extras.sql'); } pv(); return count; };
     bindChips('ga', (v) => { T.aud = v; preview(); });
     bindChips('gq', (v) => { $('#mc').value = v; pv(); });
     $('#mc').oninput = pv; $('#mx').oninput = pv; preview();
+    document.querySelectorAll('#gtp button').forEach((b) => { b.onclick = () => { const t = TPL[+b.dataset.i]; $('#mc').value = t[1]; $('#mx').value = t[2]; $('#mn').value = t[3]; pv(); }; });
+    $('#gst').onclick = () => { const c = parseInt($('#mc').value, 10) || 0, x = parseInt($('#mx').value, 10) || 0, nt = $('#mn').value.trim(); if (!c && !x) return toast('Enter an amount first', true); const nm = (prompt('Template name:', nt.slice(0, 24) || 'My template') || '').trim().slice(0, 24); if (!nm) return; lsSet('da.admin.gtpl', lsGet('da.admin.gtpl', []).concat([[nm, c, x, nt]])); toast('Template saved'); viewGifts(); };
+    const gd = $('#gdel'); if (gd) gd.onclick = () => { const g = T.aud.slice(4); if (confirm('Delete the group "' + g + '" (the players stay)?')) { const G = getGroups(); delete G[g]; setGroups(G); T.aud = 'all'; viewGifts(); } };
     $('#mg').onclick = async () => {
       const c = parseInt($('#mc').value, 10) || 0, x = parseInt($('#mx').value, 10) || 0; if (c < 0 || x < 0 || (!c && !x)) return toast('Enter a positive amount', true);
       const n = await preview(); if (n == null) return;
       if (!n) return toast('Nobody matches', true);
       if (!confirm('Give ' + (c ? c + ' credits' : '') + (c && x ? ' and ' : '') + (x ? x + ' XP' : '') + ' to ' + n + ' accounts (' + aud() + ')?')) return;
+      if (T.aud.startsWith('grp:')) {      // Gruppe: je Mitglied ein Geschenk in den zuletzt gespeicherten Slot
+        try { await ensureSaves(); let sent = 0; const note = $('#mn').value.trim();
+          for (const nme of groupMembers(T.aud.slice(4))) { const u = (S.users || []).find((q) => q.name === nme), rows = S.allSaves.filter((r) => r.user_id === u.user_id).sort((a, b) => String(b.at).localeCompare(String(a.at))); if (!rows.length) continue; await rpc('adm_gift', { p_user: u.user_id, p_slot: rows[0].slot, p_credits: c, p_xp: x, p_note: note || 'admin' }); sent++; }
+          toast('Gift queued for ' + sent + ' of ' + n + ' players (players without a save are skipped)'); T.tab = 'hist'; T.f = 'wait'; viewGifts();
+        } catch (e) { toast(e.message, true); }
+        return;
+      }
       act('Gift queued for ' + n + ' accounts', 'adm_gift_many', { p_audience: T.aud, p_credits: c, p_xp: x, p_note: $('#mn').value.trim() }, () => { T.tab = 'hist'; T.f = 'wait'; return viewGifts(); });
     };
   }
