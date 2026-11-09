@@ -1932,6 +1932,8 @@ function drawSettingsScreen(ctx) {
     account: 'ACCOUNT: ' + (Account.on ? Account.meta.name.toUpperCase() : 'NOT LOGGED IN'),
     remind: 'DAILY REMINDER: ' + (PWA.remindOn ? 'ON' : PWA.remindSupported && !PWA.embedded ? 'OFF' : 'APP ONLY'),
     transfer: 'EXPORT / IMPORT SAVE',
+    feedback: 'REPORT A BUG / FEEDBACK',
+    hg: 'HOLIDAY GAMES WEBSITE',
     resetAll: G.resetConfirm ? 'SURE? DELETE SLOT ' + (Save.slot + 1) : 'RESET SAVE FILE (SLOT ' + (Save.slot + 1) + ')',
   };
   const nc = SETTINGS_COLS.length, gap = 8, colW = Math.min(300, Math.floor((STAGE_W - 24 - gap * (nc - 1)) / nc)), ROW = 28;

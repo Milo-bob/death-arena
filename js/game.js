@@ -125,10 +125,11 @@ function upgradeRows(tab) {
 // Einstellungen: drei Spalten nebeneinander, kein Scrollen (Ton und Effekte sind jetzt hier). W/S geht die Spalten der Reihe nach durch, unten immer 'back'.
 const SETTINGS_COLS = [
   { label: 'GENERAL', items: ['language', 'music', 'sfx', 'fx', 'ghost', 'tutorial'] },
-  { label: 'CONTROLS', items: ['controls', 'binds', 'attackmode', 'mouseaim', 'touch'] },
-  { label: 'SAVE & ACCOUNT', items: ['slot', 'account', 'remind', 'transfer', 'resetAll'] },
+  { label: 'CONTROLS', items: ['controls', 'binds', 'attackmode', 'mouseaim', 'touch', 'feedback'] },
+  { label: 'SAVE & ACCOUNT', items: ['slot', 'account', 'remind', 'transfer', 'hg', 'resetAll'] },
 ];
 if (IS_MOBILE) SETTINGS_COLS[1].items = SETTINGS_COLS[1].items.filter((i) => !['controls', 'binds'].includes(i));       // Handy: keine Tastenbelegung (Mauszielen = Ziel-Stick)
+const HG_URL = 'https://www.holiday-games.com/';
 const settingsList = () => [].concat(...SETTINGS_COLS.map((c) => c.items), ['back']);
 const PAUSE_ITEMS = ['resume', 'abilities', 'music', 'sfx', 'binds', 'quit'];
 // Eingebettet auf Holiday Games im Vollbild: zusaetzlich EXIT FULLSCREEN (die Seite blendet dort ihren eigenen Knopf auf Touch-Geraeten aus)
@@ -733,6 +734,12 @@ const G = {
     if (id === 'music') setMusicVolume(STEPS[n]); else Sfx.setVolume(STEPS[n]);
     Save.write(); Sfx.play('select');
   },
+  // Externen Link oeffnen (Tab bzw. Browser aus der installierten App); blockiert das Geraet das Fenster, wird der Link kopiert
+  openLink(url) {
+    Sfx.play('select'); let w = null;
+    try { w = window.open(url, '_blank'); if (w) w.opener = null; } catch (e) { w = null; }
+    if (!w) { try { navigator.clipboard.writeText(url); } catch (e) { /* egal */ } this.toastText = 'LINK COPIED - OPEN IT IN YOUR BROWSER'; this.toastAt = this.realTime; }
+  },
   updateSettings() {
     const n = settingsList().length;
     if (Input.pressed('ArrowUp') || Input.pressed('KeyW')) this.settingsSel = (this.settingsSel + n - 1) % n;
@@ -758,6 +765,8 @@ const G = {
       Sfx.play('select');
     }
     else if (item === 'transfer' && ok) SaveTransfer.open();
+    else if (item === 'feedback' && ok) this.openLink(HG_URL + 'games/death-arena-remake');          // Fehler melden / Ideen: die Spielseite auf Holiday Games hat den Feedback-Knopf
+    else if (item === 'hg' && ok) this.openLink(HG_URL);
     else if (item === 'resetAll' && ok) {
       if (!this.resetConfirm) this.resetConfirm = true;           // erst nochmal bestaetigen
       else { Save.resetAll(); this.resetConfirm = false; }
