@@ -1126,10 +1126,11 @@ async function viewGifts() {
   }
   if (T.tab === 'gift') {
     const isMany = () => T.aud.startsWith('grp:') || T.aud === 'pick', members = () => (T.aud === 'pick' ? T.pick.filter((n) => (S.users || []).some((u) => u.name === n)) : groupMembers(T.aud.slice(4)));
+    const clientAud = () => { const now = Date.now(), last = (u) => Math.max(+new Date(u.last_sign_in || 0), +new Date(u.saved_at || 0)); return (S.users || []).filter((u) => u.slots > 0 && !u.blocked && (T.aud === 'all' || (T.aud === 'active7' && now - last(u) < 7 * 864e5) || (T.aud === 'active30' && now - last(u) < 30 * 864e5) || (T.aud === 'leaderboard' && u.optin && !u.banned))); };      // Zielgruppe in der App ausrechnen, falls die Server-Funktion ausfaellt
     const aud = () => (AUDL.find(([v]) => v === T.aud) || [])[1] || (T.aud === 'pick' ? 'the chosen players' : T.aud.startsWith('grp:') ? 'members of the group "' + T.aud.slice(4) + '"' : T.aud), AUDL = [['all', 'everyone with a save'], ['active7', 'players active in the last 7 days'], ['active30', 'players active in the last 30 days'], ['leaderboard', 'leaderboard members']];
     let count = null;
     const pv = () => { T.cr = parseInt($('#mc').value, 10) || 0; const x = parseInt($('#mx').value, 10) || 0; $('#gpv').innerHTML = (T.cr || x) ? '<b>' + (count == null ? '?' : count) + '</b> players (' + esc(aud()) + ') get <b>' + [T.cr ? T.cr + ' credits' : '', x ? x + ' XP' : ''].filter(Boolean).join(' + ') + '</b> each' + (count != null && T.cr ? '<div class="muted" style="font-size:12px">' + fmtN(count * T.cr) + ' credits in total</div>' : '') : '<span class="muted">Enter an amount.</span>'; };
-    const preview = async () => { if (isMany()) { count = members().length; $('#mcnt').textContent = count + (T.aud === 'pick' ? ' player' + (count === 1 ? '' : 's') + ' chosen.' : ' players in this group.'); pv(); return count; } try { count = await rpc('adm_audience_count', { p_audience: T.aud }); $('#mcnt').textContent = count + ' accounts would receive this.'; } catch (e) { count = null; $('#mcnt').textContent = e.message.replace('supabase_admin.sql', 'supabase_admin_extras.sql'); } pv(); return count; };
+    const preview = async () => { if (isMany()) { count = members().length; $('#mcnt').textContent = count + (T.aud === 'pick' ? ' player' + (count === 1 ? '' : 's') + ' chosen.' : ' players in this group.'); pv(); return count; } try { count = await rpc('adm_audience_count', { p_audience: T.aud }); T.srvFail = false; $('#mcnt').textContent = count + ' accounts would receive this.'; } catch (e) { count = clientAud().length; T.srvFail = true; $('#mcnt').textContent = count + ' accounts (counted in the app; the server count failed: ' + e.message.replace('supabase_admin.sql', 'supabase_admin_extras.sql') + ')'; } pv(); return count; };
     bindChips('ga', (v) => { T.cr = parseInt($('#mc').value, 10) || 0; T.xpv = $('#mx').value; T.nt = $('#mn').value; T.aud = v; viewGifts(); });
     bindChips('gq', (v) => { $('#mc').value = v; pv(); });
     $('#mc').oninput = pv; $('#mx').oninput = pv; preview();
@@ -1150,17 +1151,28 @@ async function viewGifts() {
     const gd = $('#gdel'); if (gd) gd.onclick = () => { const g = T.aud.slice(4); if (confirm('Delete the group "' + g + '" (the players stay)?')) { const G = getGroups(); delete G[g]; setGroups(G); T.aud = 'all'; viewGifts(); } };
     $('#mg').onclick = async () => {
       const c = parseInt($('#mc').value, 10) || 0, x = parseInt($('#mx').value, 10) || 0; if (c < 0 || x < 0 || (!c && !x)) return toast('Enter a positive amount', true);
-      const n = await preview(); if (n == null) return;
+      const n = await preview(); if (n == null) return toast('Could not work out who would receive it', true);
       if (!n) return toast('Nobody matches', true);
       if (!confirm('Give ' + (c ? c + ' credits' : '') + (c && x ? ' and ' : '') + (x ? x + ' XP' : '') + ' to ' + n + ' accounts (' + aud() + ')?')) return;
-      if (isMany()) {      // Gruppe oder ausgewaehlte Spieler: je Mitglied ein Geschenk in den zuletzt gespeicherten Slot
-        try { await ensureSaves(); let sent = 0; const note = $('#mn').value.trim();
-          for (const nme of members()) { const u = (S.users || []).find((q) => q.name === nme), rows = S.allSaves.filter((r) => r.user_id === u.user_id).sort((a, b) => String(b.at).localeCompare(String(a.at))); if (!rows.length) continue; await rpc('adm_gift', { p_user: u.user_id, p_slot: rows[0].slot, p_credits: c, p_xp: x, p_note: note || 'admin' }); sent++; }
-          toast('Gift queued for ' + sent + ' of ' + n + ' players (players without a save are skipped)'); T.tab = 'hist'; T.f = 'wait'; viewGifts();
-        } catch (e) { toast(e.message, true); }
-        return;
-      }
-      act('Gift queued for ' + n + ' accounts', 'adm_gift_many', { p_audience: T.aud, p_credits: c, p_xp: x, p_note: $('#mn').value.trim() }, () => { T.tab = 'hist'; T.f = 'wait'; return viewGifts(); });
+      const note = $('#mn').value.trim(), btn = $('#mg'); btn.disabled = true; btn.textContent = 'SENDING ...';
+      // je Spieler ein Geschenk in den zuletzt gespeicherten Slot (Gruppen, ausgewaehlte Spieler und als Ersatz, wenn die Sammel-Funktion auf dem Server ausfaellt)
+      const sendEach = async (users) => {
+        await ensureSaves(); let sent = 0, fail = 0, err = '';
+        for (const u of users) {
+          const rows = S.allSaves.filter((r) => r.user_id === u.user_id).sort((p, q) => String(q.at).localeCompare(String(p.at))); if (!rows.length) continue;
+          try { await rpc('adm_gift', { p_user: u.user_id, p_slot: rows[0].slot, p_credits: c, p_xp: x, p_note: note || 'admin' }); sent++; } catch (e) { fail++; err = e.message; }
+        }
+        return { sent, fail, err };
+      };
+      const finish = (r, extra) => { toast('Gift queued for ' + r.sent + ' of ' + n + ' players' + (r.fail ? ', ' + r.fail + ' failed (' + r.err + ')' : '') + (extra || ''), !!r.fail); T.tab = 'hist'; T.f = 'wait'; viewGifts(); };
+      try {
+        if (isMany()) finish(await sendEach(members().map((nme) => (S.users || []).find((q) => q.name === nme)).filter(Boolean)), ' (players without a save are skipped)');
+        else if (T.srvFail) finish(await sendEach(clientAud()), ' (sent one by one: the server group function is not working)');
+        else {
+          try { await rpc('adm_gift_many', { p_audience: T.aud, p_credits: c, p_xp: x, p_note: note }); toast('Gift queued for ' + n + ' accounts'); T.tab = 'hist'; T.f = 'wait'; viewGifts(); }
+          catch (e) { toast('Server function failed (' + e.message + '). Sending one by one ...', true); finish(await sendEach(clientAud()), ' (sent one by one)'); }
+        }
+      } catch (e) { toast(e.message, true); btn.disabled = false; btn.textContent = 'SEND GIFT'; }
     };
   }
 }
