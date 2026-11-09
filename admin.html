@@ -422,7 +422,7 @@ function signupChart(us, days) {      // echte Pixelbreite statt gestauchter Sch
   for (const u of us) { const k = dayKey(u.created_at); if (k in cnt) cnt[k]++; }
   const mx = Math.max(2, ...keys.map((k) => cnt[k])), bw = (W - padX * 2) / days, gap = bw > 14 ? 3 : 1.5, step = days > 20 ? (mob ? 7 : 3) : days > 10 ? 2 : 1, ch = H - padT - padB;
   let s = '<svg class="chart" style="height:' + H + 'px" viewBox="0 0 ' + W + ' ' + H + '">';
-  s += '<line x1="0" x2="' + W + '" y1="' + (H - padB) + '" y2="' + (H - padB) + '" stroke="#1f3a66"/><line x1="0" x2="' + W + '" y1="' + padT + '" y2="' + padT + '" stroke="#16264d" stroke-dasharray="3 4"/><text x="' + (W - 2) + '" y="' + (padT - 5) + '" fill="#7f8fb0" font-size="11" text-anchor="end">max ' + mx + '</text>';
+  s += '<line x1="0" x2="' + W + '" y1="' + (H - padB) + '" y2="' + (H - padB) + '" stroke="#1f3a66"/><line x1="0" x2="' + W + '" y1="' + padT + '" y2="' + padT + '" stroke="#16264d" stroke-dasharray="3 4"/><text x="4" y="' + (padT - 5) + '" fill="#7f8fb0" font-size="11" text-anchor="start">max ' + mx + '</text>';
   keys.forEach((k, i) => {
     const h = ch * cnt[k] / mx, x = padX + i * bw, today = i === days - 1;
     s += '<rect x="' + (x + gap) + '" y="' + (H - padB - h) + '" width="' + Math.max(2, bw - gap * 2) + '" height="' + h + '" rx="2" fill="' + (today ? '#ffd91f' : '#3de8ff') + '"><title>' + k + ': ' + cnt[k] + ' new</title></rect>';
