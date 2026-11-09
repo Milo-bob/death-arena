@@ -710,6 +710,7 @@ function drawDetail() {
   const u = user(), el = $('#detail'); if (!el) return; if (!u) { el.innerHTML = ''; return; }
   const gh = S.gifts.length ? '<table><tr><th>WHEN</th><th>SLOT</th><th>CREDITS</th><th>XP</th><th>NOTE</th><th>STATE</th><th></th></tr>' + S.gifts.map((g) => '<tr><td>' + fmtD(g.created_at) + '</td><td>' + (g.slot + 1) + '</td><td>' + (g.credits > 0 ? '+' : '') + g.credits + '</td><td>' + (g.xp > 0 ? '+' : '') + (g.xp || 0) + '</td><td>' + esc(g.note) + '</td><td>' + (g.claimed_at ? '<span class="ok">collected ' + fmtD(g.claimed_at) + '</span>' : '<span class="yel">waiting</span>') + '</td><td>' + (g.claimed_at ? '' : '<button data-a="cancelgift" data-id="' + g.id + '" class="warn">CANCEL</button>') + '</td></tr>').join('') + '</table>' : '<span class="muted">No gifts yet.</span>';
   el.innerHTML = '<h2>' + esc(u.name) + ' <span class="muted" style="font-size:12px">' + u.user_id + '</span></h2>' +
+    '<div class="acts" style="margin:0 0 8px"><button id="gthis" class="on">🎁 GIFT THIS PLAYER</button><button id="mthis">✉ MESSAGE</button></div>' +
     '<div class="card" id="hist"><h3>ACTIVITY AND HISTORY</h3><span class="muted">Loading...</span></div>' +
     '<div class="card"><h3>GROUPS</h3><div class="chips" id="gr">' + Object.keys(getGroups()).map((g) => '<button data-g="' + esc(g) + '" class="' + (getGroups()[g].includes(u.name) ? 'on' : '') + '">★ ' + esc(g) + '</button>').join('') + '<button id="gnew">+ NEW GROUP</button></div><div class="muted" style="font-size:12px">Groups are for filtering the player list and for gifts to a chosen set of players. Saved in this browser only.</div></div>' +
     '<div class="cols"><div class="card"><h3>NOTES</h3><div id="nlog"><span class="muted">Loading...</span></div><label class="fld"><textarea id="ntx" rows="2" maxlength="500" placeholder="Add a private note (only you see it)" style="font:14px/1.4 inherit"></textarea></label><button id="nadd" class="on">ADD NOTE</button></div>' +
@@ -721,6 +722,8 @@ function drawDetail() {
     '<div class="row"><button data-a="stats" data-s="">ALL STATS OF THIS PLAYER</button><button id="ban" class="' + (u.banned ? '' : 'warn') + '">' + (u.banned ? 'UNBAN FROM LEADERBOARDS' : 'BAN FROM LEADERBOARDS') + '</button><button id="bk" class="' + (u.blocked ? '' : 'bad') + '">' + (u.blocked ? 'UNBLOCK ACCOUNT' : 'BLOCK ACCOUNT') + '</button><button id="du" class="bad">DELETE ACCOUNT</button></div>' +
     '<div class="row"><input type="text" id="nn" placeholder="new name" style="width:200px"><button id="rn" class="warn">RENAME</button><span class="muted">3-20 lowercase letters, numbers or _ (the login name changes too)</span></div></div>' +
     '<div class="card"><h3>GIFTS</h3><div class="muted" style="margin-bottom:6px">Gifts are collected when the player is in the main menu and online; they are never overwritten by their own progress.</div>' + gh + '</div>';
+  $('#gthis').onclick = () => { S.gtPending = { tab: 'gift', aud: 'pick', pick: [u.name] }; S.tab = 'gifts'; renderMain(); window.scrollTo(0, 0); };
+  $('#mthis').onclick = () => { const t = $('#mt'); if (t) { t.scrollIntoView({ behavior: 'smooth', block: 'center' }); t.focus(); } };
   $('#rnd').onclick = () => { $('#npw').value = randomPw(); };
   document.querySelectorAll('#gr button[data-g]').forEach((b) => { b.onclick = () => { const G = getGroups(), a = G[b.dataset.g] || [], i = a.indexOf(u.name); if (i < 0) a.push(u.name); else a.splice(i, 1); G[b.dataset.g] = a; setGroups(G); drawDetail(); }; });
   $('#gnew').onclick = () => { const n = (prompt('Name of the new group (e.g. Beta testers):') || '').trim().slice(0, 24); if (!n) return; const G = getGroups(); G[n] = Array.from(new Set((G[n] || []).concat([u.name]))); setGroups(G); drawDetail(); };
@@ -1049,7 +1052,8 @@ function drawStats() {
 async function viewGifts() {
   const m = $('#main'); m.innerHTML = '<span class="muted">Loading...</span>';
   const T = S.gt = S.gt || { tab: 'news', dur: 72, aud: 'all', cr: 100, f: 'all', title: '', body: '' };
-  T.sk = T.sk || 'once'; T.sa = T.sa || 'all'; T.sd = T.sd || 14;
+  T.sk = T.sk || 'once'; T.sa = T.sa || 'all'; T.sd = T.sd || 14; T.pick = T.pick || [];
+  if (S.gtPending) { Object.assign(T, S.gtPending); S.gtPending = null; }
   let list; try { list = await rpc('adm_gifts', { p_user: null }); } catch (e) { m.innerHTML = '<span class="err">' + esc(e.message) + '</span>'; return; }
   let news = null; try { news = await rpc('adm_announce_list'); } catch (e) { /* supabase_admin2.sql noch nicht ausgefuehrt */ }
   let sched = null; try { sched = await rpc('adm_sched_list'); } catch (e) { /* supabase_admin4.sql noch nicht ausgefuehrt */ }
@@ -1066,14 +1070,15 @@ async function viewGifts() {
       '<div class="muted" style="font-size:12px">PREVIEW</div><div class="prev" id="apv"></div><button id="ap" class="on big">PUBLISH TO ALL PLAYERS</button></div>' +
       '<div class="card"><h3>PUBLISHED</h3>' + (news.length ? news.slice(0, 10).map((a) => '<div class="rrow"><div class="l1"><b>' + esc(a.title) + '</b>' + (live(a) ? '<span class="tag ok">LIVE until ' + fmtD(a.expires_at) + '</span>' : '<span class="tag muted">ended</span>') + '</div><div class="l2">' + fmtD(a.created_at) + ' · ' + esc(a.body.slice(0, 140)) + '</div>' + (live(a) ? '<div class="acts"><button data-ae="' + a.id + '" class="warn">END NOW</button></div>' : '') + '</div>').join('') : '<span class="muted">Nothing published yet.</span>') + '</div>';
   } else if (T.tab === 'gift') {
-    const AUD = [['all', 'Everyone with a save'], ['active7', 'Active 7 days'], ['active30', 'Active 30 days'], ['leaderboard', 'Leaderboard']].concat(Object.keys(getGroups()).map((g) => ['grp:' + g, '★ ' + g])), isG = T.aud.startsWith('grp:');
+    const AUD = [['all', 'Everyone with a save'], ['active7', 'Active 7 days'], ['active30', 'Active 30 days'], ['leaderboard', 'Leaderboard'], ['pick', '+ Choose players']].concat(Object.keys(getGroups()).map((g) => ['grp:' + g, '★ ' + g])), isG = T.aud.startsWith('grp:');
     const TPL = [['Welcome back', 100, 0, 'Welcome back!'], ['Thanks for the report', 250, 0, 'Thank you for your bug report!'], ['Event reward', 500, 100, 'Event reward'], ['Sorry for the trouble', 300, 0, 'Sorry for the trouble - enjoy!']].concat(lsGet('da.admin.gtpl', []));
     body = '<div class="card"><h3>GIFT TO MANY PLAYERS</h3><div class="muted" style="font-size:13px">Goes to each player\'s most recently saved slot and is collected in the main menu. Positive amounts only.</div>' +
       '<div class="fld"><span>TEMPLATE</span><div class="chips" id="gtp">' + TPL.map((t, i) => '<button data-i="' + i + '">' + esc(t[0]) + '</button>').join('') + '</div>' + (lsGet('da.admin.gtpl', []).length ? '<details class="more"><summary>My templates (' + lsGet('da.admin.gtpl', []).length + ')</summary>' + lsGet('da.admin.gtpl', []).map((t, i) => '<div class="rrow"><div class="l1"><b>' + esc(t[0]) + '</b><span class="muted">' + t[1] + ' credits' + (t[2] ? ' + ' + t[2] + ' XP' : '') + '</span><span style="flex:1"></span><button class="small" data-td="' + i + '">DELETE</button></div></div>').join('') + '</details>' : '') + '</div>' +
       '<div class="fld"><span>WHO</span>' + chips('ga', AUD, T.aud) + '<div class="muted" id="mcnt" style="font-size:13px">...</div>' + (isG ? '<div class="acts"><button id="gdel" class="bad">DELETE THIS GROUP</button></div>' : '') + '</div>' +
+      (T.aud === 'pick' ? '<div class="fld"><span>CHOSEN PLAYERS (TAP TO REMOVE)</span><div class="chips" id="pkc"></div><input type="search" id="pks" placeholder="Search a player to add..." autocomplete="off"><div id="pkr"></div><div class="acts"><button id="pksg">SAVE THIS SELECTION AS A GROUP</button></div></div>' : '') +
       '<label class="fld"><span>CREDITS</span><input type="number" id="mc" min="0" inputmode="numeric" value="' + T.cr + '"></label>' + chips('gq', [[100, '100'], [250, '250'], [500, '500'], [1000, '1000'], [5000, '5000']], '') +
-      '<label class="fld"><span>XP (OPTIONAL)</span><input type="number" id="mx" min="0" inputmode="numeric" value="0"></label>' +
-      '<label class="fld"><span>NOTE SHOWN TO THE PLAYER</span><input type="text" id="mn" maxlength="80" placeholder="e.g. Welcome back!"></label>' +
+      '<label class="fld"><span>XP (OPTIONAL)</span><input type="number" id="mx" min="0" inputmode="numeric" value="' + (T.xpv || 0) + '"></label>' +
+      '<label class="fld"><span>NOTE SHOWN TO THE PLAYER</span><input type="text" id="mn" maxlength="80" placeholder="e.g. Welcome back!" value="' + esc(T.nt || '') + '"></label>' +
       '<div class="prev" id="gpv"></div><button id="mg" class="on big">SEND GIFT</button><div class="acts"><button id="gst">SAVE AS TEMPLATE</button></div></div>';
   } else if (T.tab === 'sched') {
     const AUDS = [['all', 'Everyone with a save'], ['active7', 'Active 7 days'], ['active30', 'Active 30 days'], ['leaderboard', 'Leaderboard']], an = (v) => (AUDS.find((x) => x[0] === v) || [])[1] || v;
@@ -1120,25 +1125,37 @@ async function viewGifts() {
     m.querySelectorAll('[data-ae]').forEach((b) => { b.onclick = () => act('Announcement ended', 'adm_announce_end', { p_id: +b.dataset.ae }, viewGifts); });
   }
   if (T.tab === 'gift') {
-    const aud = () => (AUDL.find(([v]) => v === T.aud) || [])[1] || (T.aud.startsWith('grp:') ? 'members of the group "' + T.aud.slice(4) + '"' : T.aud), AUDL = [['all', 'everyone with a save'], ['active7', 'players active in the last 7 days'], ['active30', 'players active in the last 30 days'], ['leaderboard', 'leaderboard members']];
+    const isMany = () => T.aud.startsWith('grp:') || T.aud === 'pick', members = () => (T.aud === 'pick' ? T.pick.filter((n) => (S.users || []).some((u) => u.name === n)) : groupMembers(T.aud.slice(4)));
+    const aud = () => (AUDL.find(([v]) => v === T.aud) || [])[1] || (T.aud === 'pick' ? 'the chosen players' : T.aud.startsWith('grp:') ? 'members of the group "' + T.aud.slice(4) + '"' : T.aud), AUDL = [['all', 'everyone with a save'], ['active7', 'players active in the last 7 days'], ['active30', 'players active in the last 30 days'], ['leaderboard', 'leaderboard members']];
     let count = null;
     const pv = () => { T.cr = parseInt($('#mc').value, 10) || 0; const x = parseInt($('#mx').value, 10) || 0; $('#gpv').innerHTML = (T.cr || x) ? '<b>' + (count == null ? '?' : count) + '</b> players (' + esc(aud()) + ') get <b>' + [T.cr ? T.cr + ' credits' : '', x ? x + ' XP' : ''].filter(Boolean).join(' + ') + '</b> each' + (count != null && T.cr ? '<div class="muted" style="font-size:12px">' + fmtN(count * T.cr) + ' credits in total</div>' : '') : '<span class="muted">Enter an amount.</span>'; };
-    const preview = async () => { if (T.aud.startsWith('grp:')) { count = groupMembers(T.aud.slice(4)).length; $('#mcnt').textContent = count + ' players in this group.'; pv(); return count; } try { count = await rpc('adm_audience_count', { p_audience: T.aud }); $('#mcnt').textContent = count + ' accounts would receive this.'; } catch (e) { count = null; $('#mcnt').textContent = e.message.replace('supabase_admin.sql', 'supabase_admin_extras.sql'); } pv(); return count; };
-    bindChips('ga', (v) => { T.aud = v; preview(); });
+    const preview = async () => { if (isMany()) { count = members().length; $('#mcnt').textContent = count + (T.aud === 'pick' ? ' player' + (count === 1 ? '' : 's') + ' chosen.' : ' players in this group.'); pv(); return count; } try { count = await rpc('adm_audience_count', { p_audience: T.aud }); $('#mcnt').textContent = count + ' accounts would receive this.'; } catch (e) { count = null; $('#mcnt').textContent = e.message.replace('supabase_admin.sql', 'supabase_admin_extras.sql'); } pv(); return count; };
+    bindChips('ga', (v) => { T.cr = parseInt($('#mc').value, 10) || 0; T.xpv = $('#mx').value; T.nt = $('#mn').value; T.aud = v; viewGifts(); });
     bindChips('gq', (v) => { $('#mc').value = v; pv(); });
     $('#mc').oninput = pv; $('#mx').oninput = pv; preview();
     document.querySelectorAll('#gtp button').forEach((b) => { b.onclick = () => { const t = TPL[+b.dataset.i]; $('#mc').value = t[1]; $('#mx').value = t[2]; $('#mn').value = t[3]; pv(); }; });
     document.querySelectorAll('[data-td]').forEach((b) => { b.onclick = () => { const a = lsGet('da.admin.gtpl', []); a.splice(+b.dataset.td, 1); lsSet('da.admin.gtpl', a); viewGifts(); }; });
     $('#gst').onclick = () => { const c = parseInt($('#mc').value, 10) || 0, x = parseInt($('#mx').value, 10) || 0, nt = $('#mn').value.trim(); if (!c && !x) return toast('Enter an amount first', true); const nm = (prompt('Template name:', nt.slice(0, 24) || 'My template') || '').trim().slice(0, 24); if (!nm) return; lsSet('da.admin.gtpl', lsGet('da.admin.gtpl', []).concat([[nm, c, x, nt]])); toast('Template saved'); viewGifts(); };
+    if (T.aud === 'pick') {      // Spieler suchen und hinzufuegen
+      const drawPick = () => {
+        $('#pkc').innerHTML = T.pick.length ? T.pick.map((n) => '<button class="on" data-pk="' + esc(n) + '">' + esc(n) + ' ✕</button>').join('') : '<span class="muted" style="font-size:13px">Nobody yet. Search below.</span>';
+        $('#pkc').querySelectorAll('[data-pk]').forEach((b) => { b.onclick = () => { T.pick = T.pick.filter((n) => n !== b.dataset.pk); drawPick(); preview(); }; });
+        const q = $('#pks').value.trim().toLowerCase(), list = (S.users || []).filter((u) => !T.pick.includes(u.name) && (!q || u.name.toLowerCase().includes(q))).sort((a, b) => a.name.localeCompare(b.name)).slice(0, 8);
+        $('#pkr').innerHTML = list.map((u) => '<div class="pc" data-add="' + esc(u.name) + '"><div class="l1"><b>' + esc(u.name) + '</b><span style="flex:1"></span><span class="muted" style="font-size:12px">' + (u.slots ? u.slots + ' slot' + (u.slots > 1 ? 's' : '') : 'no save') + '</span></div></div>').join('');
+        $('#pkr').querySelectorAll('[data-add]').forEach((el) => { el.onclick = () => { T.pick.push(el.dataset.add); $('#pks').value = ''; drawPick(); preview(); }; });
+      };
+      $('#pks').oninput = drawPick; drawPick();
+      $('#pksg').onclick = () => { if (!T.pick.length) return toast('Choose players first', true); const nm = (prompt('Name of the group:') || '').trim().slice(0, 24); if (!nm) return; const G = getGroups(); G[nm] = T.pick.slice(); setGroups(G); T.aud = 'grp:' + nm; toast('Group saved'); viewGifts(); };
+    }
     const gd = $('#gdel'); if (gd) gd.onclick = () => { const g = T.aud.slice(4); if (confirm('Delete the group "' + g + '" (the players stay)?')) { const G = getGroups(); delete G[g]; setGroups(G); T.aud = 'all'; viewGifts(); } };
     $('#mg').onclick = async () => {
       const c = parseInt($('#mc').value, 10) || 0, x = parseInt($('#mx').value, 10) || 0; if (c < 0 || x < 0 || (!c && !x)) return toast('Enter a positive amount', true);
       const n = await preview(); if (n == null) return;
       if (!n) return toast('Nobody matches', true);
       if (!confirm('Give ' + (c ? c + ' credits' : '') + (c && x ? ' and ' : '') + (x ? x + ' XP' : '') + ' to ' + n + ' accounts (' + aud() + ')?')) return;
-      if (T.aud.startsWith('grp:')) {      // Gruppe: je Mitglied ein Geschenk in den zuletzt gespeicherten Slot
+      if (isMany()) {      // Gruppe oder ausgewaehlte Spieler: je Mitglied ein Geschenk in den zuletzt gespeicherten Slot
         try { await ensureSaves(); let sent = 0; const note = $('#mn').value.trim();
-          for (const nme of groupMembers(T.aud.slice(4))) { const u = (S.users || []).find((q) => q.name === nme), rows = S.allSaves.filter((r) => r.user_id === u.user_id).sort((a, b) => String(b.at).localeCompare(String(a.at))); if (!rows.length) continue; await rpc('adm_gift', { p_user: u.user_id, p_slot: rows[0].slot, p_credits: c, p_xp: x, p_note: note || 'admin' }); sent++; }
+          for (const nme of members()) { const u = (S.users || []).find((q) => q.name === nme), rows = S.allSaves.filter((r) => r.user_id === u.user_id).sort((a, b) => String(b.at).localeCompare(String(a.at))); if (!rows.length) continue; await rpc('adm_gift', { p_user: u.user_id, p_slot: rows[0].slot, p_credits: c, p_xp: x, p_note: note || 'admin' }); sent++; }
           toast('Gift queued for ' + sent + ' of ' + n + ' players (players without a save are skipped)'); T.tab = 'hist'; T.f = 'wait'; viewGifts();
         } catch (e) { toast(e.message, true); }
         return;
