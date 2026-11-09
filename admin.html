@@ -138,6 +138,9 @@
   .fld { display:block; margin:10px 0; } .fld > span { display:block; font-size:12px; color:var(--grey); margin-bottom:3px; letter-spacing:.5px; } .fld input, .fld textarea { width:100%; }
   .prev { border:1px dashed var(--cyanDark); border-radius:6px; padding:10px 12px; background:var(--ink); margin:8px 0; } .prev b { color:var(--yellow); }
   .big { width:100%; padding:10px; font-size:15px; margin-top:6px; }
+  .bdg.red { background:var(--red); color:#fff; }
+  .bugc { border-left:4px solid var(--red); } .bugc.idea { border-left-color:var(--yellow); } .bugc.other { border-left-color:var(--cyan); } .bugc.done, .bugc.wontfix { opacity:.6; }
+  .hbtn { padding:4px 9px !important; }
   @media (max-width:700px) { .bars .br { grid-template-columns:1fr; } .bars .bt { grid-column:1; } }
   @media (max-width:640px) { th, td { padding:4px 5px; font-size:13px; } }
 </style>
@@ -230,12 +233,12 @@ function logout() { KEY = ''; clearInterval(NOTIF.timer); NOTIF.timer = null; st
 function renderMain() {
   clearInterval(S.liveTimer); S.liveTimer = null;
   const groups = [['OVERVIEW', [['dashboard', 'Dashboard'], ['online', 'Online now']]], ['PLAYERS', [['players', 'Players'], ['create', 'Create accounts']]], ['INSIGHTS', [['stats', 'Statistics'], ['retention', 'Retention'], ['errors', 'Bugs & errors']]], ['MODERATION', [['cheats', 'Cheats'], ['guilds', 'Guilds'], ['gifts', 'Gifts & news'], ['audit', 'Action log']]], ['SETTINGS', [['alerts', 'Alerts']]]];
-  const badge = (id) => id === 'online' ? '<span class="bdg' + (NOTIF.onlineN ? '' : ' off') + '" id="bd-online"' + (NOTIF.onlineN == null ? ' hidden' : '') + '>' + (NOTIF.onlineN || 0) + '</span>' : id === 'alerts' ? '<span class="bdg' + (NOTIF.on ? '' : ' off') + '" id="bd-alerts">' + (NOTIF.on ? 'ON' : 'OFF') + '</span>' : '';
-  $('#app').innerHTML = '<header class="top"><h1>DEATHARENA ADMIN</h1><span class="sp"></span><span class="muted hide-s" id="cnt">' + (S.users ? S.users.length + ' accounts' : '') + '</span><button id="nt" title="Alerts on/off (details under Settings > Alerts)"></button><button id="rl">RELOAD</button><span class="hide-s">' + instBtn() + '</span><button id="lo" class="warn">LOG OUT</button></header>' +
+  const badge = (id) => id === 'online' ? '<span class="bdg' + (NOTIF.onlineN ? '' : ' off') + '" id="bd-online"' + (NOTIF.onlineN == null ? ' hidden' : '') + '>' + (NOTIF.onlineN || 0) + '</span>' : id === 'errors' ? '<span class="bdg red" id="bd-bugs"' + (NOTIF.bugsNew ? '' : ' hidden') + '>' + (NOTIF.bugsNew || 0) + '</span>' : id === 'alerts' ? '<span class="bdg' + (NOTIF.on ? '' : ' off') + '" id="bd-alerts">' + (NOTIF.on ? 'ON' : 'OFF') + '</span>' : '';
+  $('#app').innerHTML = '<header class="top"><h1>DEATHARENA ADMIN</h1><span class="sp"></span><span class="muted hide-s" id="cnt">' + (S.users ? S.users.length + ' accounts' : '') + '</span><button id="gsb" title="Find a player ( / )">🔍</button><button id="nt" title="Alerts on/off (details under Settings > Alerts)"></button><button id="rl">RELOAD</button><span class="hide-s">' + instBtn() + '</span><button id="lo" class="warn">LOG OUT</button></header>' +
     '<div class="shell"><aside id="side">' + groups.map(([g, items]) => '<div class="grp"><div class="gl">' + g + '</div>' + items.map(([id, l]) => '<button data-t="' + id + '" class="' + (S.tab === id ? 'on' : '') + '">' + l + badge(id) + '</button>').join('') + '</div>').join('') + '</aside><div class="wrap" id="main"></div></div>';
   document.querySelectorAll('#side button').forEach((b) => { b.onclick = () => { S.tab = b.dataset.t; renderMain(); window.scrollTo(0, 0); }; });
   const onBtn = document.querySelector('#side button.on'); if (onBtn && onBtn.scrollIntoView) onBtn.scrollIntoView({ block: 'nearest', inline: 'center' });
-  $('#lo').onclick = logout;
+  $('#lo').onclick = logout; $('#gsb').onclick = openSearch;
   $('#nt').onclick = () => setNotif(!NOTIF.on); updateNotifBtn(); if (!NOTIF.timer) startPoll();
   if (NOTIF.on && !NOTIF.pushed) { NOTIF.pushed = true; pushSub(true).catch(() => {}); }
   if (!S.notes) loadNotes().then(() => { if (S.tab === 'players' && $('#ut')) drawUsers(); });
@@ -249,7 +252,7 @@ const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v == n
 const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* egal */ } };
 const NOTIF = { on: lsGet('da.admin.notif', false), timer: null, feed: lsGet('da.admin.feed', []), unseen: 0, every: lsGet('da.admin.every', 30), pushed: false };
 // Einstellbare Meldungsarten (gespeichert im Browser). Nur "account" und "cheat" kommen auch per Push bei geschlossener Seite (Datenbank-Trigger), der Rest nur bei offener Seite.
-const CFG_DEF = { online: false, onlineMode: 'all', onlineWatch: '', onlineAway: 30, account: true, login: false, loginMode: 'all', returnDays: 7, first: false, join: false, cheat: true, cheatSev: 2, watch: '', errors: true, quiet: false, quietFrom: 23, quietTo: 8, quietCheat: true, digest: 0 };
+const CFG_DEF = { bugs: true, online: false, onlineMode: 'all', onlineWatch: '', onlineAway: 30, account: true, login: false, loginMode: 'all', returnDays: 7, first: false, join: false, cheat: true, cheatSev: 2, watch: '', errors: true, quiet: false, quietFrom: 23, quietTo: 8, quietCheat: true, digest: 0 };
 NOTIF.pending = { online: [], login: [], first: [], join: [] }; NOTIF.onlineN = null; NOTIF.flushAt = Date.now();
 function inQuiet() {      // Ruhezeit (Stunden, auch ueber Mitternacht)
   const C = NOTIF.cfg; if (!C.quiet) return false;
@@ -332,7 +335,7 @@ function checkOnline(list) {
   if (+C.digest > 0) NOTIF.pending.online.push(...fresh); else announce(fresh, false, 'online');
 }
 function updateBadges() {
-  const o = $('#bd-online'), a = $('#bd-alerts');
+  const o = $('#bd-online'), a = $('#bd-alerts'), bg = $('#bd-bugs'); if (bg) { bg.hidden = !NOTIF.bugsNew; bg.textContent = NOTIF.bugsNew || 0; }
   if (o && NOTIF.onlineN != null) { o.hidden = false; o.textContent = NOTIF.onlineN; o.className = 'bdg' + (NOTIF.onlineN ? '' : ' off'); }
   if (a) { a.textContent = NOTIF.on ? 'ON' : 'OFF'; a.className = 'bdg' + (NOTIF.on ? '' : ' off'); }
 }
@@ -352,6 +355,15 @@ function flushDigest(force) {
     const seen = new Set(), list = NOTIF.pending[k].filter((u) => !seen.has(u.user_id) && seen.add(u.user_id)); NOTIF.pending[k] = [];
     if (list.length) announce(list, false, k);
   }
+}
+async function checkBugs() {      // neue Bugreports aus dem Spiel (braucht tools/supabase_admin3.sql; fehlt es, bleibt es still)
+  let list; try { list = await rpc('adm_bugs'); } catch (e) { return; }
+  NOTIF.bugsNew = list.filter((b) => b.status === 'new').length; updateBadges();
+  const maxId = list.reduce((m, b) => Math.max(m, +b.id), 0), seen = lsGet('da.admin.bugId', null);
+  lsSet('da.admin.bugId', Math.max(maxId, seen || 0));
+  if (seen == null || !NOTIF.cfg.bugs) return;
+  const fresh = list.filter((b) => +b.id > seen);
+  if (fresh.length) notify(fresh.length > 1 ? fresh.length + ' new reports' : fresh[0].kind === 'idea' ? 'New idea' : 'New bug report', fresh.slice(0, 2).map((b) => (b.name || 'anonymous') + ': ' + b.title).join('; '), 'da-bug', true);
 }
 async function checkErrors() {      // neue Spielfehler (braucht tools/supabase_admin2.sql; fehlt es, bleibt es still)
   let list; try { list = await rpc('adm_errors'); } catch (e) { return; }
@@ -379,10 +391,10 @@ async function pollNew() {
     if (S.tab === 'dashboard') viewDashboard(); else if (S.tab === 'players' && $('#ut')) drawUsers();
   } catch (e) { /* naechster Versuch */ }
   try { checkOnline(await rpc('adm_online')); } catch (e) { /* braucht supabase_social.sql + supabase_admin2.sql */ }
-  flushDigest(); checkFlags(); checkErrors();
+  flushDigest(); checkFlags(); checkErrors(); checkBugs();
 }
 function startPoll() { clearInterval(NOTIF.timer); NOTIF.timer = NOTIF.on ? setInterval(pollNew, NOTIF.every * 1000) : null; }
-function updateNotifBtn() { const b = $('#nt'); if (b) { b.textContent = (NOTIF.on ? '🔔 ALERTS ON' : '🔕 ALERTS OFF'); b.className = NOTIF.on ? 'on' : ''; } updateBadges(); }
+function updateNotifBtn() { const b = $('#nt'); if (b) { b.textContent = window.innerWidth < 560 ? (NOTIF.on ? '🔔 ON' : '🔕 OFF') : (NOTIF.on ? '🔔 ALERTS ON' : '🔕 ALERTS OFF'); b.className = NOTIF.on ? 'on' : ''; } updateBadges(); }
 // Push (kommt auch bei geschlossener Seite an): braucht Edge Function + tools/supabase_admin_extras.sql, sonst nur die Meldungen bei offener Seite
 const VAPID_PUBLIC = 'BKJELsBEnQRchsi4_YOQzqfLgf2OnMnuVY4Cy81fz5NlhtNggqSyZ1hgGhv78o04XHHxf41CLucaxtn93zPLEYw';
 const b64ToU8 = (s) => { const p = '='.repeat((4 - s.length % 4) % 4), r = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(r, (c) => c.charCodeAt(0)); };
@@ -414,6 +426,54 @@ async function loadNotes() {
   try { for (const r of await rpc('adm_notes')) S.notes[r.user_id] = r.note; } catch (e) { /* Extras-SQL noch nicht ausgefuehrt */ }
 }
 
+// ====== Spieler-Suche (Lupe oben, Taste /) ======
+function openSearch() {
+  if ($('#gs') || !KEY) return;
+  const o = document.createElement('div'); o.id = 'gs'; o.style.cssText = 'position:fixed;inset:0;background:rgba(5,6,15,.94);z-index:50;overflow:auto;padding:max(14px,env(safe-area-inset-top)) 14px 14px;';
+  o.innerHTML = '<div style="max-width:560px;margin:0 auto"><div class="row"><input type="search" id="gsq" placeholder="Find a player or note..." autocomplete="off" style="flex:1;font-size:16px"><button id="gsx">CLOSE</button></div><div id="gsr"></div></div>';
+  document.body.appendChild(o);
+  const close = () => { o.remove(); }, pick = (id) => { close(); S.sel = id; S.tab = 'players'; S.filter = ''; renderMain(); window.scrollTo(0, 0); };
+  const draw = () => {
+    const q = $('#gsq').value.trim().toLowerCase(), nt = S.notes || {}, on = S.onSet || new Set(), us = S.users || [];
+    const rank = (u) => { const n = u.name.toLowerCase(); return n === q ? 0 : n.startsWith(q) ? 1 : n.includes(q) ? 2 : 3; };
+    const list = (q ? us.filter((u) => u.name.toLowerCase().includes(q) || (nt[u.user_id] || '').toLowerCase().includes(q)).sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name)) : us.slice().sort((a, b) => String(b.last_sign_in || '').localeCompare(String(a.last_sign_in || '')))).slice(0, 30);
+    $('#gsr').innerHTML = '<div class="sec">' + (q ? list.length + ' RESULT' + (list.length === 1 ? '' : 'S') : 'RECENTLY ACTIVE') + '</div>' + (list.map((u) => '<div class="pc" data-u="' + u.user_id + '"><div class="l1">' + (on.has(u.name) ? '<span class="dot"></span>' : '') + '<b>' + esc(u.name) + '</b>' + (u.blocked ? '<span class="tag err">BLOCKED</span>' : '') + '<span style="flex:1"></span><span class="muted" style="font-size:12.5px">' + (u.last_sign_in ? ago(u.last_sign_in) : 'never') + '</span></div>' + (nt[u.user_id] ? '<div class="l2" style="color:var(--yellow)">' + esc(nt[u.user_id].slice(0, 80)) + '</div>' : '') + '</div>').join('') || '<div class="muted">Nobody found.</div>');
+    $('#gsr').querySelectorAll('.pc').forEach((el) => { el.onclick = () => pick(el.dataset.u); });
+  };
+  $('#gsq').oninput = draw; $('#gsx').onclick = close; o.onclick = (e) => { if (e.target === o) close(); };
+  $('#gsq').onkeydown = (e) => { if (e.key === 'Escape') close(); else if (e.key === 'Enter') { const f = $('#gsr .pc'); if (f) pick(f.dataset.u); } };
+  draw(); $('#gsq').focus();
+}
+document.addEventListener('keydown', (e) => { if (e.key === '/' && !e.ctrlKey && !e.metaKey && KEY && !/^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || '')) { e.preventDefault(); openSearch(); } });
+
+// ====== Gesundheit und Versionen (Dashboard) ======
+async function runHealth() {
+  const out = [], hint = (e, file) => (/not set up|Could not find|schema cache/i.test(e.message) ? 'run tools/' + file : e.message);
+  let t0 = performance.now();
+  try { await rpc('adm_users'); const ms = Math.round(performance.now() - t0); out.push({ label: 'Server reachable', st: ms < 1500 ? 'ok' : 'warn', hint: ms + ' ms' }); } catch (e) { out.push({ label: 'Server reachable', st: 'bad', hint: e.message }); }
+  const checks = [['Online, errors, guilds', 'adm_errors', {}, 'supabase_admin2.sql'], ['Notes and mass gifts', 'adm_notes', {}, 'supabase_admin_extras.sql'], ['Anticheat flags', 'adm_flags', { p_limit: 1 }, 'supabase_anticheat.sql'], ['Trusted accounts', 'adm_ac_trusted', {}, 'supabase_ac_trust.sql'], ['Player bug reports', 'adm_bugs', {}, 'supabase_admin3.sql'], ['Game versions', 'adm_versions', {}, 'supabase_admin3.sql']];
+  const res = await Promise.all(checks.map(([l, fn, a, f]) => rpc(fn, a).then((r) => ({ ok: true, r }), (e) => ({ ok: false, e }))));
+  checks.forEach(([l, fn, a, f], i) => out.push(res[i].ok ? { label: l, st: 'ok', hint: '' } : { label: l, st: 'bad', hint: hint(res[i].e, f) }));
+  if (res[0].ok) { const n = (res[0].r || []).filter((e) => Date.now() - new Date(e.last_at) < 36e5).length; out.push({ label: 'Game errors, last hour', st: n ? 'warn' : 'ok', hint: n ? n + ' different error' + (n > 1 ? 's' : '') + ' (see Bugs & errors)' : 'none' }); }
+  out.push({ label: 'Push when the app is closed', st: NOTIF.ruleOk === true ? 'ok' : NOTIF.ruleOk === 'setup' ? 'bad' : 'warn', hint: NOTIF.ruleOk === true ? 'online rule saved' : NOTIF.ruleOk === 'setup' ? 'run tools/supabase_admin_online.sql, then deploy the admin-push function' : 'not checked yet (open Settings > Alerts)' });
+  out.push({ label: 'Browser notifications', st: 'Notification' in window && Notification.permission === 'granted' ? 'ok' : 'warn', hint: 'Notification' in window ? Notification.permission : 'not supported' });
+  S.health = { at: Date.now(), out };
+}
+function healthHtml(h) {
+  if (!h) return '<div class="card"><h3>SYSTEM HEALTH</h3><span class="muted">Checking ...</span></div>';
+  const bad = h.out.filter((x) => x.st === 'bad').length, warn = h.out.filter((x) => x.st === 'warn').length;
+  const pill = bad ? '<span class="pill no">' + bad + ' need' + (bad > 1 ? '' : 's') + ' setup</span>' : warn ? '<span class="pill wait">' + warn + ' to check</span>' : '<span class="pill ok">all good</span>';
+  return '<details class="card fold"' + (bad ? ' open' : '') + '><summary><b style="color:var(--ice)">SYSTEM HEALTH</b> ' + pill + '</summary>' + h.out.map((x) => '<div class="rrow"><div class="l1"><span class="' + (x.st === 'ok' ? 'ok' : x.st === 'warn' ? 'yel' : 'err') + '">●</span><span>' + esc(x.label) + '</span><span style="flex:1"></span><span class="muted" style="font-size:12px;text-align:right">' + esc(x.hint) + '</span></div></div>').join('') + '</details>';
+}
+function versionsHtml(list) {
+  const head = '<div class="sec">GAME VERSIONS, PLAYERS SEEN IN 30 DAYS</div>';
+  if (list === null) return head + '<div class="card muted">Needs tools/supabase_admin3.sql.</div>';
+  if (!list.length) return head + '<div class="card muted">No data yet. Players report their version after they log in with the updated game.</div>';
+  const total = list.reduce((a, v) => a + v.n, 0), known = list.filter((v) => v.ver !== 'unknown'), latest = known[0], onLatest = latest ? latest.n : 0;
+  return head + '<div class="card" style="margin-top:0"><div style="margin-bottom:6px">' + (latest ? '<b>' + pct(onLatest / total) + '</b> of ' + total + ' players are on the latest version (' + esc(latest.ver) + '). <span class="' + (total - onLatest ? 'yel' : 'ok') + '">' + (total - onLatest ? (total - onLatest) + ' still on an older one.' : 'Everybody is up to date.') + '</span>' : '<span class="muted">Nobody has reported a version yet.</span>') + '</div>' +
+    bars(list.map((v) => [v.ver === 'unknown' ? 'unknown (old game)' : v.ver + (v === latest ? ' (latest)' : ''), v.n, v.n + ' player' + (v.n > 1 ? 's' : '') + ' · seen ' + ago(v.last_seen) + ' · iOS ' + v.ios + ' · Android ' + v.android + ' · PC ' + v.desktop])) + '</div>';
+}
+
 // ====== Dashboard ======
 const dayKey = (d) => { const x = new Date(d); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); };
 function signupChart(us, days) {      // echte Pixelbreite statt gestauchter Schrift, auf dem Handy hoeher und mit weniger Beschriftungen
@@ -436,7 +496,7 @@ function exportCsv() {
   const csv = [cols.join(';')].concat((S.users || []).map((u) => cols.map((c) => u[c] == null ? '' : String(u[c]).replace(/;/g, ',')).join(';'))).join('\n');
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv' })); a.download = 'deatharena-players-' + dayKey(Date.now()) + '.csv'; a.click();
 }
-const alertsSummary = () => { const C = NOTIF.cfg, a = []; if (C.online) a.push(C.onlineMode === 'watch' ? 'selected players online' : 'players online'); if (C.account) a.push('new accounts'); if (C.cheat) a.push('cheat suspicion'); if (C.login) a.push('logins'); if (C.first) a.push('first saves'); if (C.join) a.push('leaderboard joins'); if (C.errors) a.push('game errors'); return a.length ? a.join(', ') : 'nothing selected'; };
+const alertsSummary = () => { const C = NOTIF.cfg, a = []; if (C.online) a.push(C.onlineMode === 'watch' ? 'selected players online' : 'players online'); if (C.account) a.push('new accounts'); if (C.cheat) a.push('cheat suspicion'); if (C.login) a.push('logins'); if (C.first) a.push('first saves'); if (C.join) a.push('leaderboard joins'); if (C.errors) a.push('game errors'); if (C.bugs) a.push('bug reports'); return a.length ? a.join(', ') : 'nothing selected'; };
 const feedTable = (n) => (NOTIF.feed.length ? '<table><tr><th>ALERTED</th><th>TYPE</th><th>PLAYER</th></tr>' + NOTIF.feed.slice(0, n).map((f) => '<tr><td>' + fmtD(f.seen) + '</td><td>' + ((KINDS[f.kind] || KINDS.account).label) + '</td><td>' + nameLink(f.name) + '</td></tr>').join('') + '</table>' : '<div class="muted">No alerts yet.</div>');
 const optRow = (k, title, note, sub) => '<div class="opt"><input type="checkbox" class="tg" data-cfg="' + k + '"' + (NOTIF.cfg[k] ? ' checked' : '') + '><div class="txt">' + title + (note ? '<small>' + note + '</small>' : '') + '</div>' + (sub && NOTIF.cfg[k] ? '<div class="sub">' + sub + '</div>' : '') + '</div>';
 const selHtml = (k, opts) => '<select data-cfg="' + k + '">' + opts.map(([v, l]) => '<option value="' + v + '"' + (String(NOTIF.cfg[k]) === String(v) ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>';
@@ -474,6 +534,7 @@ function viewAlerts() {
       (C.login || C.first || C.join ? '<div class="opt"><div class="txt"><small>Only these players for login / first save / leaderboard (comma separated, empty = everybody)</small><input type="text" data-cfg="watch" value="' + esc(C.watch) + '" style="width:100%;margin-top:4px"></div></div>' : '') + '</div>' +
     '<div class="card"><h3>SAFETY</h3>' +
       optRow('cheat', 'Cheat suspicion', 'Also as push when the app is closed.', 'from severity ' + selHtml('cheatSev', [[1, '1 (all)'], [2, '2'], [3, '3 (worst)']])) +
+      optRow('bugs', 'Player sends a bug report or idea', 'From the in-game report form. Also as push when the app is closed (needs tools/supabase_admin3.sql).') +
       optRow('errors', 'Game error reported by a player', 'Needs tools/supabase_admin2.sql. Only while this page is open.') + '</div>' +
     '<div class="card"><h3>QUIET HOURS AND BUNDLING</h3>' +
       optRow('quiet', 'Quiet hours', 'No sound or popup, alerts still land in the list below.', 'from ' + selHtml('quietFrom', hours) + ' to ' + selHtml('quietTo', hours)) +
@@ -495,9 +556,11 @@ function viewDashboard() {
   const active = us.filter((u) => now - last(u) < D).sort((a, b) => last(b) - last(a)).slice(0, 8);
   $('#main').innerHTML = '<div class="pg"><h2>Dashboard</h2><span class="muted">' + us.length + ' accounts</span><span class="sp" style="flex:1"></span><button id="csv">EXPORT PLAYERS (CSV)</button></div>' +
     '<div class="card hero' + (NOTIF.on ? ' live' : '') + '" style="margin-top:8px"><button id="dn" class="' + (NOTIF.on ? 'on' : '') + '">' + (NOTIF.on ? '🔔 ALERTS ON' : '🔕 ALERTS OFF') + '</button><div style="flex:1;min-width:200px"><b>' + (NOTIF.on ? 'Watching:' : 'Would watch:') + '</b> <span class="muted">' + esc(alertsSummary()) + '</span></div><button id="da">ALERT SETTINGS</button></div>' +
+    '<div id="hlc">' + healthHtml(S.health) + '</div>' +
     kp('NOW', [['Online now', '…', 'k-on'], ['Active 1 h', cnt((u) => now - last(u) < H)], ['Active 24 h', cnt((u) => now - last(u) < D)], ['Active 7 days', cnt((u) => now - last(u) < 7 * D)]]) +
     kp('GROWTH', [['Accounts', us.length], ['New today', cnt((u) => now - new Date(u.created_at) < D)], ['New 7 days', cnt((u) => now - new Date(u.created_at) < 7 * D)], ['On leaderboard', cnt((u) => u.optin)]]) +
     kp('NEEDS A LOOK', [['Never saved', cnt((u) => !u.slots)], ['Inactive 30+ days', cnt((u) => u.slots && now - last(u) > 30 * D)], ['Blocked / banned', cnt((u) => u.blocked || u.banned)], ['Gifts waiting', us.reduce((s, u) => s + (+u.gifts || 0), 0)]]) +
+    '<div id="vsc"></div>' +
     '<div class="sec">NEW ACCOUNTS</div><div class="card" style="margin-top:0"><div class="chips" id="cd">' + [[7, '7 days'], [14, '14 days'], [30, '30 days']].map(([d, l]) => '<button data-d="' + d + '" class="' + (cd === d ? 'on' : '') + '">' + l + '</button>').join('') + '</div><div class="muted" style="font-size:12px;margin:0 0 4px" id="csum">' + newIn(cd) + ' new in ' + cd + ' days (' + (newIn(cd) / cd).toFixed(1) + ' per day)</div><div id="cbox">' + signupChart(us, cd) + '</div></div>' +
     '<div class="cols"><div class="card"><h3>NEWEST ACCOUNTS</h3><table><tr><th>PLAYER</th><th>CREATED</th><th>SLOTS</th></tr>' + recent.map((u) => '<tr><td>' + nameLink(u.name) + '</td><td>' + fmtD(u.created_at) + '</td><td>' + u.slots + '</td></tr>').join('') + '</table></div>' +
     '<div class="card"><h3>RECENTLY ACTIVE</h3><table><tr><th>PLAYER</th><th>LAST SEEN</th><th>SLOTS</th></tr>' + (active.length ? active.map((u) => '<tr><td>' + nameLink(u.name) + '</td><td>' + fmtD(last(u)) + '</td><td>' + u.slots + '</td></tr>').join('') : '<tr><td colspan="3" class="muted">Nobody in the last 24 h.</td></tr>') + '</table></div>' +
@@ -506,6 +569,8 @@ function viewDashboard() {
   $('#da').onclick = () => { S.tab = 'alerts'; renderMain(); };
   document.querySelectorAll('#cd button').forEach((b) => { b.onclick = () => { S.cd = +b.dataset.d; document.querySelectorAll('#cd button').forEach((x) => x.classList.toggle('on', x === b)); $('#cbox').innerHTML = signupChart(us, S.cd); $('#csum').textContent = newIn(S.cd) + ' new in ' + S.cd + ' days (' + (newIn(S.cd) / S.cd).toFixed(1) + ' per day)'; }; });
   $('#csv').onclick = exportCsv;
+  if (!S.health || Date.now() - S.health.at > 60000) runHealth().then(() => { const el = $('#hlc'); if (el && S.tab === 'dashboard') el.innerHTML = healthHtml(S.health); });
+  rpc('adm_versions').then((l) => l, () => null).then((l) => { const el = $('#vsc'); if (el && S.tab === 'dashboard') el.innerHTML = versionsHtml(l); });
   rpc('adm_online').then((l) => {      // "Online jetzt" nachtragen (braucht supabase_social.sql + supabase_admin2.sql, sonst bleibt es '-')
     const n = l.filter((x) => Date.now() - new Date(x.last_seen) < 100000).length, k = $('#k-on b');
     NOTIF.onlineN = n; updateBadges(); if (k && S.tab === 'dashboard') k.textContent = n;
@@ -1067,8 +1132,8 @@ async function showGuild(id) {
 }
 
 // ====== Fehlerprotokoll aus dem Spiel (js/errlog.js) ======
-async function viewErrors() {
-  const m = $('#main'); m.innerHTML = '<span class="muted">Loading...</span>';
+async function viewAutoErrors(m) {
+  m.innerHTML = '<span class="muted">Loading...</span>';
   let list; try { list = await rpc('adm_errors'); } catch (e) { m.innerHTML = '<span class="err">' + esc(e.message) + '</span><div class="muted">Needs tools/supabase_admin2.sql.</div>'; return; }
   const E = S.err = S.err || { q: '', sort: 'last' }, total = list.reduce((s, e) => s + e.n, 0), day = list.filter((e) => Date.now() - new Date(e.last_at) < 864e5), vers = {};
   for (const e of list) vers[e.ver || '?'] = (vers[e.ver || '?'] || 0) + e.n;
@@ -1080,7 +1145,7 @@ async function viewErrors() {
       '<div class="muted" style="font-size:12px">last ' + ago(e.last_at) + ' · first ' + fmtD(e.first_at) + (e.ver ? ' · version ' + esc(e.ver) : '') + '</div><div class="muted" style="font-size:11px;word-break:break-word">' + esc(e.ua) + '</div></div>').join('') : '<div class="card muted">' + (list.length ? 'Nothing matches.' : 'No errors reported. Good.') + '</div>';
     $('#ebody').querySelectorAll('[data-e]').forEach((b) => { b.onclick = () => act('Cleared', 'adm_errors_clear', { p_id: +b.dataset.e }, viewErrors); });
   };
-  m.innerHTML = '<div class="pg"><h2>Bugs &amp; errors</h2><span class="muted">Reported anonymously by the game (no name, no save), at most 5 per session.</span></div>' +
+  m.innerHTML = '<div class="muted" style="margin-bottom:8px">Reported automatically and anonymously by the game (no name, no save), at most 5 per session.</div>' +
     '<div class="kpis">' + [['Different errors', list.length], ['Times in total', total], ['New in 24 h', day.length], ['Most affected version', topVer || '-']].map(([l, v]) => '<div class="kpi"><b' + (l === 'New in 24 h' && v ? ' class="err"' : '') + '>' + esc(v) + '</b><span>' + l + '</span></div>').join('') + '</div>' +
     '<div class="row" style="margin-top:10px"><input type="search" id="eq" placeholder="Search message, place, device..." value="' + esc(E.q) + '" style="flex:1;min-width:160px"><select id="es"><option value="last"' + (E.sort === 'last' ? ' selected' : '') + '>Newest first</option><option value="n"' + (E.sort === 'n' ? ' selected' : '') + '>Most frequent</option></select>' + (list.length ? '<button id="ecl" class="warn">CLEAR ALL</button>' : '') + '</div><div id="ebody"></div>';
   $('#eq').oninput = (e) => { E.q = e.target.value; draw(); }; $('#es').onchange = (e) => { E.sort = e.target.value; draw(); }; draw();
@@ -1100,6 +1165,33 @@ function markTables() {
   });
 }
 { let q = 0; new MutationObserver(() => { if (!q) q = requestAnimationFrame(() => { q = 0; markTables(); }); }).observe(document.getElementById('app'), { childList: true, subtree: true }); }
+
+const devOf = (ua, c) => { ua = String(ua || ''); const os = /iPhone|iPad|iPod/.test(ua) ? 'iPhone/iPad' : /Android/.test(ua) ? 'Android' : /Windows/.test(ua) ? 'Windows' : /Mac/.test(ua) ? 'Mac' : /Linux/.test(ua) ? 'Linux' : 'device'; const br = /Edg\//.test(ua) ? 'Edge' : /Firefox/.test(ua) ? 'Firefox' : /Chrome|CriOS/.test(ua) ? 'Chrome' : /Safari/.test(ua) ? 'Safari' : ''; return os + (br ? ', ' + br : '') + (c && c.pwa ? ' (installed app)' : ''); };
+const BST = [['new', 'NEW'], ['working', 'IN PROGRESS'], ['done', 'DONE'], ['wontfix', "WON'T FIX"]];
+async function viewBugs(m) {
+  m.innerHTML = '<span class="muted">Loading...</span>';
+  let list; try { list = await rpc('adm_bugs'); } catch (e) { m.innerHTML = '<div class="card"><span class="err">' + esc(e.message) + '</span><div class="muted" style="margin-top:4px">Needs tools/supabase_admin3.sql in Supabase, and the updated game (Settings > Report a bug).</div></div>'; return; }
+  NOTIF.bugsNew = list.filter((b) => b.status === 'new').length; updateBadges();
+  const F = S.bf = S.bf || 'open', n = (st) => list.filter((b) => b.status === st).length;
+  const rows = list.filter((b) => F === 'all' || (F === 'open' ? b.status === 'new' || b.status === 'working' : F === 'closed' ? b.status === 'done' || b.status === 'wontfix' : b.status === F));
+  m.innerHTML = '<div class="kpis">' + [['New', n('new')], ['In progress', n('working')], ['Done', n('done')], ['All', list.length]].map(([l, v], i) => '<div class="kpi"><b' + (i === 0 && v ? ' class="err"' : '') + '>' + v + '</b><span>' + l + '</span></div>').join('') + '</div>' +
+    '<div class="chips" id="bfc" style="margin-top:8px">' + [['open', 'Open'], ['new', 'New'], ['closed', 'Closed'], ['all', 'All']].map(([v, l]) => '<button data-v="' + v + '" class="' + (F === v ? 'on' : '') + '">' + l + '</button>').join('') + '</div>' +
+    (rows.length ? rows.map((b) => { const c = b.ctx || {}; return '<div class="card bugc ' + esc(b.kind) + ' ' + esc(b.status) + '" style="margin:0 0 8px"><div class="row" style="margin:0"><span class="tag ' + (b.kind === 'bug' ? 'err' : b.kind === 'idea' ? 'yel' : '') + '">' + esc(b.kind.toUpperCase()) + '</span><b style="flex:1;min-width:160px;word-break:break-word">' + esc(b.title) + '</b><span class="muted" style="font-size:12px">' + ago(b.created_at) + '</span></div>' +
+      (b.body ? '<div style="white-space:pre-wrap;word-break:break-word;margin:6px 0">' + esc(b.body) + '</div>' : '') +
+      '<div class="muted" style="font-size:12px">' + (b.name ? 'from ' + nameLink(b.name) : 'anonymous') + ' · ' + esc(devOf(c.ua, c)) + (c.ver ? ' · version ' + esc(c.ver) : '') + (c.scr ? ' · ' + esc(c.scr) : '') + (c.mode ? ' · screen "' + esc(c.mode) + '"' + (c.map ? ' on ' + esc(c.map) : '') + (c.t ? ' at ' + fmtT(c.t) : '') : '') + '</div>' +
+      '<div class="chips" style="margin:8px 0 2px">' + BST.map(([v, l]) => '<button data-bs="' + b.id + '" data-v="' + v + '" class="' + (b.status === v ? 'on' : '') + '">' + l + '</button>').join('') + '</div>' +
+      '<details class="more"><summary>Note and delete' + (b.note ? ' (has note)' : '') + '</summary><textarea id="bn' + b.id + '" rows="2" maxlength="500" placeholder="Private note (only you see it)" style="font:13px/1.4 inherit">' + esc(b.note) + '</textarea><div class="acts"><button data-bn="' + b.id + '" class="on">SAVE NOTE</button><button data-bd="' + b.id + '" class="bad">DELETE</button></div></details></div>'; }).join('') : '<div class="card muted">' + (list.length ? 'Nothing in this list.' : 'No reports yet. Players send them from Settings > Report a bug (needs the updated game).') + '</div>');
+  document.querySelectorAll('#bfc button').forEach((b) => { b.onclick = () => { S.bf = b.dataset.v; viewBugs(m); }; });
+  m.querySelectorAll('[data-bs]').forEach((b) => { b.onclick = () => act('Marked as ' + b.textContent.toLowerCase(), 'adm_bug_set', { p_id: +b.dataset.bs, p_status: b.dataset.v }, () => viewBugs(m)); });
+  m.querySelectorAll('[data-bn]').forEach((b) => { b.onclick = () => { const r = list.find((x) => x.id === +b.dataset.bn); act('Note saved', 'adm_bug_set', { p_id: r.id, p_status: r.status, p_note: $('#bn' + r.id).value.trim() }, () => viewBugs(m)); }; });
+  m.querySelectorAll('[data-bd]').forEach((b) => { b.onclick = () => { if (confirm('Delete this report for good?')) act('Report deleted', 'adm_bug_delete', { p_id: +b.dataset.bd }, () => viewBugs(m)); }; });
+}
+async function viewErrors() {
+  const m = $('#main'), T = S.bt = S.bt || 'reports';
+  m.innerHTML = '<div class="pg"><h2>Bugs &amp; errors</h2><span class="muted">What players report and what the game catches by itself</span></div><div class="chips" id="bt">' + [['reports', 'Player reports' + (NOTIF.bugsNew ? ' (' + NOTIF.bugsNew + ' new)' : '')], ['auto', 'Automatic errors']].map(([v, l]) => '<button data-v="' + v + '" class="' + (T === v ? 'on' : '') + '">' + l + '</button>').join('') + '</div><div id="bbody"></div>';
+  document.querySelectorAll('#bt button').forEach((b) => { b.onclick = () => { S.bt = b.dataset.v; viewErrors(); }; });
+  await (T === 'reports' ? viewBugs : viewAutoErrors)($('#bbody'));
+}
 
 // ====== Start ======
 (async function () {

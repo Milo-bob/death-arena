@@ -765,7 +765,7 @@ const G = {
       Sfx.play('select');
     }
     else if (item === 'transfer' && ok) SaveTransfer.open();
-    else if (item === 'feedback' && ok) this.openLink(HG_URL + 'games/death-arena-remake');          // Fehler melden / Ideen: die Spielseite auf Holiday Games hat den Feedback-Knopf
+    else if (item === 'feedback' && ok) { Sfx.play('select'); BugReport.open(); }          // Fehler melden / Ideen: Formular im Spiel (bugreport.js), landet in der Admin-Seite
     else if (item === 'hg' && ok) this.openLink(HG_URL);
     else if (item === 'resetAll' && ok) {
       if (!this.resetConfirm) this.resetConfirm = true;           // erst nochmal bestaetigen

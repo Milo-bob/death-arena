@@ -37,7 +37,7 @@ const Social = {
   tick(mode) {
     if (!this.on || this.missing || (typeof document !== 'undefined' && document.hidden)) return;
     const now = Date.now();
-    if (now - this.pingAt > 40000) { this.pingAt = now; this.rpc('soc_ping', { p_activity: this.activity() }).then((r) => { if (r.ok) this.pinged = true; }); }
+    if (now - this.pingAt > 40000) { this.pingAt = now; this.rpc('soc_ping', { p_activity: this.activity() }).then((r) => { if (r.ok) { this.pinged = true; this.sendVer(); } }); }
     if (!this.MENU_MODES.includes(mode)) return;
     if (now - this.pollAt > 4000) {
       this.pollAt = now;
@@ -46,6 +46,12 @@ const Social = {
     if (mode === 'friends') { if (now - this.listAt > 30000) this.loadFriends(); if (this.tab === 1 && now - this.guildAt > 30000) this.loadGuild(); }
     else if (mode === 'guildroom') { if (now - this.guildAt > 20000) this.loadGuild(); }
     else if (mode === 'start') { if (now - this.listAt > 60000) this.loadFriends(); if (now - this.guildAt > 120000) this.loadGuild(); }
+  },
+  // einmal pro Start: Spielversion und Geraet melden (Admin-Seite > Dashboard > Versions); fehlt die Funktion, passiert nichts (bewusst nicht ueber this.rpc, das wuerde Freunde/Gilden als fehlend markieren)
+  sendVer() {
+    if (this.verSent || typeof BugReport === 'undefined') return;
+    this.verSent = true;
+    Account.rest('POST', '/rest/v1/rpc/soc_ver', { p_ver: BugReport.version(), p_ua: String(navigator.userAgent || '').slice(0, 160) }).catch(() => {});
   },
   addInvite(i) {
     if (!i || !i.icode || (typeof Pvp !== 'undefined' && Pvp.code === i.icode) || this.invites.some((x) => x.code === i.icode)) return;
