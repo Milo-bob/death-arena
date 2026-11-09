@@ -121,9 +121,24 @@
     table.rt td > button { margin:2px 0 2px 4px; }
     .card { padding:10px; } .card[style*="overflow"] { padding:8px; }
     button, select, input { min-height:36px; } input, select, textarea { font-size:16px; }
-    .kpis { grid-template-columns:repeat(2, 1fr); }
+    .kpis { grid-template-columns:repeat(auto-fit, minmax(98px, 1fr)); gap:8px; } .kpi { padding:6px 8px; } .kpi b { font-size:18px; } .kpi span { font-size:11.5px; line-height:1.25; display:block; }
     .row > input[type=text], .row > input[type=search] { flex:1 1 100%; }
   }
+  .pc { border:1px solid var(--line); border-radius:6px; background:var(--ink); padding:9px 12px; margin:0 0 8px; cursor:pointer; } .pc.sel { border-color:var(--cyan); background:#1a2c63; }
+  .pc .l1 { display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-size:15px; } .pc .l2 { font-size:12.5px; margin-top:2px; }
+  .ccard { border-left:4px solid var(--grey); } .ccard.s2 { border-left-color:var(--yellow); } .ccard.s3 { border-left-color:var(--red); }
+  .acts { display:flex; gap:6px; flex-wrap:wrap; margin:8px 0 2px; } .acts button { flex:1 1 90px; }
+  details.more > summary, details.flt > summary, details.fold > summary { cursor:pointer; color:var(--cyan); font-size:13px; padding:4px 0; list-style:none; } details > summary::-webkit-details-marker { display:none; }
+  details.more > summary::before, details.flt > summary::before, details.fold > summary::before { content:'▸ '; } details[open] > summary::before { content:'▾ '; }
+  details.flt { padding:6px 12px; } details.flt > summary { color:var(--ice); }
+  .bars .br { display:grid; grid-template-columns:150px 1fr; gap:1px 10px; align-items:center; margin:7px 0; } .bars .bt { grid-column:2; font-size:12px; } .bars .bl { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .bcard .meter { height:8px; background:#16264d; border-radius:4px; overflow:hidden; margin:4px 0 6px; } .bcard .meter > i { display:block; height:100%; background:var(--green); } .bcard .meter > i.lo { background:var(--red); } .bcard .meter > i.mid { background:var(--yellow); }
+  .rrow { border-bottom:1px solid #16264d; padding:7px 0; } .rrow:last-child { border-bottom:0; } .rrow .l1 { display:flex; gap:8px; flex-wrap:wrap; align-items:baseline; } .rrow .l2 { font-size:12px; color:var(--grey); word-break:break-word; }
+  .counter { font-size:12px; color:var(--grey); text-align:right; }
+  .fld { display:block; margin:10px 0; } .fld > span { display:block; font-size:12px; color:var(--grey); margin-bottom:3px; letter-spacing:.5px; } .fld input, .fld textarea { width:100%; }
+  .prev { border:1px dashed var(--cyanDark); border-radius:6px; padding:10px 12px; background:var(--ink); margin:8px 0; } .prev b { color:var(--yellow); }
+  .big { width:100%; padding:10px; font-size:15px; margin-top:6px; }
+  @media (max-width:700px) { .bars .br { grid-template-columns:1fr; } .bars .bt { grid-column:1; } }
   @media (max-width:640px) { th, td { padding:4px 5px; font-size:13px; } }
 </style>
 </head>
@@ -401,13 +416,19 @@ async function loadNotes() {
 
 // ====== Dashboard ======
 const dayKey = (d) => { const x = new Date(d); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); };
-function signupChart(us, days) {
-  const W = 1000, H = 180, pad = 24, cnt = {}, keys = [];
+function signupChart(us, days) {      // echte Pixelbreite statt gestauchter Schrift, auf dem Handy hoeher und mit weniger Beschriftungen
+  const mob = window.innerWidth < 700, W = Math.max(300, Math.min(window.innerWidth >= 820 ? window.innerWidth - 300 : window.innerWidth - 50, 1140)), H = mob ? 220 : 200, padX = 6, padT = 22, padB = 24, cnt = {}, keys = [];
   for (let i = days - 1; i >= 0; i--) { const k = dayKey(Date.now() - i * 864e5); keys.push(k); cnt[k] = 0; }
   for (const u of us) { const k = dayKey(u.created_at); if (k in cnt) cnt[k]++; }
-  const mx = Math.max(1, ...keys.map((k) => cnt[k])), bw = (W - pad * 2) / days;
-  let s = '<svg class="chart" style="height:180px" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">';
-  keys.forEach((k, i) => { const h = (H - pad * 2) * cnt[k] / mx; s += '<rect x="' + (pad + i * bw + 2) + '" y="' + (H - pad - h) + '" width="' + Math.max(1, bw - 4) + '" height="' + h + '" fill="#3de8ff"><title>' + k + ': ' + cnt[k] + ' new</title></rect>'; if (cnt[k]) s += '<text x="' + (pad + i * bw + bw / 2) + '" y="' + (H - pad - h - 4) + '" fill="#e6fdff" font-size="12" text-anchor="middle">' + cnt[k] + '</text>'; if (i % 5 === 0) s += '<text x="' + (pad + i * bw) + '" y="' + (H - 6) + '" fill="#7f8fb0" font-size="12">' + k.slice(5) + '</text>'; });
+  const mx = Math.max(2, ...keys.map((k) => cnt[k])), bw = (W - padX * 2) / days, gap = bw > 14 ? 3 : 1.5, step = days > 20 ? (mob ? 7 : 3) : days > 10 ? 2 : 1, ch = H - padT - padB;
+  let s = '<svg class="chart" style="height:' + H + 'px" viewBox="0 0 ' + W + ' ' + H + '">';
+  s += '<line x1="0" x2="' + W + '" y1="' + (H - padB) + '" y2="' + (H - padB) + '" stroke="#1f3a66"/><line x1="0" x2="' + W + '" y1="' + padT + '" y2="' + padT + '" stroke="#16264d" stroke-dasharray="3 4"/><text x="' + (W - 2) + '" y="' + (padT - 5) + '" fill="#7f8fb0" font-size="11" text-anchor="end">max ' + mx + '</text>';
+  keys.forEach((k, i) => {
+    const h = ch * cnt[k] / mx, x = padX + i * bw, today = i === days - 1;
+    s += '<rect x="' + (x + gap) + '" y="' + (H - padB - h) + '" width="' + Math.max(2, bw - gap * 2) + '" height="' + h + '" rx="2" fill="' + (today ? '#ffd91f' : '#3de8ff') + '"><title>' + k + ': ' + cnt[k] + ' new</title></rect>';
+    if (cnt[k]) s += '<text x="' + (x + bw / 2) + '" y="' + (H - padB - h - 5) + '" fill="#e6fdff" font-size="12" font-weight="600" text-anchor="middle">' + cnt[k] + '</text>';
+    if ((days - 1 - i) % step === 0) s += '<text x="' + (x + bw / 2) + '" y="' + (H - 7) + '" fill="' + (today ? '#ffd91f' : '#7f8fb0') + '" font-size="11" text-anchor="middle">' + (today ? 'today' : k.slice(8) + '.' + k.slice(5, 7)) + '</text>';
+  });
   return s + '</svg>';
 }
 function exportCsv() {
@@ -470,19 +491,20 @@ function viewDashboard() {
   const us = S.users || [], now = Date.now(), H = 36e5, D = 24 * H, cnt = (fn) => us.filter(fn).length;
   const last = (u) => Math.max(+new Date(u.last_sign_in || 0), +new Date(u.saved_at || 0));
   const kp = (t, arr) => '<div class="sec">' + t + '</div><div class="kpis">' + arr.map(([l, v, id]) => '<div class="kpi' + (id ? ' hot' : '') + '"' + (id ? ' id="' + id + '"' : '') + '><b>' + v + '</b><span>' + l + '</span></div>').join('') + '</div>';
-  const recent = us.slice().sort((a, b) => (a.created_at < b.created_at ? 1 : -1)).slice(0, 8);
+  const recent = us.slice().sort((a, b) => (a.created_at < b.created_at ? 1 : -1)).slice(0, 8), cd = S.cd || (window.innerWidth < 700 ? 14 : 30), newIn = (d) => us.filter((u) => now - new Date(u.created_at) < d * D).length;
   const active = us.filter((u) => now - last(u) < D).sort((a, b) => last(b) - last(a)).slice(0, 8);
   $('#main').innerHTML = '<div class="pg"><h2>Dashboard</h2><span class="muted">' + us.length + ' accounts</span><span class="sp" style="flex:1"></span><button id="csv">EXPORT PLAYERS (CSV)</button></div>' +
     '<div class="card hero' + (NOTIF.on ? ' live' : '') + '" style="margin-top:8px"><button id="dn" class="' + (NOTIF.on ? 'on' : '') + '">' + (NOTIF.on ? '🔔 ALERTS ON' : '🔕 ALERTS OFF') + '</button><div style="flex:1;min-width:200px"><b>' + (NOTIF.on ? 'Watching:' : 'Would watch:') + '</b> <span class="muted">' + esc(alertsSummary()) + '</span></div><button id="da">ALERT SETTINGS</button></div>' +
     kp('NOW', [['Online now', '…', 'k-on'], ['Active 1 h', cnt((u) => now - last(u) < H)], ['Active 24 h', cnt((u) => now - last(u) < D)], ['Active 7 days', cnt((u) => now - last(u) < 7 * D)]]) +
     kp('GROWTH', [['Accounts', us.length], ['New today', cnt((u) => now - new Date(u.created_at) < D)], ['New 7 days', cnt((u) => now - new Date(u.created_at) < 7 * D)], ['On leaderboard', cnt((u) => u.optin)]]) +
     kp('NEEDS A LOOK', [['Never saved', cnt((u) => !u.slots)], ['Inactive 30+ days', cnt((u) => u.slots && now - last(u) > 30 * D)], ['Blocked / banned', cnt((u) => u.blocked || u.banned)], ['Gifts waiting', us.reduce((s, u) => s + (+u.gifts || 0), 0)]]) +
-    '<div class="sec">NEW ACCOUNTS, LAST 30 DAYS</div><div class="card" style="margin-top:0">' + signupChart(us, 30) + '</div>' +
+    '<div class="sec">NEW ACCOUNTS</div><div class="card" style="margin-top:0"><div class="chips" id="cd">' + [[7, '7 days'], [14, '14 days'], [30, '30 days']].map(([d, l]) => '<button data-d="' + d + '" class="' + (cd === d ? 'on' : '') + '">' + l + '</button>').join('') + '</div><div class="muted" style="font-size:12px;margin:0 0 4px" id="csum">' + newIn(cd) + ' new in ' + cd + ' days (' + (newIn(cd) / cd).toFixed(1) + ' per day)</div><div id="cbox">' + signupChart(us, cd) + '</div></div>' +
     '<div class="cols"><div class="card"><h3>NEWEST ACCOUNTS</h3><table><tr><th>PLAYER</th><th>CREATED</th><th>SLOTS</th></tr>' + recent.map((u) => '<tr><td>' + nameLink(u.name) + '</td><td>' + fmtD(u.created_at) + '</td><td>' + u.slots + '</td></tr>').join('') + '</table></div>' +
     '<div class="card"><h3>RECENTLY ACTIVE</h3><table><tr><th>PLAYER</th><th>LAST SEEN</th><th>SLOTS</th></tr>' + (active.length ? active.map((u) => '<tr><td>' + nameLink(u.name) + '</td><td>' + fmtD(last(u)) + '</td><td>' + u.slots + '</td></tr>').join('') : '<tr><td colspan="3" class="muted">Nobody in the last 24 h.</td></tr>') + '</table></div>' +
     '<div class="card"><h3>RECENT ALERTS</h3>' + feedTable(8) + '</div></div>';
   $('#dn').onclick = () => setNotif(!NOTIF.on);
   $('#da').onclick = () => { S.tab = 'alerts'; renderMain(); };
+  document.querySelectorAll('#cd button').forEach((b) => { b.onclick = () => { S.cd = +b.dataset.d; document.querySelectorAll('#cd button').forEach((x) => x.classList.toggle('on', x === b)); $('#cbox').innerHTML = signupChart(us, S.cd); $('#csum').textContent = newIn(S.cd) + ' new in ' + S.cd + ' days (' + (newIn(S.cd) / S.cd).toFixed(1) + ' per day)'; }; });
   $('#csv').onclick = exportCsv;
   rpc('adm_online').then((l) => {      // "Online jetzt" nachtragen (braucht supabase_social.sql + supabase_admin2.sql, sonst bleibt es '-')
     const n = l.filter((x) => Date.now() - new Date(x.last_seen) < 100000).length, k = $('#k-on b');
@@ -498,7 +520,7 @@ function viewPlayers() {
   m.innerHTML = '<div class="pg"><h2>Players</h2><span class="muted" id="pcount"></span></div>' +
     '<div class="row"><input type="search" id="q" placeholder="Search name or note..." value="' + esc(S.filter) + '" style="flex:1;min-width:160px"><select id="psort">' + PSORT.map(([v, l]) => '<option value="' + v + '"' + (v === S.sort.k + '|' + S.sort.d ? ' selected' : '') + '>' + l + '</option>').join('') + '</select></div>' +
     '<div class="chips" id="pf">' + PF.map(([id, l]) => '<button data-f="' + id + '" class="' + (S.pf === id ? 'on' : '') + '">' + l + '</button>').join('') + '</div>' +
-    '<div class="card" style="overflow:auto"><table id="ut"></table></div><div id="detail"></div>';
+    '<div class="card" style="overflow:auto"><table id="ut"></table><div id="ul"></div></div><div id="detail"></div>';
   $('#q').oninput = (e) => { S.filter = e.target.value; drawUsers(); };
   $('#psort').onchange = (e) => { const [k, d] = e.target.value.split('|'); S.sort = { k, d: +d }; drawUsers(); };
   document.querySelectorAll('#pf button').forEach((b) => { b.onclick = () => { S.pf = b.dataset.f; document.querySelectorAll('#pf button').forEach((x) => x.classList.toggle('on', x === b)); drawUsers(); }; });
@@ -510,6 +532,13 @@ function drawUsers() {
   const q = S.filter.toLowerCase(), k = S.sort.k, d = S.sort.d, nt = S.notes || {}, on = S.onSet || new Set(), nowT = Date.now(), lastAct = (u) => Math.max(+new Date(u.last_sign_in || 0), +new Date(u.saved_at || 0));
   const pfOk = (u) => { const f = S.pf || 'all'; return f === 'all' || (f === 'online' && on.has(u.name)) || (f === 'active7' && nowT - lastAct(u) < 7 * 864e5) || (f === 'new7' && nowT - new Date(u.created_at) < 7 * 864e5) || (f === 'never' && !u.slots) || (f === 'lb' && u.optin) || (f === 'bad' && (u.blocked || u.banned)); };
   const list = (S.users || []).filter((u) => pfOk(u) && (!q || u.name.toLowerCase().includes(q) || (nt[u.user_id] || '').toLowerCase().includes(q))).sort((a, b) => { const x = a[k] == null ? '' : a[k], y = b[k] == null ? '' : b[k]; return (x > y ? 1 : x < y ? -1 : 0) * d; });
+  const pc0 = $('#pcount'); if (pc0) pc0.textContent = list.length + ' of ' + (S.users || []).length + ' accounts' + (S.onSet ? ', ' + S.onSet.size + ' online' : '');
+  const mob = window.innerWidth < 700; $('#ut').style.display = mob ? 'none' : ''; const ulEl = $('#ul'); ulEl.innerHTML = '';
+  if (mob) {      // Handy: eine kompakte Karte je Spieler, Aktionen im Detail darunter
+    ulEl.innerHTML = list.map((u) => '<div class="pc' + (S.sel === u.user_id ? ' sel' : '') + '" data-u="' + u.user_id + '"><div class="l1">' + (on.has(u.name) ? '<span class="dot"></span>' : '') + '<b>' + esc(u.name) + '</b>' + (u.blocked ? '<span class="tag err">BLOCKED</span>' : '') + (u.banned ? '<span class="tag err">LB-BANNED</span>' : '') + (u.optin ? '<span class="tag ok">LB</span>' : '') + '<span style="flex:1"></span><span class="muted" style="font-size:12.5px">' + (u.last_sign_in ? ago(u.last_sign_in) : 'never') + '</span></div><div class="l2 muted">' + (u.slots ? u.slots + ' slot' + (u.slots > 1 ? 's' : '') + ' · ' + u.logs + ' runs' : 'never saved') + ' · joined ' + ago(u.created_at) + (+u.gifts ? ' · ' + u.gifts + ' gift waiting' : '') + '</div>' + (nt[u.user_id] ? '<div class="l2" style="color:var(--yellow)">' + esc(nt[u.user_id].slice(0, 80)) + '</div>' : '') + '</div>').join('') || '<div class="muted">No accounts match.</div>';
+    ulEl.querySelectorAll('.pc').forEach((el) => { el.onclick = async () => { S.sel = el.dataset.u; drawUsers(); await loadSel(); drawDetail(); $('#detail').scrollIntoView({ behavior: 'smooth' }); }; });
+    return;
+  }
   $('#ut').innerHTML = '<tr>' + cols.map(([c, l]) => '<th class="s' + (['created_at', 'saved_at', 'logs', 'gifts'].includes(c) ? ' hm' : '') + '" data-c="' + c + '">' + l + (S.sort.k === c ? (d > 0 ? ' ▲' : ' ▼') : '') + '</th>').join('') + '<th>STATUS</th><th>QUICK</th></tr>' +
     list.map((u) => '<tr class="pick ' + (S.sel === u.user_id ? 'sel' : '') + '" data-u="' + u.user_id + '"><td>' + (on.has(u.name) ? '<span class="dot" title="online"></span>' : '') + '<b>' + esc(u.name) + '</b>' + (nt[u.user_id] ? '<div class="muted" style="font-size:12px">' + esc(nt[u.user_id].slice(0, 70)) + '</div>' : '') + '</td><td class="hm">' + fmtD(u.created_at) + '</td><td>' + fmtD(u.last_sign_in) + '</td><td>' + u.slots + '</td><td class="hm">' + fmtD(u.saved_at) + '</td><td class="hm">' + u.logs + '</td><td class="hm">' + (u.gifts || '') + '</td><td>' + (u.blocked ? '<span class="tag err">BLOCKED</span>' : '') + (u.banned ? '<span class="tag err">LB-BANNED</span>' : '') + (u.optin ? '<span class="tag ok">LEADERBOARD</span>' : '') + '</td><td class="btns" style="white-space:nowrap"><button data-q="lb" data-u="' + u.user_id + '" class="' + (u.banned ? '' : 'warn') + '">' + (u.banned ? 'LB UNBAN' : 'LB BAN') + '</button> <button data-q="block" data-u="' + u.user_id + '" class="' + (u.blocked ? '' : 'bad') + '">' + (u.blocked ? 'UNBLOCK' : 'BLOCK') + '</button></td></tr>').join('') +
     (list.length ? '' : '<tr><td colspan="9" class="muted">No accounts.</td></tr>');
@@ -713,7 +742,7 @@ function drawSaves(el) {
   h += '<h2>Best time per map</h2><div class="card"><table><tr><th>MAP</th><th>PLAYERS WITH A TIME</th><th>MEDIAN BEST</th><th>BEST</th><th>BEST PLAYER</th></tr>' + maps.map(([id, t]) => '<tr><td>' + MAP_NAMES[id] + '</td><td>' + t.length + '</td><td>' + (t.length ? fmtT(quant(t.map((x) => x.v), .5)) : '-') + '</td><td>' + (t.length ? fmtT(t[t.length - 1].v) : '-') + '</td><td>' + (t.length ? nameLink(t[t.length - 1].n) : '-') + '</td></tr>').join('') + '</table></div>';
   const heroes = {}, heroWho = {}; for (const r of rows) { const k = r.d.hero || 'vanguard'; heroes[k] = (heroes[k] || 0) + 1; (heroWho[k] = heroWho[k] || []).push(r.name); }
   h += '<h2>Selected hero</h2><div class="card">' + bars(Object.keys(heroes).sort((a, b) => heroes[b] - heroes[a]).map((k) => [k, heroes[k], heroes[k] + '  -  ' + [...new Set(heroWho[k])].slice(0, 6).join(', ')])) + '</div>';
-  h += '<h2>All save files</h2><div class="card" style="overflow:auto"><table><tr><th>PLAYER</th><th>SLOT</th><th>LEVEL</th><th>CREDITS</th><th>BEST</th><th>ENDLESS</th><th>RUNS</th><th>WINS</th><th>BOSSES</th><th>KILLS</th><th>ACH.</th><th>HERO</th><th>SAVED</th></tr>' +
+  h += '<h2>All save files</h2><div class="card" style="overflow:auto"><table data-hide="ENDLESS,BOSSES,KILLS,ACH.,HERO,SAVED"><tr><th>PLAYER</th><th>SLOT</th><th>LEVEL</th><th>CREDITS</th><th>BEST</th><th>ENDLESS</th><th>RUNS</th><th>WINS</th><th>BOSSES</th><th>KILLS</th><th>ACH.</th><th>HERO</th><th>SAVED</th></tr>' +
     rows.slice().sort((x, y) => (x.d.pxp || 0) < (y.d.pxp || 0) ? 1 : -1).map((r) => '<tr><td>' + nameLink(r.name) + '</td><td>' + (r.slot + 1) + '</td><td>' + lv(r) + '</td><td>' + fmtN(r.d.souls) + '</td><td>' + fmtT(r.d.best) + '</td><td>' + fmtT(r.d.bestInf) + '</td><td>' + fmtN(r.d.runs) + '</td><td>' + fmtN(r.d.wins) + '</td><td>' + fmtN(r.d.stats && r.d.stats.bosses) + '</td><td>' + fmtN(r.d.stats && r.d.stats.kills) + '</td><td>' + ach(r) + '</td><td>' + esc(r.d.hero || '-') + '</td><td>' + fmtD(r.at) + '</td></tr>').join('') + '</table></div>';
   el.innerHTML = h;
 }
@@ -756,9 +785,9 @@ function analyzeBuilds(runs) {
   for (const r of runs) { if (!r.w) continue; const ids = new Set(); (r.w || []).forEach((x) => x && ids.add('w:' + x)); (r.ab || []).forEach((x) => x && ids.add('a:' + x)); for (const id of ids) (items[id] = items[id] || []).push(r.t); }
   return Object.keys(items).map((id) => { const t = items[id].sort((a, b) => a - b); return { id, n: t.length, med: quant(t, .5), avg: avg(t) }; });
 }
-function bars(rows) {      // rows: [label, value, text]
+function bars(rows) {      // rows: [label, value, text]; Beschriftung ueber dem Balken auf dem Handy
   const mx = Math.max(1, ...rows.map((r) => r[1]));
-  return '<table>' + rows.map((r) => '<tr><td style="width:170px">' + esc(r[0]) + '</td><td style="width:45%"><div class="bar" style="width:' + (r[1] / mx * 100) + '%"></div></td><td>' + esc(r[2]) + '</td></tr>').join('') + '</table>';
+  return '<div class="bars">' + rows.map((r) => '<div class="br"><div class="bl" title="' + esc(r[0]) + '">' + esc(r[0]) + '</div><div><div class="bar" style="width:' + Math.max(1, r[1] / mx * 100) + '%"></div></div><div class="bt muted">' + esc(r[2]) + '</div></div>').join('') + '</div>';
 }
 function chart(a) {
   const W = 1000, H = 220, pad = 28, w = a.windows; if (!w.length) return '';
@@ -801,11 +830,12 @@ function balanceHtml() {
 function viewStats() {
   const m = $('#main'), f = S.stat;
   const ul = (S.users || []).slice().sort((a, b) => a.name.localeCompare(b.name));
-  m.innerHTML = '<div class="pg"><h2>Statistics</h2></div><div class="chips">' + [['saves', 'SAVE FILES'], ['overview', 'RUNS'], ['killers', 'KILLERS'], ['bosses', 'BOSSES'], ['builds', 'BUILDS'], ['balance', 'BALANCE'], ['players', 'PLAYERS'], ['recent', 'RECENT']].map(([id, l]) => '<button data-s="' + id + '" class="' + (f.sub === id ? 'on' : '') + '">' + l + '</button>').join('') + '</div><div class="card"><div class="row"><label>Player <select id="su"><option value="">ALL PLAYERS</option>' + ul.map((u) => '<option value="' + u.user_id + '"' + (f.user === u.user_id ? ' selected' : '') + '>' + esc(u.name) + ' (' + u.logs + ')</option>').join('') + '</select></label>' +
+  const ftxt = (f.user ? (ul.find((u) => u.user_id === f.user) || {}).name || '?' : 'all players') + ' · ' + (f.slot === '' ? 'all slots' : 'slot ' + (+f.slot + 1)) + ' · ' + (f.map === 'all' ? 'all maps' : f.map === 'inf' ? 'endless' : MAP_NAMES[f.map]) + (f.dev ? ' · incl. dev runs' : '');
+  m.innerHTML = '<div class="pg"><h2>Statistics</h2></div><div class="chips">' + [['saves', 'SAVE FILES'], ['overview', 'RUNS'], ['killers', 'KILLERS'], ['bosses', 'BOSSES'], ['builds', 'BUILDS'], ['balance', 'BALANCE'], ['players', 'PLAYERS'], ['recent', 'RECENT']].map(([id, l]) => '<button data-s="' + id + '" class="' + (f.sub === id ? 'on' : '') + '">' + l + '</button>').join('') + '</div><details class="card flt"' + (window.innerWidth > 700 ? ' open' : '') + '><summary>Filters: ' + esc(ftxt) + '</summary><div class="row"><label>Player <select id="su"><option value="">ALL PLAYERS</option>' + ul.map((u) => '<option value="' + u.user_id + '"' + (f.user === u.user_id ? ' selected' : '') + '>' + esc(u.name) + ' (' + u.logs + ')</option>').join('') + '</select></label>' +
     '<label>Slot <select id="ss"><option value="">ALL</option>' + [0, 1, 2].map((i) => '<option value="' + i + '"' + (f.slot === String(i) ? ' selected' : '') + '>SLOT ' + (i + 1) + '</option>').join('') + '</select></label>' +
     '<label>Map <select id="sm"><option value="all">ALL MAPS (regular)</option>' + Object.keys(MAP_NAMES).map((k) => '<option value="' + k + '"' + (f.map === k ? ' selected' : '') + '>' + MAP_NAMES[k] + '</option>').join('') + '<option value="inf"' + (f.map === 'inf' ? ' selected' : '') + '>ENDLESS</option></select></label>' +
     '<label><input type="checkbox" id="sd" style="min-width:0"' + (f.dev ? ' checked' : '') + '> include dev/cheat runs</label></div>' +
-    '</div><div id="sbody"><span class="muted">Loading...</span></div>';
+    '</details><div id="sbody"><span class="muted">Loading...</span></div>';
   $('#su').onchange = (e) => { f.user = e.target.value; viewStats(); }; $('#ss').onchange = (e) => { f.slot = e.target.value; drawStats(); }; $('#sm').onchange = (e) => { f.map = e.target.value; drawStats(); }; $('#sd').onchange = (e) => { f.dev = e.target.checked; drawStats(); };
   m.querySelectorAll('.chips button[data-s]').forEach((b) => { b.onclick = () => { f.sub = b.dataset.s; viewStats(); }; });
   (f.sub === 'saves' ? ensureSaves() : ensureLogs(f.user)).then(drawStats, (e) => { const el = $('#sbody'); if (el) el.innerHTML = '<span class="err">' + esc(e.message) + '</span>'; });
@@ -819,20 +849,21 @@ function drawStats() {
   let h = '<div class="muted" style="margin-bottom:8px">' + fmtN(S.logs.length) + ' log entries loaded, ' + a.n + ' runs and ' + bosses.length + ' boss fights match the filter. Only runs of logged-in players are uploaded.</div>';
   if (!deaths.length && !bosses.length) h += '<div class="card muted">No data for this filter yet. Players upload their runs when they are in the main menu while logged in (needs the updated game).</div>';
   else if (f.sub === 'overview') {
-    h += '<div class="kpis">' + [['Runs', a.n], ['Wins', a.wins], ['Gave up', a.gaveUp], ['Median time', fmtT(a.median)], ['25% / 75%', fmtT(a.p25) + ' / ' + fmtT(a.p75)], ['Average', fmtT(a.avg)], ['Best', fmtT(a.best)], ['Avg bosses', a.bossAvg.toFixed(1)], ['Avg level', a.lvAvg ? a.lvAvg.toFixed(1) : '-']].map(([l, v]) => '<div class="kpi"><b>' + v + '</b><span>' + l + '</span></div>').join('') + '</div>' +
-      '<h2>Deaths over time</h2>' + chart(a);
     const worst = a.windows.filter((w) => w.risk >= 5).sort((x, y) => y.hazard - x.hazard)[0];
     const kb = a.killList[0], bb = analyzeBosses(bosses).filter((b) => b.n >= 3).sort((x, y) => (x.win / x.n) - (y.win / y.n))[0];
-    h += '<h2>In words</h2><div class="card"><ul>' + (worst ? '<li>Riskiest window: <b>' + fmtT(worst.lo) + ' - ' + fmtT(worst.lo + WINDOW) + '</b> (' + pct(worst.hazard) + ' of the runs that got there die in it).</li>' : '') +
+    const kp = (t, arr) => '<div class="sec">' + t + '</div><div class="kpis">' + arr.map(([l, v]) => '<div class="kpi"><b>' + v + '</b><span>' + l + '</span></div>').join('') + '</div>';
+    h += '<div class="card"><h3>IN WORDS</h3><ul style="margin:4px 0;padding-left:18px">' + (worst ? '<li>Riskiest window: <b>' + fmtT(worst.lo) + ' - ' + fmtT(worst.lo + WINDOW) + '</b> (' + pct(worst.hazard) + ' of the runs that got there die in it).</li>' : '') +
       (kb ? '<li>Most deaths: <b>' + esc(kb.name) + '</b> (' + kb.n + ' of ' + (a.n - a.wins) + ', median ' + fmtT(kb.med) + ').</li>' : '') +
       (bb ? '<li>Hardest boss: <b>' + esc(BOSS_NAMES[bb.ty] || bb.ty) + '</b> (' + pct(bb.win / bb.n) + ' win rate over ' + bb.n + ' fights).</li>' : '') +
-      '<li>Balance values live in <code>js/config.js</code> (enemy, boss, waves).</li></ul></div>';
+      '<li class="muted">Balance values live in js/config.js (enemy, boss, waves).</li></ul></div>' +
+      kp('RESULTS', [['Runs', a.n], ['Wins', a.wins], ['Gave up', a.gaveUp], ['Avg bosses', a.bossAvg.toFixed(1)], ['Avg level', a.lvAvg ? a.lvAvg.toFixed(1) : '-']]) +
+      kp('SURVIVAL TIME', [['Median', fmtT(a.median)], ['Average', fmtT(a.avg)], ['Best', fmtT(a.best)], ['25% / 75%', fmtT(a.p25) + ' / ' + fmtT(a.p75)]]) +
+      '<div class="sec">DEATHS OVER TIME</div>' + chart(a);
   } else if (f.sub === 'killers') {
     h += '<div class="card">' + (a.killList.length ? bars(a.killList.map((k) => [k.name, k.n, k.n + ' deaths (' + pct(k.n / Math.max(1, a.n - a.wins)) + '), median ' + fmtT(k.med) + (k.who ? '  -  ' + k.who : '')])) : '<span class="muted">No deaths.</span>') + '</div>';
   } else if (f.sub === 'bosses') {
     const b = analyzeBosses(bosses);
-    h += '<div class="card" style="overflow:auto"><table><tr><th>BOSS</th><th>FIGHTS</th><th>WIN RATE</th><th>WON</th><th>DIED</th><th>TIMEOUT</th><th>AVG DURATION</th><th>AVG DAMAGE TAKEN</th><th>STARTS AT</th><th>BEATEN BY</th><th>DIED MOST</th></tr>' +
-      b.map((x) => '<tr><td><b>' + esc(BOSS_NAMES[x.ty] || x.ty) + '</b></td><td>' + x.n + '</td><td>' + pct(x.win / x.n) + '</td><td>' + x.win + '</td><td>' + x.died + '</td><td>' + x.timeout + '</td><td>' + x.dur.toFixed(1) + ' s</td><td>' + Math.round(x.dm) + '</td><td>' + fmtT(x.at) + '</td><td>' + esc(x.wonBy || '-') + '</td><td>' + esc(x.diedTo || '-') + '</td></tr>').join('') + '</table></div>';
+    h += '<div class="muted" style="margin-bottom:6px">One card per boss, in the order they appear. Green bar = win rate.</div><div class="cols">' + b.map((x) => { const w = x.win / x.n, cls = w >= .6 ? '' : w >= .3 ? 'mid' : 'lo'; return '<div class="card bcard"><div class="row" style="margin:0"><b style="font-size:15px;flex:1">' + esc(BOSS_NAMES[x.ty] || x.ty) + '</b><b>' + pct(w) + '</b></div><div class="meter"><i class="' + cls + '" style="width:' + Math.round(w * 100) + '%"></i></div><div class="muted" style="font-size:12.5px">' + x.n + ' fights: <span class="ok">' + x.win + ' won</span>, <span class="err">' + x.died + ' died</span>' + (x.timeout ? ', ' + x.timeout + ' timeout' : '') + '<br>avg fight ' + x.dur.toFixed(0) + ' s · avg damage taken ' + Math.round(x.dm) + ' · starts at ' + fmtT(x.at) + '<br>beaten by ' + esc(x.wonBy || '-') + ' · dies most to ' + esc(x.diedTo || '-') + '</div></div>'; }).join('') + '</div>';
   } else if (f.sub === 'builds') {
     const b = analyzeBuilds(a.runs).sort((x, y) => y.n - x.n), part = (p, t) => '<div class="card"><h3>' + t + '</h3><table><tr><th>ITEM</th><th>RUNS</th><th>MEDIAN SURVIVAL</th><th>AVERAGE</th></tr>' + b.filter((x) => x.id.startsWith(p)).map((x) => '<tr><td>' + esc(x.id.slice(2).toUpperCase()) + '</td><td>' + x.n + '</td><td>' + fmtT(x.med) + '</td><td>' + fmtT(x.avg) + '</td></tr>').join('') + '</table></div>';
     h += part('w:', 'WEAPONS AND IMPLANTS') + part('a:', 'ABILITIES') + '<div class="muted">Hint only: better players pick other gear, so this shows correlation, not cause.</div>';
@@ -842,7 +873,7 @@ function drawStats() {
     h += '<div class="card" style="overflow:auto"><table><tr><th>PLAYER</th><th>RUNS</th><th>WINS</th><th>MEDIAN</th><th>BEST</th><th>AVG LEVEL</th></tr>' + rows.map((x) => '<tr><td>' + nameLink(x.n) + '</td><td>' + x.runs + '</td><td>' + x.wins + '</td><td>' + fmtT(x.med) + '</td><td>' + fmtT(x.best) + '</td><td>' + (x.lv ? x.lv.toFixed(1) : '-') + '</td></tr>').join('') + '</table></div>';
   } else if (f.sub === 'recent') {
     const rec = deaths.slice().sort((x, y) => String(y._at).localeCompare(String(x._at))).slice(0, 60);
-    h += '<div class="card" style="overflow:auto"><table><tr><th>WHEN</th><th>PLAYER</th><th>SLOT</th><th>TIME</th><th>BOSSES</th><th>LV</th><th>RESULT</th><th>KILLS</th><th>GEAR</th></tr>' + rec.map((r) => '<tr><td>' + fmtD(r._at) + '</td><td>' + nameLink(r._u) + '</td><td>' + (r._sl == null ? '-' : r._sl + 1) + '</td><td>' + fmtT(r.t) + '</td><td>' + (r.b || 0) + '</td><td>' + (r.lv || '-') + '</td><td>' + (r.win ? '<span class="ok">WIN</span>' : esc(r.by) + (r.fy ? ' <span class="muted">(' + esc(BOSS_NAMES[r.fy] || r.fy) + ')</span>' : '')) + '</td><td>' + (r.k || 0) + '</td><td class="muted">' + esc([].concat(r.w || [], r.ab || []).filter(Boolean).join(', ')) + '</td></tr>').join('') + '</table></div>';
+    h += '<div class="card">' + rec.map((r) => { const gear = [].concat(r.w || [], r.ab || []).filter(Boolean).join(', '); return '<div class="rrow"><div class="l1">' + nameLink(r._u) + (r.win ? '<span class="ok">WIN</span>' : '<span class="err">' + esc(r.by) + '</span>' + (r.fy ? '<span class="muted">(' + esc(BOSS_NAMES[r.fy] || r.fy) + ')</span>' : '')) + '<span style="flex:1"></span><span class="muted" style="font-size:12px">' + fmtD(r._at) + '</span></div><div class="l2">' + fmtT(r.t) + ' · ' + (r.b || 0) + ' bosses' + (r.lv ? ' · lv ' + r.lv : '') + ' · ' + (r.k || 0) + ' kills' + (r._sl == null ? '' : ' · slot ' + (r._sl + 1)) + (gear ? '<br>' + esc(gear) : '') + '</div></div>'; }).join('') + '</div>';
   }
   el.innerHTML = h;
 }
@@ -850,31 +881,64 @@ function drawStats() {
 // ====== Geschenke / Aktionsprotokoll ======
 async function viewGifts() {
   const m = $('#main'); m.innerHTML = '<span class="muted">Loading...</span>';
+  const T = S.gt = S.gt || { tab: 'news', dur: 72, aud: 'all', cr: 100, f: 'all', title: '', body: '' };
   let list; try { list = await rpc('adm_gifts', { p_user: null }); } catch (e) { m.innerHTML = '<span class="err">' + esc(e.message) + '</span>'; return; }
   let news = null; try { news = await rpc('adm_announce_list'); } catch (e) { /* supabase_admin2.sql noch nicht ausgefuehrt */ }
-  const live = (a) => new Date(a.expires_at) > new Date();
-  const newsHtml = '<div class="card"><h3>ANNOUNCEMENT TO ALL PLAYERS</h3>' + (news === null ? '<span class="muted">Needs tools/supabase_admin2.sql.</span>' :
-    '<div class="muted" style="margin-bottom:6px">Shows once as a window in the game\'s main menu (also for players who are not logged in). Plain text only.</div>' +
-    '<div class="row"><input type="text" id="at" maxlength="40" placeholder="Title (max 40)" style="width:260px"><select id="ah">' + [[24, '1 day'], [72, '3 days'], [168, '1 week'], [720, '30 days']].map(([v, l]) => '<option value="' + v + '">' + l + '</option>').join('') + '</select><button id="ap" class="on">PUBLISH</button></div>' +
-    '<div class="row"><textarea id="ab" rows="3" maxlength="400" placeholder="Message (max 400 characters)" style="font:13px/1.4 inherit"></textarea></div>' +
-    (news.length ? '<table><tr><th>PUBLISHED</th><th>TITLE</th><th>TEXT</th><th>UNTIL</th><th></th></tr>' + news.slice(0, 8).map((a) => '<tr><td>' + fmtD(a.created_at) + '</td><td><b>' + esc(a.title) + '</b></td><td class="muted">' + esc(a.body.slice(0, 90)) + '</td><td>' + (live(a) ? '<span class="ok">' + fmtD(a.expires_at) + '</span>' : '<span class="muted">ended</span>') + '</td><td>' + (live(a) ? '<button data-ae="' + a.id + '" class="warn">END NOW</button>' : '') + '</td></tr>').join('') + '</table>' : '')) + '</div>';
-  const AUD = [['all', 'All accounts with a save'], ['active7', 'Active in the last 7 days'], ['active30', 'Active in the last 30 days'], ['leaderboard', 'Leaderboard members']];
-  m.innerHTML = newsHtml + '<div class="card"><h3>GIFT TO MANY PLAYERS</h3><div class="row"><label>Who <select id="ma">' + AUD.map(([v, l]) => '<option value="' + v + '">' + l + '</option>').join('') + '</select></label><label>Credits <input type="number" id="mc" min="0" value="100" style="width:100px"></label><label>XP <input type="number" id="mx" min="0" value="0" style="width:100px"></label><label>Note <input type="text" id="mn" maxlength="80" placeholder="e.g. Welcome back" style="width:200px"></label><button id="mg" class="on">GIVE TO ALL</button></div><div class="muted" id="mcnt">Goes to each player\'s most recently saved slot and is collected in the main menu. Positive amounts only.</div></div>' +
-    '<div class="card" style="overflow:auto"><table><tr><th>WHEN</th><th>PLAYER</th><th>SLOT</th><th>CREDITS</th><th>XP</th><th>NOTE</th><th>STATE</th></tr>' + list.map((g) => '<tr><td>' + fmtD(g.created_at) + '</td><td>' + esc(g.name) + '</td><td>' + (g.slot + 1) + '</td><td>' + (g.credits > 0 ? '+' : '') + g.credits + '</td><td>' + (g.xp > 0 ? '+' : '') + (g.xp || 0) + '</td><td>' + esc(g.note) + '</td><td>' + (g.claimed_at ? '<span class="ok">collected ' + fmtD(g.claimed_at) + '</span>' : '<span class="yel">waiting</span>') + '</td></tr>').join('') + (list.length ? '' : '<tr><td colspan="6" class="muted">No gifts yet. Give credits from a player\'s slot card.</td></tr>') + '</table></div>';
-  const preview = async () => { try { const n = await rpc('adm_audience_count', { p_audience: $('#ma').value }); $('#mcnt').textContent = n + ' accounts would receive this gift.'; return n; } catch (e) { $('#mcnt').textContent = e.message.replace('supabase_admin.sql', 'supabase_admin_extras.sql'); return null; } };
-  $('#ma').onchange = preview; preview();
-  const ap = $('#ap'); if (ap) ap.onclick = () => {
-    const t = $('#at').value.trim(), b = $('#ab').value.trim(); if (!t || !b) return toast('Title and text are needed', true);
-    if (confirm('Publish this announcement to all players?\n\n' + t + '\n' + b)) act('Announcement published', 'adm_announce_add', { p_title: t, p_body: b, p_hours: +$('#ah').value }, viewGifts);
-  };
-  m.querySelectorAll('[data-ae]').forEach((b) => { b.onclick = () => act('Announcement ended', 'adm_announce_end', { p_id: +b.dataset.ae }, viewGifts); });
-  $('#mg').onclick = async () => {
-    const c = parseInt($('#mc').value, 10) || 0, x = parseInt($('#mx').value, 10) || 0; if (c < 0 || x < 0 || (!c && !x)) return toast('Enter a positive amount', true);
-    const n = await preview(); if (n == null) return;
-    if (!n) return toast('Nobody matches', true);
-    if (!confirm('Give ' + (c ? c + ' credits' : '') + (c && x ? ' and ' : '') + (x ? x + ' XP' : '') + ' to ' + n + ' accounts (' + $('#ma').selectedOptions[0].text + ')?')) return;
-    act('Gift queued for ' + n + ' accounts', 'adm_gift_many', { p_audience: $('#ma').value, p_credits: c, p_xp: x, p_note: $('#mn').value.trim() }, viewGifts);
-  };
+  const live = (a) => new Date(a.expires_at) > new Date(), nLive = news ? news.filter(live).length : 0, waiting = list.filter((g) => !g.claimed_at).length;
+  const chips = (id, arr, cur) => '<div class="chips" id="' + id + '">' + arr.map(([v, l]) => '<button data-v="' + v + '" class="' + (String(cur) === String(v) ? 'on' : '') + '">' + l + '</button>').join('') + '</div>';
+  const head = '<div class="pg"><h2>Gifts &amp; news</h2><span class="muted">Messages and presents for your players</span></div>' + chips('gt', [['news', 'News' + (nLive ? ' (' + nLive + ' live)' : '')], ['gift', 'Gift to many'], ['hist', 'History' + (waiting ? ' (' + waiting + ' waiting)' : '')]], T.tab);
+  let body = '';
+  if (T.tab === 'news') {
+    body = news === null ? '<div class="card muted">Needs tools/supabase_admin2.sql.</div>' :
+      '<div class="card"><h3>NEW ANNOUNCEMENT</h3><div class="muted" style="font-size:13px">Shows once as a window in the game\'s main menu, for everybody (also players who are not logged in). Plain text.</div>' +
+      '<label class="fld"><span>TITLE</span><input type="text" id="at" maxlength="40" placeholder="e.g. New map: Blackout!" value="' + esc(T.title) + '"><div class="counter" id="atc"></div></label>' +
+      '<label class="fld"><span>MESSAGE</span><textarea id="ab" rows="4" maxlength="400" placeholder="What should players know?" style="font:14px/1.4 inherit">' + esc(T.body) + '</textarea><div class="counter" id="abc"></div></label>' +
+      '<div class="fld"><span>SHOW FOR</span>' + chips('gd', [[24, '1 day'], [72, '3 days'], [168, '1 week'], [720, '30 days']], T.dur) + '</div>' +
+      '<div class="muted" style="font-size:12px">PREVIEW</div><div class="prev" id="apv"></div><button id="ap" class="on big">PUBLISH TO ALL PLAYERS</button></div>' +
+      '<div class="card"><h3>PUBLISHED</h3>' + (news.length ? news.slice(0, 10).map((a) => '<div class="rrow"><div class="l1"><b>' + esc(a.title) + '</b>' + (live(a) ? '<span class="tag ok">LIVE until ' + fmtD(a.expires_at) + '</span>' : '<span class="tag muted">ended</span>') + '</div><div class="l2">' + fmtD(a.created_at) + ' · ' + esc(a.body.slice(0, 140)) + '</div>' + (live(a) ? '<div class="acts"><button data-ae="' + a.id + '" class="warn">END NOW</button></div>' : '') + '</div>').join('') : '<span class="muted">Nothing published yet.</span>') + '</div>';
+  } else if (T.tab === 'gift') {
+    const AUD = [['all', 'Everyone with a save'], ['active7', 'Active 7 days'], ['active30', 'Active 30 days'], ['leaderboard', 'Leaderboard']];
+    body = '<div class="card"><h3>GIFT TO MANY PLAYERS</h3><div class="muted" style="font-size:13px">Goes to each player\'s most recently saved slot and is collected in the main menu. Positive amounts only.</div>' +
+      '<div class="fld"><span>WHO</span>' + chips('ga', AUD, T.aud) + '<div class="muted" id="mcnt" style="font-size:13px">...</div></div>' +
+      '<label class="fld"><span>CREDITS</span><input type="number" id="mc" min="0" inputmode="numeric" value="' + T.cr + '"></label>' + chips('gq', [[100, '100'], [250, '250'], [500, '500'], [1000, '1000'], [5000, '5000']], '') +
+      '<label class="fld"><span>XP (OPTIONAL)</span><input type="number" id="mx" min="0" inputmode="numeric" value="0"></label>' +
+      '<label class="fld"><span>NOTE SHOWN TO THE PLAYER</span><input type="text" id="mn" maxlength="80" placeholder="e.g. Welcome back!"></label>' +
+      '<div class="prev" id="gpv"></div><button id="mg" class="on big">SEND GIFT</button></div>';
+  } else {
+    const rows = list.filter((g) => T.f === 'all' || (T.f === 'wait' ? !g.claimed_at : !!g.claimed_at));
+    body = chips('gf', [['all', 'All (' + list.length + ')'], ['wait', 'Waiting (' + waiting + ')'], ['done', 'Collected (' + (list.length - waiting) + ')']], T.f) +
+      '<div class="card">' + (rows.length ? rows.slice(0, 100).map((g) => '<div class="rrow"><div class="l1"><b>' + (g.name ? nameLink(g.name) : '?') + '</b><span class="' + (g.credits < 0 ? 'err' : 'ok') + '">' + (g.credits > 0 ? '+' : '') + g.credits + ' credits</span>' + (g.xp ? '<span class="ok">' + (g.xp > 0 ? '+' : '') + g.xp + ' XP</span>' : '') + '<span style="flex:1"></span>' + (g.claimed_at ? '<span class="ok" style="font-size:12px">collected ' + ago(g.claimed_at) + '</span>' : '<span class="yel" style="font-size:12px">waiting</span>') + '</div><div class="l2">' + fmtD(g.created_at) + ' · slot ' + (g.slot + 1) + (g.note ? ' · ' + esc(g.note) : '') + '</div></div>').join('') : '<span class="muted">No gifts here. Give credits from a player\'s slot card or under "Gift to many".</span>') + '</div>';
+  }
+  m.innerHTML = head + body;
+  document.querySelectorAll('#gt button').forEach((b) => { b.onclick = () => { T.tab = b.dataset.v; viewGifts(); }; });
+  const bindChips = (id, fn) => document.querySelectorAll('#' + id + ' button').forEach((b) => { b.onclick = () => { document.querySelectorAll('#' + id + ' button').forEach((x) => x.classList.toggle('on', x === b)); fn(b.dataset.v); }; });
+  bindChips('gf', (v) => { T.f = v; viewGifts(); });
+  if (T.tab === 'news' && news !== null) {
+    const pv = () => { T.title = $('#at').value; T.body = $('#ab').value; $('#atc').textContent = T.title.length + ' / 40'; $('#abc').textContent = T.body.length + ' / 400'; $('#apv').innerHTML = (T.title || T.body) ? '<b>' + esc(T.title || '(no title)') + '</b><div style="white-space:pre-wrap;margin-top:4px">' + esc(T.body) + '</div>' : '<span class="muted">Your message appears here.</span>'; };
+    $('#at').oninput = pv; $('#ab').oninput = pv; pv();
+    bindChips('gd', (v) => { T.dur = +v; });
+    $('#ap').onclick = () => {
+      const t = $('#at').value.trim(), b = $('#ab').value.trim(); if (!t || !b) return toast('Title and text are needed', true);
+      if (confirm('Publish this announcement to all players for ' + (T.dur / 24) + ' day(s)?\n\n' + t + '\n' + b)) act('Announcement published', 'adm_announce_add', { p_title: t, p_body: b, p_hours: T.dur }, () => { T.title = ''; T.body = ''; return viewGifts(); });
+    };
+    m.querySelectorAll('[data-ae]').forEach((b) => { b.onclick = () => act('Announcement ended', 'adm_announce_end', { p_id: +b.dataset.ae }, viewGifts); });
+  }
+  if (T.tab === 'gift') {
+    const aud = () => (AUDL.find(([v]) => v === T.aud) || [])[1] || T.aud, AUDL = [['all', 'everyone with a save'], ['active7', 'players active in the last 7 days'], ['active30', 'players active in the last 30 days'], ['leaderboard', 'leaderboard members']];
+    let count = null;
+    const pv = () => { T.cr = parseInt($('#mc').value, 10) || 0; const x = parseInt($('#mx').value, 10) || 0; $('#gpv').innerHTML = (T.cr || x) ? 'Each of <b>' + (count == null ? '?' : count) + '</b> ' + esc(aud()) + ' gets <b>' + [T.cr ? T.cr + ' credits' : '', x ? x + ' XP' : ''].filter(Boolean).join(' + ') + '</b>' + (count != null && T.cr ? '<div class="muted" style="font-size:12px">' + fmtN(count * T.cr) + ' credits in total</div>' : '') : '<span class="muted">Enter an amount.</span>'; };
+    const preview = async () => { try { count = await rpc('adm_audience_count', { p_audience: T.aud }); $('#mcnt').textContent = count + ' accounts would receive this.'; } catch (e) { count = null; $('#mcnt').textContent = e.message.replace('supabase_admin.sql', 'supabase_admin_extras.sql'); } pv(); return count; };
+    bindChips('ga', (v) => { T.aud = v; preview(); });
+    bindChips('gq', (v) => { $('#mc').value = v; pv(); });
+    $('#mc').oninput = pv; $('#mx').oninput = pv; preview();
+    $('#mg').onclick = async () => {
+      const c = parseInt($('#mc').value, 10) || 0, x = parseInt($('#mx').value, 10) || 0; if (c < 0 || x < 0 || (!c && !x)) return toast('Enter a positive amount', true);
+      const n = await preview(); if (n == null) return;
+      if (!n) return toast('Nobody matches', true);
+      if (!confirm('Give ' + (c ? c + ' credits' : '') + (c && x ? ' and ' : '') + (x ? x + ' XP' : '') + ' to ' + n + ' accounts (' + aud() + ')?')) return;
+      act('Gift queued for ' + n + ' accounts', 'adm_gift_many', { p_audience: T.aud, p_credits: c, p_xp: x, p_note: $('#mn').value.trim() }, () => { T.tab = 'hist'; T.f = 'wait'; return viewGifts(); });
+    };
+  }
 }
 // Anticheat: Verstoesse (tools/supabase_anticheat.sql). Schweregrad 1-3; wer 3 Punkte in 30 Tagen hat, gilt als verdaechtig und steht in keiner Rangliste.
 async function viewCheats() {
@@ -883,21 +947,24 @@ async function viewCheats() {
   let trusted = []; try { trusted = (await rpc('adm_ac_trusted', {})).map((t) => t.name); } catch (e) { /* Migration supabase_ac_trust.sql noch nicht ausgefuehrt */ }
   const sus = [...new Set(list.filter((f) => f.suspect).map((f) => f.name))];
   const open = [...new Set(list.filter((f) => !f.cleared).map((f) => f.name))].filter((n) => !sus.includes(n));
-  const WHAT = { run_time: 'run longer than real time', run_stats: 'impossible run values', run_quota: 'too many offline runs', save_gain_credits: 'credits gained without runs', save_gain_xp: 'XP gained without runs', save_gain_shards: 'shards gained without a source', save_counters: 'counters above the verified total', save_absurd: 'impossible save (rejected)', save_format: 'unreadable save' };
-  const chip = (n, cls) => '<span class="tag ' + cls + '">' + esc(n) + '</span> <button class="small" data-clear="' + esc(n) + '">CLEAR</button> <button class="small" data-trust="' + esc(n) + '">TRUST</button>';
+  const WHAT = FLAG_WHAT;
   const grp = {}; for (const f of list) if (!f.cleared) (grp[f.name] = grp[f.name] || []).push(f);
-  const queue = Object.keys(grp).sort((a, b) => (sus.includes(b) - sus.includes(a)) || Math.max(...grp[b].map((f) => f.sev)) - Math.max(...grp[a].map((f) => f.sev)) || grp[b].length - grp[a].length);
-  const reasons = (fl) => { const c = {}; for (const f of fl) c[f.code] = (c[f.code] || 0) + 1; return Object.keys(c).map((k) => esc(WHAT[k] || k) + (c[k] > 1 ? ' x' + c[k] : '')).join('; '); };
-  const queueHtml = '<div class="card"><h3>REVIEW QUEUE (' + queue.length + ')</h3>' + (queue.length ? '<div style="overflow:auto"><table><tr><th>PLAYER</th><th>FLAGS</th><th>MAX SEV</th><th>WHY</th><th>LAST</th><th>DECISION</th></tr>' + queue.map((n) => {
-    const fl = grp[n], e = esc(n);
-    return '<tr><td>' + nameLink(n) + (sus.includes(n) ? ' <span class="tag err">SUSPECTED</span>' : '') + '</td><td>' + fl.length + '</td><td><span class="sevb s' + Math.max(...fl.map((f) => f.sev)) + '">' + Math.max(...fl.map((f) => f.sev)) + '</span></td><td>' + reasons(fl) + '</td><td>' + fmtD(fl[0].at) + '</td><td class="btns"><button data-rv="ok" data-n="' + e + '">LOOKS FINE</button> <button data-rv="trust" data-n="' + e + '">TRUST</button> <button data-rv="take" data-n="' + e + '" class="warn">TAKE CREDITS</button> <button data-rv="lb" data-n="' + e + '" class="warn">LB BAN</button> <button data-rv="block" data-n="' + e + '" class="bad">CHEATER: BLOCK</button></td></tr>';
-  }).join('') + '</table></div><div class="muted" style="margin-top:6px">Every decision lands in the ACTION LOG. LOOKS FINE clears the current flags (new ones count again); TAKE CREDITS queues a negative gift for one slot.</div>' : '<span class="muted">No open flags. Nothing to decide.</span>') + '</div>';
-  m.innerHTML = '<div class="pg"><h2>Cheats</h2><span class="muted">Anticheat review</span></div><div class="kpis">' + [['In review queue', queue.length, queue.length ? 'warn' : ''], ['Suspected', sus.length, sus.length ? 'bad' : ''], ['Open flags', list.filter((f) => !f.cleared).length], ['Trusted', trusted.length]].map(([l, v, c]) => '<div class="kpi"><b class="' + (c === 'bad' ? 'err' : c === 'warn' ? 'yel' : '') + '">' + v + '</b><span>' + l + '</span></div>').join('') + '</div>' + queueHtml + '<div class="card"><b>' + (sus.length ? 'SUSPECTED (not on leaderboards): ' + sus.map((n) => chip(n, 'err')).join(' ') : 'Nobody is suspected right now.') + '</b>' +
-    (open.length ? '<div style="margin-top:8px">OPEN FLAGS (not suspected yet): ' + open.map((n) => chip(n, '')).join(' ') + '</div>' : '') +
-    '<div class="row" style="margin-top:8px"><input type="text" id="acname" placeholder="Account name" style="width:180px"><button id="acclear" class="on">CLEAR FLAGS</button><button id="actrust" class="on">TRUST</button><button id="acuntrust">UNTRUST</button></div>' +
-    '<div style="margin-top:8px">TRUSTED (never suspected, flags still logged): ' + (trusted.length ? trusted.map((n) => '<span class="tag ok">' + esc(n) + '</span> <button class="small" data-untrust="' + esc(n) + '">UNTRUST</button>').join(' ') : '<span class="muted">nobody</span>') + '</div>' +
-    '<div class="muted" style="margin-top:6px">Severity 1-3, 3 points within 30 days = suspected (removed from leaderboards, no guild rewards). CLEAR marks all current flags of a player as reviewed; new flags count again. TRUST exempts the account from suspicion for good (needs tools/supabase_ac_trust.sql). The leaderboard updates at the next save of that account. An honest player can be flagged after playing offline or with an old app version.</div></div>' +
-    '<div class="card" style="overflow:auto"><table><tr><th>WHEN</th><th>PLAYER</th><th>SLOT</th><th>WHAT</th><th>SEV</th><th>DETAIL</th><th>STATE</th></tr>' + (list.length ? list.map((f) => '<tr><td>' + fmtD(f.at) + '</td><td><b>' + esc(f.name) + '</b></td><td>' + (f.slot == null ? '-' : f.slot + 1) + '</td><td>' + esc(WHAT[f.code] || f.code) + '</td><td><span class="sevb s' + f.sev + '">' + f.sev + '</span></td><td class="muted">' + esc(JSON.stringify(f.detail)) + '</td><td>' + (f.cleared ? 'reviewed' : f.suspect ? '<span class="err">suspected</span>' : 'open') + '</td></tr>').join('') : '<tr><td colspan="7" class="muted">No flags yet.</td></tr>') + '</table></div>';
+  const sev = (fl) => Math.max(...fl.map((f) => f.sev));
+  const queue = Object.keys(grp).sort((a, b) => (sus.includes(b) - sus.includes(a)) || sev(grp[b]) - sev(grp[a]) || grp[b].length - grp[a].length);
+  const reasons = (fl) => { const c = {}; for (const f of fl) c[f.code] = (c[f.code] || 0) + 1; return Object.keys(c).map((k) => esc(WHAT[k] || k) + (c[k] > 1 ? ' <span class="muted">x' + c[k] + '</span>' : '')).join('<br>'); };
+  const card = (n) => { const fl = grp[n], mx = sev(fl), e = esc(n); return '<div class="card ccard s' + mx + '" style="margin:0 0 8px"><div class="row" style="margin:0"><b style="font-size:16px">' + nameLink(n) + '</b>' + (sus.includes(n) ? '<span class="tag err">SUSPECTED</span>' : '') + (trusted.includes(n) ? '<span class="tag ok">TRUSTED</span>' : '') + '<span style="flex:1"></span><span class="sevb s' + mx + '">SEV ' + mx + '</span></div>' +
+    '<div style="margin:6px 0 2px">' + reasons(fl) + '</div><div class="muted" style="font-size:12px">' + fl.length + ' open flag' + (fl.length > 1 ? 's' : '') + ' · last ' + ago(fl[0].at) + '</div>' +
+    '<div class="acts"><button data-rv="ok" data-n="' + e + '" class="on">LOOKS FINE</button><button data-rv="trust" data-n="' + e + '">TRUST</button></div>' +
+    '<details class="more"><summary>More actions</summary><div class="acts"><button data-rv="take" data-n="' + e + '" class="warn">TAKE CREDITS</button><button data-rv="lb" data-n="' + e + '" class="warn">LB BAN</button><button data-rv="block" data-n="' + e + '" class="bad">BLOCK</button></div></details></div>'; };
+  m.innerHTML = '<div class="pg"><h2>Cheats</h2><span class="muted">Anticheat review</span></div><div class="kpis">' + [['To review', queue.length, queue.length ? 'warn' : ''], ['Suspected', sus.length, sus.length ? 'bad' : ''], ['Open flags', list.filter((f) => !f.cleared).length], ['Trusted', trusted.length]].map(([l, v, c]) => '<div class="kpi"><b class="' + (c === 'bad' ? 'err' : c === 'warn' ? 'yel' : '') + '">' + v + '</b><span>' + l + '</span></div>').join('') + '</div>' +
+    '<div class="sec">REVIEW QUEUE, WORST FIRST</div>' + (queue.length ? queue.map(card).join('') : '<div class="card muted">Nothing to decide. All flags are reviewed.</div>') +
+    '<div class="muted" style="font-size:12.5px;margin:4px 0 10px"><b>LOOKS FINE</b> clears the current flags (new ones count again). <b>TRUST</b> exempts the account from suspicion for good. Every decision lands in the Action log.</div>' +
+    '<details class="card fold"><summary>Suspected, trusted and manual tools</summary>' +
+      '<div style="margin:6px 0"><b>Suspected</b> (not on leaderboards): ' + (sus.length ? sus.map((n) => nameLink(n)).join(', ') : '<span class="muted">nobody</span>') + '</div>' +
+      '<div style="margin:6px 0"><b>Trusted</b>: ' + (trusted.length ? trusted.map((n) => '<span class="tag ok">' + esc(n) + '</span> <button class="small" data-untrust="' + esc(n) + '">UNTRUST</button>').join(' ') : '<span class="muted">nobody</span>') + '</div>' +
+      '<label class="fld"><span>BY ACCOUNT NAME</span><input type="text" id="acname" placeholder="Account name"></label><div class="acts"><button id="acclear" class="on">CLEAR FLAGS</button><button id="actrust">TRUST</button><button id="acuntrust">UNTRUST</button></div>' +
+      '<div class="muted" style="font-size:12.5px;margin-top:8px">Severity 1-3. 3 points within 30 days = suspected (removed from leaderboards, no guild rewards). The leaderboard updates at that account\'s next save. An honest player can be flagged after playing offline or with an old app version.</div></details>' +
+    '<details class="card fold"><summary>All flags (' + list.length + ')</summary>' + (list.length ? list.slice(0, 120).map((f) => '<div class="rrow"><div class="l1"><b>' + nameLink(f.name) + '</b><span class="sevb s' + f.sev + '">' + f.sev + '</span><span>' + esc(WHAT[f.code] || f.code) + '</span><span style="flex:1"></span><span class="' + (f.cleared ? 'muted' : f.suspect ? 'err' : 'yel') + '" style="font-size:12px">' + (f.cleared ? 'reviewed' : f.suspect ? 'suspected' : 'open') + '</span></div><div class="l2">' + fmtD(f.at) + (f.slot == null ? '' : ' · slot ' + (f.slot + 1)) + ' · ' + esc(JSON.stringify(f.detail)) + '</div></div>').join('') : '<span class="muted">No flags yet.</span>') + '</details>';
   m.querySelectorAll('[data-rv]').forEach((b) => {
     b.onclick = async () => {
       const n = b.dataset.n, u = (S.users || []).find((x) => x.name === n), v = b.dataset.rv, done = (t, verdict, detail) => rpc('adm_log', { p_user: u ? u.user_id : null, p_action: 'review ' + verdict, p_detail: n + ' ' + (detail || '') }).catch(() => {}).then(() => { toast(t); return viewCheats(); });
@@ -915,8 +982,6 @@ async function viewCheats() {
       } catch (e) { toast(e.message, true); }
     };
   });
-  m.querySelectorAll('[data-clear]').forEach((b) => { b.onclick = () => act('Flags cleared', 'adm_ac_clear', { p_user_name: b.dataset.clear }, viewCheats); });
-  m.querySelectorAll('[data-trust]').forEach((b) => { b.onclick = () => act('Account trusted', 'adm_ac_trust', { p_user_name: b.dataset.trust, p_on: true }, viewCheats); });
   m.querySelectorAll('[data-untrust]').forEach((b) => { b.onclick = () => act('Trust removed', 'adm_ac_trust', { p_user_name: b.dataset.untrust, p_on: false }, viewCheats); });
   const nm = () => ($('#acname').value || '').trim().toLowerCase();
   $('#acclear').onclick = () => nm() && act('Flags cleared', 'adm_ac_clear', { p_user_name: nm() }, viewCheats);
@@ -1029,8 +1094,9 @@ function markTables() {
     const rows = Array.from(t.rows), head = rows.find((r) => r.querySelector('th'));
     if (!head || head.cells.length < 3) return;
     const labels = Array.from(head.cells).map((c) => (c.textContent || '').replace(/[▲▼]/g, '').trim());
+    const hide = (t.dataset.hide || '').split(',');
     t.classList.add('rt'); head.classList.add('hd');
-    for (const r of rows) { if (r === head) continue; Array.from(r.cells).forEach((c, i) => { if (c.colSpan > 1) c.classList.add('nl'); else c.dataset.l = labels[i] || ''; }); }
+    for (const r of rows) { if (r === head) continue; Array.from(r.cells).forEach((c, i) => { if (c.colSpan > 1) c.classList.add('nl'); else { c.dataset.l = labels[i] || ''; if (hide.includes(labels[i])) c.classList.add('hm'); } }); }
   });
 }
 { let q = 0; new MutationObserver(() => { if (!q) q = requestAnimationFrame(() => { q = 0; markTables(); }); }).observe(document.getElementById('app'), { childList: true, subtree: true }); }
