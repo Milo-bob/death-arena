@@ -53,6 +53,52 @@
   #toast { position:fixed; right:16px; bottom:16px; max-width:360px; padding:10px 14px; background:var(--panel); border:1px solid var(--cyan); border-radius:4px; display:none; z-index:40; }
   #toast.bad { border-color:var(--red); }
   .chart { width:100%; height:220px; background:var(--ink); border:1px solid var(--line); border-radius:4px; }
+  /* ---- Layout: schlanke Kopfzeile + Seitenleiste mit Gruppen ---- */
+  header.top { gap:10px; padding:8px 16px; flex-wrap:nowrap; }
+  header.top h1 { font-size:16px; white-space:nowrap; }
+  header.top button { padding:4px 10px; font-size:13px; white-space:nowrap; }
+  .shell { display:flex; align-items:flex-start; max-width:1380px; margin:0 auto; }
+  aside#side { width:196px; flex:none; position:sticky; top:49px; align-self:flex-start; max-height:calc(100vh - 49px); overflow:auto; padding:14px 8px 20px 12px; }
+  aside#side .grp { margin:0 0 14px; }
+  aside#side .gl { font-size:11px; letter-spacing:1.5px; color:var(--grey); margin:0 0 4px 10px; }
+  aside#side button { display:flex; align-items:center; justify-content:space-between; gap:6px; width:100%; text-align:left; border:0; border-left:3px solid transparent; border-radius:0 4px 4px 0; background:none; color:var(--ice); padding:7px 10px; font-size:13.5px; }
+  aside#side button:hover { background:#13204a; color:var(--ice); }
+  aside#side button.on { background:#1a2c63; border-left-color:var(--cyan); color:var(--cyan); font-weight:600; }
+  .bdg { font-size:11px; min-width:20px; text-align:center; padding:0 6px; border-radius:9px; background:var(--green); color:var(--ink); font-weight:700; }
+  .bdg.off { background:var(--line); color:var(--grey); }
+  .shell > .wrap { flex:1; min-width:0; max-width:1180px; margin:0; }
+  header.top #nt { border-radius:12px; }
+  header.top #nt.on { background:var(--green); border-color:var(--green); color:var(--ink); }
+  .pg { display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin:2px 0 4px; }
+  .pg h2 { margin:0; font-size:20px; color:var(--ice); } .pg .muted { font-size:13px; }
+  .sec { font-size:11px; letter-spacing:1.5px; color:var(--grey); margin:18px 0 6px; }
+  .kpi.hot b { color:var(--green); }
+  /* ---- Schalter ---- */
+  input.tg { appearance:none; -webkit-appearance:none; flex:none; width:36px; height:20px; padding:0; border:1px solid var(--cyanDark); border-radius:11px; background:var(--ink); position:relative; cursor:pointer; vertical-align:middle; transition:background .15s; }
+  input.tg::after { content:''; position:absolute; left:2px; top:2px; width:14px; height:14px; border-radius:50%; background:var(--grey); transition:left .15s, background .15s; }
+  input.tg:checked { background:var(--cyanDark); border-color:var(--cyan); }
+  input.tg:checked::after { left:18px; background:var(--cyan); }
+  .opt { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:7px 0; border-bottom:1px solid #16264d; }
+  .opt:last-child { border-bottom:0; }
+  .opt > .txt { flex:1; min-width:180px; } .opt .txt small { display:block; color:var(--grey); font-size:12px; }
+  .opt .sub { flex-basis:100%; padding-left:46px; display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .card.hero { display:flex; align-items:center; gap:16px; flex-wrap:wrap; border-color:var(--cyanDark); }
+  .card.hero.live { border-color:var(--green); }
+  .pill { display:inline-block; font-size:12px; padding:1px 9px; border-radius:10px; background:#16264d; color:var(--grey); margin:2px 4px 2px 0; }
+  .pill.ok { background:#0f3a24; color:var(--green); } .pill.no { background:#4a0a12; color:#ff8a93; } .pill.wait { background:#4a3a05; color:var(--yellow); }
+  .cols { display:grid; gap:10px; grid-template-columns:repeat(auto-fit, minmax(340px, 1fr)); align-items:start; }
+  .cols > .card { margin:0; }
+  @media (max-width:820px) {
+    .shell { display:block; }
+    aside#side { width:auto; position:sticky; top:49px; z-index:4; display:flex; gap:4px; overflow-x:auto; max-height:none; padding:6px 10px; background:var(--ink); border-bottom:1px solid var(--line); }
+    aside#side .grp { display:flex; gap:4px; margin:0; align-items:center; }
+    aside#side .gl { display:none; }
+    aside#side button { width:auto; white-space:nowrap; border-left:0; border-bottom:3px solid transparent; border-radius:4px 4px 0 0; padding:6px 10px; }
+    aside#side button.on { border-bottom-color:var(--cyan); }
+    header.top .hide-s { display:none; }
+    header.top { flex-wrap:wrap; gap:6px; padding:6px 10px; } header.top h1 { font-size:14px; } header.top { position:static; } aside#side { top:0; max-width:100vw; }
+    .cols { grid-template-columns:1fr; } .wrap { padding:10px 12px 60px; } .opt .sub { padding-left:0; }
+  }
   @media (max-width:640px) { th, td { padding:4px 5px; font-size:13px; } }
 </style>
 </head>
@@ -143,15 +189,18 @@ function logout() { KEY = ''; clearInterval(NOTIF.timer); NOTIF.timer = null; st
 // ====== Rahmen ======
 function renderMain() {
   clearInterval(S.liveTimer); S.liveTimer = null;
-  const tabs = [['dashboard', 'DASHBOARD'], ['online', 'ONLINE'], ['players', 'PLAYERS'], ['create', 'CREATE ACCOUNTS'], ['stats', 'STATISTICS'], ['retention', 'RETENTION'], ['gifts', 'GIFTS & NEWS'], ['cheats', 'CHEATS'], ['guilds', 'GUILDS'], ['errors', 'ERRORS'], ['audit', 'ACTION LOG']];
-  $('#app').innerHTML = '<header><h1>DEATHARENA ADMIN</h1><nav>' + tabs.map(([id, l]) => '<button data-t="' + id + '" class="' + (S.tab === id ? 'on' : '') + '">' + l + '</button>').join('') + '</nav><span class="sp"></span><span class="muted" id="cnt">' + (S.users ? S.users.length + ' accounts' : '') + '</span><button id="nt" title="Alert when a new account is created (while this page is open)"></button><button id="rl">RELOAD</button>' + instBtn() + '<button id="lo" class="warn">LOG OUT</button></header><div class="wrap" id="main"></div>';
-  document.querySelectorAll('nav button').forEach((b) => { b.onclick = () => { S.tab = b.dataset.t; renderMain(); }; });
+  const groups = [['OVERVIEW', [['dashboard', 'Dashboard'], ['online', 'Online now']]], ['PLAYERS', [['players', 'Players'], ['create', 'Create accounts']]], ['INSIGHTS', [['stats', 'Statistics'], ['retention', 'Retention'], ['errors', 'Errors']]], ['MODERATION', [['cheats', 'Cheats'], ['guilds', 'Guilds'], ['gifts', 'Gifts & news'], ['audit', 'Action log']]], ['SETTINGS', [['alerts', 'Alerts']]]];
+  const badge = (id) => id === 'online' ? '<span class="bdg' + (NOTIF.onlineN ? '' : ' off') + '" id="bd-online"' + (NOTIF.onlineN == null ? ' hidden' : '') + '>' + (NOTIF.onlineN || 0) + '</span>' : id === 'alerts' ? '<span class="bdg' + (NOTIF.on ? '' : ' off') + '" id="bd-alerts">' + (NOTIF.on ? 'ON' : 'OFF') + '</span>' : '';
+  $('#app').innerHTML = '<header class="top"><h1>DEATHARENA ADMIN</h1><span class="sp"></span><span class="muted hide-s" id="cnt">' + (S.users ? S.users.length + ' accounts' : '') + '</span><button id="nt" title="Alerts on/off (details under Settings > Alerts)"></button><button id="rl">RELOAD</button><span class="hide-s">' + instBtn() + '</span><button id="lo" class="warn">LOG OUT</button></header>' +
+    '<div class="shell"><aside id="side">' + groups.map(([g, items]) => '<div class="grp"><div class="gl">' + g + '</div>' + items.map(([id, l]) => '<button data-t="' + id + '" class="' + (S.tab === id ? 'on' : '') + '">' + l + badge(id) + '</button>').join('') + '</div>').join('') + '</aside><div class="wrap" id="main"></div></div>';
+  document.querySelectorAll('#side button').forEach((b) => { b.onclick = () => { S.tab = b.dataset.t; renderMain(); window.scrollTo(0, 0); }; });
+  const onBtn = document.querySelector('#side button.on'); if (onBtn && onBtn.scrollIntoView) onBtn.scrollIntoView({ block: 'nearest', inline: 'center' });
   $('#lo').onclick = logout;
   $('#nt').onclick = () => setNotif(!NOTIF.on); updateNotifBtn(); if (!NOTIF.timer) startPoll();
   if (NOTIF.on && !NOTIF.pushed) { NOTIF.pushed = true; pushSub(true).catch(() => {}); }
   if (!S.notes) loadNotes().then(() => { if (S.tab === 'players' && $('#ut')) drawUsers(); });
   $('#rl').onclick = async () => { try { S.users = await rpc('adm_users'); S.logs = null; S.allSaves = null; if (S.sel) await loadSel(); toast('Reloaded'); renderMain(); } catch (e) { toast(e.message, true); } };
-  ({ dashboard: viewDashboard, online: viewOnline, players: viewPlayers, create: viewCreate, stats: viewStats, retention: viewRetention, gifts: viewGifts, cheats: viewCheats, guilds: viewGuilds, errors: viewErrors, audit: viewAudit }[S.tab])();
+  ({ dashboard: viewDashboard, online: viewOnline, alerts: viewAlerts, players: viewPlayers, create: viewCreate, stats: viewStats, retention: viewRetention, gifts: viewGifts, cheats: viewCheats, guilds: viewGuilds, errors: viewErrors, audit: viewAudit }[S.tab])();
 }
 
 // ====== Benachrichtigung bei neuen Konten ======
@@ -160,8 +209,8 @@ const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v == n
 const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* egal */ } };
 const NOTIF = { on: lsGet('da.admin.notif', false), timer: null, feed: lsGet('da.admin.feed', []), unseen: 0, every: lsGet('da.admin.every', 30), pushed: false };
 // Einstellbare Meldungsarten (gespeichert im Browser). Nur "account" und "cheat" kommen auch per Push bei geschlossener Seite (Datenbank-Trigger), der Rest nur bei offener Seite.
-const CFG_DEF = { account: true, login: false, loginMode: 'all', returnDays: 7, first: false, join: false, cheat: true, cheatSev: 2, watch: '', errors: true, quiet: false, quietFrom: 23, quietTo: 8, quietCheat: true, digest: 0 };
-NOTIF.pending = { login: [], first: [], join: [] }; NOTIF.flushAt = Date.now();
+const CFG_DEF = { online: false, onlineMode: 'all', onlineWatch: '', onlineAway: 30, account: true, login: false, loginMode: 'all', returnDays: 7, first: false, join: false, cheat: true, cheatSev: 2, watch: '', errors: true, quiet: false, quietFrom: 23, quietTo: 8, quietCheat: true, digest: 0 };
+NOTIF.pending = { online: [], login: [], first: [], join: [] }; NOTIF.onlineN = null; NOTIF.flushAt = Date.now();
 function inQuiet() {      // Ruhezeit (Stunden, auch ueber Mitternacht)
   const C = NOTIF.cfg; if (!C.quiet) return false;
   const h = new Date().getHours(), a = +C.quietFrom, b = +C.quietTo;
@@ -190,6 +239,7 @@ function notify(title, body, tag, loud) {
   }
 }
 const KINDS = {
+  online: { one: 'Player online', many: ' players online', tag: 'da-online', label: 'ONLINE' },
   account: { one: 'New DeathArena account', many: ' new DeathArena accounts', tag: 'da-new-account', label: 'NEW ACCOUNT' },
   login: { one: 'Player login', many: ' player logins', tag: 'da-login', label: 'LOGIN' },
   first: { one: 'First save', many: ' first saves', tag: 'da-first', label: 'FIRST SAVE' },
@@ -197,7 +247,7 @@ const KINDS = {
 };
 function announce(fresh, test, kind) {
   kind = kind || 'account'; const K = KINDS[kind];
-  const names = fresh.map((u) => u.name), text = names.length > 3 ? names.slice(0, 3).join(', ') + ' +' + (names.length - 3) : names.join(', ');
+  const names = fresh.map((u) => u.name + (kind === 'online' && ACT_TEXT[u.activity] ? ' (' + ACT_TEXT[u.activity].toLowerCase() + ')' : '')), text = names.length > 3 ? names.slice(0, 3).join(', ') + ' +' + (names.length - 3) : names.join(', ');
   if (!test) { for (const u of fresh) NOTIF.feed.unshift({ name: u.name, at: u.created_at, seen: new Date().toISOString(), kind }); NOTIF.feed = NOTIF.feed.slice(0, 30); lsSet('da.admin.feed', NOTIF.feed); }
   notify(fresh.length > 1 ? fresh.length + K.many : K.one, text, K.tag);
 }
@@ -225,6 +275,35 @@ function checkNew(users) {
     else announce(out[k], false, k);
   }
 }
+const watchList = (str) => String(str || '').split(/[,;\n]/).map((x) => x.trim().toLowerCase()).filter(Boolean);
+// Spieler kommt online (Anwesenheit aus soc_ping): Meldung, wenn jemand online ist, der in den letzten "onlineAway" Minuten nicht online war
+function checkOnline(list) {
+  const C = NOTIF.cfg, now = Date.now(), seen = lsGet('da.admin.onSeen', null), map = seen || {}, watch = watchList(C.onlineWatch), fresh = [];
+  const on = list.filter((x) => now - new Date(x.last_seen) < 100000);
+  NOTIF.onlineN = on.length; updateBadges();
+  for (const x of on) {
+    const prev = map[x.name];
+    if (seen && C.online && (prev == null || now - prev > C.onlineAway * 60000) && (C.onlineMode !== 'watch' || watch.includes(String(x.name).toLowerCase()))) fresh.push({ name: x.name, activity: x.activity, created_at: x.last_seen, user_id: x.user_id || x.name });
+    map[x.name] = now;
+  }
+  for (const k of Object.keys(map)) if (now - map[k] > 2 * 864e5) delete map[k];
+  lsSet('da.admin.onSeen', map);
+  if (!fresh.length) return;
+  if (+C.digest > 0) NOTIF.pending.online.push(...fresh); else announce(fresh, false, 'online');
+}
+function updateBadges() {
+  const o = $('#bd-online'), a = $('#bd-alerts');
+  if (o && NOTIF.onlineN != null) { o.hidden = false; o.textContent = NOTIF.onlineN; o.className = 'bdg' + (NOTIF.onlineN ? '' : ' off'); }
+  if (a) { a.textContent = NOTIF.on ? 'ON' : 'OFF'; a.className = 'bdg' + (NOTIF.on ? '' : ' off'); }
+}
+// Server-Regel fuer Push bei geschlossener Seite (tools/supabase_admin_online.sql); ohne das SQL bleibt es bei den Meldungen bei offener Seite
+async function syncOnlineRule() {
+  const C = NOTIF.cfg;
+  try { await rpc('adm_online_rule_set', { p_on: !!(C.online && NOTIF.on), p_mode: C.onlineMode === 'watch' ? 'watch' : 'all', p_away: +C.onlineAway || 30, p_watch: watchList(C.onlineWatch).join(',') }); NOTIF.ruleOk = true; }
+  catch (e) { NOTIF.ruleOk = /Could not find|schema cache|run tools|Server not set up/i.test(e.message) ? 'setup' : false; }
+  const el = $('#rule-state'); if (el) el.innerHTML = ruleStateHtml();
+}
+const ruleStateHtml = () => NOTIF.ruleOk === true ? '<span class="pill ok">push when closed: set up</span>' : NOTIF.ruleOk === 'setup' ? '<span class="pill wait">push when closed: run tools/supabase_admin_online.sql</span>' : '<span class="pill">push when closed: unknown</span>';
 function flushDigest(force) {
   const every = +NOTIF.cfg.digest * 60000;
   if (!force && (!every || Date.now() - NOTIF.flushAt < every)) return;
@@ -259,10 +338,11 @@ async function pollNew() {
     const c = $('#cnt'); if (c) c.textContent = us.length + ' accounts';
     if (S.tab === 'dashboard') viewDashboard(); else if (S.tab === 'players' && $('#ut')) drawUsers();
   } catch (e) { /* naechster Versuch */ }
+  try { checkOnline(await rpc('adm_online')); } catch (e) { /* braucht supabase_social.sql + supabase_admin2.sql */ }
   flushDigest(); checkFlags(); checkErrors();
 }
 function startPoll() { clearInterval(NOTIF.timer); NOTIF.timer = NOTIF.on ? setInterval(pollNew, NOTIF.every * 1000) : null; }
-function updateNotifBtn() { const b = $('#nt'); if (b) { b.textContent = 'ALERTS: ' + (NOTIF.on ? 'ON' : 'OFF'); b.className = NOTIF.on ? 'on' : ''; } }
+function updateNotifBtn() { const b = $('#nt'); if (b) { b.textContent = (NOTIF.on ? '🔔 ALERTS ON' : '🔕 ALERTS OFF'); b.className = NOTIF.on ? 'on' : ''; } updateBadges(); }
 // Push (kommt auch bei geschlossener Seite an): braucht Edge Function + tools/supabase_admin_extras.sql, sonst nur die Meldungen bei offener Seite
 const VAPID_PUBLIC = 'BKJELsBEnQRchsi4_YOQzqfLgf2OnMnuVY4Cy81fz5NlhtNggqSyZ1hgGhv78o04XHHxf41CLucaxtn93zPLEYw';
 const b64ToU8 = (s) => { const p = '='.repeat((4 - s.length % 4) % 4), r = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(r, (c) => c.charCodeAt(0)); };
@@ -279,13 +359,13 @@ async function setNotif(on) {
   if (on) {
     let perm = 'unsupported';
     if ('Notification' in window) { perm = Notification.permission; if (perm === 'default') { try { perm = await Notification.requestPermission(); } catch (e) { /* egal */ } } }
-    NOTIF.on = true; lsSet('da.admin.snap', snapOf(S.users || []));
+    NOTIF.on = true; lsSet('da.admin.snap', snapOf(S.users || [])); lsSet('da.admin.onSeen', null);
     let push = '';
     try { push = await pushSub(true); } catch (e) { push = /Could not find|schema cache|run tools/i.test(e.message) ? 'setup' : 'error'; }
     toast(perm !== 'granted' ? 'Alerts on (in-page only; browser notifications are ' + (perm === 'unsupported' ? 'not supported here' : 'blocked') + ')'
       : push === 'ok' ? 'Alerts on: you also get push messages when the app is closed' : 'Alerts on (while this page is open' + (push === 'setup' ? '; push not set up yet, see tools/supabase_admin_extras.sql' : push === 'unsupported' ? '; push not supported on this device' : '') + ')', perm !== 'granted');
   } else { NOTIF.on = false; try { await pushSub(false); } catch (e) { /* egal */ } toast('Alerts off'); }
-  lsSet('da.admin.notif', NOTIF.on); startPoll(); updateNotifBtn(); if (S.tab === 'dashboard') viewDashboard();
+  lsSet('da.admin.notif', NOTIF.on); startPoll(); updateNotifBtn(); if (NOTIF.on) pollNew(); syncOnlineRule(); if (S.tab === 'dashboard') viewDashboard(); else if (S.tab === 'alerts') viewAlerts();
 }
 
 // ====== Notizen zu Spielern (tools/supabase_admin_extras.sql) ======
@@ -310,54 +390,79 @@ function exportCsv() {
   const csv = [cols.join(';')].concat((S.users || []).map((u) => cols.map((c) => u[c] == null ? '' : String(u[c]).replace(/;/g, ',')).join(';'))).join('\n');
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv' })); a.download = 'deatharena-players-' + dayKey(Date.now()) + '.csv'; a.click();
 }
-function notifSettingsHtml() {
-  const C = NOTIF.cfg, cb = (k, label, note) => '<label class="row" style="gap:8px"><input type="checkbox" data-cfg="' + k + '"' + (C[k] ? ' checked' : '') + '> ' + label + (note ? ' <span class="muted">' + note + '</span>' : '') + '</label>';
-  const sel = (k, opts) => '<select data-cfg="' + k + '">' + opts.map(([v, l]) => '<option value="' + v + '"' + (String(C[k]) === String(v) ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>';
-  const hours = Array.from({ length: 24 }, (_, h) => [h, String(h).padStart(2, '0') + ':00']);
-  return '<div style="margin:10px 0"><div class="muted" style="margin-bottom:6px">WHAT TO BE ALERTED ABOUT</div>' +
-    cb('account', 'New account created', '(also as push when the app is closed)') +
-    cb('cheat', 'Cheat suspicion, from severity ' + sel('cheatSev', [[1, '1 (all)'], [2, '2'], [3, '3 (worst)']]), '(also as push)') +
-    cb('login', 'Player logs in ' + sel('loginMode', [['all', 'every login'], ['returning', 'only returning players']]) + (C.loginMode === 'returning' ? ' away for ' + sel('returnDays', [[1, '1 day'], [3, '3 days'], [7, '7 days'], [14, '14 days'], [30, '30 days']]) : ''), '(only while this page is open)') +
-    cb('first', 'Player saves for the first time', '(only while this page is open)') +
-    cb('join', 'Player joins the leaderboard', '(only while this page is open)') +
-    cb('errors', 'Game error reported by a player', '(needs tools/supabase_admin2.sql; only while this page is open)') +
-    (C.login || C.first || C.join ? '<label class="muted">Only these players for login / first save / leaderboard (comma separated, empty = everybody): <input type="text" data-cfg="watch" value="' + esc(C.watch) + '" style="width:260px"></label>' : '') +
-    '<div class="muted" style="margin:8px 0 4px">QUIET TIMES AND BUNDLING</div>' +
-    cb('quiet', 'Quiet hours from ' + sel('quietFrom', hours) + ' to ' + sel('quietTo', hours) + ' (no sound or popup, alerts still land in the list)') +
-    (C.quiet ? cb('quietCheat', 'Cheat suspicion still rings during quiet hours') : '') +
-    '<label class="row" style="gap:8px">Bundle logins / first saves / leaderboard joins into one alert ' + sel('digest', [[0, 'never (one alert each)'], [15, 'every 15 min'], [60, 'every hour'], [180, 'every 3 hours']]) + '</label></div>';
-}
-function viewDashboard() {
-  const us = S.users || [], now = Date.now(), H = 36e5, D = 24 * H, cnt = (fn) => us.filter(fn).length;
-  const last = (u) => Math.max(+new Date(u.last_sign_in || 0), +new Date(u.saved_at || 0));
-  const kp = [['Accounts', us.length], ['New today', cnt((u) => now - new Date(u.created_at) < D)], ['New 7 days', cnt((u) => now - new Date(u.created_at) < 7 * D)], ['Active 1 h', cnt((u) => now - last(u) < H)], ['Active 24 h', cnt((u) => now - last(u) < D)], ['Active 7 days', cnt((u) => now - last(u) < 7 * D)],
-    ['Never saved', cnt((u) => !u.slots)], ['Inactive 30+ days', cnt((u) => u.slots && now - last(u) > 30 * D)], ['On leaderboard', cnt((u) => u.optin)], ['Blocked / banned', cnt((u) => u.blocked || u.banned)], ['Gifts waiting', us.reduce((s, u) => s + (+u.gifts || 0), 0)]];
-  const recent = us.slice().sort((a, b) => (a.created_at < b.created_at ? 1 : -1)).slice(0, 10);
-  const active = us.filter((u) => now - last(u) < D).sort((a, b) => last(b) - last(a)).slice(0, 10);
-  $('#main').innerHTML = '<div class="kpis">' + kp.map(([l, v]) => '<div class="kpi"><b>' + v + '</b><span>' + l + '</span></div>').join('') + '</div>' +
-    '<div class="card"><h3>NEW ACCOUNT ALERTS</h3><div class="row"><button id="dn" class="' + (NOTIF.on ? 'on' : '') + '">ALERTS: ' + (NOTIF.on ? 'ON' : 'OFF') + '</button><button id="dt">TEST ALERT</button><label class="muted">check every <select id="de">' + [[15, '15 s'], [30, '30 s'], [60, '1 min'], [300, '5 min']].map(([v, l]) => '<option value="' + v + '"' + (NOTIF.every === v ? ' selected' : '') + '>' + l + '</option>').join('') + '</select></label><span class="muted">' + (NOTIF.on ? 'On: new accounts and cheat suspicion' : 'Turned off') + '. Popup + sound while this page (or the installed app) is open' + ('Notification' in window ? ' (browser permission: ' + Notification.permission + ')' : '') + '.</span></div>' +
-    notifSettingsHtml() +
-    (NOTIF.feed.length ? '<table><tr><th>ALERTED</th><th>TYPE</th><th>PLAYER</th><th>CREATED</th></tr>' + NOTIF.feed.slice(0, 8).map((f) => '<tr><td>' + fmtD(f.seen) + '</td><td>' + ((KINDS[f.kind] || KINDS.account).label) + '</td><td>' + nameLink(f.name) + '</td><td>' + fmtD(f.at) + '</td></tr>').join('') + '</table>' : '') + '</div>' +
-    '<h2>New accounts, last 30 days</h2><div class="card">' + signupChart(us, 30) + '</div>' +
-    '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))"><div class="card"><h3>NEWEST ACCOUNTS</h3><table><tr><th>PLAYER</th><th>CREATED</th><th>SLOTS</th></tr>' + recent.map((u) => '<tr><td>' + nameLink(u.name) + '</td><td>' + fmtD(u.created_at) + '</td><td>' + u.slots + '</td></tr>').join('') + '</table></div>' +
-    '<div class="card"><h3>RECENTLY ACTIVE</h3><table><tr><th>PLAYER</th><th>LAST SEEN</th><th>SLOTS</th></tr>' + (active.length ? active.map((u) => '<tr><td>' + nameLink(u.name) + '</td><td>' + fmtD(last(u)) + '</td><td>' + u.slots + '</td></tr>').join('') : '<tr><td colspan="3" class="muted">Nobody in the last 24 h.</td></tr>') + '</table></div></div>' +
-    '<div class="row"><button id="csv">EXPORT PLAYERS (CSV)</button></div>';
-  $('#dn').onclick = () => setNotif(!NOTIF.on);
-  $('#de').onchange = (e) => { NOTIF.every = +e.target.value; lsSet('da.admin.every', NOTIF.every); startPoll(); };
-  $('#dt').onclick = () => announce([{ name: 'test_account', created_at: new Date().toISOString() }], true);
+const alertsSummary = () => { const C = NOTIF.cfg, a = []; if (C.online) a.push(C.onlineMode === 'watch' ? 'selected players online' : 'players online'); if (C.account) a.push('new accounts'); if (C.cheat) a.push('cheat suspicion'); if (C.login) a.push('logins'); if (C.first) a.push('first saves'); if (C.join) a.push('leaderboard joins'); if (C.errors) a.push('game errors'); return a.length ? a.join(', ') : 'nothing selected'; };
+const feedTable = (n) => (NOTIF.feed.length ? '<table><tr><th>ALERTED</th><th>TYPE</th><th>PLAYER</th></tr>' + NOTIF.feed.slice(0, n).map((f) => '<tr><td>' + fmtD(f.seen) + '</td><td>' + ((KINDS[f.kind] || KINDS.account).label) + '</td><td>' + nameLink(f.name) + '</td></tr>').join('') + '</table>' : '<div class="muted">No alerts yet.</div>');
+const optRow = (k, title, note, sub) => '<div class="opt"><input type="checkbox" class="tg" data-cfg="' + k + '"' + (NOTIF.cfg[k] ? ' checked' : '') + '><div class="txt">' + title + (note ? '<small>' + note + '</small>' : '') + '</div>' + (sub && NOTIF.cfg[k] ? '<div class="sub">' + sub + '</div>' : '') + '</div>';
+const selHtml = (k, opts) => '<select data-cfg="' + k + '">' + opts.map(([v, l]) => '<option value="' + v + '"' + (String(NOTIF.cfg[k]) === String(v) ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>';
+function bindCfg(rerender) {
   document.querySelectorAll('[data-cfg]').forEach((el) => {
     el.onchange = () => {
       const k = el.dataset.cfg, v = el.type === 'checkbox' ? el.checked : el.type === 'text' ? el.value : (isNaN(+el.value) ? el.value : +el.value);
       NOTIF.cfg[k] = v; saveCfg();
       if (k === 'digest' && !+v) flushDigest(true);
-      if (['login', 'loginMode', 'watch', 'first', 'join', 'quiet'].includes(k)) viewDashboard();
+      if (k === 'online' && v) lsSet('da.admin.onSeen', null);          // ab jetzt zaehlen: wer schon online ist, loest nichts aus
+      if (['online', 'onlineMode', 'onlineWatch', 'onlineAway'].includes(k)) syncOnlineRule();
+      if (['online', 'onlineMode', 'login', 'loginMode', 'watch', 'first', 'join', 'quiet', 'cheat'].includes(k)) rerender();
     };
   });
+}
+function viewAlerts() {
+  const C = NOTIF.cfg, hours = Array.from({ length: 24 }, (_, h) => [h, String(h).padStart(2, '0') + ':00']), perm = 'Notification' in window ? Notification.permission : 'unsupported';
+  const permPill = perm === 'granted' ? '<span class="pill ok">browser notifications: allowed</span>' : perm === 'denied' ? '<span class="pill no">browser notifications: blocked (allow them in the browser site settings)</span>' : perm === 'default' ? '<span class="pill wait">browser notifications: not asked yet (turn alerts on)</span>' : '<span class="pill no">browser notifications: not supported here</span>';
+  const everySel = '<select id="de">' + [[15, '15 s'], [30, '30 s'], [60, '1 min'], [300, '5 min']].map(([v, l]) => '<option value="' + v + '"' + (NOTIF.every === v ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>';
+  $('#main').innerHTML = '<div class="pg"><h2>Alerts</h2><span class="muted">Popup + sound while this page or the installed app is open; some also as push when it is closed.</span></div>' +
+    '<div class="card hero' + (NOTIF.on ? ' live' : '') + '"><button id="dn" class="' + (NOTIF.on ? 'on' : '') + '" style="font-size:15px;padding:8px 18px">' + (NOTIF.on ? '🔔 ALERTS ON' : '🔕 TURN ALERTS ON') + '</button>' +
+    '<div style="flex:1;min-width:220px">' + permPill + '<span id="rule-state">' + ruleStateHtml() + '</span><span id="push-state"></span><div class="muted" style="font-size:12px;margin-top:2px">Right now: ' + esc(alertsSummary()) + '</div></div>' +
+    '<label class="muted">check every ' + everySel + '</label><button id="dt">TEST ALERT</button></div>' +
+    '<div class="cols">' +
+    '<div class="card"><h3>PLAYERS ONLINE</h3>' +
+      optRow('online', 'Tell me when a player comes online', 'Uses the presence the game reports every ~45 s. Alerts once per visit, not on every ping.',
+        'Who: ' + selHtml('onlineMode', [['all', 'every player'], ['watch', 'only these players']]) + (C.onlineMode === 'watch' ? '<input type="text" data-cfg="onlineWatch" value="' + esc(C.onlineWatch) + '" placeholder="name1, name2" style="width:230px">' : '') +
+        '<span class="muted">only if gone for at least</span>' + selHtml('onlineAway', [[5, '5 min'], [15, '15 min'], [30, '30 min'], [60, '1 hour'], [180, '3 hours'], [720, '12 hours']])) +
+      '<div class="muted" style="font-size:12px;margin-top:6px">Push when the app is closed needs a one-time setup: tools/supabase_admin_online.sql + the updated Edge Function.</div></div>' +
+    '<div class="card"><h3>ACCOUNTS AND ACTIVITY</h3>' +
+      optRow('account', 'New account created', 'Also as push when the app is closed.') +
+      optRow('login', 'Player logs in', 'Only while this page is open.', selHtml('loginMode', [['all', 'every login'], ['returning', 'only returning players']]) + (C.loginMode === 'returning' ? '<span class="muted">away for</span>' + selHtml('returnDays', [[1, '1 day'], [3, '3 days'], [7, '7 days'], [14, '14 days'], [30, '30 days']]) : '')) +
+      optRow('first', 'Player saves for the first time', 'Only while this page is open.') +
+      optRow('join', 'Player joins the leaderboard', 'Only while this page is open.') +
+      (C.login || C.first || C.join ? '<div class="opt"><div class="txt"><small>Only these players for login / first save / leaderboard (comma separated, empty = everybody)</small><input type="text" data-cfg="watch" value="' + esc(C.watch) + '" style="width:100%;margin-top:4px"></div></div>' : '') + '</div>' +
+    '<div class="card"><h3>SAFETY</h3>' +
+      optRow('cheat', 'Cheat suspicion', 'Also as push when the app is closed.', 'from severity ' + selHtml('cheatSev', [[1, '1 (all)'], [2, '2'], [3, '3 (worst)']])) +
+      optRow('errors', 'Game error reported by a player', 'Needs tools/supabase_admin2.sql. Only while this page is open.') + '</div>' +
+    '<div class="card"><h3>QUIET HOURS AND BUNDLING</h3>' +
+      optRow('quiet', 'Quiet hours', 'No sound or popup, alerts still land in the list below.', 'from ' + selHtml('quietFrom', hours) + ' to ' + selHtml('quietTo', hours)) +
+      (C.quiet ? optRow('quietCheat', 'Cheat suspicion still rings during quiet hours') : '') +
+      '<div class="opt"><div class="txt">Bundle online / login / first save / leaderboard alerts<small>One combined alert instead of one each.</small></div>' + selHtml('digest', [[0, 'never'], [15, 'every 15 min'], [60, 'every hour'], [180, 'every 3 hours']]) + '</div></div>' +
+    '</div><div class="card"><h3>RECENT ALERTS</h3>' + feedTable(30) + '</div>';
+  $('#dn').onclick = () => setNotif(!NOTIF.on);
+  $('#de').onchange = (e) => { NOTIF.every = +e.target.value; lsSet('da.admin.every', NOTIF.every); startPoll(); };
+  $('#dt').onclick = () => announce([{ name: 'test_player', activity: 'run', created_at: new Date().toISOString() }], true, C.online ? 'online' : 'account');
+  bindCfg(viewAlerts);
+  if (!NOTIF.ruleOk) syncOnlineRule();
+  if ('serviceWorker' in navigator && 'PushManager' in window) navigator.serviceWorker.ready.then((r) => r.pushManager.getSubscription()).then((sub) => { const el = $('#push-state'); if (el) el.innerHTML = sub ? '<span class="pill ok">this device: push subscribed</span>' : '<span class="pill">this device: no push subscription' + (NOTIF.on ? '' : ' (turn alerts on)') + '</span>'; }).catch(() => {});
+}
+function viewDashboard() {
+  const us = S.users || [], now = Date.now(), H = 36e5, D = 24 * H, cnt = (fn) => us.filter(fn).length;
+  const last = (u) => Math.max(+new Date(u.last_sign_in || 0), +new Date(u.saved_at || 0));
+  const kp = (t, arr) => '<div class="sec">' + t + '</div><div class="kpis">' + arr.map(([l, v, id]) => '<div class="kpi' + (id ? ' hot' : '') + '"' + (id ? ' id="' + id + '"' : '') + '><b>' + v + '</b><span>' + l + '</span></div>').join('') + '</div>';
+  const recent = us.slice().sort((a, b) => (a.created_at < b.created_at ? 1 : -1)).slice(0, 8);
+  const active = us.filter((u) => now - last(u) < D).sort((a, b) => last(b) - last(a)).slice(0, 8);
+  $('#main').innerHTML = '<div class="pg"><h2>Dashboard</h2><span class="muted">' + us.length + ' accounts</span><span class="sp" style="flex:1"></span><button id="csv">EXPORT PLAYERS (CSV)</button></div>' +
+    '<div class="card hero' + (NOTIF.on ? ' live' : '') + '" style="margin-top:8px"><button id="dn" class="' + (NOTIF.on ? 'on' : '') + '">' + (NOTIF.on ? '🔔 ALERTS ON' : '🔕 ALERTS OFF') + '</button><div style="flex:1;min-width:200px"><b>' + (NOTIF.on ? 'Watching:' : 'Would watch:') + '</b> <span class="muted">' + esc(alertsSummary()) + '</span></div><button id="da">ALERT SETTINGS</button></div>' +
+    kp('NOW', [['Online now', '…', 'k-on'], ['Active 1 h', cnt((u) => now - last(u) < H)], ['Active 24 h', cnt((u) => now - last(u) < D)], ['Active 7 days', cnt((u) => now - last(u) < 7 * D)]]) +
+    kp('GROWTH', [['Accounts', us.length], ['New today', cnt((u) => now - new Date(u.created_at) < D)], ['New 7 days', cnt((u) => now - new Date(u.created_at) < 7 * D)], ['On leaderboard', cnt((u) => u.optin)]]) +
+    kp('NEEDS A LOOK', [['Never saved', cnt((u) => !u.slots)], ['Inactive 30+ days', cnt((u) => u.slots && now - last(u) > 30 * D)], ['Blocked / banned', cnt((u) => u.blocked || u.banned)], ['Gifts waiting', us.reduce((s, u) => s + (+u.gifts || 0), 0)]]) +
+    '<div class="sec">NEW ACCOUNTS, LAST 30 DAYS</div><div class="card" style="margin-top:0">' + signupChart(us, 30) + '</div>' +
+    '<div class="cols"><div class="card"><h3>NEWEST ACCOUNTS</h3><table><tr><th>PLAYER</th><th>CREATED</th><th>SLOTS</th></tr>' + recent.map((u) => '<tr><td>' + nameLink(u.name) + '</td><td>' + fmtD(u.created_at) + '</td><td>' + u.slots + '</td></tr>').join('') + '</table></div>' +
+    '<div class="card"><h3>RECENTLY ACTIVE</h3><table><tr><th>PLAYER</th><th>LAST SEEN</th><th>SLOTS</th></tr>' + (active.length ? active.map((u) => '<tr><td>' + nameLink(u.name) + '</td><td>' + fmtD(last(u)) + '</td><td>' + u.slots + '</td></tr>').join('') : '<tr><td colspan="3" class="muted">Nobody in the last 24 h.</td></tr>') + '</table></div>' +
+    '<div class="card"><h3>RECENT ALERTS</h3>' + feedTable(8) + '</div></div>';
+  $('#dn').onclick = () => setNotif(!NOTIF.on);
+  $('#da').onclick = () => { S.tab = 'alerts'; renderMain(); };
   $('#csv').onclick = exportCsv;
-  rpc('adm_online').then((l) => {      // "Online jetzt" nachtragen (braucht supabase_social.sql + supabase_admin2.sql, sonst bleibt es weg)
-    const n = l.filter((x) => Date.now() - new Date(x.last_seen) < 100000).length, k = document.querySelector('.kpis');
-    if (k && S.tab === 'dashboard') k.insertAdjacentHTML('afterbegin', '<div class="kpi"><b class="ok">' + n + '</b><span>Online now</span></div>');
-  }).catch(() => {});
+  rpc('adm_online').then((l) => {      // "Online jetzt" nachtragen (braucht supabase_social.sql + supabase_admin2.sql, sonst bleibt es '-')
+    const n = l.filter((x) => Date.now() - new Date(x.last_seen) < 100000).length, k = $('#k-on b');
+    NOTIF.onlineN = n; updateBadges(); if (k && S.tab === 'dashboard') k.textContent = n;
+  }).catch(() => { const k = $('#k-on b'); if (k) k.textContent = '-'; });
 }
 
 // ====== Spieler ======
