@@ -322,8 +322,8 @@ class ImpulseWave {
       if (!this.hit.has(e)) {                                // jeder Gegner wird nur einmal getroffen
         this.hit.add(e);
         if (e.type === 'guard') {                            // Schild-Gegner: Ruestung entscheidet
-          if (CFG.enemy.guard.armor[e.armor].hurts.includes('impulse')) e.takeHit(); else e.blockFlash = 0.15;
-        } else if (e.stun <= 0) e.takeHit();
+          if (CFG.enemy.guard.armor[e.armor].hurts.includes('impulse')) e.takeHit(true, 'impulse', this.wid); else e.blockFlash = 0.15;
+        } else if (e.stun <= 0) e.takeHit(true, 'impulse', this.wid);
         if (!e.alive) continue;
         if (this.cryo && e.type !== 'guard') e.stun = Math.max(e.stun, CFG.evolutions.cryowave.stun);
       }
@@ -685,7 +685,7 @@ class PlasmaGrenade {
     Juice.shake(3); Juice.flash(STYLE.pal.cyan, 0.15, 0.1);
     for (const e of G.enemies) {
       if (!e.alive || !circlesOverlap(this.x, this.y, R, e.x, e.y, e.radius)) continue;
-      for (let i = 0; i < C.hits && e.alive; i++) e.takeHit(i === 0, 'grenade');
+      for (let i = 0; i < C.hits && e.alive; i++) e.takeHit(i === 0, 'grenade', this.wid);
     }
     G.shots = G.shots.filter((s) => !circlesOverlap(this.x, this.y, R, s.x, s.y, 4));       // gegnerische Geschosse in der Naehe loeschen
     for (const b of G.bossList()) if (circlesOverlap(this.x, this.y, R, b.x, b.y, b.radius)) { b.hp -= C.bossDmg * damageBoost(); b.stun = Math.max(b.stun, 0.5); b.bar = 0; }
@@ -787,7 +787,7 @@ class FirePatch {
     this.tickT -= dt;
     if (this.tickT > 0) return;
     this.tickT = C.tick;
-    for (const e of G.enemies) if (e.alive && circlesOverlap(this.x, this.y, this.radius, e.x, e.y, e.radius)) e.takeHit(false, 'fire');
+    for (const e of G.enemies) if (e.alive && circlesOverlap(this.x, this.y, this.radius, e.x, e.y, e.radius)) e.takeHit(false, 'fire', this.wid);
     for (const b of G.bossList()) if (circlesOverlap(this.x, this.y, this.radius, b.x, b.y, b.radius)) b.hp -= C.bossDmg * damageBoost();
   }
   draw(ctx) {

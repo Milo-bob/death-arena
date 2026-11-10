@@ -240,8 +240,8 @@ const Elite = {
       if (this.RANGED.includes(a.kind)) {
         if (!a.hitsCircle(e.x, e.y, r + C.shield)) continue;
         if (this.frontBlocks(e, a.x, a.y)) { a.alive = false; e.blockFlash = 0.15; continue; }       // an der Schildfront zerplatzt
-        if (a.hitsCircle(e.x, e.y, r)) e.takeHit(true, a.kind);                                       // von hinten/seitlich trifft er
-      } else if (a.hitsCircle(e.x, e.y, r)) e.takeHit(true, a.kind);
+        if (a.hitsCircle(e.x, e.y, r)) e.takeHit(true, a.kind, a.wid);                                       // von hinten/seitlich trifft er
+      } else if (a.hitsCircle(e.x, e.y, r)) e.takeHit(true, a.kind, a.wid);
     }
   },
 

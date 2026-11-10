@@ -41,7 +41,12 @@ const Stats = {
     return e.mini ? 'MINIBOSS ' + base : base;
   },
   bossName(b) { return b && b.cfg && b.cfg.name ? b.cfg.name : STAT_BOSS_NAMES[b && b.type] || 'BOSS'; },
-  weaponName(kind) { return kind ? STAT_WEAPON_NAMES[kind] || String(kind).toUpperCase() : 'OTHER'; },
+  // wid = ausgeruestete Waffe (Item-ID), die den Angriff erzeugt hat; sonst die Angriffsart (mehrere Waffen teilen sich Klassen, z.B. Shot = Blaster/Scatter Cannon/Ricochet)
+  weaponName(kind, wid) {
+    const it = wid && CFG.items && CFG.items.catalog[wid];
+    if (it && it.name) return it.name;
+    return kind ? STAT_WEAPON_NAMES[kind] || String(kind).toUpperCase() : 'OTHER';
+  },
 
   // Schaden am Spieler. counted = false: Dauerschaden (zaehlt nicht als eigener Treffer)
   dealt(src, amount, counted = true) {
@@ -57,9 +62,9 @@ const Stats = {
     if (!this.dmg) return;
     this.savedDmg += amount > 0 ? amount : 0; this.savedHits++;
   },
-  kill(kind) {
+  kill(kind, wid) {
     if (!this.kills) return;
-    const n = this.weaponName(kind);
+    const n = this.weaponName(kind, wid);
     this.kills[n] = (this.kills[n] || 0) + 1;
   },
 

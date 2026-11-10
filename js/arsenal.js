@@ -19,9 +19,9 @@ function nearestTarget(x, y, range, skip) {
 }
 
 // Schaden eines Spezialangriffs: Bosse verlieren Leben direkt, Gegner nehmen n Treffer (wie Granate: Tank 6x, Raetsel-Rüstung ignoriert)
-function specialDamage(t, hits, bossDmg) {
+function specialDamage(t, hits, bossDmg, wid) {
   if (t.isBoss) { t.hp -= bossDmg * damageBoost(); t.bar = 0; return; }
-  for (let i = 0; i < hits && t.alive; i++) t.takeHit(i === 0, 'grenade');
+  for (let i = 0; i < hits && t.alive; i++) t.takeHit(i === 0, 'grenade', wid);
 }
 
 // ---------- Aufleucht-Marker: Ring(e), Text und (optional) ein stehender Schutzring, wenn ein Effekt ausloest ----------
@@ -260,7 +260,7 @@ class ChainLightning {
       if (!t) break;
       hit.add(t);
       this.pts.push({ x: t.x, y: t.y });
-      specialDamage(t, C.hits, C.bossDmg);
+      specialDamage(t, C.hits, C.bossDmg, this.wid);
       cur = t; range = C.link * (evo ? E.range : 1);
     }
   }
@@ -307,7 +307,7 @@ class BlackHole {
     if (this.age >= C.life) {
       this.alive = false;
       for (const t of G.enemies.concat(G.bossList())) {
-        if (t.alive && circlesOverlap(this.x, this.y, C.radius, t.x, t.y, t.radius)) specialDamage(t, C.hits, C.bossDmg);
+        if (t.alive && circlesOverlap(this.x, this.y, C.radius, t.x, t.y, t.radius)) specialDamage(t, C.hits, C.bossDmg, this.wid);
       }
       G.attacks.push(new BlinkFlash(this.x, this.y));
       Juice.shake(4); Juice.flash(STYLE.pal.purple, 0.18, 0.12);
@@ -538,7 +538,7 @@ class Rocket {
       if (!e.alive || this.touched.has(e) || !circlesOverlap(this.x, this.y, C.radius, e.x, e.y, e.radius)) continue;
       if (e.hitsLeft > C.strongHits) { this.explode(); return; }          // starker Gegner: Einschlag
       this.touched.add(e);
-      for (let i = 0; i < C.touchHits && e.alive; i++) e.takeHit(true, 'rocket');
+      for (let i = 0; i < C.touchHits && e.alive; i++) e.takeHit(true, 'rocket', this.wid);
     }
     if (G.bossList().some((b) => b.alive && circlesOverlap(this.x, this.y, C.radius, b.x, b.y, b.radius)) || G.spawners.some((s) => s.alive && circlesOverlap(this.x, this.y, C.radius, s.x, s.y, CFG.spawner.radius))) { this.explode(); return; }
     if (this.age >= C.fuse) this.explode();
@@ -549,7 +549,7 @@ class Rocket {
     Sfx.play('blast'); Juice.shake(3); Juice.flash(STYLE.pal.cyan, 0.15, 0.1);
     for (const e of G.enemies) {
       if (!e.alive || !circlesOverlap(this.x, this.y, C.blast, e.x, e.y, e.radius)) continue;
-      for (let i = 0; i < C.blastHits && e.alive; i++) e.takeHit(i === 0, 'grenade');
+      for (let i = 0; i < C.blastHits && e.alive; i++) e.takeHit(i === 0, 'grenade', this.wid);
     }
     for (const b of G.bossList()) if (circlesOverlap(this.x, this.y, C.blast, b.x, b.y, b.radius)) { b.hp -= C.bossDmg * damageBoost(); b.bar = 0; }
     for (const s of G.spawners) if (s.alive && circlesOverlap(this.x, this.y, C.blast, s.x, s.y, CFG.spawner.radius)) s.hp -= C.spawnerDmg;

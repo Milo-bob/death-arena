@@ -648,7 +648,14 @@ class Player {
   }
 
   // Starke Waffen ausser dem Beam: Plasmagranate (Druck = werfen) und Feuerpfad (Druck = ein/aus, wirkt dann von allein)
+  // Run-Statistik: Angriffe ab Index n0 der Waffe `wid` zuordnen (Klassen wie Shot werden von mehreren Waffen genutzt)
+  tagAttacks(n0, wid) { for (let i = n0; i < G.attacks.length; i++) if (!G.attacks[i].wid) G.attacks[i].wid = wid; }
   useHeavyItems(dt) {
+    const n0 = G.attacks.length;
+    this.useHeavyItems2(dt);
+    this.tagAttacks(n0, Save.equipped('heavy'));
+  }
+  useHeavyItems2(dt) {
     const heavy = Save.equipped('heavy'), F = this.fire;
     const press = () => Input.actPressed('beam') && !SafeSpot.inside;          // im Safe Spot keine starke Waffe (Feuerpfad schaltet sich ab)
     if (SafeSpot.inside) F.on = false;
@@ -721,6 +728,7 @@ class Player {
       if (this.vortexT <= 0) { this.vortexT = CFG.evolutions.vortex.every; G.attacks.push(new VortexRing(this)); Sfx.play('impulse'); }
     } else this.vortexT = 0.8;                                                        // kurze Anlaufzeit nach dem Start des Drehens
     if (!space || blocked || slotItem === 'sword' || this.attackCd > 0) return;
+    const n0 = G.attacks.length;
     if (slotItem === 'lance') {
       const aim = this.aimAssist(CFG.lance);       // vorderer Stoss zielt leicht auf Gegner, die anderen sind daran ausgerichtet
       Sfx.play('stab');
@@ -791,6 +799,7 @@ class Player {
       for (const off of offs) G.attacks.push(new Shot(this.x, this.y, aim + off, true, pr ? { frames: CFG.bounce.frames * pr.frames, from: this } : { from: this }));
       this.attackCd = Loadout.shot.cooldown * CFG.bounce.cdMul * (1 - Save.bonus('shot')) / this.hasteFor('shot');
     }
+    this.tagAttacks(n0, slotItem);                                              // Run-Statistik: neue Angriffe tragen den Namen der Waffe
     if (this.attackCd > 0) {                                                    // es wurde angegriffen: Waffenstufe verkuerzt die Pause, Hintergrund-XP
       this.attackCd /= Save.gearMul(slotItem);
       Save.gearXp(slotItem, CFG.gear.xp.attack);

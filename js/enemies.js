@@ -303,7 +303,7 @@ class Enemy {
     const e = CFG.enemy;
     if (this.type === 'guard') {
       const A = e.guard.armor[this.armor];
-      if (this.stun <= 0 && weaponHitOf(this.x, this.y, r, A.hurts)) this.takeHit();
+      if (this.stun <= 0) { const hw = weaponHitOf(this.x, this.y, r, A.hurts); if (hw) this.takeHit(true, hw.kind, hw.wid); }
       const bounced = weaponHitOf(this.x, this.y, r, A.blocks);
       if (bounced) {
         if (bounced.kind === 'shot') bounced.alive = false;     // der Schuss zerplatzt am Schild
@@ -313,7 +313,7 @@ class Enemy {
       Elite.bastionHit(this, r);                                      // Schildfront haelt Schuesse ab
     } else if (this.stun <= 0) {
       const w = weaponHit(this.x, this.y, r);
-      if (w) { this.takeHit(true, w.kind); if (w.kind === 'sword' && this.alive) this.bladeKnock(); }
+      if (w) { this.takeHit(true, w.kind, w.wid); if (w.kind === 'sword' && this.alive) this.bladeKnock(); }
     }
   }
 
@@ -348,9 +348,9 @@ class Enemy {
 
   // stun = false: Dauerschaden (Feuer) betaeubt nicht. Artefakt Schadensboost: mit etwas Chance doppelter Schaden
   // src = Art des Angriffs (der Tank nimmt je nach Art unterschiedlich viel Schaden, siehe CFG.enemy.tank.dmg)
-  takeHit(stun = true, src = null) {
+  takeHit(stun = true, src = null, wid = null) {
     let n = this.hitUnits() * (1 + Save.bonus('power'));          // Meta-Upgrade POWER: mehr Schaden gegen alle Gegner (Bosse: damageBoost)
-    this.killSrc = src;                                     // Run-Statistik: womit wurde zuletzt getroffen
+    this.killWid = wid; this.killSrc = src;                                     // Run-Statistik: womit wurde zuletzt getroffen
     if (this.type === 'tank') {
       const T = CFG.enemy.tank;
       if (this.hitCd > 0) return;
@@ -398,7 +398,7 @@ class Enemy {
     G.addCombo();
     G.kills++;
     Ach.kill(this);
-    Stats.kill(this.killSrc);
+    Stats.kill(this.killSrc, this.killWid);
     Xp.drop(this);
     if (!this.splitlet && !this.minion && !this.elite) noteFallen(this);
     if (this.type === 'splitter' && !this.gh) Patterns.splitlet(this, CFG.enemy.splitter.splitCount);
